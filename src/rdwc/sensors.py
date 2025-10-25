@@ -19,11 +19,11 @@ class EZO:
     def _read(self) -> str:
         if self.mock:
             # Return different mock values based on address
-            if self.addr == int(os.getenv("RTD_ADDR", "0x66"), 16):  # Temperature sensor
+            if self.addr == 0x66:  # RTD/Temperature sensor
                 return "1,22.5"
-            elif self.addr == int(os.getenv("EC_ADDR", "0x64"), 16):  # EC sensor  
+            elif self.addr == 0x64:  # EC sensor  
                 return "1,1250"
-            elif self.addr == int(os.getenv("PH_ADDR", "0x63"), 16):  # pH sensor
+            elif self.addr == 0x63:  # pH sensor
                 return "1,6.8"
             else:
                 return "1,7.00"
