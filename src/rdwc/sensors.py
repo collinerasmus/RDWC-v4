@@ -1,11 +1,13 @@
-import os, time
+import os
+import time
 from smbus2 import SMBus
 
 RUNNING_ON_PI = os.path.exists("/sys/firmware/devicetree/base/model")
+FORCE_MOCK = os.getenv("FORCE_MOCK_SENSORS", "false").lower() == "true"
 
 class EZO:
     def __init__(self, bus: int, addr: int):
-        self.mock = not RUNNING_ON_PI
+        self.mock = not RUNNING_ON_PI or FORCE_MOCK
         self.addr = addr
         self.busno = bus
         if not self.mock:
