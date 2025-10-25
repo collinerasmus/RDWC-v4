@@ -1,0 +1,14 @@
+[Unit]
+Description=RDWC Control + API
+After=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/RDWC-v4
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/pi/RDWC-v4/.venv/bin/python -m rdwc.main
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
