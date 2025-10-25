@@ -18,7 +18,15 @@ class EZO:
 
     def _read(self) -> str:
         if self.mock:
-            return "1,7.00"
+            # Return different mock values based on address
+            if self.addr == int(os.getenv("RTD_ADDR", "0x66"), 16):  # Temperature sensor
+                return "1,22.5"
+            elif self.addr == int(os.getenv("EC_ADDR", "0x64"), 16):  # EC sensor  
+                return "1,1250"
+            elif self.addr == int(os.getenv("PH_ADDR", "0x63"), 16):  # pH sensor
+                return "1,6.8"
+            else:
+                return "1,7.00"
         time.sleep(0.3)
         data = self.bus.read_i2c_block_data(self.addr, 0x00, 32)
         chars = []
