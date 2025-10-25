@@ -17,7 +17,7 @@ class Settings(BaseModel):
     ph_up_max_sec: int = int(os.getenv("PH_UP_MAX_SEC", "2"))
     ph_up_cooldown_sec: int = int(os.getenv("PH_UP_COOLDOWN_SEC", "90"))
 
-    relay = {
+    relay: dict = {
         "ph_up": int(os.getenv("RELAY_PH_UP", "5")),
         "grow": int(os.getenv("RELAY_GROW", "6")),
         "micro": int(os.getenv("RELAY_MICRO", "13")),
