@@ -36,5 +36,9 @@ class Settings(BaseModel):
 
     sample_interval_sec: int = int(os.getenv("SAMPLE_INTERVAL_SEC", "10"))
     force_mock_sensors: bool = os.getenv("FORCE_MOCK_SENSORS", "0") == "1"
+    
+    lights_on_hour: int = int(os.getenv("LIGHTS_ON_HOUR", "6"))
+    lights_off_hour: int = int(os.getenv("LIGHTS_OFF_HOUR", "22"))
+    ui_refresh_sec: int = int(os.getenv("UI_REFRESH_SEC", "10"))
 
 settings = Settings()
