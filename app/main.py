@@ -3,8 +3,10 @@ from fastapi.responses import JSONResponse
 import threading, time
 from subprocess import run, PIPE
 from app.ezo_i2c import read_all, identify, ADDR_PH, ADDR_EC, ADDR_RTD
+from app.diag import router as diag_router
 
 app = FastAPI()
+app.include_router(diag_router)
 
 _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {}}
 _last_t = 0.0
