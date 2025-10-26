@@ -1,13 +1,16 @@
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
-import threading, time
+from fastapi import FastAPI, Body
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+import threading, time, os
 from subprocess import run, PIPE
 from app.ezo_i2c_stabilized import read_all
 from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
 from app.diag import router as diag_router
+from app.hardware import PumpController
+from app.logger import log_reading, last_n
 
 app = FastAPI()
 app.include_router(diag_router)
+_pumps = PumpController()
 
 _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {}}
 _last_t = 0.0
@@ -25,12 +28,34 @@ def _sensor_loop():
                 "errors": {}
             }
             _last_t = time.time()
+            # log only if we have numbers
+            if all(v is not None for v in (_last["temp_c"], _last["ph"], _last["ec_ms_cm"])):
+                log_reading(_last["temp_c"], _last["ph"], _last["ec_ms_cm"])
         except Exception as e:
             _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {"loop": str(e)}}
         time.sleep(10)
 
 if not any(t.name == "_sensor_loop" for t in threading.enumerate()):
     threading.Thread(target=_sensor_loop, name="_sensor_loop", daemon=True).start()
+
+@app.get("/")
+def ui():
+    path = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    return FileResponse(path, media_type="text/html")
+
+@app.get("/history")
+def history(limit: int = 100):
+    return last_n(limit)
+
+@app.get("/pump/status")
+def pump_status():
+    return _pumps.status()
+
+@app.post("/pump/{name}")
+def pump_set(name: str, body: dict = Body(...)):
+    state = body.get("state", "").lower()
+    _pumps.set(name, state == "on")
+    return {"ok": True, "state": _pumps.get(name)}
 
 @app.get("/status")
 def status():

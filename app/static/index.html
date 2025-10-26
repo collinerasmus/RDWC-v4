@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>RDWC v4 — Dashboard</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+ body{background:#0b0f14;color:#e6edf3;font-family:system-ui,Segoe UI,Roboto,Arial}
+ .wrap{max-width:1100px;margin:24px auto;padding:0 12px}
+ h1{font-weight:700;font-size:22px;margin:0 0 14px}
+ .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}
+ .card{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:14px}
+ .row{display:flex;gap:10px;align-items:center;margin:6px 0}
+ button{border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
+ .on{background:#10b981;color:#062314}
+ .off{background:#ef4444;color:#2c0c0c}
+ .kv{font-variant-numeric:tabular-nums}
+ .cam{width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;overflow:hidden}
+ .muted{color:#9ca3af;font-size:12px}
+ table{width:100%;border-collapse:collapse}
+ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>RDWC v4 — Dashboard</h1>
+  <div class="grid">
+    <div class="card">
+      <h3>Sensors</h3>
+      <div class="row kv">Temp: <b id="temp">—</b> °C</div>
+      <div class="row kv">pH: <b id="ph">—</b></div>
+      <div class="row kv">EC: <b id="ec">—</b> mS/cm</div>
+      <div class="muted">Updates every 10s • <span id="age">—</span>s ago</div>
+      <h3 style="margin-top:16px;">Pumps</h3>
+      <div class="row">
+        <button id="btn-main" class="off" onclick="pump('main')">Main: OFF</button>
+        <button id="btn-chiller" class="off" onclick="pump('chiller')">Chiller: OFF</button>
+      </div>
+      <div class="muted">Relay mode: active-LOW defaults (configurable)</div>
+    </div>
+    <div class="card">
+      <h3>Camera</h3>
+      <div class="cam">
+        <img id="cam" src="http://192.168.88.49:8081/?action=stream" style="width:100%;height:100%;object-fit:contain"/>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <h3>Recent Readings</h3>
+    <table id="hist"><thead><tr><th>Time</th><th>Temp (°C)</th><th>pH</th><th>EC (mS/cm)</th></tr></thead><tbody></tbody></table>
+  </div>
+</div>
+<script>
+async function refresh(){
+  const s = await (await fetch('/status')).json();
+  document.getElementById('temp').textContent = s.temp_c?.toFixed?.(3) ?? '—';
+  document.getElementById('ph').textContent = s.ph?.toFixed?.(3) ?? '—';
+  document.getElementById('ec').textContent = s.ec_ms_cm?.toFixed?.(1) ?? '—';
+  document.getElementById('age').textContent = s.age_s ?? '—';
+  const p = await (await fetch('/pump/status')).json();
+  setBtn('btn-main', p.main); setBtn('btn-chiller', p.chiller);
+
+  const h = await (await fetch('/history?limit=20')).json();
+  const tb = document.querySelector('#hist tbody'); tb.innerHTML = '';
+  for (const r of h){
+    const tr = document.createElement('tr');
+    const dt = new Date(r.ts*1000).toLocaleString();
+    tr.innerHTML = `<td>${dt}</td><td>${fmt(r.temp_c)}</td><td>${fmt(r.ph)}</td><td>${fmt(r.ec_ms_cm)}</td>`;
+    tb.appendChild(tr);
+  }
+}
+function fmt(v){ return (v===null||v===undefined)?'—':Number(v).toFixed(3).replace(/\.000$/,''); }
+function setBtn(id,on){ const b=document.getElementById(id); if(on){b.className='on'; b.textContent=b.textContent.replace('OFF','ON');}else{b.className='off'; b.textContent=b.textContent.replace('ON','OFF');} }
+async function pump(name){
+  const st = await (await fetch('/pump/status')).json();
+  const target = !st[name];
+  await fetch(`/pump/${name}`, {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({state: target?'on':'off'})});
+  setTimeout(refresh, 400);
+}
+refresh(); setInterval(refresh, 10000);
+</script>
+</body>
+</html>

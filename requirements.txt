@@ -4,3 +4,4 @@ pydantic
 python-dotenv
 smbus2
 RPi.GPIO
+gpiozero
