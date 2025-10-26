@@ -4,6 +4,8 @@ from .hardware import Relays
 from .sensors import Sensors, Sampler
 from .control import Controller
 from .api import build_app
+from .history import init_db
+from .dosing import Doser
 
 def create_components():
     relays = Relays(settings.relay, active_high=False)
@@ -11,13 +13,13 @@ def create_components():
     sampler = Sampler(sensors, interval_sec=settings.sample_interval_sec)
     sampler.start()
     controller = Controller(sampler, relays)
-    return controller, sampler
+    doser = Doser(relays, sampler, is_mock=settings.force_mock_sensors)
+    return controller, sampler, doser
 
 def run():
-    from .history import init_db
     init_db()
-    controller, sampler = create_components()
-    app = build_app(controller, sampler)
+    controller, sampler, doser = create_components()
+    app = build_app(controller, sampler, doser)
     uvicorn.run(app, host=settings.host, port=settings.port)
 
 if __name__ == "__main__":

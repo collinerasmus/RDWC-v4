@@ -40,5 +40,16 @@ class Settings(BaseModel):
     lights_on_hour: int = int(os.getenv("LIGHTS_ON_HOUR", "6"))
     lights_off_hour: int = int(os.getenv("LIGHTS_OFF_HOUR", "22"))
     ui_refresh_sec: int = int(os.getenv("UI_REFRESH_SEC", "10"))
+    
+    # dosing / volume
+    total_volume_l: float = float(os.getenv("TOTAL_VOLUME_L", "100"))
+    ml_per_sec = {
+        "grow": float(os.getenv("ML_PER_SEC_GROW", "10")),
+        "micro": float(os.getenv("ML_PER_SEC_MICRO", "10")),
+        "bloom": float(os.getenv("ML_PER_SEC_BLOOM", "10")),
+    }
+    dose_max_sec_per_run: int = int(os.getenv("DOSE_MAX_SEC_PER_RUN", "5"))
+    dose_cooldown_sec: int = int(os.getenv("DOSE_COOLDOWN_SEC", "15"))
+    allow_dosing_when_mock: bool = os.getenv("ALLOW_DOSING_WHEN_MOCK", "0") == "1"
 
 settings = Settings()
