@@ -15,8 +15,8 @@ def read_value(addr: int, cmd="R"):
     sensor = EZO(settings.i2c_bus, addr, mock_override=settings.force_mock_sensors)
     try:
         return sensor.read_float(cmd=cmd, delay=_delay_for(addr))
-    except (ValueError, TypeError):
-        # Return None if sensor returns empty string or invalid data
+    except (ValueError, TypeError, RuntimeError):
+        # Return None if sensor returns empty string, invalid data, or error status
         return None
 
 def set_temp_comp(t_c: float | None):
