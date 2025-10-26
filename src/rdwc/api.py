@@ -1,13 +1,34 @@
 from fastapi import FastAPI, Request, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from .config import settings
 from .nutrients import get_week_schedule
 from .history import read_recent
 from .diag import i2c_scan, probe_now, atlas
 from .atlas_helper import run_fixer
+from .sensors import Sensors
+
+import subprocess
+import json
+
+def cam_status():
+    try:
+        out = subprocess.check_output(["systemctl","is-active","mjpg-streamer.service"], text=True).strip()
+    except Exception:
+        out = "unknown"
+    # check port
+    try:
+        head = subprocess.check_output(["bash","-lc","curl -s -I http://127.0.0.1:8081/?action=stream | head -n1"], text=True).strip()
+    except Exception as e:
+        head = f"curl_error:{e}"
+    # get last few log lines
+    try:
+        logs = subprocess.check_output(["bash","-lc","journalctl -u mjpg-streamer.service -n 20 --no-pager"], text=True)
+    except Exception:
+        logs = ""
+    return {"service": out, "http_head": head, "logs_tail": logs}
 
 def build_app(controller, sampler, doser):
-    app = FastAPI(title="RDWC", version="0.5.0")
+    app = FastAPI(title="RDWC", version="0.5.1")
 
     @app.get("/status")
     def status():
@@ -18,6 +39,33 @@ def build_app(controller, sampler, doser):
     def diag():
         return {"env": settings.env, "force_mock": settings.force_mock_sensors, "i2c": i2c_scan(), "now": probe_now()}
 
+    # --- NEW: force a fresh sensor read now (no cache) ---
+    @app.get("/read_now")
+    def read_now():
+        s = Sensors()
+        try:
+            data = s.sample_once()
+            return {"ok": True, "data": data}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    # --- NEW: camera status endpoint ---
+    @app.get("/cam_status")
+    def camstat():
+        return cam_status()
+
+    # accept both GET and POST for convenience
+    @app.get("/fix_ezo")
+    @app.post("/fix_ezo")
+    def fix_ezo():
+        return run_fixer()
+
+    @app.get("/atlas")
+    @app.post("/atlas")
+    def atlas_cmd(addr: str, cmd: str):
+        """Send a raw Atlas I2C command. Example: /atlas?addr=0x63&cmd=I"""
+        return atlas(addr, cmd)
+
     @app.post("/actuate/{name}/{on}")
     def actuate(name: str, on: int):
         onb = (on == 1)
@@ -27,11 +75,7 @@ def build_app(controller, sampler, doser):
     @app.get("/", response_class=HTMLResponse)
     def ui(request: Request):
         data = sampler.latest()
-        # Generate relay controls outside f-string
-        relay_controls = "".join([
-            f"<div class='card'>{n}<br><button onclick=\"fetch('/actuate/{n}/1',{{method:'POST'}})\">ON</button><button onclick=\"fetch('/actuate/{n}/0',{{method:'POST'}})\">OFF</button></div>" 
-            for n in controller.relays.pin_map.keys()
-        ])
+        cam = cam_status()
         html = f"""
         <html><head>
         <meta http-equiv="refresh" content="{settings.ui_refresh_sec}">
@@ -42,7 +86,7 @@ def build_app(controller, sampler, doser):
           .card {{ display:inline-block;background:#111;border-radius:12px;padding:1em;margin:0.5em; }}
           button {{ background:#333;color:#eee;border:none;border-radius:6px;padding:0.6em 1em;margin:0.3em;cursor:pointer; }}
           input,select {{ background:#111;color:#eee;border:1px solid #333;border-radius:6px;padding:0.4em 0.6em; }}
-          pre {{ text-align:left;white-space:pre-wrap;background:#0f0f0f;padding:0.6em;border-radius:8px; }}
+          pre {{ text-align:left;white-space:pre-wrap;background:#0f0f0f;padding:0.6em;border-radius:8px; max-height:240px; overflow:auto; }}
         </style></head><body>
         <h1>🌿 RDWC Control Panel</h1>
         <div class="card"><b>Temperature:</b> {data.get('temperature_c')}°C<br>
@@ -50,7 +94,7 @@ def build_app(controller, sampler, doser):
         <b>pH:</b> {data.get('pH')}</div><br><br>
 
         <h2>Relay Controls</h2>
-        {relay_controls}
+        {"".join([f"<div class='card'>{n}<br><button onclick=\"fetch('/actuate/{n}/1',{{method:'POST'}})\">ON</button><button onclick=\"fetch('/actuate/{n}/0',{{method:'POST'}})\">OFF</button></div>" for n in controller.relays.pin_map.keys()])}
 
         <h2>Nutrient Planner</h2>
         <div class="card" style="min-width:340px;">
@@ -76,22 +120,23 @@ def build_app(controller, sampler, doser):
           <pre id="ecbox"></pre>
         </div>
 
-        <h2>Live Camera Feed</h2>
-        <div class="card" style="min-width:640px;">
-          <img src="http://{request.client.host.split(':')[0]}:8080/?action=stream" 
-               style="max-width:100%;border-radius:8px;" 
-               onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQwIiBoZWlnaHQ9IjQ4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZpbGw9IiNlZWUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5DYW1lcmEgT2ZmbGluZTwvdGV4dD48L3N2Zz4=';">
+        <h2>Live Camera</h2>
+        <div class="card">
+          <div><small>Service: {cam['service']} • HTTP: {cam['http_head']}</small></div>
+          <img src="http://{request.client.host}:8081/?action=stream" style="max-width:90%;border-radius:8px;" onerror="this.replaceWith(Object.assign(document.createElement('div'),{{innerText:'Camera Offline',style:'padding:1em'}}))">
+          <details style="margin-top:8px;"><summary>Logs</summary><pre>{cam['logs_tail']}</pre></details>
         </div>
 
         <h2>System Diagnostics</h2>
-        <div class="card" style="min-width:500px;">
-          <button onclick="loadDiag()">Refresh Diagnostics</button>
-          <button onclick="testAtlas()">Test Atlas Sensors</button>
-          <button onclick="fetch('/fix_ezo',{{method:'POST'}}).then(r=>r.json()).then(j=>document.getElementById('diagbox').innerText=JSON.stringify(j,null,2))">Run Atlas Fixer</button><br>
-          Atlas Command: <input type="text" id="atlascmd" placeholder="I" style="width:80px;">
-          Address: <select id="atlasaddr"><option>0x63</option><option>0x64</option><option>0x66</option></select>
-          <button onclick="sendAtlas()">Send</button>
-          <pre id="diagbox" style="max-height:200px;overflow-y:auto;"></pre>
+        <div class="card" style="min-width:340px;">
+          <button onclick="fetch('/diag').then(r=>r.json()).then(j=>diagbox.innerText=JSON.stringify(j,null,2))">Refresh Diagnostics</button>
+          <button onclick="fetch('/read_now').then(r=>r.json()).then(j=>diagbox.innerText=JSON.stringify(j,null,2))">Test Atlas Sensors</button>
+          <button onclick="fetch('/fix_ezo').then(r=>r.json()).then(j=>diagbox.innerText=JSON.stringify(j,null,2))">Run Atlas Fixer</button>
+          <div>
+            Atlas Command: <input id="acmd" value="I" size="10"> Address: <input id="aaddr" value="0x63" size="6">
+            <button onclick="doAtlas()">Send</button>
+          </div>
+          <pre id="diagbox"></pre>
         </div>
 
         <h2>Recent Readings</h2>
@@ -126,12 +171,9 @@ def build_app(controller, sampler, doser):
             }}
             document.getElementById('diagbox').innerText=JSON.stringify(results,null,2);
           }}
-          async function sendAtlas(){{
-            const addr=document.getElementById('atlasaddr').value, cmd=document.getElementById('atlascmd').value;
-            try{{
-              const r=await fetch(`/atlas?addr=${{addr}}&cmd=${{cmd}}`,{{method:'POST'}});
-              document.getElementById('diagbox').innerText=JSON.stringify(await r.json(),null,2);
-            }}catch(e){{document.getElementById('diagbox').innerText='Error: '+e.message;}}
+          async function doAtlas(){{
+            const a=document.getElementById('aaddr').value, c=document.getElementById('acmd').value;
+            const r=await fetch(`/atlas?addr=${{a}}&cmd=${{encodeURIComponent(c)}}`); diagbox.innerText=JSON.stringify(await r.json(),null,2);
           }}
         </script>
         <br><small><a href="/diag" style="color:#9dfd70;">Diagnostics</a> • Auto-refresh {settings.ui_refresh_sec}s</small>
@@ -160,11 +202,11 @@ def build_app(controller, sampler, doser):
     def dose_execute_to_ec(
         week: int = Query(..., ge=1, le=52),
         volume_l: float | None = None,
-        target_us: int = Query(default=settings.ec_target_us if hasattr(settings,'ec_target_us') else 1200),
-        tol_us: int = Query(default=settings.ec_tol_us if hasattr(settings,'ec_tol_us') else 50),
-        step_ml_per_10l: int = Query(default=getattr(settings,'ec_step_ml_per_10l',5)),
-        max_ml_per_10l: int = Query(default=getattr(settings,'ec_max_ml_per_10l',80)),
-        stabilize_wait_sec: int = Query(default=getattr(settings,'ec_stabilize_wait_sec',45)),
+        target_us: int = getattr(settings,'ec_target_us',1200),
+        tol_us: int = getattr(settings,'ec_tol_us',50),
+        step_ml_per_10l: int = getattr(settings,'ec_step_ml_per_10l',5),
+        max_ml_per_10l: int = getattr(settings,'ec_max_ml_per_10l',80),
+        stabilize_wait_sec: int = getattr(settings,'ec_stabilize_wait_sec',45),
         dry_run: int = 0
     ):
         return doser.execute_to_ec(
@@ -172,14 +214,5 @@ def build_app(controller, sampler, doser):
             step_ml_per_10l=step_ml_per_10l, max_ml_per_10l=max_ml_per_10l,
             stabilize_wait_sec=stabilize_wait_sec, dry_run=bool(dry_run)
         )
-
-    @app.post("/atlas")
-    def atlas_cmd(addr: str, cmd: str):
-        """Send a raw Atlas I2C command. Example: /atlas?addr=0x63&cmd=I"""
-        return atlas(addr, cmd)
-
-    @app.post("/fix_ezo")
-    def fix_ezo():
-        return run_fixer()
 
     return app
