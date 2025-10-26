@@ -16,12 +16,12 @@ def _sensor_loop():
     global _last, _last_t
     while True:
         try:
-            data = read_all()
-            # Convert from stabilized format to original format
+            # read_all() returns {"temperature": <float>, "ph": <float>, "ec_ms": <float>}
+            vals = read_all()
             _last = {
-                "temp_c": data.get("temperature"),
-                "ph": data.get("ph"),
-                "ec_ms_cm": data.get("ec_ms"),
+                "temp_c": vals.get("temperature"),
+                "ph": vals.get("ph"),
+                "ec_ms_cm": vals.get("ec_ms"),
                 "errors": {}
             }
             _last_t = time.time()
