@@ -176,7 +176,7 @@ def build_app(controller, sampler, doser):
             const r=await fetch(`/atlas?addr=${{a}}&cmd=${{encodeURIComponent(c)}}`); diagbox.innerText=JSON.stringify(await r.json(),null,2);
           }}
         </script>
-        <br><small><a href="/diag" style="color:#9dfd70;">Diagnostics</a> • Auto-refresh {settings.ui_refresh_sec}s</small>
+        <br><small>Auto-refresh {settings.ui_refresh_sec}s</small>
         </body></html>
         """
         return HTMLResponse(content=html)
