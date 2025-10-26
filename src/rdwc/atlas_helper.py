@@ -13,10 +13,16 @@ def _delay_for(addr:int)->float:
 
 def read_value(addr: int, cmd="R"):
     sensor = EZO(settings.i2c_bus, addr, mock_override=settings.force_mock_sensors)
-    return sensor.read_float(cmd=cmd, delay=_delay_for(addr))
+    try:
+        return sensor.read_float(cmd=cmd, delay=_delay_for(addr))
+    except (ValueError, TypeError):
+        # Return None if sensor returns empty string or invalid data
+        return None
 
-def set_temp_comp(t_c: float):
+def set_temp_comp(t_c: float | None):
     """Push temperature to EC and pH boards (if supported)."""
+    if t_c is None:
+        return  # Can't do temp compensation without temperature
     for addr in (settings.ec_addr, settings.ph_addr):
         e = EZO(settings.i2c_bus, addr, mock_override=settings.force_mock_sensors)
         try:
