@@ -21,16 +21,18 @@ class EZO:
         self.bus = None if self.mock else SMBus(bus)
 
     def _write(self, cmd: str):
-        if self.mock: return
-        # send ascii bytes (no null terminator)
-        self.bus.write_i2c_block_data(self.addr, 0x00, list(cmd.encode("ascii")))
+        if self.mock:
+            return
+        # Atlas I2C expects ASCII command terminated with NULL (0x00)
+        payload = list(cmd.encode("ascii")) + [0x00]
+        self.bus.write_i2c_block_data(self.addr, 0x00, payload)
 
     def _read_raw(self):
         if self.mock:
-            # Mock returns: status byte + ascii "1,7.00" bytes
+            # status=1 + ascii "7.00" + null
             return [1] + list(b"7.00") + [0]
-        data = self.bus.read_i2c_block_data(self.addr, 0x00, 32)
-        return data
+        # Read up to 32 bytes (Atlas standard buffer)
+        return self.bus.read_i2c_block_data(self.addr, 0x00, 32)
 
     def _exchange(self, cmd: str, delay: float = 0.9, retries: int = 6) -> str:
         # write then wait

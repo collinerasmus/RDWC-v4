@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from .config import settings
 from .nutrients import get_week_schedule
 from .history import read_recent
-from .diag import diag_bundle
+from .diag import i2c_scan, probe_now, atlas
 
 def build_app(controller, sampler, doser):
     app = FastAPI(title="RDWC", version="0.5.0")
@@ -15,7 +15,7 @@ def build_app(controller, sampler, doser):
 
     @app.get("/diag")
     def diag():
-        return diag_bundle()
+        return {"env": settings.env, "force_mock": settings.force_mock_sensors, "i2c": i2c_scan(), "now": probe_now()}
 
     @app.post("/actuate/{name}/{on}")
     def actuate(name: str, on: int):
@@ -75,6 +75,23 @@ def build_app(controller, sampler, doser):
           <pre id="ecbox"></pre>
         </div>
 
+        <h2>Live Camera Feed</h2>
+        <div class="card" style="min-width:640px;">
+          <img src="http://{request.client.host.split(':')[0]}:8080/?action=stream" 
+               style="max-width:100%;border-radius:8px;" 
+               onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQwIiBoZWlnaHQ9IjQ4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZpbGw9IiNlZWUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5DYW1lcmEgT2ZmbGluZTwvdGV4dD48L3N2Zz4=';">
+        </div>
+
+        <h2>System Diagnostics</h2>
+        <div class="card" style="min-width:500px;">
+          <button onclick="loadDiag()">Refresh Diagnostics</button>
+          <button onclick="testAtlas()">Test Atlas Sensors</button><br>
+          Atlas Command: <input type="text" id="atlascmd" placeholder="I" style="width:80px;">
+          Address: <select id="atlasaddr"><option>0x63</option><option>0x64</option><option>0x66</option></select>
+          <button onclick="sendAtlas()">Send</button>
+          <pre id="diagbox" style="max-height:200px;overflow-y:auto;"></pre>
+        </div>
+
         <h2>Recent Readings</h2>
         <iframe src="/history" style="width:90%;height:220px;background:#111;color:#eee;border:none;"></iframe>
 
@@ -93,6 +110,26 @@ def build_app(controller, sampler, doser):
             const step=document.getElementById('ecstep').value, mx=document.getElementById('ecmax').value, wait=document.getElementById('ecwait').value;
             const url=`/dose/execute_to_ec?week=${{w}}&volume_l=${{v}}&target_us=${{tgt}}&tol_us=${{tol}}&step_ml_per_10l=${{step}}&max_ml_per_10l=${{mx}}&stabilize_wait_sec=${{wait}}&dry_run=${{dry?1:0}}`;
             const r=await fetch(url,{{method:'POST'}}); document.getElementById('ecbox').innerText=JSON.stringify(await r.json(),null,2);
+          }}
+          async function loadDiag(){{
+            const r=await fetch('/diag'); document.getElementById('diagbox').innerText=JSON.stringify(await r.json(),null,2);
+          }}
+          async function testAtlas(){{
+            const addrs=['0x63','0x64','0x66']; let results={{}};
+            for(const addr of addrs){{
+              try{{
+                const r=await fetch(`/atlas?addr=${{addr}}&cmd=I`,{{method:'POST'}});
+                results[addr]=await r.json();
+              }}catch(e){{results[addr]={{error:e.message}};}}
+            }}
+            document.getElementById('diagbox').innerText=JSON.stringify(results,null,2);
+          }}
+          async function sendAtlas(){{
+            const addr=document.getElementById('atlasaddr').value, cmd=document.getElementById('atlascmd').value;
+            try{{
+              const r=await fetch(`/atlas?addr=${{addr}}&cmd=${{cmd}}`,{{method:'POST'}});
+              document.getElementById('diagbox').innerText=JSON.stringify(await r.json(),null,2);
+            }}catch(e){{document.getElementById('diagbox').innerText='Error: '+e.message;}}
           }}
         </script>
         <br><small><a href="/diag" style="color:#9dfd70;">Diagnostics</a> • Auto-refresh {settings.ui_refresh_sec}s</small>
@@ -133,5 +170,10 @@ def build_app(controller, sampler, doser):
             step_ml_per_10l=step_ml_per_10l, max_ml_per_10l=max_ml_per_10l,
             stabilize_wait_sec=stabilize_wait_sec, dry_run=bool(dry_run)
         )
+
+    @app.post("/atlas")
+    def atlas_cmd(addr: str, cmd: str):
+        """Send a raw Atlas I2C command. Example: /atlas?addr=0x63&cmd=I"""
+        return atlas(addr, cmd)
 
     return app
