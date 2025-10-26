@@ -19,6 +19,14 @@ def build_app(controller, sampler):
     @app.get("/", response_class=HTMLResponse)
     def ui(request: Request):
         data = sampler.latest()
+        
+        # Generate relay control buttons
+        relay_buttons = []
+        for n in controller.relays.pin_map.keys():
+            btn_html = f"<div class='card'>{n}<br><button onclick=\"fetch('/actuate/{n}/1',{{method:'POST'}})\">ON</button><button onclick=\"fetch('/actuate/{n}/0',{{method:'POST'}})\">OFF</button></div>"
+            relay_buttons.append(btn_html)
+        relay_controls = "".join(relay_buttons)
+        
         html = f"""
         <html><head>
         <meta http-equiv="refresh" content="{settings.ui_refresh_sec}">
@@ -35,7 +43,7 @@ def build_app(controller, sampler):
         <b>EC:</b> {data.get('ec')} µS/cm<br>
         <b>pH:</b> {data.get('pH')}</div><br><br>
         <h2>Relay Controls</h2>
-        {"".join([f"<div class='card'>{n}<br><button onclick=\"fetch('/actuate/{n}/1',{{method:'POST'}})\">ON</button><button onclick=\"fetch('/actuate/{n}/0',{{method:'POST'}})\">OFF</button></div>" for n in controller.relays.pin_map.keys()])}
+        {relay_controls}
         <br><br><small>Auto-refresh {settings.ui_refresh_sec}s • Lights auto {settings.lights_on_hour}:00–{settings.lights_off_hour}:00</small>
         </body></html>
         """
