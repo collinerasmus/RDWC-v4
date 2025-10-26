@@ -105,6 +105,8 @@ class Sampler:
         while not self._stop.is_set():
             try:
                 data = self.sensors.sample_once()
+                from .history import log_sample
+                log_sample(data)
                 data["ts"] = time.time()
                 with self._lock:
                     self._last = data

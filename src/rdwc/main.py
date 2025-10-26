@@ -14,6 +14,8 @@ def create_components():
     return controller, sampler
 
 def run():
+    from .history import init_db
+    init_db()
     controller, sampler = create_components()
     app = build_app(controller, sampler)
     uvicorn.run(app, host=settings.host, port=settings.port)
