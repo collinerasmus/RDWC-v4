@@ -4,6 +4,7 @@ from .config import settings
 from .nutrients import get_week_schedule
 from .history import read_recent
 from .diag import i2c_scan, probe_now, atlas
+from .atlas_helper import run_fixer
 
 def build_app(controller, sampler, doser):
     app = FastAPI(title="RDWC", version="0.5.0")
@@ -85,7 +86,8 @@ def build_app(controller, sampler, doser):
         <h2>System Diagnostics</h2>
         <div class="card" style="min-width:500px;">
           <button onclick="loadDiag()">Refresh Diagnostics</button>
-          <button onclick="testAtlas()">Test Atlas Sensors</button><br>
+          <button onclick="testAtlas()">Test Atlas Sensors</button>
+          <button onclick="fetch('/fix_ezo',{{method:'POST'}}).then(r=>r.json()).then(j=>document.getElementById('diagbox').innerText=JSON.stringify(j,null,2))">Run Atlas Fixer</button><br>
           Atlas Command: <input type="text" id="atlascmd" placeholder="I" style="width:80px;">
           Address: <select id="atlasaddr"><option>0x63</option><option>0x64</option><option>0x66</option></select>
           <button onclick="sendAtlas()">Send</button>
@@ -175,5 +177,9 @@ def build_app(controller, sampler, doser):
     def atlas_cmd(addr: str, cmd: str):
         """Send a raw Atlas I2C command. Example: /atlas?addr=0x63&cmd=I"""
         return atlas(addr, cmd)
+
+    @app.post("/fix_ezo")
+    def fix_ezo():
+        return run_fixer()
 
     return app
