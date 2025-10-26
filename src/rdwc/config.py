@@ -43,7 +43,7 @@ class Settings(BaseModel):
     
     # dosing / volume
     total_volume_l: float = float(os.getenv("TOTAL_VOLUME_L", "100"))
-    ml_per_sec = {
+    ml_per_sec: Dict[str, float] = {
         "grow": float(os.getenv("ML_PER_SEC_GROW", "10")),
         "micro": float(os.getenv("ML_PER_SEC_MICRO", "10")),
         "bloom": float(os.getenv("ML_PER_SEC_BLOOM", "10")),
