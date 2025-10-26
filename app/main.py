@@ -2,7 +2,8 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 import threading, time
 from subprocess import run, PIPE
-from app.ezo_i2c import read_all, identify, ADDR_PH, ADDR_EC, ADDR_RTD
+from app.ezo_i2c_stabilized import read_all
+from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
 from app.diag import router as diag_router
 
 app = FastAPI()
@@ -15,7 +16,14 @@ def _sensor_loop():
     global _last, _last_t
     while True:
         try:
-            _last = read_all()
+            data = read_all()
+            # Convert from stabilized format to original format
+            _last = {
+                "temp_c": data.get("temperature"),
+                "ph": data.get("ph"),
+                "ec_ms_cm": data.get("ec_ms"),
+                "errors": {}
+            }
             _last_t = time.time()
         except Exception as e:
             _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {"loop": str(e)}}
