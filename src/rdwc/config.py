@@ -51,5 +51,11 @@ class Settings(BaseModel):
     dose_max_sec_per_run: int = int(os.getenv("DOSE_MAX_SEC_PER_RUN", "5"))
     dose_cooldown_sec: int = int(os.getenv("DOSE_COOLDOWN_SEC", "15"))
     allow_dosing_when_mock: bool = os.getenv("ALLOW_DOSING_WHEN_MOCK", "0") == "1"
+    
+    ec_target_us: int = int(os.getenv("EC_TARGET_US", "1200"))
+    ec_tol_us: int = int(os.getenv("EC_TOL_US", "50"))
+    ec_step_ml_per_10l: int = int(os.getenv("EC_STEP_ML_PER_10L", "5"))
+    ec_max_ml_per_10l: int = int(os.getenv("EC_MAX_ML_PER_10L", "80"))
+    ec_stabilize_wait_sec: int = int(os.getenv("EC_STABILIZE_WAIT_SEC", "45"))
 
 settings = Settings()
