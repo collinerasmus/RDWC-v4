@@ -17,7 +17,7 @@ class Settings(BaseModel):
     ph_up_max_sec: int = int(os.getenv("PH_UP_MAX_SEC", "2"))
     ph_up_cooldown_sec: int = int(os.getenv("PH_UP_COOLDOWN_SEC", "90"))
 
-    relay: dict = {
+    relay = {
         "ph_up": int(os.getenv("RELAY_PH_UP", "5")),
         "grow": int(os.getenv("RELAY_GROW", "6")),
         "micro": int(os.getenv("RELAY_MICRO", "13")),
@@ -32,5 +32,8 @@ class Settings(BaseModel):
     chiller_pump_on: bool = os.getenv("CHILLER_PUMP_ON", "1") == "1"
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8080"))
+
+    sample_interval_sec: int = int(os.getenv("SAMPLE_INTERVAL_SEC", "10"))
+    force_mock_sensors: bool = os.getenv("FORCE_MOCK_SENSORS", "0") == "1"
 
 settings = Settings()
