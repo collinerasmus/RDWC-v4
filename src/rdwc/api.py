@@ -76,6 +76,11 @@ def build_app(controller, sampler, doser):
     def ui(request: Request):
         data = sampler.latest()
         cam = cam_status()
+        # Generate relay controls outside f-string to avoid backslash issues
+        relay_controls = "".join([
+            f"<div class='card'>{n}<br><button onclick=\"fetch('/actuate/{n}/1',{{method:'POST'}})\">ON</button><button onclick=\"fetch('/actuate/{n}/0',{{method:'POST'}})\">OFF</button></div>" 
+            for n in controller.relays.pin_map.keys()
+        ])
         html = f"""
         <html><head>
         <meta http-equiv="refresh" content="{settings.ui_refresh_sec}">
@@ -94,7 +99,7 @@ def build_app(controller, sampler, doser):
         <b>pH:</b> {data.get('pH')}</div><br><br>
 
         <h2>Relay Controls</h2>
-        {"".join([f"<div class='card'>{n}<br><button onclick=\"fetch('/actuate/{n}/1',{{method:'POST'}})\">ON</button><button onclick=\"fetch('/actuate/{n}/0',{{method:'POST'}})\">OFF</button></div>" for n in controller.relays.pin_map.keys()])}
+        {relay_controls}
 
         <h2>Nutrient Planner</h2>
         <div class="card" style="min-width:340px;">
