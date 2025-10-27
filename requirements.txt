@@ -1,7 +1,4 @@
 fastapi
 uvicorn[standard]
-pydantic
-python-dotenv
 smbus2
-RPi.GPIO
 gpiozero

@@ -5,12 +5,13 @@ from subprocess import run, PIPE
 from app.ezo_i2c_stabilized import read_all
 from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
 from app.diag import router as diag_router
-from app.hardware import PumpController
+from app.hardware import PumpController, RelayBank
 from app.logger import log_reading, last_n
 
 app = FastAPI()
 app.include_router(diag_router)
 _pumps = PumpController()
+_relays = RelayBank()
 
 _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {}}
 _last_t = 0.0
@@ -56,6 +57,16 @@ def pump_set(name: str, body: dict = Body(...)):
     state = body.get("state", "").lower()
     _pumps.set(name, state == "on")
     return {"ok": True, "state": _pumps.get(name)}
+
+@app.get("/relay/status")
+def relay_status():
+    return _relays.status()
+
+@app.post("/relay/{name}")
+def relay_set(name: str, body: dict = Body(...)):
+    state = (body.get("state","").lower() == "on")
+    _relays.set(name, state)
+    return {"ok": True, "state": _relays.get(name)}
 
 @app.get("/status")
 def status():
