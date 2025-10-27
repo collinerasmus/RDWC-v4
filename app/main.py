@@ -10,8 +10,8 @@ from app.logger import log_reading, last_n
 
 app = FastAPI()
 app.include_router(diag_router)
-_pumps = PumpController()
 _relays = RelayBank()
+_pumps = PumpController(_relays)
 
 _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {}}
 _last_t = 0.0

@@ -58,8 +58,8 @@ class RelayBank:
 
 # Back-compat shim for old "pump_*" usage in routes:
 class PumpController:
-    def __init__(self):
-        self._bank = RelayBank()
+    def __init__(self, relay_bank: RelayBank):
+        self._bank = relay_bank
         self._main_name = "main_pump"
         self._chiller_name = "chiller_pump"
 
