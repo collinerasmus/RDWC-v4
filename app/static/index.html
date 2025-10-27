@@ -19,6 +19,10 @@
  .muted{color:#9ca3af;font-size:12px}
  table{width:100%;border-collapse:collapse}
  th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
+ .relay-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
+ .relay{display:flex;align-items:center;justify-content:center;border-radius:10px;padding:10px 8px;font-weight:700;cursor:pointer;border:1px solid #1f2937}
+ .relay.on{background:#10b981;color:#062314}
+ .relay.off{background:#ef4444;color:#2c0c0c}
 </style>
 </head>
 <body>
@@ -31,12 +35,9 @@
       <div class="row kv">pH: <b id="ph">—</b></div>
       <div class="row kv">EC: <b id="ec">—</b> mS/cm</div>
       <div class="muted">Updates every 10s • <span id="age">—</span>s ago</div>
-      <h3 style="margin-top:16px;">Pumps</h3>
-      <div class="row">
-        <button id="btn-main" class="off" onclick="pump('main')">Main: OFF</button>
-        <button id="btn-chiller" class="off" onclick="pump('chiller')">Chiller: OFF</button>
-      </div>
-      <div class="muted">Relay mode: active-LOW defaults (configurable)</div>
+      <h3 style="margin-top:16px;">Relays</h3>
+      <div id="relays" class="relay-grid"></div>
+      <div class="muted">Active map: ph_up, grow_pump, micro_pump, bloom_pump, main_pump, chiller_pump, water_chiller, grow_lights</div>
     </div>
     <div class="card">
       <h3>Camera</h3>
@@ -52,30 +53,61 @@
 </div>
 <script>
 async function refresh(){
+  // sensor status
   const s = await (await fetch('/status')).json();
   document.getElementById('temp').textContent = s.temp_c?.toFixed?.(3) ?? '—';
   document.getElementById('ph').textContent = s.ph?.toFixed?.(3) ?? '—';
   document.getElementById('ec').textContent = s.ec_ms_cm?.toFixed?.(1) ?? '—';
   document.getElementById('age').textContent = s.age_s ?? '—';
-  const p = await (await fetch('/pump/status')).json();
-  setBtn('btn-main', p.main); setBtn('btn-chiller', p.chiller);
 
+  // pump legacy buttons (if present)
+  try {
+    const p = await (await fetch('/pump/status')).json();
+    setBtn('btn-main', p.main); setBtn('btn-chiller', p.chiller);
+  } catch {}
+
+  // history table
   const h = await (await fetch('/history?limit=20')).json();
-  const tb = document.querySelector('#hist tbody'); tb.innerHTML = '';
-  for (const r of h){
-    const tr = document.createElement('tr');
-    const dt = new Date(r.ts*1000).toLocaleString();
-    tr.innerHTML = `<td>${dt}</td><td>${fmt(r.temp_c)}</td><td>${fmt(r.ph)}</td><td>${fmt(r.ec_ms_cm)}</td>`;
-    tb.appendChild(tr);
+  const tb = document.querySelector('#hist tbody'); if (tb) { tb.innerHTML = '';
+    for (const r of h){
+      const tr = document.createElement('tr');
+      const dt = new Date(r.ts*1000).toLocaleString();
+      tr.innerHTML = `<td>${dt}</td><td>${fmt(r.temp_c)}</td><td>${fmt(r.ph)}</td><td>${fmt(r.ec_ms_cm)}</td>`;
+      tb.appendChild(tr);
+    }
   }
+
+  // relays
+  await ensureRelayButtons();
+  const rs = await (await fetch('/relay/status')).json();
+  for(const n of RELAY_NAMES){ setBtn(`relay-${n}`, !!rs[n]); }
 }
+const RELAY_NAMES = ["ph_up","grow_pump","micro_pump","bloom_pump","main_pump","chiller_pump","water_chiller","grow_lights"];
+
 function fmt(v){ return (v===null||v===undefined)?'—':Number(v).toFixed(3).replace(/\.000$/,''); }
-function setBtn(id,on){ const b=document.getElementById(id); if(on){b.className='on'; b.textContent=b.textContent.replace('OFF','ON');}else{b.className='off'; b.textContent=b.textContent.replace('ON','OFF');} }
-async function pump(name){
-  const st = await (await fetch('/pump/status')).json();
+function setBtn(id,on){ const b=document.getElementById(id); if(!b) return; b.className = 'relay ' + (on?'on':'off'); b.textContent = (on?'ON ':'OFF ') + b.dataset.label; }
+
+async function toggleRelay(name){
+  const st = await (await fetch('/relay/status')).json();
   const target = !st[name];
-  await fetch(`/pump/${name}`, {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({state: target?'on':'off'})});
-  setTimeout(refresh, 400);
+  await fetch(`/relay/${name}`, {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({state: target?'on':'off'})});
+  setTimeout(refresh, 300);
+}
+
+async function ensureRelayButtons(){
+  const host = document.getElementById('relays');
+  if(host.dataset.ready) return;
+  host.dataset.ready = "1";
+  for(const n of RELAY_NAMES){
+    const label = n.replace('_',' ').replace('_',' ');
+    const div = document.createElement('button');
+    div.id = `relay-${n}`;
+    div.dataset.label = label;
+    div.className = 'relay off';
+    div.onclick = () => toggleRelay(n);
+    div.textContent = 'OFF ' + label;
+    host.appendChild(div);
+  }
 }
 refresh(); setInterval(refresh, 10000);
 </script>
