@@ -42,7 +42,7 @@
     <div class="card">
       <h3>Camera</h3>
       <div class="cam">
-        <img id="cam" src="http://192.168.88.49:8081/?action=stream" style="width:100%;height:100%;object-fit:contain"/>
+        <img id="cam" src="/cam.jpg" style="width:100%;border-radius:10px"/>
       </div>
     </div>
   </div>
@@ -112,6 +112,12 @@ async function ensureRelayButtons(){
     host.appendChild(div);
   }
 }
+function camRefresh(){
+  const u = `http://${location.hostname}:8081/?action=stream&ts=${Date.now()}`;
+  const cam = document.getElementById('cam');
+  if (cam) cam.src = u;
+}
+camRefresh();
 refresh();
 setInterval(() => { refresh().catch(()=>{}); }, 5000); // 5s refresh, ignore transient errors
 </script>
