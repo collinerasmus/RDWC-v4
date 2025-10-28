@@ -4,6 +4,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
  body{background:#0b0f14;color:#e6edf3;font-family:system-ui,Segoe UI,Roboto,Arial}
  .wrap{max-width:1100px;margin:24px auto;padding:0 12px}
@@ -50,10 +51,35 @@
     <h3>Recent Readings</h3>
     <table id="hist"><thead><tr><th>Time</th><th>Temp (°C)</th><th>pH</th><th>EC (mS/cm)</th></tr></thead><tbody></tbody></table>
   </div>
+  
+  <div class="card" style="margin-top:16px;">
+    <h3>Trends (last 6h)</h3>
+    <canvas id="chartTemp" height="120"></canvas>
+    <canvas id="chartPh"   height="120" style="margin-top:10px;"></canvas>
+    <canvas id="chartEc"   height="120" style="margin-top:10px;"></canvas>
+  </div>
 </div>
 <script>
 const NO_CACHE = { cache: 'no-store', headers: { 'Cache-Control': 'no-store' } };
 const bust = () => `t=${Date.now()}`;
+
+let ct, ch, ce; // chart instances
+function mkChart(ctx,label){
+  return new Chart(ctx,{type:'line',data:{labels:[],datasets:[{label,borderWidth:1,pointRadius:0}]},
+    options:{animation:false, responsive:true, scales:{x:{display:false}}}});
+}
+async function updateCharts(){
+  const rows = await (await fetch(`/history_window?hours=6&${Date.now()}`, {cache:'no-store'})).json();
+  const xs = rows.map(r => new Date(r.ts*1000).toLocaleTimeString()).reverse();
+  const t  = rows.map(r => r.temp_c).reverse();
+  const p  = rows.map(r => r.ph).reverse();
+  const e  = rows.map(r => r.ec_ms_cm).reverse();
+  if(!ct){ ct = mkChart(document.getElementById('chartTemp').getContext('2d'), 'Temp (°C)'); }
+  if(!ch){ ch = mkChart(document.getElementById('chartPh').getContext('2d'),   'pH'); }
+  if(!ce){ ce = mkChart(document.getElementById('chartEc').getContext('2d'),   'EC (mS/cm)'); }
+  const apply=(chart,data)=>{ chart.data.labels=xs; chart.data.datasets[0].data=data; chart.update('none'); };
+  apply(ct,t); apply(ch,p); apply(ce,e);
+}
 
 async function refresh(){
   // sensor status
@@ -117,6 +143,12 @@ function camRefresh(){
   const cam = document.getElementById('cam');
   if (cam) cam.src = u;
 }
+// hook into existing refresh loop
+(async function boot(){
+  try { await updateCharts(); } catch(e){}
+  setInterval(()=>{ updateCharts().catch(()=>{}); }, 10000); // 10s
+})();
+
 camRefresh();
 refresh();
 setInterval(() => { refresh().catch(()=>{}); }, 5000); // 5s refresh, ignore transient errors

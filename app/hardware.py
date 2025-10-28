@@ -1,6 +1,11 @@
 from typing import Dict
 from gpiozero import OutputDevice
 from app.config import RELAY_ACTIVE_LOW, PINMAP
+import json
+import os
+import time
+STATE_DIR = os.environ.get("RDWC_STATE_DIR", "/var/lib/rdwc")
+STATE_FILE = os.path.join(STATE_DIR, "relay_state.json")
 
 class RelayBank:
     """Generic, name-based relay controller using the project PINMAP."""
@@ -34,10 +39,48 @@ class RelayBank:
                 pass
         self._relays.clear()
 
+    def _ensure_dir(self):
+        try: os.makedirs(STATE_DIR, exist_ok=True)
+        except Exception: pass
+
+    def save_state(self, allowlist=None):
+        self._ensure_dir()
+        data = {n: bool(self._relays[n].value) for n in self._relays.keys() if n in self._relays}
+        if allowlist:
+            data = {k: v for k, v in data.items() if k in allowlist}
+        try:
+            tmp = STATE_FILE + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump({"ts": int(time.time()), "relays": data}, f)
+            os.replace(tmp, STATE_FILE)
+        except Exception:
+            pass
+
+    def load_state(self, allowlist=None, default_off=True):
+        try:
+            with open(STATE_FILE, "r") as f:
+                payload = json.load(f)
+                data = payload.get("relays", {})
+        except Exception:
+            data = {}
+        for name in PINMAP.keys():
+            if allowlist and name not in allowlist:
+                # dosing/by-default OFF unless explicitly allowed
+                if default_off:
+                    dev = self._ensure_relay(name)
+                    if dev: dev.off()
+                continue
+            if name in data and isinstance(data[name], bool):
+                dev = self._ensure_relay(name)
+                if dev:
+                    dev.on() if data[name] else dev.off()
+
     def set(self, name: str, on: bool):
         dev = self._ensure_relay(name)
         if dev:
             dev.on() if on else dev.off()
+        # Persist only main/chiller by default
+        self.save_state(allowlist=["main_pump","chiller_pump"])
 
     def get(self, name: str) -> bool:
         dev = self._ensure_relay(name)

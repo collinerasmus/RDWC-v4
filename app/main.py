@@ -1,6 +1,6 @@
-from fastapi import FastAPI, Body
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
-import threading, time, os
+from fastapi import FastAPI, Body, Query
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse, PlainTextResponse
+import threading, time, os, csv, io, sqlite3
 import asyncio
 from contextlib import suppress
 from subprocess import run, PIPE
@@ -10,9 +10,22 @@ from app.diag import router as diag_router
 from app.hardware import PumpController, RelayBank
 from app.logger import log_reading, last_n
 
+DB_PATH = os.environ.get("RDWC_DB", os.path.join(os.path.dirname(__file__), "rdwc.db"))
+
+def fetch_history_since(since_ts: int):
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    cur = con.cursor()
+    cur.execute("SELECT ts, temp_c, ph, ec_ms_cm FROM history WHERE ts >= ? ORDER BY ts DESC", (since_ts,))
+    rows = [dict(r) for r in cur.fetchall()]
+    con.close()
+    return rows
+
 app = FastAPI()
 app.include_router(diag_router)
 _relays = RelayBank()
+# Restore state for main_pump and chiller_pump on startup
+_relays.load_state(allowlist=["main_pump","chiller_pump"], default_off=True)
 _pumps = PumpController(_relays)
 
 _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {}}
@@ -88,6 +101,28 @@ def ui():
 @app.get("/history")
 def history(limit: int = 100):
     return last_n(limit)
+
+@app.get("/history_window")
+def history_window(hours: float = Query(6.0)):
+    # return last {hours} hours
+    secs = max(60, int(hours * 3600))
+    # reuse your existing DB helper to fetch rows by timestamp
+    since = int(time.time()) - secs
+    # expect a function fetch_history_since(since_ts) -> list of dicts
+    rows = fetch_history_since(since)  # implement or adapt existing utility
+    return rows
+
+@app.get("/export_csv", response_class=PlainTextResponse)
+def export_csv(hours: float = Query(24.0)):
+    secs = max(60, int(hours * 3600))
+    since = int(time.time()) - secs
+    rows = fetch_history_since(since)
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["ts","temp_c","ph","ec_ms_cm"])
+    for r in rows:
+        w.writerow([r.get("ts"), r.get("temp_c"), r.get("ph"), r.get("ec_ms_cm")])
+    return out.getvalue()
 
 @app.get("/pump/status")
 def pump_status():
