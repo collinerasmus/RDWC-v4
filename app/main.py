@@ -10,13 +10,14 @@ from app.diag import router as diag_router
 from app.hardware import PumpController, RelayBank
 from app.logger import log_reading, last_n
 
-DB_PATH = os.environ.get("RDWC_DB", os.path.join(os.path.dirname(__file__), "rdwc.db"))
+DB_PATH = os.environ.get("RDWC_DB", os.path.join(os.path.dirname(__file__), "..", "data", "rdwc.db"))
+DB_PATH = os.path.abspath(DB_PATH)
 
 def fetch_history_since(since_ts: int):
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     cur = con.cursor()
-    cur.execute("SELECT ts, temp_c, ph, ec_ms_cm FROM history WHERE ts >= ? ORDER BY ts DESC", (since_ts,))
+    cur.execute("SELECT ts, temp_c, ph, ec_ms_cm FROM readings WHERE ts >= ? ORDER BY ts DESC", (since_ts,))
     rows = [dict(r) for r in cur.fetchall()]
     con.close()
     return rows
