@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Body
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 import threading, time, os
+import asyncio
+from contextlib import suppress
 from subprocess import run, PIPE
 from app.ezo_i2c_stabilized import read_all
 from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
@@ -15,6 +17,8 @@ _pumps = PumpController(_relays)
 
 _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {}}
 _last_t = 0.0
+START_TS = time.time()
+sensor_task = None
 
 def _sensor_loop():
     global _last, _last_t
@@ -36,8 +40,45 @@ def _sensor_loop():
             _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {"loop": str(e)}}
         time.sleep(10)
 
-if not any(t.name == "_sensor_loop" for t in threading.enumerate()):
-    threading.Thread(target=_sensor_loop, name="_sensor_loop", daemon=True).start()
+async def sensor_loop():
+    """Async version of sensor loop for proper startup management"""
+    global _last, _last_t
+    while True:
+        try:
+            vals = read_all()
+            _last = {
+                "temp_c": vals.get("temperature"),
+                "ph": vals.get("ph"), 
+                "ec_ms_cm": vals.get("ec_ms"),
+                "errors": {}
+            }
+            _last_t = time.time()
+            if all(v is not None for v in (_last["temp_c"], _last["ph"], _last["ec_ms_cm"])):
+                log_reading(_last["temp_c"], _last["ph"], _last["ec_ms_cm"])
+        except Exception as e:
+            _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {"loop": str(e)}}
+        await asyncio.sleep(10)
+
+@app.on_event("startup")
+async def _start_tasks():
+    global sensor_task
+    if sensor_task is None or sensor_task.done():
+        sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
+    # Also start the old thread as backup
+    if not any(t.name == "_sensor_loop" for t in threading.enumerate()):
+        threading.Thread(target=_sensor_loop, name="_sensor_loop", daemon=True).start()
+
+@app.on_event("shutdown")  
+async def _stop_tasks():
+    global sensor_task
+    with suppress(Exception):
+        if sensor_task:
+            sensor_task.cancel()
+
+@app.get("/health")
+def health():
+    age = max(0, time.time() - START_TS)
+    return {"ok": True, "uptime_s": age}
 
 @app.get("/")
 def ui():

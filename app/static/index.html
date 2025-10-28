@@ -52,9 +52,12 @@
   </div>
 </div>
 <script>
+const NO_CACHE = { cache: 'no-store', headers: { 'Cache-Control': 'no-store' } };
+const bust = () => `t=${Date.now()}`;
+
 async function refresh(){
   // sensor status
-  const s = await (await fetch('/status')).json();
+  const s = await (await fetch(`/status?${bust()}`, NO_CACHE)).json();
   document.getElementById('temp').textContent = s.temp_c?.toFixed?.(3) ?? '—';
   document.getElementById('ph').textContent = s.ph?.toFixed?.(3) ?? '—';
   document.getElementById('ec').textContent = s.ec_ms_cm?.toFixed?.(1) ?? '—';
@@ -62,12 +65,12 @@ async function refresh(){
 
   // pump legacy buttons (if present)
   try {
-    const p = await (await fetch('/pump/status')).json();
+    const p = await (await fetch(`/pump/status?${bust()}`, NO_CACHE)).json();
     setBtn('btn-main', p.main); setBtn('btn-chiller', p.chiller);
   } catch {}
 
   // history table
-  const h = await (await fetch('/history?limit=20')).json();
+  const h = await (await fetch(`/history?limit=20&${bust()}`, NO_CACHE)).json();
   const tb = document.querySelector('#hist tbody'); if (tb) { tb.innerHTML = '';
     for (const r of h){
       const tr = document.createElement('tr');
@@ -79,7 +82,7 @@ async function refresh(){
 
   // relays
   await ensureRelayButtons();
-  const rs = await (await fetch('/relay/status')).json();
+  const rs = await (await fetch(`/relay/status?${bust()}`, NO_CACHE)).json();
   for(const n of RELAY_NAMES){ setBtn(`relay-${n}`, !!rs[n]); }
 }
 const RELAY_NAMES = ["ph_up","grow_pump","micro_pump","bloom_pump","main_pump","chiller_pump","water_chiller","grow_lights"];
@@ -88,7 +91,7 @@ function fmt(v){ return (v===null||v===undefined)?'—':Number(v).toFixed(3).rep
 function setBtn(id,on){ const b=document.getElementById(id); if(!b) return; b.className = 'relay ' + (on?'on':'off'); b.textContent = (on?'ON ':'OFF ') + b.dataset.label; }
 
 async function toggleRelay(name){
-  const st = await (await fetch('/relay/status')).json();
+  const st = await (await fetch(`/relay/status?${bust()}`, NO_CACHE)).json();
   const target = !st[name];
   await fetch(`/relay/${name}`, {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({state: target?'on':'off'})});
   setTimeout(refresh, 300);
@@ -109,7 +112,8 @@ async function ensureRelayButtons(){
     host.appendChild(div);
   }
 }
-refresh(); setInterval(refresh, 10000);
+refresh();
+setInterval(() => { refresh().catch(()=>{}); }, 5000); // 5s refresh, ignore transient errors
 </script>
 </body>
 </html>
