@@ -39,6 +39,13 @@
       <h3 style="margin-top:16px;">Relays</h3>
       <div id="relays" class="relay-grid"></div>
       <div class="muted">Active map: ph_up, grow_pump, micro_pump, bloom_pump, main_pump, chiller_pump, water_chiller, grow_lights</div>
+      <hr>
+      <h3>Scheduler</h3>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
+        <button id="btnSchedToggle" onclick="toggleSched()">Toggle Enable</button>
+        <button onclick="applyRecommended()">Apply Recommended (Lights 06–22; Micro/Grow/Bloom pulses)</button>
+        <span id="schedState"></span>
+      </div>
     </div>
     <div class="card">
       <h3>Camera</h3>
@@ -148,6 +155,32 @@ function camRefresh(){
   try { await updateCharts(); } catch(e){}
   setInterval(()=>{ updateCharts().catch(()=>{}); }, 10000); // 10s
 })();
+
+async function loadSched(){
+  const s = await (await fetch(`/schedule?${Date.now()}`, {cache:'no-store'})).json();
+  document.getElementById('schedState').textContent = `Enabled: ${!!s.enabled}`;
+  return s;
+}
+async function toggleSched(){
+  const s = await loadSched();
+  const r = await (await fetch(`/schedule/enable`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!s.enabled})})).json();
+  document.getElementById('schedState').textContent = `Enabled: ${!!r.enabled}`;
+}
+async function applyRecommended(){
+  const cfg = {
+    "enabled": true,
+    "entries": [
+      {"name":"grow_lights","kind":"span","on_at":"06:00","off_at":"22:00","days":[0,1,2,3,4,5,6]},
+      {"name":"micro_pump","kind":"pulse","at":"09:00","duration_sec":120,"days":[0,1,2,3,4,5,6]},
+      {"name":"grow_pump","kind":"pulse","at":"09:05","duration_sec":120,"days":[0,1,2,3,4,5,6]},
+      {"name":"bloom_pump","kind":"pulse","at":"09:10","duration_sec":120,"days":[0,1,2,3,4,5,6]}
+    ],
+    "daily_caps": {"micro_pump":300,"grow_pump":300,"bloom_pump":300,"ph_up":120,"grow_lights":86400}
+  };
+  await fetch(`/schedule`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
+  await loadSched();
+}
+loadSched().catch(()=>{});
 
 camRefresh();
 refresh();

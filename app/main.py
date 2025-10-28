@@ -9,6 +9,7 @@ from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
 from app.diag import router as diag_router
 from app.hardware import PumpController, RelayBank
 from app.logger import log_reading, last_n
+from app.scheduler import Scheduler, load_cfg, save_cfg
 
 DB_PATH = os.environ.get("RDWC_DB", os.path.join(os.path.dirname(__file__), "..", "data", "rdwc.db"))
 DB_PATH = os.path.abspath(DB_PATH)
@@ -28,6 +29,7 @@ _relays = RelayBank()
 # Restore state for main_pump and chiller_pump on startup
 _relays.load_state(allowlist=["main_pump","chiller_pump"], default_off=True)
 _pumps = PumpController(_relays)
+_scheduler = Scheduler(_relays)
 
 _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {}}
 _last_t = 0.0
@@ -81,6 +83,7 @@ async def _start_tasks():
     # Also start the old thread as backup
     if not any(t.name == "_sensor_loop" for t in threading.enumerate()):
         threading.Thread(target=_sensor_loop, name="_sensor_loop", daemon=True).start()
+    _scheduler.start()
 
 @app.on_event("shutdown")  
 async def _stop_tasks():
@@ -88,6 +91,7 @@ async def _stop_tasks():
     with suppress(Exception):
         if sensor_task:
             sensor_task.cancel()
+    _scheduler.shutdown()
 
 @app.get("/health")
 def health():
@@ -165,6 +169,20 @@ def relay_save():
 def relay_restore():
     _relays.load_state(allowlist=["main_pump","chiller_pump"], default_off=True)
     return {"ok": True}
+
+@app.get("/schedule")
+def schedule_get():
+    return load_cfg()
+
+@app.post("/schedule")
+def schedule_set(cfg: dict = Body(...)):
+    save_cfg(cfg)
+    return {"ok": True}
+
+@app.post("/schedule/enable")
+def schedule_enable(enabled: bool = Body(..., embed=True)):
+    cfg = load_cfg(); cfg["enabled"] = bool(enabled); save_cfg(cfg)
+    return {"ok": True, "enabled": cfg["enabled"]}
 
 @app.get("/status")
 def status():
