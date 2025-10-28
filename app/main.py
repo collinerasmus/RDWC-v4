@@ -145,6 +145,27 @@ def relay_set(name: str, body: dict = Body(...)):
     _relays.set(name, state)
     return {"ok": True, "state": _relays.get(name)}
 
+@app.get("/relay/persist")
+def relay_persist_info():
+    import os, json
+    p = os.environ.get("RDWC_STATE_DIR", os.path.expanduser("~/.rdwc"))
+    f = os.path.join(p, "relay_state.json")
+    payload = {}
+    try:
+        with open(f,"r") as fh: payload = json.load(fh)
+    except Exception: payload = {"note":"state file not found"}
+    return {"dir": p, "file": f, "payload": payload}
+
+@app.post("/relay/save")
+def relay_save():
+    _relays.save_state(allowlist=["main_pump","chiller_pump"])
+    return {"ok": True}
+
+@app.post("/relay/restore")
+def relay_restore():
+    _relays.load_state(allowlist=["main_pump","chiller_pump"], default_off=True)
+    return {"ok": True}
+
 @app.get("/status")
 def status():
     age = time.time() - _last_t
