@@ -4,7 +4,7 @@ from app.config import RELAY_ACTIVE_LOW, PINMAP
 import json
 import os
 import time
-STATE_DIR = os.environ.get("RDWC_STATE_DIR", "/var/lib/rdwc")
+STATE_DIR = os.environ.get("RDWC_STATE_DIR", os.path.join(os.path.expanduser("~"), ".rdwc"))
 STATE_FILE = os.path.join(STATE_DIR, "relay_state.json")
 
 class RelayBank:
