@@ -1,7 +1,9 @@
-# app/scheduler.py
-import os, json, time, threading
-from dataclasses import dataclass, asdict
-from typing import List, Dict, Optional
+"""Task scheduler for RDWC system (edge-only, no periodic catchup)."""
+import os
+import json
+import time
+import threading
+from typing import Dict, Optional
 from .hardware import RelayBank
 
 STATE_DIR = os.environ.get("RDWC_STATE_DIR", os.path.expanduser("~/.rdwc"))
@@ -22,8 +24,10 @@ DEFAULT = {
 }
 
 def _ensure_dir():
-    try: os.makedirs(STATE_DIR, exist_ok=True)
-    except Exception: pass
+    try:
+        os.makedirs(STATE_DIR, exist_ok=True)
+    except Exception:
+        pass
 
 def load_cfg() -> Dict:
     _ensure_dir()
@@ -36,7 +40,8 @@ def load_cfg() -> Dict:
 def save_cfg(cfg: Dict):
     _ensure_dir()
     tmp = SCHED_FILE + ".tmp"
-    with open(tmp,"w") as f: json.dump(cfg, f, indent=2)
+    with open(tmp, "w") as f:
+        json.dump(cfg, f, indent=2)
     os.replace(tmp, SCHED_FILE)
 
 def log_event(ev: Dict):
@@ -64,7 +69,8 @@ class Scheduler:
         self._current_lights_off_time = None
 
     def start(self):
-        if self.thread and self.thread.is_alive(): return
+        if self.thread and self.thread.is_alive():
+            return
         self.stop.clear()
         # Initialize lights schedule - NO MORE CATCHUP
         self._update_lights_schedule()
@@ -88,8 +94,6 @@ class Scheduler:
         """Update lights schedule based on current settings"""
         try:
             from .settings import get_settings, get_todays_lights_window
-            from datetime import datetime
-            import pytz
             
             settings = get_settings()
             
@@ -155,8 +159,7 @@ class Scheduler:
                 self.relays.set(name, False)
             return
 
-        wday,h,m,s = _now_tuple()
-        now_min = h*60 + m
+        wday, h, m, s = _now_tuple()
         caps = cfg.get("daily_caps", {})
 
         # Handle lights scheduling - PURE EDGE-ONLY (zero periodic enforcement)

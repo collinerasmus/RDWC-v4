@@ -1,12 +1,16 @@
 from fastapi import FastAPI, Body, Query
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse, PlainTextResponse
-import threading, time, os, csv, io
+from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse
+import threading
+import time
+import os
+import csv
+import io
 import asyncio
 from contextlib import suppress
 from typing import Optional
 from subprocess import run, PIPE
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timedelta  # Keep global import
 from app.ezo_i2c_stabilized import read_all
 from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
 from app.diag import router as diag_router
@@ -81,13 +85,8 @@ async def sensor_loop():
 @app.on_event("startup")
 async def _start_tasks():
     global sensor_task
-    
-    # Initialize relay cache before anything else
-    from app.relays_core import initialize_all_safe_off
-    initialize_all_safe_off()
-    
-    if sensor_task is None or sensor_task.done():
-        sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
+    # Start async sensor loop
+    sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
     # Also start the old thread as backup
     if not any(t.name == "_sensor_loop" for t in threading.enumerate()):
         threading.Thread(target=_sensor_loop, name="_sensor_loop", daemon=True).start()
@@ -418,13 +417,16 @@ def relay_set_legacy(name: str, body: dict = Body(...)):
 
 @app.get("/relay/persist")
 def relay_persist_info():
-    import os, json
+    import os
+    import json
     p = os.environ.get("RDWC_STATE_DIR", os.path.expanduser("~/.rdwc"))
     f = os.path.join(p, "relay_state.json")
     payload = {}
     try:
-        with open(f,"r") as fh: payload = json.load(fh)
-    except Exception: payload = {"note":"state file not found"}
+        with open(f, "r") as fh:
+            payload = json.load(fh)
+    except Exception:
+        payload = {"note": "state file not found"}
     return {"dir": p, "file": f, "payload": payload}
 
 @app.post("/relay/save")
@@ -448,7 +450,9 @@ def schedule_set(cfg: dict = Body(...)):
 
 @app.post("/schedule/enable")
 def schedule_enable(enabled: bool = Body(..., embed=True)):
-    cfg = load_cfg(); cfg["enabled"] = bool(enabled); save_cfg(cfg)
+    cfg = load_cfg()
+    cfg["enabled"] = bool(enabled)
+    save_cfg(cfg)
     return {"ok": True, "enabled": cfg["enabled"]}
 
 # Debug endpoints for lights control investigation
@@ -497,7 +501,6 @@ def debug_lights_allowed():
 @app.get("/debug/lights_sources")
 def debug_lights_sources(minutes: int = Query(15, description="Look back this many minutes")):
     """Get counts by reason and caller for recent lights control attempts."""
-    from datetime import datetime, timedelta
     
     events = get_relay_event_log("lights", last=200)  # Get more events to filter by time
     cutoff_time = datetime.now() - timedelta(minutes=minutes)
