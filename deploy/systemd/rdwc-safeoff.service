@@ -1,0 +1,13 @@
+[Unit]
+Description=RDWC Safe-OFF fallback if app not ready
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /home/pi/RDWC-v4/scripts/health_guard.py
+TimeoutStartSec=45s
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

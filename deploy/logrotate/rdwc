@@ -1,0 +1,22 @@
+# RDWC-v4 log rotation configuration
+# Prevents log-based file descriptor bloat
+
+/var/log/rdwc/*.log {
+    weekly
+    rotate 4
+    copytruncate
+    delaycompress
+    compress
+    notifempty
+    create 644 pi pi
+}
+
+# SystemD journal logs for RDWC service
+/var/log/journal/*/*.journal {
+    weekly  
+    rotate 4
+    copytruncate
+    delaycompress
+    compress
+    notifempty
+}

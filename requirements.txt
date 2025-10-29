@@ -2,3 +2,5 @@ fastapi
 uvicorn[standard]
 smbus2
 gpiozero
+httpx
+pytz

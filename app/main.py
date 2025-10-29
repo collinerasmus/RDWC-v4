@@ -1,30 +1,28 @@
 from fastapi import FastAPI, Body, Query
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse, PlainTextResponse
-import threading, time, os, csv, io, sqlite3
+import threading, time, os, csv, io
 import asyncio
 from contextlib import suppress
+from typing import Optional
 from subprocess import run, PIPE
 from app.ezo_i2c_stabilized import read_all
 from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
 from app.diag import router as diag_router
 from app.hardware import PumpController, RelayBank
-from app.logger import log_reading, last_n
+from app.logger import log_reading, last_n, fetch_history_since
 from app.scheduler import Scheduler, load_cfg, save_cfg
+from app.monitor import start_monitoring, stop_monitoring, get_monitoring_status
+from app.relays_core import initialize_all_safe_off, get_relay_event_log, allowed_lights_reasons, set_lights_hold
 
 DB_PATH = os.environ.get("RDWC_DB", os.path.join(os.path.dirname(__file__), "..", "data", "rdwc.db"))
 DB_PATH = os.path.abspath(DB_PATH)
 
-def fetch_history_since(since_ts: int):
-    con = sqlite3.connect(DB_PATH)
-    con.row_factory = sqlite3.Row
-    cur = con.cursor()
-    cur.execute("SELECT ts, temp_c, ph, ec_ms_cm FROM readings WHERE ts >= ? ORDER BY ts DESC", (since_ts,))
-    rows = [dict(r) for r in cur.fetchall()]
-    con.close()
-    return rows
-
 app = FastAPI()
 app.include_router(diag_router)
+
+# Initialize centralized relay system
+initialize_all_safe_off()
+
 _relays = RelayBank()
 # Restore state for main_pump and chiller_pump on startup
 _relays.load_state(allowlist=["main_pump","chiller_pump"], default_off=True)
@@ -84,6 +82,8 @@ async def _start_tasks():
     if not any(t.name == "_sensor_loop" for t in threading.enumerate()):
         threading.Thread(target=_sensor_loop, name="_sensor_loop", daemon=True).start()
     _scheduler.start()
+    # Start alert monitoring
+    start_monitoring()
 
 @app.on_event("shutdown")  
 async def _stop_tasks():
@@ -92,11 +92,97 @@ async def _stop_tasks():
         if sensor_task:
             sensor_task.cancel()
     _scheduler.shutdown()
+    # Stop alert monitoring
+    stop_monitoring()
 
 @app.get("/health")
 def health():
+    """Health check with readiness gates"""
     age = max(0, time.time() - START_TS)
-    return {"ok": True, "uptime_s": age}
+    require_camera = os.environ.get("READINESS_REQUIRE_CAMERA", "false").lower() == "true"
+    
+    # Core readiness checks
+    db_ready = False
+    i2c_ready = False
+    camera_status = {"ready": False, "note": "non-blocking"}
+    
+    # Check database writer
+    try:
+        from app.infra.db_writer import get_db_writer
+        db_writer = get_db_writer()
+        db_ready = db_writer.worker_thread and db_writer.worker_thread.is_alive()
+    except Exception as e:
+        camera_status["db_error"] = str(e)
+    
+    # Check I²C bus
+    try:
+        from app.infra.i2c_bus import get_bus
+        bus = get_bus()
+        i2c_ready = bus is not None
+    except Exception as e:
+        camera_status["i2c_error"] = str(e)
+    
+    # Check camera (non-blocking unless env var set)
+    try:
+        # Simple check - we don't have camera module yet, so assume ready
+        camera_status = {"ready": True, "note": "assumed ready"}
+    except Exception as e:
+        camera_status = {"ready": False, "note": f"camera error: {str(e)}"}
+    
+    # Get today's lights window
+    lights_info = {"error": "unable to get lights schedule"}
+    try:
+        from app.settings import get_todays_lights_window
+        on_dt, off_dt = get_todays_lights_window()
+        lights_info = {
+            "on_time": on_dt.strftime("%H:%M"),
+            "off_time": off_dt.strftime("%H:%M"),
+            "on_datetime": on_dt.isoformat(),
+            "off_datetime": off_dt.isoformat()
+        }
+    except Exception as e:
+        lights_info = {"error": str(e)}
+    
+    # Get relay status
+    relay_states = {}
+    antiflap_active = []
+    try:
+        from app.relays_core import get_relay_status, get_antiflap_relays
+        relay_status = get_relay_status()
+        relay_states = {
+            name: {
+                "state": info.get("state", False),
+                "last_reason": info.get("last_reason", "unknown"),
+                "seconds_since_change": info.get("seconds_since_change", 0)
+            }
+            for name, info in relay_status.items()
+        }
+        antiflap_active = get_antiflap_relays()
+    except Exception as e:
+        relay_states = {"error": str(e)}
+
+    # Build response
+    response_data = {
+        "ok": db_ready and i2c_ready,
+        "uptime_s": age,
+        "db": db_ready,
+        "i2c": i2c_ready,
+        "camera": camera_status,
+        "lights_window": lights_info,
+        "relay_states": relay_states,
+        "antiflap_active": antiflap_active
+    }
+    
+    # Only fail on camera if explicitly required
+    if require_camera and not camera_status["ready"]:
+        response_data["ok"] = False
+        return JSONResponse(status_code=503, content=response_data)
+    
+    # Return 503 only if core systems (DB/I2C) aren't ready
+    if not (db_ready and i2c_ready):
+        return JSONResponse(status_code=503, content=response_data)
+    
+    return response_data
 
 @app.get("/")
 def ui():
@@ -116,6 +202,121 @@ def history_window(hours: float = Query(6.0)):
     # expect a function fetch_history_since(since_ts) -> list of dicts
     rows = fetch_history_since(since)  # implement or adapt existing utility
     return rows
+
+# Alert monitoring endpoints
+@app.get("/monitoring/status")
+def monitoring_status():
+    """Get current monitoring and alert status"""
+    return get_monitoring_status()
+
+@app.post("/monitoring/test_alerts")
+async def test_alerts():
+    """Test alert system - sends test messages to all configured channels"""
+    from app.alerts import test_alerts
+    results = await test_alerts()
+    return {"results": results}
+
+# Settings endpoints
+@app.get("/settings")
+def get_settings_api():
+    """Get current system settings"""
+    from app.settings import get_settings
+    settings = get_settings()
+    return {
+        "system_volume_liters": settings.system_volume_liters,
+        "lights_on_time": settings.lights_on_time,
+        "lights_duration_hours": settings.lights_duration_hours
+    }
+
+@app.put("/settings")
+def update_settings_api(
+    system_volume_liters: Optional[float] = Body(None),
+    lights_on_time: Optional[str] = Body(None), 
+    lights_duration_hours: Optional[int] = Body(None)
+):
+    """Update system settings with validation"""
+    from app.settings import update_settings
+    
+    try:
+        updated_settings = update_settings(
+            system_volume_liters=system_volume_liters,
+            lights_on_time=lights_on_time,
+            lights_duration_hours=lights_duration_hours
+        )
+        
+        return {
+            "system_volume_liters": updated_settings.system_volume_liters,
+            "lights_on_time": updated_settings.lights_on_time,
+            "lights_duration_hours": updated_settings.lights_duration_hours
+        }
+        
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Validation failed: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to update settings: {str(e)}"}
+        )
+
+# Override endpoints
+@app.get("/overrides")
+def get_overrides_api():
+    """Get current overrides"""
+    from app.overrides import get_override_status
+    return get_override_status()
+
+@app.put("/overrides")
+def update_overrides_api(
+    chiller_mode: Optional[str] = Body(None),
+    hold_minutes: Optional[int] = Body(None),
+    hold_until: Optional[str] = Body(None)
+):
+    """Update system overrides with validation"""
+    from app.overrides import set_overrides, get_override_status
+    from datetime import datetime
+    
+    try:
+        # Validate chiller_mode
+        if chiller_mode and chiller_mode not in ("auto", "force_on", "force_off"):
+            return JSONResponse(
+                status_code=400,
+                content={"error": "chiller_mode must be 'auto', 'force_on', or 'force_off'"}
+            )
+        
+        # Parse hold_until if provided
+        hold_until_dt = None
+        if hold_until:
+            try:
+                hold_until_dt = datetime.fromisoformat(hold_until)
+            except ValueError:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "hold_until must be ISO8601 format"}
+                )
+        
+        # Update overrides
+        set_overrides(
+            chiller_mode=chiller_mode if chiller_mode in ("auto", "force_on", "force_off") else None,
+            hold_minutes=hold_minutes,
+            hold_until=hold_until_dt
+        )
+        
+        # Return effective overrides
+        return get_override_status()
+        
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Validation failed: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to update overrides: {str(e)}"}
+        )
 
 @app.get("/export_csv", response_class=PlainTextResponse)
 def export_csv(hours: float = Query(24.0)):
@@ -183,6 +384,32 @@ def schedule_set(cfg: dict = Body(...)):
 def schedule_enable(enabled: bool = Body(..., embed=True)):
     cfg = load_cfg(); cfg["enabled"] = bool(enabled); save_cfg(cfg)
     return {"ok": True, "enabled": cfg["enabled"]}
+
+# Debug endpoints for lights control investigation
+@app.get("/debug/lights_log")
+def debug_lights_log(last: int = Query(50, description="Number of recent events to return")):
+    """Get recent lights control event log for debugging."""
+    events = get_relay_event_log("lights", last=last)
+    return {
+        "relay": "lights",
+        "total_events": len(events),
+        "events": events
+    }
+
+@app.get("/debug/lights_allowed")
+def debug_lights_allowed():
+    """Get list of allowed reasons for lights control."""
+    reasons = allowed_lights_reasons()
+    return {
+        "allowed_reasons": reasons,
+        "total": len(reasons)
+    }
+
+@app.post("/debug/lights_hold")
+def debug_lights_hold(seconds: int = Body(..., embed=True)):
+    """Set temporary hold on lights for debugging (blocks all changes)."""
+    result = set_lights_hold(seconds)
+    return {"ok": True, "message": f"Lights held for {seconds} seconds", **result}
 
 @app.get("/status")
 def status():

@@ -15,7 +15,15 @@ class LightScheduler(threading.Thread):
             now = datetime.datetime.now()
             hour = now.hour
             lights_on = self.on_hr <= hour < self.off_hr
-            self.relays.set("lights", lights_on)
+            
+            # Use new centralized lights control with proper whitelisting
+            try:
+                from app.relays_core import set_lights
+                set_lights(lights_on, "schedule_on" if lights_on else "schedule_off")
+            except ImportError:
+                # Fallback for standalone use
+                self.relays.set("lights", lights_on)
+            
             self._stop.wait(60)
 
     def stop(self):

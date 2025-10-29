@@ -46,6 +46,44 @@
         <button onclick="applyRecommended()">Apply Recommended (Lights 06–22; Micro/Grow/Bloom pulses)</button>
         <span id="schedState"></span>
       </div>
+      <hr>
+      <h3>Settings</h3>
+      <div class="row">
+        <label>System Volume (L):</label>
+        <input type="number" id="systemVolume" min="0.1" step="0.1" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;width:80px">
+      </div>
+      <div class="row">
+        <label>Lights Start Time:</label>
+        <input type="time" id="lightsStart" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3">
+      </div>
+      <div class="row">
+        <label>Lights Duration (hours):</label>
+        <input type="number" id="lightsDuration" min="1" max="24" step="1" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;width:60px">
+      </div>
+      <div class="row">
+        <button onclick="saveSettings()" style="background:#3b82f6;color:#eff6ff;margin-right:8px">Save Settings</button>
+        <span id="lightsWindow" class="muted">Lights: -- → -- (today)</span>
+      </div>
+      <hr>
+      <h3>Chiller Control</h3>
+      <div class="row">
+        <label><input type="radio" name="chillerMode" value="auto" onchange="updateChillerMode()"> Auto</label>
+        <label style="margin-left:12px"><input type="radio" name="chillerMode" value="force_on" onchange="updateChillerMode()"> Force ON</label>
+        <label style="margin-left:12px"><input type="radio" name="chillerMode" value="force_off" onchange="updateChillerMode()"> Force OFF</label>
+      </div>
+      <div class="row" id="durationRow" style="display:none">
+        <label>Duration:</label>
+        <select id="chillerDuration" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3">
+          <option value="30">30 minutes</option>
+          <option value="60">1 hour</option>
+          <option value="240">4 hours</option>
+          <option value="midnight">Until midnight</option>
+        </select>
+        <button onclick="applyChillerOverride()" style="background:#10b981;color:#062314;margin-left:8px">Apply</button>
+      </div>
+      <div class="row">
+        <span id="chillerStatus" class="muted">Status: Auto</span>
+      </div>
     </div>
     <div class="card">
       <h3>Camera</h3>
@@ -180,11 +218,167 @@ async function applyRecommended(){
   await fetch(`/schedule`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
   await loadSched();
 }
+// Settings management
+async function loadSettings(){
+  try {
+    const settings = await (await fetch(`/settings?${Date.now()}`, {cache:'no-store'})).json();
+    document.getElementById('systemVolume').value = settings.system_volume_liters;
+    document.getElementById('lightsStart').value = settings.lights_on_time;
+    document.getElementById('lightsDuration').value = settings.lights_duration_hours;
+    
+    // Update lights window display from health endpoint  
+    try {
+      const health = await (await fetch(`/health?${Date.now()}`, {cache:'no-store'})).json();
+      if (health.lights_window && !health.lights_window.error) {
+        const window = health.lights_window;
+        document.getElementById('lightsWindow').textContent = 
+          `Lights: ${window.on_time} → ${window.off_time} (today)`;
+      }
+    } catch(e) {}
+    
+  } catch(e) {
+    console.error('Failed to load settings:', e);
+  }
+}
+
+async function saveSettings(){
+  try {
+    const data = {
+      system_volume_liters: parseFloat(document.getElementById('systemVolume').value),
+      lights_on_time: document.getElementById('lightsStart').value,
+      lights_duration_hours: parseInt(document.getElementById('lightsDuration').value)
+    };
+    
+    const response = await fetch('/settings', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+    
+    if (response.ok) {
+      // Show success toast
+      showToast('Settings saved successfully!', 'success');
+      // Reload settings to refresh display
+      setTimeout(loadSettings, 500);
+    } else {
+      const error = await response.json();
+      showToast(`Error: ${error.error}`, 'error');
+    }
+  } catch(e) {
+    showToast(`Failed to save settings: ${e.message}`, 'error');
+  }
+}
+
+function showToast(message, type = 'info') {
+  // Simple toast notification
+  const toast = document.createElement('div');
+  toast.textContent = message;
+  toast.style.cssText = `
+    position: fixed; top: 20px; right: 20px; z-index: 9999;
+    padding: 12px 16px; border-radius: 8px; font-weight: 600;
+    ${type === 'success' ? 'background: #10b981; color: #065f46;' : 
+      type === 'error' ? 'background: #ef4444; color: #7f1d1d;' : 
+      'background: #3b82f6; color: #1e3a8a;'}
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+// Chiller override management
+async function loadOverrides(){
+  try {
+    const overrides = await (await fetch(`/overrides?${Date.now()}`, {cache:'no-store'})).json();
+    
+    // Update radio buttons
+    const radios = document.querySelectorAll('input[name="chillerMode"]');
+    radios.forEach(radio => {
+      radio.checked = radio.value === overrides.effective_mode;
+    });
+    
+    // Show/hide duration controls
+    const durationRow = document.getElementById('durationRow');
+    if (overrides.effective_mode !== 'auto') {
+      durationRow.style.display = 'flex';
+    } else {
+      durationRow.style.display = 'none';
+    }
+    
+    // Update status
+    let statusText = 'Status: ' + overrides.effective_mode.replace('_', ' ').toUpperCase();
+    if (overrides.time_remaining && overrides.is_override_active) {
+      statusText += ` (${overrides.time_remaining} remaining)`;
+    }
+    document.getElementById('chillerStatus').textContent = statusText;
+    
+  } catch(e) {
+    console.error('Failed to load overrides:', e);
+  }
+}
+
+function updateChillerMode() {
+  const selected = document.querySelector('input[name="chillerMode"]:checked');
+  const durationRow = document.getElementById('durationRow');
+  
+  if (selected && selected.value !== 'auto') {
+    durationRow.style.display = 'flex';
+  } else {
+    durationRow.style.display = 'none';
+    // Apply auto mode immediately
+    if (selected && selected.value === 'auto') {
+      applyChillerOverride();
+    }
+  }
+}
+
+async function applyChillerOverride() {
+  try {
+    const selected = document.querySelector('input[name="chillerMode"]:checked');
+    if (!selected) return;
+    
+    const data = { chiller_mode: selected.value };
+    
+    // Add duration if not auto
+    if (selected.value !== 'auto') {
+      const duration = document.getElementById('chillerDuration').value;
+      if (duration === 'midnight') {
+        // Calculate minutes until midnight
+        const now = new Date();
+        const midnight = new Date();
+        midnight.setDate(midnight.getDate() + 1);
+        midnight.setHours(0, 0, 0, 0);
+        const minutesUntilMidnight = Math.floor((midnight - now) / (1000 * 60));
+        data.hold_minutes = minutesUntilMidnight;
+      } else {
+        data.hold_minutes = parseInt(duration);
+      }
+    }
+    
+    const response = await fetch('/overrides', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+    
+    if (response.ok) {
+      showToast('Chiller override applied!', 'success');
+      setTimeout(loadOverrides, 500);
+    } else {
+      const error = await response.json();
+      showToast(`Error: ${error.error}`, 'error');
+    }
+  } catch(e) {
+    showToast(`Failed to apply override: ${e.message}`, 'error');
+  }
+}
+
 loadSched().catch(()=>{});
+loadSettings().catch(()=>{});
+loadOverrides().catch(()=>{});
 
 camRefresh();
 refresh();
 setInterval(() => { refresh().catch(()=>{}); }, 5000); // 5s refresh, ignore transient errors
+setInterval(() => { loadOverrides().catch(()=>{}); }, 10000); // 10s override refresh
 </script>
 </body>
 </html>

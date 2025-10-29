@@ -11,8 +11,7 @@ LOG_FILE   = os.path.join(STATE_DIR, "schedule_log.jsonl")
 DEFAULT = {
     "enabled": False,
     "entries": [
-        # Lights 06:00-22:00 daily
-        {"name":"grow_lights", "kind":"span", "on_at":"06:00", "off_at":"22:00", "days":[0,1,2,3,4,5,6]},
+        # NOTE: grow_lights schedule is now dynamically generated from settings
         # Dosing pulses (Micro/Grow/Bloom) at 09:00/09:05/09:10 for 120s
         {"name":"micro_pump", "kind":"pulse", "at":"09:00", "duration_sec":120, "days":[0,1,2,3,4,5,6]},
         {"name":"grow_pump",  "kind":"pulse", "at":"09:05", "duration_sec":120, "days":[0,1,2,3,4,5,6]},
@@ -60,10 +59,16 @@ class Scheduler:
         self.daily_used: Dict[str, int] = {}
         self.daily_key = _today_key()
         self._pulse_work: Dict[str, int] = {}  # relay -> remaining_sec
+        self._last_lights_config = None  # track when to update lights schedule
+        self._current_lights_on_time = None
+        self._current_lights_off_time = None
 
     def start(self):
         if self.thread and self.thread.is_alive(): return
         self.stop.clear()
+        # Initialize lights schedule and handle catch-up
+        self._update_lights_schedule()
+        self._handle_lights_catchup()
         self.thread = threading.Thread(target=self._loop, name="rdwc_scheduler", daemon=True)
         self.thread.start()
 
@@ -76,6 +81,98 @@ class Scheduler:
             self.daily_used = {}
             # clear any leftover pulses
             self._pulse_work = {}
+            # recompute lights schedule for new day
+            self._update_lights_schedule()
+
+    def _update_lights_schedule(self):
+        """Update lights schedule based on current settings"""
+        try:
+            from .settings import get_settings, get_todays_lights_window
+            from datetime import datetime
+            import pytz
+            
+            settings = get_settings()
+            
+            # Check if settings changed
+            current_config = (settings.lights_on_time, settings.lights_duration_hours)
+            if current_config == self._last_lights_config:
+                return  # no change needed
+            
+            self._last_lights_config = current_config
+            
+            # Get today's window
+            on_dt, off_dt = get_todays_lights_window()
+            
+            # Store times for catch-up logic
+            self._current_lights_on_time = on_dt.strftime("%H:%M")
+            self._current_lights_off_time = off_dt.strftime("%H:%M")
+            
+            log_event({
+                "kind": "lights_schedule_updated",
+                "on_time": self._current_lights_on_time,
+                "off_time": self._current_lights_off_time,
+                "on_datetime": on_dt.isoformat(),
+                "off_datetime": off_dt.isoformat()
+            })
+            
+            # Handle case where lights span midnight (off_time < on_time the next day)
+            if off_dt.date() > on_dt.date():
+                # Split into two spans: today->midnight and midnight->off_time
+                self._current_lights_off_time = "23:59"  # end today
+                # TODO: handle next day portion (for now, assume duration <= 24h)
+            
+        except Exception as e:
+            log_event({"kind": "lights_schedule_error", "error": str(e)})
+            # Fall back to default
+            self._current_lights_on_time = "06:00"
+            self._current_lights_off_time = "22:00"
+
+    def is_within_window(self, now_min: int, on_min: int, off_min: int) -> bool:
+        """Pure function to determine if now is within the lights window."""
+        if on_min <= off_min:  # same-day window
+            return on_min <= now_min < off_min
+        else:  # wrap across midnight
+            return now_min >= on_min or now_min < off_min
+
+    def _handle_lights_catchup(self):
+        """Handle lights state when service starts mid-cycle - apply once with REASON_CATCHUP"""
+        if not (self._current_lights_on_time and self._current_lights_off_time):
+            return
+        
+        try:
+            from app.relays_core import set_lights, REASON_CATCHUP
+            
+            wday, h, m, s = _now_tuple()
+            now_min = h * 60 + m
+            
+            on_h, on_m = map(int, self._current_lights_on_time.split(":"))
+            off_h, off_m = map(int, self._current_lights_off_time.split(":"))
+            
+            on_min = on_h * 60 + on_m
+            off_min = off_h * 60 + off_m
+            
+            # Use pure window function
+            should_be_on = self.is_within_window(now_min, on_min, off_min)
+            
+            # Apply catch-up state ONCE using centralized control
+            result = set_lights(should_be_on, REASON_CATCHUP)
+            
+            now_iso = f"{h:02d}:{m:02d}"
+            on_iso = f"{on_h:02d}:{on_m:02d}"
+            off_iso = f"{off_h:02d}:{off_m:02d}"
+            
+            action = "catchup" if result["changed"] else "none"
+            log_event({
+                "kind": "lights_window",
+                "on": on_iso,
+                "off": off_iso, 
+                "now": now_iso,
+                "desired": "ON" if should_be_on else "OFF",
+                "action": action
+            })
+                
+        except Exception as e:
+            log_event({"kind": "lights_catchup_error", "error": str(e)})
 
     def _loop(self):
         while not self.stop.is_set():
@@ -98,23 +195,61 @@ class Scheduler:
         now_min = h*60 + m
         caps = cfg.get("daily_caps", {})
 
-        # handle span entries (on_at..off_at)
+        # Handle lights scheduling - PURE EDGE-ONLY (zero periodic enforcement)
+        if self._current_lights_on_time and self._current_lights_off_time:
+            try:
+                from app.relays_core import set_lights, REASON_SCHEDULE_ON, REASON_SCHEDULE_OFF
+                
+                on_h, on_m = map(int, self._current_lights_on_time.split(":"))
+                off_h, off_m = map(int, self._current_lights_off_time.split(":"))
+                
+                # PURE EDGE DETECTION: Only act at exact scheduled times
+                # No guards, no periodic checks, no continuous enforcement
+                if s == 0:  # Only at exact minute boundaries
+                    if h == on_h and m == on_m:
+                        # Lights ON edge - execute once and trust it
+                        result = set_lights(True, REASON_SCHEDULE_ON)
+                        log_event({"kind": "lights_schedule_on", "time": f"{h:02d}:{m:02d}", "changed": result["changed"]})
+                        if result["changed"]:
+                            self.daily_used["grow_lights"] = self.daily_used.get("grow_lights", 0) + 1
+                    
+                    elif h == off_h and m == off_m:
+                        # Lights OFF edge - execute once and trust it
+                        result = set_lights(False, REASON_SCHEDULE_OFF)
+                        log_event({"kind": "lights_schedule_off", "time": f"{h:02d}:{m:02d}", "changed": result["changed"]})
+                
+                # NO GUARD ENFORCEMENT - eliminated to prevent periodic "off dips"
+                    
+            except Exception as e:
+                log_event({"kind": "lights_error", "error": str(e)})
+
+        # Handle other span entries (non-lights) - EDGE-ONLY to eliminate ALL periodic activity
         for e in cfg.get("entries", []):
-            if wday not in e.get("days",[0,1,2,3,4,5,6]): continue
-            if e.get("kind") == "span":
-                on_h,on_m = map(int, e["on_at"].split(":"))
-                off_h,off_m = map(int, e["off_at"].split(":"))
-                a = on_h*60+on_m; b = off_h*60+off_m
-                want_on = (a <= now_min < b) if a < b else not (b <= now_min < a)  # support wrap
-                self.relays.set(e["name"], bool(want_on))
-                if want_on:
-                    self.daily_used[e["name"]] = min(caps.get(e["name"], 10**9),
-                                                     self.daily_used.get(e["name"],0)+1)
+            if wday not in e.get("days",[0,1,2,3,4,5,6]):
+                continue
+            if e.get("kind") == "span" and e.get("name") != "grow_lights":  # skip lights, handled above
+                on_h, on_m = map(int, e["on_at"].split(":"))
+                off_h, off_m = map(int, e["off_at"].split(":"))
+                
+                # EDGE-ONLY: Only act at exact on/off times (s == 0)
+                if s == 0:
+                    if h == on_h and m == on_m:
+                        # Span ON edge
+                        self.relays.set(e["name"], True)
+                        self.daily_used[e["name"]] = min(caps.get(e["name"], 10**9),
+                                                         self.daily_used.get(e["name"],0)+1)
+                        log_event({"kind": "span_schedule_on", "relay": e["name"], "time": f"{h:02d}:{m:02d}"})
+                    elif h == off_h and m == off_m:
+                        # Span OFF edge
+                        self.relays.set(e["name"], False)
+                        log_event({"kind": "span_schedule_off", "relay": e["name"], "time": f"{h:02d}:{m:02d}"})
 
         # handle pulse entries at exact minute/second 0
         for e in cfg.get("entries", []):
-            if e.get("kind") != "pulse": continue
-            if wday not in e.get("days",[0,1,2,3,4,5,6]): continue
+            if e.get("kind") != "pulse":
+                continue
+            if wday not in e.get("days",[0,1,2,3,4,5,6]):
+                continue
             hh,mm = map(int, e["at"].split(":"))
             if h==hh and m==mm and s==0:
                 cap = caps.get(e["name"], 0)
