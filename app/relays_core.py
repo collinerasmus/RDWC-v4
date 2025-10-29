@@ -66,7 +66,7 @@ MIN_OFF = {
 REASON_APPLY_SETTINGS = "apply_settings"
 REASON_SCHEDULE_ON = "schedule_on"
 REASON_SCHEDULE_OFF = "schedule_off"
-REASON_CATCHUP = "catchup"
+# REASON_CATCHUP removed - no longer supported (periodic enforcement disabled)
 REASON_OVERRIDE = "override"
 REASON_EMERGENCY = "emergency"
 REASON_HEALTH_GUARD = "health_guard"
@@ -75,7 +75,7 @@ REASON_HEALTH_GUARD = "health_guard"
 WHITELIST_LIGHTS = {
     "schedule_on",           # REASON_SCHEDULE_ON - scheduler turns lights on
     "schedule_off",          # REASON_SCHEDULE_OFF - scheduler turns lights off  
-    "catchup",               # REASON_CATCHUP - startup catchup to correct state
+    # "catchup" REMOVED - periodic enforcement disabled for pure edge-only control
     "schedule_guard_on",     # scheduler guard ensures lights stay on
     "schedule_guard_off",    # scheduler guard ensures lights stay off
     "apply_settings",        # REASON_APPLY_SETTINGS - settings application

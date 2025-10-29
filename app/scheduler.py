@@ -66,9 +66,9 @@ class Scheduler:
     def start(self):
         if self.thread and self.thread.is_alive(): return
         self.stop.clear()
-        # Initialize lights schedule and handle catch-up
+        # Initialize lights schedule - NO MORE CATCHUP
         self._update_lights_schedule()
-        self._handle_lights_catchup()
+        # CATCHUP DISABLED: No periodic enforcement - pure edge-only control
         self.thread = threading.Thread(target=self._loop, name="rdwc_scheduler", daemon=True)
         self.thread.start()
 
@@ -135,44 +135,8 @@ class Scheduler:
             return now_min >= on_min or now_min < off_min
 
     def _handle_lights_catchup(self):
-        """Handle lights state when service starts mid-cycle - apply once with REASON_CATCHUP"""
-        if not (self._current_lights_on_time and self._current_lights_off_time):
-            return
-        
-        try:
-            from app.relays_core import set_lights, REASON_CATCHUP
-            
-            wday, h, m, s = _now_tuple()
-            now_min = h * 60 + m
-            
-            on_h, on_m = map(int, self._current_lights_on_time.split(":"))
-            off_h, off_m = map(int, self._current_lights_off_time.split(":"))
-            
-            on_min = on_h * 60 + on_m
-            off_min = off_h * 60 + off_m
-            
-            # Use pure window function
-            should_be_on = self.is_within_window(now_min, on_min, off_min)
-            
-            # Apply catch-up state ONCE using centralized control
-            result = set_lights(should_be_on, REASON_CATCHUP)
-            
-            now_iso = f"{h:02d}:{m:02d}"
-            on_iso = f"{on_h:02d}:{on_m:02d}"
-            off_iso = f"{off_h:02d}:{off_m:02d}"
-            
-            action = "catchup" if result["changed"] else "none"
-            log_event({
-                "kind": "lights_window",
-                "on": on_iso,
-                "off": off_iso, 
-                "now": now_iso,
-                "desired": "ON" if should_be_on else "OFF",
-                "action": action
-            })
-                
-        except Exception as e:
-            log_event({"kind": "lights_catchup_error", "error": str(e)})
+        """DISABLED: No more catchup enforcement - pure edge-only control"""
+        log_event({"kind": "catchup_disabled", "message": "Periodic catchup enforcement disabled - pure edge-only scheduling"})
 
     def _loop(self):
         while not self.stop.is_set():

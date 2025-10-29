@@ -244,6 +244,10 @@ def update_settings_api(
             lights_duration_hours=lights_duration_hours
         )
         
+        # Trigger scheduler update if lights settings changed
+        if lights_on_time is not None or lights_duration_hours is not None:
+            _scheduler._update_lights_schedule()
+        
         return {
             "system_volume_liters": updated_settings.system_volume_liters,
             "lights_on_time": updated_settings.lights_on_time,
@@ -388,10 +392,33 @@ def schedule_enable(enabled: bool = Body(..., embed=True)):
 # Debug endpoints for lights control investigation
 @app.get("/debug/lights_log")
 def debug_lights_log(last: int = Query(50, description="Number of recent events to return")):
-    """Get recent lights control event log for debugging."""
+    """Get recent lights control event log with summary statistics."""
     events = get_relay_event_log("lights", last=last)
+    
+    # Generate summary statistics
+    by_reason = {}
+    blocked_count = 0
+    changed_count = 0
+    
+    for event in events:
+        reason = event.get("reason", "unknown")
+        by_reason[reason] = by_reason.get(reason, 0) + 1
+        if event.get("blocked", False):
+            blocked_count += 1
+        if event.get("final", True):  # final=True means the change was applied
+            changed_count += 1
+    
+    summary = {
+        "total": len(events),
+        "by_reason": by_reason,
+        "blocked": blocked_count,
+        "applied": changed_count,
+        "success_rate": f"{(changed_count / len(events) * 100):.1f}%" if events else "0%"
+    }
+    
     return {
         "relay": "lights",
+        "summary": summary,
         "total_events": len(events),
         "events": events
     }
@@ -403,6 +430,53 @@ def debug_lights_allowed():
     return {
         "allowed_reasons": reasons,
         "total": len(reasons)
+    }
+
+@app.get("/debug/lights_sources")
+def debug_lights_sources(minutes: int = Query(15, description="Look back this many minutes")):
+    """Get counts by reason and caller for recent lights control attempts."""
+    from datetime import datetime, timedelta
+    
+    events = get_relay_event_log("lights", last=200)  # Get more events to filter by time
+    cutoff_time = datetime.now() - timedelta(minutes=minutes)
+    
+    # Filter events to the specified time window
+    recent_events = []
+    for event in events:
+        try:
+            event_time = datetime.fromisoformat(event.get("ts", "").replace("Z", "+00:00"))
+            if event_time >= cutoff_time:
+                recent_events.append(event)
+        except (ValueError, TypeError):
+            continue  # Skip events with invalid timestamps
+    
+    # Analyze sources
+    by_reason = {}
+    by_caller = {}
+    blocked_by_reason = {}
+    
+    for event in recent_events:
+        reason = event.get("reason", "unknown")
+        caller = event.get("caller", "unknown")
+        blocked = event.get("blocked", False)
+        
+        by_reason[reason] = by_reason.get(reason, 0) + 1
+        by_caller[caller] = by_caller.get(caller, 0) + 1
+        
+        if blocked:
+            blocked_by_reason[reason] = blocked_by_reason.get(reason, 0) + 1
+    
+    return {
+        "time_window_minutes": minutes,
+        "events_found": len(recent_events),
+        "by_reason": by_reason,
+        "by_caller": by_caller,
+        "blocked_by_reason": blocked_by_reason,
+        "analysis": {
+            "most_active_reason": max(by_reason.items(), key=lambda x: x[1])[0] if by_reason else None,
+            "most_active_caller": max(by_caller.items(), key=lambda x: x[1])[0] if by_caller else None,
+            "most_blocked_reason": max(blocked_by_reason.items(), key=lambda x: x[1])[0] if blocked_by_reason else None
+        }
     }
 
 @app.post("/debug/lights_hold")
