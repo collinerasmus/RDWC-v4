@@ -403,6 +403,39 @@ def relay_set_new(body: dict = Body(...)):
         "cooldown_remaining": result.get("cooldown_remaining", 0)
     }
 
+@app.get("/relay/set")
+def relay_set_query(name: str = Query(...), on: int = Query(...)):
+    """Fallback GET handler for relay control via query params. Mirrors /relay/set POST."""
+    from app.relays_core import set_relay, RELAY_PINS
+
+    desired = bool(int(on))
+    trace_entry = {
+        "ts": datetime.now().isoformat(),
+        "name": name,
+        "on": desired,
+        "via": "get"
+    }
+    if name not in RELAY_PINS:
+        trace_entry["error"] = f"Invalid relay name '{name}'"
+        _relay_set_trace.append(trace_entry)
+        return JSONResponse(status_code=400, content={"error": f"Invalid relay name '{name}'"})
+
+    result = set_relay(name, desired, reason="override", force=False)
+    trace_entry["result"] = {
+        "changed": result.get("changed", False),
+        "state": result.get("state", False),
+        "reason": result.get("reason", "unknown"),
+        "cooldown_remaining": result.get("cooldown_remaining", 0)
+    }
+    _relay_set_trace.append(trace_entry)
+    return {
+        "ok": True,
+        "changed": result.get("changed", False),
+        "state": result.get("state", False),
+        "reason": result.get("reason", "unknown"),
+        "cooldown_remaining": result.get("cooldown_remaining", 0)
+    }
+
 @app.post("/relay/{name}")
 def relay_set_legacy(name: str, body: dict = Body(...)):
     """Legacy endpoint - now redirects to relays_core for consistency"""
