@@ -76,6 +76,11 @@ async def sensor_loop():
 @app.on_event("startup")
 async def _start_tasks():
     global sensor_task
+    
+    # Initialize relay cache before anything else
+    from app.relays_core import initialize_all_safe_off
+    initialize_all_safe_off()
+    
     if sensor_task is None or sensor_task.done():
         sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
     # Also start the old thread as backup
@@ -346,13 +351,47 @@ def pump_set(name: str, body: dict = Body(...)):
 
 @app.get("/relay/status")
 def relay_status():
-    return _relays.status()
+    """Get comprehensive relay status from relays_core with timing info"""
+    from app.relays_core import get_relay_status
+    return get_relay_status()
+
+@app.post("/relay/set")
+def relay_set_new(body: dict = Body(...)):
+    """Set relay state using proper relays_core with whitelisted 'override' reason"""
+    from app.relays_core import set_relay, RELAY_PINS
+    
+    name = body.get("name")
+    on = body.get("on", False)
+    
+    # Validate relay name
+    if name not in RELAY_PINS:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Invalid relay name '{name}'. Valid names: {list(RELAY_PINS.keys())}"}
+        )
+    
+    # Use whitelisted 'override' reason for manual control
+    result = set_relay(name, bool(on), reason="override", force=False)
+    
+    return {
+        "ok": True,
+        "changed": result.get("changed", False),
+        "state": result.get("state", False),
+        "reason": result.get("reason", "unknown"),
+        "cooldown_remaining": result.get("cooldown_remaining", 0)
+    }
 
 @app.post("/relay/{name}")
-def relay_set(name: str, body: dict = Body(...)):
+def relay_set_legacy(name: str, body: dict = Body(...)):
+    """Legacy endpoint - now redirects to relays_core for consistency"""
+    from app.relays_core import set_relay
     state = (body.get("state","").lower() == "on")
-    _relays.set(name, state)
-    return {"ok": True, "state": _relays.get(name)}
+    result = set_relay(name, state, reason="override", force=False)
+    return {
+        "ok": True, 
+        "state": result.get("state", False),
+        "changed": result.get("changed", False)
+    }
 
 @app.get("/relay/persist")
 def relay_persist_info():
@@ -477,6 +516,28 @@ def debug_lights_sources(minutes: int = Query(15, description="Look back this ma
             "most_active_caller": max(by_caller.items(), key=lambda x: x[1])[0] if by_caller else None,
             "most_blocked_reason": max(blocked_by_reason.items(), key=lambda x: x[1])[0] if blocked_by_reason else None
         }
+    }
+
+@app.get("/debug/relay_try")
+def debug_relay_try(name: str = Query(...), on: int = Query(...)):
+    """Diagnostic endpoint to test relay control bypassing UI cache"""
+    from app.relays_core import set_relay, RELAY_PINS
+    
+    if name not in RELAY_PINS:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Invalid relay name '{name}'. Valid names: {list(RELAY_PINS.keys())}"}
+        )
+    
+    result = set_relay(name, bool(on), reason="override", force=False)
+    
+    return {
+        "relay": name,
+        "requested": bool(on),
+        "changed": result.get("changed", False),
+        "state": result.get("state", False),
+        "reason": result.get("reason", "unknown"),
+        "cooldown_remaining": result.get("cooldown_remaining", 0)
     }
 
 @app.post("/debug/lights_hold")

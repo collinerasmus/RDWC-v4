@@ -276,7 +276,12 @@ def initialize_all_safe_off():
     """Initialize all relays to safe OFF state at boot."""
     logger.info("Initializing all relays to safe OFF state")
     for relay_name in RELAY_PINS:
-        set_relay(relay_name, False, "boot_safe_off", force=True)
+        if relay_name == "lights":
+            # Use emergency reason for lights (whitelisted)
+            set_lights(False, "emergency", force=True)
+        else:
+            # Use boot_safe_off for other relays
+            set_relay(relay_name, False, "boot_safe_off", force=True)
 
 def get_relay_status() -> Dict[str, Dict[str, Any]]:
     """Get status of all relays for diagnostics."""
