@@ -38,7 +38,7 @@
       <div class="muted">Updates every 10s • <span id="age">—</span>s ago</div>
       <h3 style="margin-top:16px;">Relays</h3>
       <div id="relays" class="relay-grid"></div>
-      <div class="muted">Active map: ph_up, grow_pump, micro_pump, bloom_pump, main_pump, chiller_pump, water_chiller, grow_lights</div>
+      <div class="muted">Active map: lights, main_pump, chiller_pump, chiller_power, dosing_grow, dosing_micro, dosing_bloom, dosing_ph_up</div>
       <hr>
       <h3>Scheduler</h3>
       <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
@@ -155,7 +155,7 @@ async function refresh(){
   await ensureRelayButtons();
   await refreshStatus();
 }
-const RELAY_NAMES = ["ph_up","grow_pump","micro_pump","bloom_pump","main_pump","chiller_pump","water_chiller","grow_lights"];
+const RELAY_NAMES = ["lights","main_pump","chiller_pump","chiller_power","dosing_grow","dosing_micro","dosing_bloom","dosing_ph_up"];
 
 function fmt(v){ return (v===null||v===undefined)?'—':Number(v).toFixed(3).replace(/\.000$/,''); }
 function setBtn(id,on){ const b=document.getElementById(id); if(!b) return; b.className = 'relay ' + (on?'on':'off'); b.textContent = (on?'ON ':'OFF ') + b.dataset.label; }
@@ -197,6 +197,7 @@ async function ensureRelayButtons(){
     const label = n.replace('_',' ').replace('_',' ');
     const div = document.createElement('button');
     div.id = `relay-${n}`;
+    div.dataset.name = n;
     div.dataset.label = label;
     div.className = 'relay off';
     div.onclick = () => toggleRelay(n);

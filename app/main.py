@@ -5,6 +5,8 @@ import asyncio
 from contextlib import suppress
 from typing import Optional
 from subprocess import run, PIPE
+from collections import deque
+from datetime import datetime
 from app.ezo_i2c_stabilized import read_all
 from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
 from app.diag import router as diag_router
@@ -28,6 +30,9 @@ _relays = RelayBank()
 _relays.load_state(allowlist=["main_pump","chiller_pump"], default_off=True)
 _pumps = PumpController(_relays)
 _scheduler = Scheduler(_relays)
+
+# Request tracing for /relay/set
+_relay_set_trace = deque(maxlen=50)
 
 _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {}}
 _last_t = 0.0
@@ -192,7 +197,7 @@ def health():
 @app.get("/")
 def ui():
     path = os.path.join(os.path.dirname(__file__), "static", "index.html")
-    return FileResponse(path, media_type="text/html")
+    return FileResponse(path, media_type="text/html", headers={"Cache-Control":"no-store, must-revalidate"})
 
 @app.get("/history")
 def history(limit: int = 100):
@@ -363,8 +368,17 @@ def relay_set_new(body: dict = Body(...)):
     name = body.get("name")
     on = body.get("on", False)
     
+    # Trace the request
+    trace_entry = {
+        "ts": datetime.now().isoformat(),
+        "name": name,
+        "on": bool(on)
+    }
+    
     # Validate relay name
     if name not in RELAY_PINS:
+        trace_entry["error"] = f"Invalid relay name '{name}'"
+        _relay_set_trace.append(trace_entry)
         return JSONResponse(
             status_code=400,
             content={"error": f"Invalid relay name '{name}'. Valid names: {list(RELAY_PINS.keys())}"}
@@ -372,6 +386,15 @@ def relay_set_new(body: dict = Body(...)):
     
     # Use whitelisted 'override' reason for manual control
     result = set_relay(name, bool(on), reason="override", force=False)
+    
+    # Add result to trace
+    trace_entry["result"] = {
+        "changed": result.get("changed", False),
+        "state": result.get("state", False),
+        "reason": result.get("reason", "unknown"),
+        "cooldown_remaining": result.get("cooldown_remaining", 0)
+    }
+    _relay_set_trace.append(trace_entry)
     
     return {
         "ok": True,
@@ -538,6 +561,14 @@ def debug_relay_try(name: str = Query(...), on: int = Query(...)):
         "state": result.get("state", False),
         "reason": result.get("reason", "unknown"),
         "cooldown_remaining": result.get("cooldown_remaining", 0)
+    }
+
+@app.get("/debug/relay_requests")
+def debug_relay_requests():
+    """Get the last 50 /relay/set requests for debugging UI issues."""
+    return {
+        "count": len(_relay_set_trace),
+        "items": list(_relay_set_trace)
     }
 
 @app.post("/debug/lights_hold")
