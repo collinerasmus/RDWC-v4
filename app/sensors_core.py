@@ -73,82 +73,58 @@ def _update_temp_comp_cache(temp_c: float):
     _last_t_set_ts = time.time()
 
 
-def _read_rtd_temp() -> Optional[float]:
-    """Read temperature from RTD sensor."""
-    if not I2C_AVAILABLE:
-        # Simulated temperature for dev environments
-        return 23.0 + (time.time() % 10) * 0.05
-    
-    try:
-        rtd = EZO(1, ADDR_RTD, "RTD")
-        rtd.init_once()
-        result = rtd.read_value()
-        return float(result)
-    except Exception as e:
-        logger.error(f"RTD read failed: {e}")
-        return None
-
-
-def _send_temp_comp_to_probes(temp_c: float) -> dict:
+def _read_with_temp_comp_check():
     """
-    Send temperature compensation to pH and EC sensors.
+    Read sensors using proven ezo_i2c_stabilized.read_all() with throttled T compensation.
     
     Returns:
-        Dict with success status for each probe
+        tuple: (t_write_performed, compensation_results, temp_c, ph_val, ec_val)
     """
-    results = {"ph": False, "ec": False}
-    
     if not I2C_AVAILABLE:
-        results = {"ph": True, "ec": True}  # Simulate success
-        return results
+        # Simulated read
+        return False, {"ph": True, "ec": True}, 23.0, 6.5, 1500.0
     
-    # Send to pH
+    # Use the proven read_all function from ezo_i2c_stabilized
+    # But we need to control T compensation ourselves for throttling
     try:
-        ph = EZO(1, ADDR_PH, "pH")
-        ph.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.06)
-        results["ph"] = True
+        from .ezo_i2c_stabilized import EZO, RTD_ADDR, PH_ADDR, EC_ADDR
+        
+        # Initialize all devices
+        rtd = EZO(1, RTD_ADDR, "RTD")
+        ph = EZO(1, PH_ADDR, "pH")
+        ec = EZO(1, EC_ADDR, "EC")
+        
+        for dev in (rtd, ph, ec):
+            dev.init_once()
+        
+        # Read RTD first
+        temp_c = float(rtd.read_value())
+        
+        # Check throttle conditions AFTER reading temp
+        should_send, _ = _should_send_temp_comp(temp_c)
+        
+        # Apply temperature compensation with throttling
+        comp_results = {"ph": False, "ec": False}
+        if should_send:
+            for dev, name in [(ph, "ph"), (ec, "ec")]:
+                try:
+                    dev.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.06)
+                    comp_results[name] = True
+                except Exception as e:
+                    logger.warning(f"{name} temp comp failed: {e}")
+            
+            # Update cache after successful send
+            _update_temp_comp_cache(temp_c)
+        
+        # Read pH and EC
+        ph_val = float(ph.read_value())
+        ec_val = float(ec.read_value())
+        
+        return should_send, comp_results, temp_c, ph_val, ec_val
+        
     except Exception as e:
-        logger.warning(f"pH temp comp failed: {e}")
-    
-    # Send to EC
-    try:
-        ec = EZO(1, ADDR_EC, "EC")
-        ec.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.06)
-        results["ec"] = True
-    except Exception as e:
-        logger.warning(f"EC temp comp failed: {e}")
-    
-    return results
-
-
-def _read_ph() -> Optional[float]:
-    """Read pH value."""
-    if not I2C_AVAILABLE:
-        return 5.8 + (time.time() % 20) * 0.02
-    
-    try:
-        ph = EZO(1, ADDR_PH, "pH")
-        ph.init_once()
-        result = ph.read_value()
-        return float(result)
-    except Exception as e:
-        logger.error(f"pH read failed: {e}")
-        return None
-
-
-def _read_ec() -> Optional[float]:
-    """Read EC value in μS/cm."""
-    if not I2C_AVAILABLE:
-        return 1500.0 + (time.time() % 50) * 10.0
-    
-    try:
-        ec = EZO(1, ADDR_EC, "EC")
-        ec.init_once()
-        result = ec.read_value()
-        return float(result)
-    except Exception as e:
-        logger.error(f"EC read failed: {e}")
-        return None
+        logger.error(f"Sensor read failed: {e}")
+        raise
 
 
 def read_all_sensors() -> Dict[str, Any]:
@@ -180,53 +156,47 @@ def read_all_sensors() -> Dict[str, Any]:
         "errors": []
     }
     
-    # Step 1: Read RTD temperature first
-    temp_c = _read_rtd_temp()
-    if temp_c is not None:
-        result["temp_c"] = round(temp_c, 2)
-        result["comp_temp_c"] = round(temp_c, 2)
-        result["i2c_ops"]["reads"]["rtd"] = 1
-    else:
-        result["errors"].append("RTD read failed or returned None")
-        # Cannot proceed without temperature for compensation
+    # Use simulated values for dev environments
+    if not I2C_AVAILABLE:
+        result["temp_c"] = 23.0
+        result["comp_temp_c"] = 23.0
+        result["ph"] = 6.5
+        result["ec_uS"] = 1500
+        result["ec_mS"] = 1.5
+        result["i2c_ops"]["reads"] = {"rtd": 1, "ph": 1, "ec": 1}
+        result["t_write"] = False
         return result
     
-    # Step 2: Check throttle conditions
-    should_send, delta_t = _should_send_temp_comp(temp_c)
-    result["t_delta"] = round(delta_t, 2)
-    
-    # Step 3: Send temperature compensation if throttle passes
-    if should_send:
-        comp_results = _send_temp_comp_to_probes(temp_c)
-        result["t_write"] = True
-        result["i2c_ops"]["t_writes"] = sum(1 for v in comp_results.values() if v)
+    # Read all sensors with throttled T compensation
+    try:
+        should_send_t, comp_results, temp_c, ph_val, ec_val = _read_with_temp_comp_check()
         
-        # Update cache after successful send
-        _update_temp_comp_cache(temp_c)
-        
-        # Log the T-write event (concise, only when it happens)
-        probes_updated = [k for k, v in comp_results.items() if v]
-        if probes_updated:
-            logger.info(f"T-comp sent: {temp_c:.2f}°C → {', '.join(probes_updated)} (ΔT={delta_t:.2f}°C)")
-    else:
-        result["t_write"] = False
-        logger.debug(f"T-comp throttled: ΔT={delta_t:.2f}°C (< 0.2) and < 60s elapsed")
-    
-    # Step 4: Read pH and EC
-    ph_val = _read_ph()
-    if ph_val is not None:
+        # Populate result with values
+        result["temp_c"] = round(temp_c, 2)
+        result["comp_temp_c"] = round(temp_c, 2)
         result["ph"] = round(ph_val, 2)
-        result["i2c_ops"]["reads"]["ph"] = 1
-    else:
-        result["errors"].append("pH read failed or returned None")
-    
-    ec_val = _read_ec()
-    if ec_val is not None:
         result["ec_uS"] = round(ec_val, 0)
         result["ec_mS"] = round(ec_val / 1000.0, 2)
+        
+        # Populate throttle info
+        result["t_write"] = should_send_t
+        result["t_delta"] = round(_last_t_sent_c - temp_c if _last_t_sent_c is not None else 999.0, 2)
+        result["i2c_ops"]["t_writes"] = sum(1 for v in comp_results.values() if v) if should_send_t else 0
+        result["i2c_ops"]["reads"]["rtd"] = 1
+        result["i2c_ops"]["reads"]["ph"] = 1
         result["i2c_ops"]["reads"]["ec"] = 1
-    else:
-        result["errors"].append("EC read failed or returned None")
+        
+        # Log T-write if it occurred
+        if should_send_t:
+            probes_updated = [k for k, v in comp_results.items() if v]
+            if probes_updated:
+                logger.info(f"T-comp sent: {temp_c:.2f}°C → {', '.join(probes_updated)} (ΔT={result['t_delta']:.2f}°C)")
+        else:
+            logger.debug(f"T-comp throttled: ΔT={result['t_delta']:.2f}°C")
+        
+    except Exception as e:
+        logger.error(f"Sensor read failed: {e}", exc_info=True)
+        result["errors"].append(f"Sensor read failed: {str(e)}")
     
     return result
 
