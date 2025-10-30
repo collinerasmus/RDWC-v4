@@ -44,21 +44,21 @@ RELAY_PINS = {
 }
 
 # Minimum ON/OFF times to prevent short-cycling (seconds)
-# Reduced for better manual control responsiveness while still protecting hardware
+# Optimized for responsive manual control with minimal protection
 MIN_ON = {
-    "chiller_power": 60,   # 1 minute (reduced from 5 for better responsiveness)
-    "chiller_pump": 30,    # 30 seconds (reduced from 2 min)
-    "main_pump": 15,       # 15 seconds (reduced from 1 min)
-    "lights": 10,          # 10 seconds (reduced from 30)
+    "chiller_power": 10,   # 10 seconds (just prevent accidental double-click)
+    "chiller_pump": 5,     # 5 seconds
+    "main_pump": 5,        # 5 seconds
+    "lights": 3,           # 3 seconds
     "dosing_*": 0,         # No restriction
     "ph_*": 0,             # No restriction
 }
 
 MIN_OFF = {
-    "chiller_power": 60,   # 1 minute (reduced from 5 for better responsiveness)
-    "chiller_pump": 30,    # 30 seconds (reduced from 2 min)
-    "main_pump": 10,       # 10 seconds (reduced from 30)
-    "lights": 5,           # 5 seconds (reduced from 10)
+    "chiller_power": 10,   # 10 seconds (just prevent accidental double-click)
+    "chiller_pump": 5,     # 5 seconds
+    "main_pump": 5,        # 5 seconds
+    "lights": 3,           # 3 seconds
     "dosing_*": 0,         # No restriction
     "ph_*": 0,             # No restriction
 }
