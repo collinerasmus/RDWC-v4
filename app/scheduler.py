@@ -162,7 +162,7 @@ class Scheduler:
         wday, h, m, s = _now_tuple()
         caps = cfg.get("daily_caps", {})
 
-        # Handle lights scheduling - PURE EDGE-ONLY (zero periodic enforcement)
+        # Handle lights scheduling - EDGE-ONLY with ±5s guards
         if self._current_lights_on_time and self._current_lights_off_time:
             try:
                 from app.relays_core import set_lights, REASON_SCHEDULE_ON, REASON_SCHEDULE_OFF
@@ -170,9 +170,8 @@ class Scheduler:
                 on_h, on_m = map(int, self._current_lights_on_time.split(":"))
                 off_h, off_m = map(int, self._current_lights_off_time.split(":"))
                 
-                # PURE EDGE DETECTION: Only act at exact scheduled times
-                # No guards, no periodic checks, no continuous enforcement
-                if s == 0:  # Only at exact minute boundaries
+                # EDGE DETECTION: Act at exact scheduled times (s == 0)
+                if s == 0:  # Exact minute boundaries
                     if h == on_h and m == on_m:
                         # Lights ON edge - execute once and trust it
                         result = set_lights(True, REASON_SCHEDULE_ON)
@@ -184,8 +183,17 @@ class Scheduler:
                         # Lights OFF edge - execute once and trust it
                         result = set_lights(False, REASON_SCHEDULE_OFF)
                         log_event({"kind": "lights_schedule_off", "time": f"{h:02d}:{m:02d}", "changed": result["changed"]})
-                
-                # NO GUARD ENFORCEMENT - eliminated to prevent periodic "off dips"
+
+                # ±5s GUARDS: Re-assert intended state up to 5s after edge
+                # Guards are idempotent and only run within s in 1..5 to avoid periodic dips
+                else:
+                    if 1 <= s <= 5:
+                        if h == on_h and m == on_m:
+                            # Guard ON
+                            set_lights(True, "schedule_guard_on")
+                        elif h == off_h and m == off_m:
+                            # Guard OFF
+                            set_lights(False, "schedule_guard_off")
                     
             except Exception as e:
                 log_event({"kind": "lights_error", "error": str(e)})

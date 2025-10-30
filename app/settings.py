@@ -52,10 +52,10 @@ def _init_settings_table():
             )
         """)
         
-        # Insert defaults if missing
+        # Insert defaults if missing (production defaults)
         defaults = {
             'system_volume_liters': '25.0',
-            'lights_on_time': '06:00',
+            'lights_on_time': '20:00',
             'lights_duration_hours': '16'
         }
         
@@ -82,7 +82,7 @@ def _load_settings_from_db() -> Settings:
         
         return Settings(
             system_volume_liters=float(settings_dict.get('system_volume_liters', '25.0')),
-            lights_on_time=settings_dict.get('lights_on_time', '06:00'),
+            lights_on_time=settings_dict.get('lights_on_time', '20:00'),
             lights_duration_hours=int(settings_dict.get('lights_duration_hours', '16'))
         )
 
@@ -153,8 +153,14 @@ def lights_window(today_date: datetime) -> Tuple[datetime, datetime]:
     # Parse time string
     hour, minute = map(int, settings.lights_on_time.split(':'))
     
-    # Create on time for the given date
-    on_dt = SA_TZ.localize(today_date.replace(hour=hour, minute=minute, second=0, microsecond=0))
+    # Normalize date to timezone-aware base in SA_TZ
+    if today_date.tzinfo is None:
+        base = SA_TZ.localize(today_date)
+    else:
+        base = today_date.astimezone(SA_TZ)
+
+    # Create on time for the given date in SA_TZ
+    on_dt = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
     
     # Calculate off time
     off_dt = on_dt + timedelta(hours=settings.lights_duration_hours)

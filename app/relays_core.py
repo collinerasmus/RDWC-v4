@@ -48,19 +48,21 @@ RELAY_PINS = {
 # Minimum ON/OFF times to prevent short-cycling (seconds)
 # Optimized for responsive manual control with minimal protection
 MIN_ON = {
-    "chiller_power": 10,   # 10 seconds (just prevent accidental double-click)
-    "chiller_pump": 5,     # 5 seconds
+    # Production-safe timings per checklist
+    "chiller_power": 300,  # 300 seconds ON minimum
+    "chiller_pump": 120,   # 120 seconds ON minimum
     "main_pump": 5,        # 5 seconds
-    "lights": 3,           # 3 seconds
+    "lights": 10,          # 10 seconds ON minimum
     "dosing_*": 0,         # No restriction
     "ph_*": 0,             # No restriction
 }
 
 MIN_OFF = {
-    "chiller_power": 10,   # 10 seconds (just prevent accidental double-click)
-    "chiller_pump": 5,     # 5 seconds
+    # Production-safe timings per checklist
+    "chiller_power": 300,  # 300 seconds OFF minimum
+    "chiller_pump": 5,     # 5 seconds OFF minimum (not specified; conservative)
     "main_pump": 5,        # 5 seconds
-    "lights": 3,           # 3 seconds
+    "lights": 5,           # 5 seconds OFF minimum
     "dosing_*": 0,         # No restriction
     "ph_*": 0,             # No restriction
 }
@@ -196,19 +198,20 @@ def _log_relay_event(relay_name: str, requested: bool, final_state: bool, reason
         logger.error(f"Failed to log relay event: {e}")
 
 def _update_antiflap_detector(relay_name: str, new_state: bool):
-    """Update anti-flap detection for relay."""
+    """Update anti-flap detection for relay (production policy)."""
     now = time.monotonic()
     history = _change_history[relay_name]
     history.append((now, new_state))
-    
-    # Check for excessive changes in last 5 minutes (more reasonable for manual testing)
-    cutoff = now - 300  # 5 minutes
+
+    # Production policy: back off if >6 toggles in 10 minutes
+    cutoff = now - 600  # 10 minutes
     recent_changes = [ts for ts, _ in history if ts > cutoff]
-    
-    # Increased threshold from 6 to 15 changes to avoid false triggers during testing
-    if len(recent_changes) > 15:
-        logger.warning(f"anti-flap: excessive changes on {relay_name} ({len(recent_changes)} in 5m), suppressing non-forced toggles for 2 minutes")
-        _antiflap_until[relay_name] = now + 120  # 2 minutes (reduced from 5)
+
+    if len(recent_changes) > 6:
+        logger.warning(
+            f"anti-flap: excessive changes on {relay_name} ({len(recent_changes)} in 10m), suppressing non-forced toggles for 5 minutes"
+        )
+        _antiflap_until[relay_name] = now + 300  # 5 minutes
 
 def set_relay(name: str, desired_on: bool, reason: str, force: bool = False) -> Dict[str, Any]:
     """

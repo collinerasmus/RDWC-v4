@@ -16,13 +16,13 @@ The system supports configurable settings via the web dashboard or API:
 - **Usage**: Used for nutrient dosing calculations
 
 ### Lights Schedule
-- **Start Time**: Default 06:00 (configurable HH:MM format)
+- **Start Time**: Default 20:00 (configurable HH:MM format)
 - **Duration**: Default 16 hours (range: 1-24 hours)
-- **Features**: 
-  - Automatically calculates daily on/off times
-  - Handles system startup catch-up (sets correct state if started mid-cycle)
-  - Recalculates schedule at midnight
-  - Supports schedules that span midnight
+- **Behavior**:
+  - Exactly two edges per day: ON at start time, OFF after duration
+  - ±5s guards after each edge to re-assert intended state (idempotent)
+  - Recomputes at startup, midnight, and after PUT /settings
+  - No minute “catch-up” loop (prevents periodic dips)
 
 ### Configuration Methods
 
@@ -46,6 +46,23 @@ curl -X PUT http://192.168.88.49:8080/settings \
     "lights_duration_hours": 18
   }'
 ```
+
+#### Health & Debug Endpoints
+```bash
+# Health (readiness) summary
+curl -s http://192.168.88.49:8080/health | jq .
+
+# Relay status (per-relay state, reasons, timers)
+curl -s http://192.168.88.49:8080/relay/status | jq .
+
+# Last 50 relay toggle attempts (ts/name/on/via/result)
+curl -s http://192.168.88.49:8080/debug/relay_requests | jq .
+```
+
+#### Alerts
+
+Alerts (Telegram/Email) are OFF by default and only activate if configured via `.env`.
+See `docs/alerts.md` for setup and testing instructions.
 
 #### Database Migration
 Settings are stored in SQLite. Run migration once:
