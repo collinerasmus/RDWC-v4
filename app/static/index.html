@@ -6,32 +6,114 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
- body{background:#0b0f14;color:#e6edf3;font-family:system-ui,Segoe UI,Roboto,Arial}
- .wrap{max-width:1100px;margin:24px auto;padding:0 12px}
- h1{font-weight:700;font-size:22px;margin:0 0 14px}
- .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}
- .card{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:14px}
- .row{display:flex;gap:10px;align-items:center;margin:6px 0}
- button{border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
- .on{background:#10b981;color:#062314}
- .off{background:#ef4444;color:#2c0c0c}
- .kv{font-variant-numeric:tabular-nums}
- .cam{width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;overflow:hidden}
- .muted{color:#9ca3af;font-size:12px}
- table{width:100%;border-collapse:collapse}
- th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
- .relay-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
- .relay{display:flex;align-items:center;justify-content:center;border-radius:10px;padding:10px 8px;font-weight:700;cursor:pointer;border:1px solid #1f2937}
- .relay.on{background:#10b981;color:#062314}
- .relay.off{background:#ef4444;color:#2c0c0c}
+:root{
+  --maxw: 1200px;
+  --gap: 16px;
+  --radius: 14px;
+  --pad: 16px;
+}
+body{
+  background:#0b0f14;
+  color:#e6edf3;
+  font-family:system-ui,Segoe UI,Roboto,Arial;
+  margin:0;
+}
+.container{
+  margin: 0 auto;
+  padding: var(--gap);
+  max-width: var(--maxw);
+}
+h1{font-weight:700;font-size:22px;margin:0 0 14px}
+.card{
+  background:#111827;
+  border:1px solid #1f2937;
+  border-radius:var(--radius);
+  padding:var(--pad);
+  box-shadow: 0 2px 12px rgba(0,0,0,.25);
+}
+.card + .card{ margin-top: var(--gap); }
+.card-wide{ width: 100%; }
+
+/* Camera full-width section sits above grid */
+#camera-card{ margin-bottom: var(--gap); }
+
+/* Main two-column content */
+#content-grid{
+  display: grid;
+  grid-template-columns: 1.2fr .8fr;
+  gap: var(--gap);
+  align-items: start;
+}
+
+/* Right column stacks smaller cards neatly */
+.stack > .card{ margin-top: var(--gap); }
+.stack > .card:first-child{ margin-top: 0; }
+
+/* Trends and Recent Readings should align widths */
+#trends-card,
+#recent-readings-card{ width: 100%; }
+
+/* Bottom area spacing */
+#recent-readings-card{ margin-top: var(--gap); }
+
+/* Responsive */
+@media (max-width: 900px){
+  #content-grid{
+    grid-template-columns: 1fr;
+  }
+  #right-column-stack{ margin-top: var(--gap); }
+}
+
+/* Simple card headers look consistent */
+.card h2, .card h3{
+  margin: 0 0 8px 0;
+  font-weight: 600;
+}
+
+/* Existing styles */
+.row{display:flex;gap:10px;align-items:center;margin:6px 0}
+button{border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
+.on{background:#10b981;color:#062314}
+.off{background:#ef4444;color:#2c0c0c}
+.kv{font-variant-numeric:tabular-nums}
+.cam{width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;overflow:hidden}
+.muted{color:#9ca3af;font-size:12px}
+table{width:100%;border-collapse:collapse}
+th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
+.relay-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
+.relay{display:flex;align-items:center;justify-content:center;border-radius:10px;padding:10px 8px;font-weight:700;cursor:pointer;border:1px solid #1f2937}
+.relay.on{background:#10b981;color:#062314}
+.relay.off{background:#ef4444;color:#2c0c0c}
 </style>
 </head>
 <body>
-<div class="wrap">
+<main id="rdwc-root" class="container">
   <h1>RDWC v4 — Dashboard</h1>
-  <div class="grid">
-    <div class="card">
-      <h3>Sensors</h3>
+  
+  <!-- Camera Card (Full Width, Top) -->
+  <section id="camera-card" class="card card-wide">
+    <h3>Camera</h3>
+    <div id="camBanner" class="muted" style="margin-bottom:8px; display:none;">camera driver not available</div>
+    <div class="cam">
+      <img id="cam" src="/camera/stream" style="width:100%;border-radius:10px" alt="Camera stream"/>
+    </div>
+  </section>
+
+  <!-- Main Content Grid -->
+  <div id="content-grid">
+    <!-- Left Column: Trends Card -->
+    <section id="trends-card" class="card card-wide">
+      <h3>Trends (last 6h)</h3>
+      <div class="row"><button onclick="exportCsv(24)" style="background:#374151;color:#e5e7eb">Export last 24h (CSV)</button></div>
+      <canvas id="chartTemp" height="120"></canvas>
+      <canvas id="chartPh"   height="120" style="margin-top:10px;"></canvas>
+      <canvas id="chartEc"   height="120" style="margin-top:10px;"></canvas>
+    </section>
+
+    <!-- Right Column: Stacked Cards -->
+    <div id="right-column-stack" class="stack">
+      <div class="card">
+        <h3>Sensors</h3>
       <div class="row kv">Temp: <b id="temp">—</b> °C</div>
       <div class="row kv">pH: <b id="ph">—</b></div>
       <div class="row kv">EC: <b id="ec">—</b> mS/cm</div>
@@ -90,34 +172,31 @@
         <span id="chillerStatus" class="muted">Status: Auto</span>
       </div>
     </div>
-    <div class="card">
-      <h3>Camera</h3>
-      <div id="camBanner" class="muted" style="margin-bottom:8px; display:none;">camera driver not available</div>
-      <div class="cam">
-        <img id="cam" src="/camera/stream" style="width:100%;border-radius:10px"/>
+      <div class="card">
+        <h3>Lights Log (debug)</h3>
+        <div class="row">
+          <button onclick="viewLightsLog()" style="background:#374151;color:#e5e7eb">View Lights Log (last 50)</button>
+        </div>
+        <div id="lightsLog" class="muted" style="margin-top:8px;max-height:220px;overflow:auto;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;font-size:12px;"></div>
+      </div>
+
+      <div class="card">
+        <h3>Calibration (pH) — stub</h3>
+        <div class="row">
+          <button onclick="calibStart()" style="background:#374151;color:#e5e7eb">Start</button>
+          <button onclick="calibApply()" style="background:#374151;color:#e5e7eb;margin-left:8px">Apply</button>
+          <span id="calibMsg" class="muted" style="margin-left:10px"></span>
+        </div>
       </div>
     </div>
   </div>
-  <div class="card" style="margin-top:16px;">
+
+  <!-- Recent Readings Card (Full Width, Bottom) -->
+  <section id="recent-readings-card" class="card card-wide">
     <h3>Recent Readings</h3>
     <table id="hist"><thead><tr><th>Time</th><th>Temp (°C)</th><th>pH</th><th>EC (mS/cm)</th></tr></thead><tbody></tbody></table>
-  </div>
-  
-  <div class="card" style="margin-top:16px;">
-    <h3>Trends (last 6h)</h3>
-    <div class="row"><button onclick="exportCsv(24)" style="background:#374151;color:#e5e7eb">Export last 24h (CSV)</button></div>
-    <canvas id="chartTemp" height="120"></canvas>
-    <canvas id="chartPh"   height="120" style="margin-top:10px;"></canvas>
-    <canvas id="chartEc"   height="120" style="margin-top:10px;"></canvas>
-  </div>
-  <div class="card" style="margin-top:16px;">
-    <h3>Lights Log (debug)</h3>
-    <div class="row">
-      <button onclick="viewLightsLog()" style="background:#374151;color:#e5e7eb">View Lights Log (last 50)</button>
-    </div>
-    <div id="lightsLog" class="muted" style="margin-top:8px;max-height:220px;overflow:auto;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;font-size:12px;"></div>
-  </div>
-</div>
+  </section>
+</main>
 <script>
 const NO_CACHE = { cache: 'no-store', headers: { 'Cache-Control': 'no-store' } };
 const bust = () => `t=${Date.now()}`;
@@ -502,13 +581,5 @@ async function calibApply(){
 }
 loadCamera().catch(()=>{});
 </script>
-<div class="card" style="margin-top:16px;">
-  <h3>Calibration (pH) — stub</h3>
-  <div class="row">
-    <button onclick="calibStart()" style="background:#374151;color:#e5e7eb">Start</button>
-    <button onclick="calibApply()" style="background:#374151;color:#e5e7eb;margin-left:8px">Apply</button>
-    <span id="calibMsg" class="muted" style="margin-left:10px"></span>
-  </div>
-</div>
 </body>
 </html>
