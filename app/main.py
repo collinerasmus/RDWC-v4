@@ -106,6 +106,10 @@ async def _stop_tasks():
     _scheduler.shutdown()
     # Stop alert monitoring
     stop_monitoring()
+    # Shutdown camera cleanly
+    with suppress(Exception):
+        from app.camera import shutdown
+        shutdown()
 
 @app.get("/health")
 def health():

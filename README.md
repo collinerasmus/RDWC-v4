@@ -112,6 +112,57 @@ curl -s http://192.168.88.49:8080/relay/status | jq '.chiller_power, .chiller_pu
 
 UI: A small card can present a 3-state selector and two live indicators for `chiller_power` and `chiller_pump`.
 
+### Camera
+
+Live MJPEG streaming using **Picamera2** (Raspberry Pi native camera stack, Bookworm compatible).
+
+#### Requirements
+- Raspberry Pi camera module (v1, v2, v3, or HQ)
+- Camera interface enabled via `raspi-config`
+- System packages:
+  ```bash
+  sudo apt update
+  sudo apt install -y python3-picamera2 libcamera-apps
+  ```
+- User in `video` group: `sudo usermod -aG video pi` (reboot after)
+
+#### Endpoints
+- `GET /camera/status` — Returns camera availability and mode
+  ```json
+  {
+    "available": true,
+    "mode": "picamera2",
+    "note": "Camera ready"
+  }
+  ```
+- `GET /camera/stream` — MJPEG stream at ~5 fps, 640×480, JPEG quality 70
+  - Returns `404` with JSON error if camera unavailable
+  - Media type: `multipart/x-mixed-replace; boundary=frame`
+
+#### Configuration
+Optional environment variables:
+- `CAM_FPS` — Frame rate (default: 5)
+- `CAM_QUALITY` — JPEG quality 1-100 (default: 70)
+- `LIBCAMERA_LOG_LEVELS` — Set to `*:2` to reduce log noise
+
+#### Troubleshooting
+```bash
+# Test camera detection
+libcamera-hello -n -t 2000
+
+# Check user permissions
+groups pi  # should include 'video'
+
+# View service logs for camera errors
+sudo journalctl -u rdwc.service -n 50 --no-pager | grep -i camera
+```
+
+#### Notes
+- No OpenCV dependency — uses PIL for JPEG encoding (lighter CPU usage)
+- Graceful fallback: if Picamera2 unavailable, endpoints return safe error responses
+- Camera automatically initialized on first stream request
+- Clean shutdown on service stop
+
 #### Alerts
 
 Alerts (Telegram/Email) are OFF by default and only activate if configured via `.env`.
