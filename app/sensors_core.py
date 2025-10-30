@@ -18,18 +18,22 @@ _last_t_sent_c: Optional[float] = None
 _last_t_set_ts: float = 0.0
 
 # Graceful I²C imports - works on Pi and dev PCs
+# Use the stabilized EZO interface that's proven to work
 try:
-    from .ezo_i2c import _send_cmd, _poll_until_ready, SETTLE_RTD, SETTLE_PH, SETTLE_EC
-    from .infra.i2c_bus import get_bus
+    from .ezo_i2c_stabilized import EZO
     I2C_AVAILABLE = True
 except ImportError:
     I2C_AVAILABLE = False
-    # Define stub functions for dev environments
-    def get_bus(): return None  # type: ignore
-    def _send_cmd(bus, addr, cmd): pass  # type: ignore
-    def _poll_until_ready(bus, addr): return (1, "23.0")  # type: ignore
-    SETTLE_RTD = SETTLE_PH = SETTLE_EC = 0.1  # type: ignore
     logger.warning("I²C libraries not available - running in simulation mode")
+    
+    # Stub class for dev environments
+    class EZO:  # type: ignore
+        def __init__(self, bus_num, addr, name):
+            self.name = name
+        def init_once(self): pass
+        def read_value(self, request="R", timeout=1.8, poll=0.15):
+            return "23.0" if self.name == "RTD" else "6.5" if self.name == "pH" else "1500"
+        def cmd(self, cmd, read_len=0, settle=0.06): pass
 
 
 def _should_send_temp_comp(temp_c: float) -> tuple[bool, float]:
@@ -74,14 +78,10 @@ def _read_rtd_temp() -> Optional[float]:
         return 23.0 + (time.time() % 10) * 0.05
     
     try:
-        bus = get_bus()
-        _send_cmd(bus, ADDR_RTD, "R")
-        time.sleep(SETTLE_RTD)
-        status, payload = _poll_until_ready(bus, ADDR_RTD)
-        
-        if status == 1 and payload:  # Success
-            return float(payload.split(",")[0].strip())
-        return None
+        rtd = EZO(1, ADDR_RTD, "RTD")
+        rtd.init_once()
+        result = rtd.read_value()
+        return float(result)
     except Exception as e:
         logger.error(f"RTD read failed: {e}")
         return None
@@ -100,29 +100,21 @@ def _send_temp_comp_to_probes(temp_c: float) -> dict:
         results = {"ph": True, "ec": True}  # Simulate success
         return results
     
+    # Send to pH
     try:
-        bus = get_bus()
-        
-        # Send to pH
-        try:
-            _send_cmd(bus, ADDR_PH, f"T,{temp_c:.2f}")
-            time.sleep(0.1)
-            _poll_until_ready(bus, ADDR_PH)
-            results["ph"] = True
-        except Exception as e:
-            logger.warning(f"pH temp comp failed: {e}")
-        
-        # Send to EC
-        try:
-            _send_cmd(bus, ADDR_EC, f"T,{temp_c:.2f}")
-            time.sleep(0.1)
-            _poll_until_ready(bus, ADDR_EC)
-            results["ec"] = True
-        except Exception as e:
-            logger.warning(f"EC temp comp failed: {e}")
-            
+        ph = EZO(1, ADDR_PH, "pH")
+        ph.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.06)
+        results["ph"] = True
     except Exception as e:
-        logger.error(f"Temp comp send failed: {e}")
+        logger.warning(f"pH temp comp failed: {e}")
+    
+    # Send to EC
+    try:
+        ec = EZO(1, ADDR_EC, "EC")
+        ec.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.06)
+        results["ec"] = True
+    except Exception as e:
+        logger.warning(f"EC temp comp failed: {e}")
     
     return results
 
@@ -133,14 +125,10 @@ def _read_ph() -> Optional[float]:
         return 5.8 + (time.time() % 20) * 0.02
     
     try:
-        bus = get_bus()
-        _send_cmd(bus, ADDR_PH, "R")
-        time.sleep(SETTLE_PH)
-        status, payload = _poll_until_ready(bus, ADDR_PH)
-        
-        if status == 1 and payload:
-            return float(payload.split(",")[0].strip())
-        return None
+        ph = EZO(1, ADDR_PH, "pH")
+        ph.init_once()
+        result = ph.read_value()
+        return float(result)
     except Exception as e:
         logger.error(f"pH read failed: {e}")
         return None
@@ -152,14 +140,10 @@ def _read_ec() -> Optional[float]:
         return 1500.0 + (time.time() % 50) * 10.0
     
     try:
-        bus = get_bus()
-        _send_cmd(bus, ADDR_EC, "R")
-        time.sleep(SETTLE_EC)
-        status, payload = _poll_until_ready(bus, ADDR_EC)
-        
-        if status == 1 and payload:
-            return float(payload.split(",")[0].strip())
-        return None
+        ec = EZO(1, ADDR_EC, "EC")
+        ec.init_once()
+        result = ec.read_value()
+        return float(result)
     except Exception as e:
         logger.error(f"EC read failed: {e}")
         return None
