@@ -11,13 +11,28 @@ MODE = "unavailable"
 _camera_lock = threading.Lock()
 _picam_instance = None
 
-# Try to import Picamera2
+# Try to import Picamera2, with fallback to system site-packages on Raspberry Pi
+PICAMERA2_AVAILABLE = False
+Picamera2 = None
 try:
     from picamera2 import Picamera2  # type: ignore
     PICAMERA2_AVAILABLE = True
 except ImportError:
-    PICAMERA2_AVAILABLE = False
-    Picamera2 = None
+    # Attempt to include system dist-packages (apt-installed modules) in sys.path
+    try:
+        import sys
+        sys_paths = [
+            "/usr/lib/python3/dist-packages",
+            "/usr/local/lib/python3/dist-packages",
+        ]
+        for p in sys_paths:
+            if p not in sys.path:
+                sys.path.append(p)
+        from picamera2 import Picamera2  # type: ignore
+        PICAMERA2_AVAILABLE = True
+    except Exception:
+        PICAMERA2_AVAILABLE = False
+        Picamera2 = None
 
 # PIL for JPEG encoding (lighter than OpenCV)
 try:
@@ -127,7 +142,7 @@ def get_status() -> Dict[str, Any]:
     """Return camera status"""
     note = None
     if not PICAMERA2_AVAILABLE:
-        note = "picamera2 not installed"
+        note = "picamera2 not installed (add /usr/lib/python3/dist-packages or apt install python3-picamera2)"
     elif not PIL_AVAILABLE:
         note = "PIL/Pillow not installed"
     elif MODE == "unavailable":
