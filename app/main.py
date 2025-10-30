@@ -814,6 +814,10 @@ def camera_status():
 @app.get("/camera/stream")
 def camera_stream():
     from app.camera import frames, get_status
+    info = get_status()
+    if not info.get("available", False):
+        return JSONResponse(status_code=404, content={"error": "camera unavailable", **info})
+
     fps = int(os.environ.get("CAM_FPS", "8"))
     quality = int(os.environ.get("CAM_QUALITY", "70"))
     boundary = "frame"
