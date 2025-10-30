@@ -183,9 +183,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- Camera Card (Full Width, Top) -->
   <section id="camera-card" class="card card-wide">
     <h3>Camera <span id="camStatus" class="muted" style="font-size:0.85rem;font-weight:400;margin-left:8px;"></span></h3>
-    <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;">
-      <img id="cam" src="/camera/stream" alt="Camera stream" style="position:absolute;width:100%;height:100%;object-fit:cover;"/>
-      <div id="camBanner" class="muted" style="display:none;z-index:1;">camera driver not available</div>
+    <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;">
+      <img id="cam" src="/camera/stream" alt="Camera stream" style="width:100%;height:100%;object-fit:cover;display:none;"/>
+      <div id="camBanner" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">camera driver not available</div>
     </div>
   </section>
 
@@ -715,18 +715,28 @@ async function loadCamera(){
     const s = await (await fetch(`/camera/status?${Date.now()}`, NO_CACHE)).json();
     const banner = document.getElementById('camBanner');
     const status = document.getElementById('camStatus');
-    
-    if (s.mode !== 'picamera2') {
-      banner.style.display = 'block';
-      banner.textContent = 'camera driver not available' + (s.mode?` (using ${s.mode})`:'' );
-      if(status) status.textContent = `(${s.mode || 'unavailable'})`;
-    } else {
-      banner.style.display = 'none';
-      if(status) status.textContent = '(picamera2)';
-    }
     const cam = document.getElementById('cam');
-    if (cam) cam.src = '/camera/stream';
-  } catch(e) {}
+    
+    if (s.available && s.mode === 'picamera2') {
+      // Camera available - show stream, hide banner
+      if(banner) banner.style.display = 'none';
+      if(cam) {
+        cam.style.display = 'block';
+        cam.src = '/camera/stream';
+      }
+      if(status) status.textContent = '(picamera2)';
+    } else {
+      // Camera unavailable - show banner, hide stream
+      if(cam) cam.style.display = 'none';
+      if(banner) {
+        banner.style.display = 'flex';
+        banner.textContent = s.note || 'camera driver not available';
+      }
+      if(status) status.textContent = `(${s.mode || 'unavailable'})`;
+    }
+  } catch(e) {
+    console.error('Camera load error:', e);
+  }
 }
 async function calibStart(){
   try{
