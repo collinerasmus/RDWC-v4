@@ -39,47 +39,20 @@ h1{font-weight:700;font-size:22px;margin:0 0 14px}
 .card + .card{ margin-top: var(--gap); }
 .card-wide{ width: 100%; box-sizing: border-box; }
 
-/* Camera full-width section sits above grid */
-#camera-card{ margin-bottom: var(--gap); }
-
-/* Main two-column content */
-#content-grid{
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
-  gap: var(--gap);
-  align-items: start;
+/* Single column layout - everything stacked vertically at same width */
+#camera-card,
+#trends-card,
+#right-column-stack,
+#recent-readings-card{
   width: 100%;
-  grid-auto-flow: dense;
+  margin-bottom: var(--gap);
 }
 
-/* Prevent left column from collapsing */
-#trends-card{
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
-}
-
-/* Right column stacks smaller cards neatly */
+/* Stack all cards in right column vertically with consistent spacing */
 #right-column-stack{
-  width: 100%;
-  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--gap);
-}
-
-/* Recent Readings should align with trends width */
-#recent-readings-card{ width: 100%; }
-
-/* Bottom area spacing */
-#recent-readings-card{ margin-top: var(--gap); }
-
-/* Responsive */
-@media (max-width: 900px){
-  #content-grid{
-    grid-template-columns: 1fr;
-  }
-  #right-column-stack{ margin-top: var(--gap); }
 }
 
 /* Simple card headers look consistent */
@@ -175,10 +148,8 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
   </section>
 
-  <!-- Main Content Grid -->
-  <div id="content-grid">
-    <!-- Left Column: Trends Card -->
-    <section id="trends-card" class="card card-wide">
+  <!-- Trends Card -->
+  <section id="trends-card" class="card card-wide">
       <h3>Trends (last 6h)</h3>
       <div class="row"><button onclick="exportCsv(24)" style="background:#374151;color:#e5e7eb">Export last 24h (CSV)</button></div>
       <div class="chart-area">
@@ -186,10 +157,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <canvas id="chartPh" style="margin-top:10px;"></canvas>
         <canvas id="chartEc" style="margin-top:10px;"></canvas>
       </div>
-    </section>
+  </section>
 
-    <!-- Right Column: Stacked Cards -->
-    <div id="right-column-stack" class="stack">
+  <!-- Control Cards -->
+  <div id="right-column-stack">
       <div class="card">
         <h3>Sensors</h3>
         <div class="row kv">Temp: <b id="temp">—</b> °C</div>
@@ -275,10 +246,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <span id="calibMsg" class="muted" style="margin-left:10px"></span>
         </div>
       </div>
-    </div>
   </div>
 
-  <!-- Recent Readings Card (Full Width, Bottom) -->
+  <!-- Recent Readings Card -->
   <section id="recent-readings-card" class="card card-wide collapsed">
     <h3 onclick="toggleRecentReadings()" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;">
       <span>Recent Readings</span>
