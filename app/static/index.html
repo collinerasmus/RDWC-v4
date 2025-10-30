@@ -7,9 +7,9 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 :root{
-  --maxw: 1200px;
-  --gap: 16px;
-  --radius: 14px;
+  --maxw: 1280px;
+  --gap: 12px;
+  --radius: 16px;
   --pad: 16px;
   --h-trends: 420px;          /* fixed visual height for chart area */
   --h-camera: 420px;          /* camera area height cap (crop safely) */
@@ -17,8 +17,8 @@
 }
 body{
   background:#0b0f14;
-  color:#e6edf3;
-  font-family:system-ui,Segoe UI,Roboto,Arial;
+  color:#e0e0e0;
+  font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   margin:0;
 }
 .container{
@@ -26,7 +26,13 @@ body{
   padding: var(--gap);
   max-width: var(--maxw);
 }
-h1{font-weight:700;font-size:22px;margin:0 0 14px}
+h1{font-weight:700;font-size:22px;margin:0 0 14px;color:#fafafa;}
+h2, h3{
+  color:#fafafa;
+  font-size:1.1rem;
+  font-weight:600;
+  margin:0 0 12px 0;
+}
 .card{
   background:#111827;
   border:1px solid #1f2937;
@@ -35,6 +41,10 @@ h1{font-weight:700;font-size:22px;margin:0 0 14px}
   box-shadow: 0 2px 12px rgba(0,0,0,.25);
   box-sizing: border-box;
   position: relative;
+  transition: box-shadow 0.3s ease;
+}
+.card:hover{
+  box-shadow: 0 0 12px rgba(0,255,255,0.05), 0 2px 12px rgba(0,0,0,.25);
 }
 .card + .card{ margin-top: var(--gap); }
 .card-wide{ width: 100%; box-sizing: border-box; }
@@ -55,26 +65,22 @@ h1{font-weight:700;font-size:22px;margin:0 0 14px}
   gap: var(--gap);
 }
 
-/* Simple card headers look consistent */
-.card h2, .card h3{
-  margin: 0 0 8px 0;
-  font-weight: 600;
-}
-
 /* Existing styles */
 .row{display:flex;gap:10px;align-items:center;margin:6px 0}
-button{border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
+button{border:0;border-radius:12px;padding:10px 14px;font-weight:600;cursor:pointer;transition:all 0.2s ease}
+button:hover{opacity:0.9;transform:translateY(-1px)}
 .on{background:#10b981;color:#062314}
 .off{background:#ef4444;color:#2c0c0c}
 .kv{font-variant-numeric:tabular-nums}
 .cam{width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;overflow:hidden}
-.muted{color:#9ca3af;font-size:12px}
+.muted{color:#8a8a8a;font-size:12px}
 table{width:100%;border-collapse:collapse}
 th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 .relay-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
-.relay{display:flex;align-items:center;justify-content:center;border-radius:10px;padding:10px 8px;font-weight:700;cursor:pointer;border:1px solid #1f2937}
-.relay.on{background:#10b981;color:#062314}
-.relay.off{background:#ef4444;color:#2c0c0c}
+.relay{display:flex;align-items:center;justify-content:center;border-radius:12px;padding:10px 8px;font-weight:700;cursor:pointer;border:1px solid #1f2937;transition:all 0.2s ease}
+.relay:hover{transform:translateY(-2px)}
+.relay.on{background:#00ff88;color:#062314}
+.relay.off{background:#ff5555;color:#2c0c0c}
 
 /* Ensure fixed visual bands and prevent feedback growth */
 #trends-card .chart-area{
@@ -120,10 +126,25 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 }
 
 /* Recent readings: fixed viewport, scroll inside */
+#recent-readings-card{
+  border-top: 1px solid #1e1e1e;
+  margin-top: var(--gap);
+}
 #recent-readings-card .table-wrap{
   max-height: var(--h-recent);
   overflow: auto;
   transition: all 0.3s ease;
+  position: relative;
+}
+#recent-readings-card .table-wrap::after{
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: linear-gradient(to bottom, transparent, rgba(17,24,39,0.8));
+  pointer-events: none;
 }
 
 /* Collapsed state for recent readings */
@@ -133,6 +154,26 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 #recent-readings-card h3:hover{
   color: #10b981;
 }
+
+/* Separator line */
+.separator{
+  border: none;
+  border-top: 1px solid #1e1e1e;
+  margin: 16px 0;
+}
+
+/* System Settings two-column layout */
+.settings-grid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 12px;
+}
+@media (max-width: 900px){
+  .settings-grid{
+    grid-template-columns: 1fr;
+  }
+}
 </style>
 </head>
 <body>
@@ -141,17 +182,22 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   
   <!-- Camera Card (Full Width, Top) -->
   <section id="camera-card" class="card card-wide">
-    <h3>Camera</h3>
-    <div id="camBanner" class="muted" style="margin-bottom:8px; display:none;">camera driver not available</div>
-    <div class="camera-frame">
-      <img id="cam" src="/camera/stream" alt="Camera stream"/>
+    <h3>Camera <span id="camStatus" class="muted" style="font-size:0.85rem;font-weight:400;margin-left:8px;"></span></h3>
+    <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;">
+      <img id="cam" src="/camera/stream" alt="Camera stream" style="position:absolute;width:100%;height:100%;object-fit:cover;"/>
+      <div id="camBanner" class="muted" style="display:none;z-index:1;">camera driver not available</div>
     </div>
   </section>
 
   <!-- Trends Card -->
   <section id="trends-card" class="card card-wide">
-      <h3>Trends (last 6h)</h3>
-      <div class="row"><button onclick="exportCsv(24)" style="background:#374151;color:#e5e7eb">Export last 24h (CSV)</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div>
+        <h3 style="margin:0;">Trends (last 6h)</h3>
+        <div class="muted" style="font-size:11px;margin-top:4px;">Auto-updates every 10s</div>
+      </div>
+      <button onclick="exportCsv(24)" style="background:#374151;color:#e5e7eb;">Export last 24h (CSV)</button>
+    </div>
       <div class="chart-area">
         <canvas id="chartTemp"></canvas>
         <canvas id="chartPh" style="margin-top:10px;"></canvas>
@@ -172,40 +218,47 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <span title="Sensor errors" id="sensorErrorsDot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444"></span>
           <span class="muted" id="sensorErrorsText" title=""></span>
         </div>
-      </div>
-
-      <div class="card">
+        
+        <hr class="separator">
+        
         <h3>Relays</h3>
         <div id="relays" class="relay-grid"></div>
         <div class="muted">Active map: lights, main_pump, chiller_pump, chiller_power, dosing_grow, dosing_micro, dosing_bloom, dosing_ph_up</div>
       </div>
 
       <div class="card">
-        <h3>Scheduler</h3>
-        <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
-          <button id="btnSchedToggle" onclick="toggleSched()">Toggle Enable</button>
-          <button onclick="applyRecommended()">Apply Recommended (Lights 06–22; Micro/Grow/Bloom pulses)</button>
-          <span id="schedState"></span>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Settings</h3>
-        <div class="row">
-          <label>System Volume (L):</label>
-          <input type="number" id="systemVolume" min="0.1" step="0.1" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;width:80px">
-        </div>
-        <div class="row">
-          <label>Lights Start Time:</label>
-          <input type="time" id="lightsStart" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3">
-        </div>
-        <div class="row">
-          <label>Lights Duration (hours):</label>
-          <input type="number" id="lightsDuration" min="1" max="24" step="1" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;width:60px">
-        </div>
-        <div class="row">
-          <button onclick="saveSettings()" style="background:#3b82f6;color:#eff6ff;margin-right:8px">Save Settings</button>
-          <span id="lightsWindow" class="muted">Lights: -- → -- (today)</span>
+        <h3>System Settings</h3>
+        <div class="settings-grid">
+          <div>
+            <h4 style="margin:0 0 8px 0;font-size:0.95rem;color:#fafafa;">Scheduler</h4>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;gap:8px;align-items:center;">
+                <button id="btnSchedToggle" onclick="toggleSched()">Toggle Enable</button>
+                <span id="schedState"></span>
+              </div>
+              <button onclick="applyRecommended()">Apply Recommended (Lights 06–22; Micro/Grow/Bloom pulses)</button>
+            </div>
+          </div>
+          
+          <div>
+            <h4 style="margin:0 0 8px 0;font-size:0.95rem;color:#fafafa;">Settings</h4>
+            <div class="row">
+              <label>System Volume (L):</label>
+              <input type="number" id="systemVolume" min="0.1" step="0.1" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;width:80px">
+            </div>
+            <div class="row">
+              <label>Lights Start Time:</label>
+              <input type="time" id="lightsStart" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3">
+            </div>
+            <div class="row">
+              <label>Lights Duration (hours):</label>
+              <input type="number" id="lightsDuration" min="1" max="24" step="1" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;width:60px">
+            </div>
+            <div class="row">
+              <button onclick="saveSettings()" style="background:#3b82f6;color:#eff6ff;margin-right:8px">Save Settings</button>
+              <span id="lightsWindow" class="muted">Lights: -- → -- (today)</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -661,11 +714,15 @@ async function loadCamera(){
   try {
     const s = await (await fetch(`/camera/status?${Date.now()}`, NO_CACHE)).json();
     const banner = document.getElementById('camBanner');
+    const status = document.getElementById('camStatus');
+    
     if (s.mode !== 'picamera2') {
       banner.style.display = 'block';
       banner.textContent = 'camera driver not available' + (s.mode?` (using ${s.mode})`:'' );
+      if(status) status.textContent = `(${s.mode || 'unavailable'})`;
     } else {
       banner.style.display = 'none';
+      if(status) status.textContent = '(picamera2)';
     }
     const cam = document.getElementById('cam');
     if (cam) cam.src = '/camera/stream';
