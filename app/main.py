@@ -173,6 +173,19 @@ def health():
     except Exception as e:
         relay_states = {"error": str(e)}
 
+    # Get sensors heartbeat (shallow check, no actual read)
+    sensors_heartbeat = {"ready": False}
+    try:
+        from app.sensors_core import get_last_temp_comp_state
+        comp_state = get_last_temp_comp_state()
+        time_since = comp_state.get("time_since_last")
+        sensors_heartbeat = {
+            "ready": time_since is not None,
+            "last_read_age_s": round(time_since, 1) if time_since is not None else None
+        }
+    except Exception as e:
+        sensors_heartbeat = {"ready": False, "error": str(e)}
+
     # Build response
     response_data = {
         "ok": db_ready and i2c_ready,
@@ -182,7 +195,8 @@ def health():
         "camera": camera_status,
         "lights_window": lights_info,
         "relay_states": relay_states,
-        "antiflap_active": antiflap_active
+        "antiflap_active": antiflap_active,
+        "sensors": sensors_heartbeat
     }
     
     # Only fail on camera if explicitly required
@@ -722,6 +736,19 @@ def debug_lights_hold(seconds: int = Body(..., embed=True)):
 def status():
     age = time.time() - _last_t
     return {"age_s": round(age, 2), **_last}
+
+@app.get("/sensors/read")
+def sensors_read():
+    """Get sensor readings with throttled temperature compensation details."""
+    from app.sensors_core import read_all_sensors
+    try:
+        result = read_all_sensors()
+        return result
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "errors": [str(e)]}
+        )
 
 @app.post("/read_now")
 def read_now():
