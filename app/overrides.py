@@ -238,32 +238,55 @@ def clear_expired_holds():
         set_overrides(chiller_mode="auto", hold_until=None)
 
 
-def control_chiller(reason: str):
+def control_chiller(reason: str) -> dict:
     """
     Central chiller control function - enforces override precedence.
     Modes: auto | force_on | force_off
-    
+
+    Always returns a merged result with power/pump outcomes and mode.
+
     Args:
         reason: Human-readable reason for this control check
+
+    Returns:
+        {
+          "mode": "auto|force_on|force_off",
+          "power": {"changed": bool, "state": bool, "reason": str, "cooldown_remaining": int},
+          "pump":  {"changed": bool, "state": bool, "reason": str, "cooldown_remaining": int}
+        }
     """
-    from app.relays_core import set_chiller_power, set_chiller_pump, REASON_OVERRIDE
-    
+    from app.relays_core import (
+        set_chiller_power,
+        set_chiller_pump,
+        get_relay_status,
+        REASON_OVERRIDE,
+    )
+
     # Clear any expired holds first
     clear_expired_holds()
-    
+
     mode = is_active()
-    
+
+    # Initialize default result structures
+    def _status_payload(state: bool, reason: str = "noop"):
+        return {"changed": False, "state": state, "reason": reason, "cooldown_remaining": 0}
+
     if mode == 'force_on':
-        set_chiller_power(True, REASON_OVERRIDE)
-        set_chiller_pump(True, REASON_OVERRIDE)
-        return
-    
+        res_power = set_chiller_power(True, REASON_OVERRIDE)
+        res_pump = set_chiller_pump(True, REASON_OVERRIDE)
+        return {"mode": mode, "power": res_power, "pump": res_pump}
+
     if mode == 'force_off':
-        set_chiller_pump(False, REASON_OVERRIDE)
-        set_chiller_power(False, REASON_OVERRIDE)
-        return
-    
-    # AUTO mode:
-    # Do NOT toggle based on temperature. Do nothing here.
-    # Only emergency logic (if explicitly enabled) may override with force=True.
-    # The external chiller thermostat handles temperature control in AUTO mode.
+        res_pump = set_chiller_pump(False, REASON_OVERRIDE)
+        res_power = set_chiller_power(False, REASON_OVERRIDE)
+        return {"mode": mode, "power": res_power, "pump": res_pump}
+
+    # AUTO mode: do not thermostat in software; leave states as-is
+    status = get_relay_status()
+    power_state = status.get("chiller_power", {}).get("state", False)
+    pump_state = status.get("chiller_pump", {}).get("state", False)
+    return {
+        "mode": mode,
+        "power": _status_payload(power_state, "auto_hold"),
+        "pump": _status_payload(pump_state, "auto_hold"),
+    }

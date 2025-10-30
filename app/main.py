@@ -376,6 +376,36 @@ def update_overrides_api(
             content={"error": f"Failed to update overrides: {str(e)}"}
         )
 
+# Chiller override dedicated endpoints (thin wrapper over overrides module)
+@app.get("/chiller/override")
+def get_chiller_override():
+    """Return current chiller override mode.
+    Response: {"override": "auto|force_on|force_off"}
+    """
+    from app.overrides import get_overrides
+    ov = get_overrides()
+    return {"override": ov.chiller_mode}
+
+
+@app.put("/chiller/override")
+def set_chiller_override(body: dict = Body(...)):
+    """Set chiller override mode. Body: {"override": "auto|force_on|force_off"}
+    Persists to DB and applies via control_chiller().
+    """
+    from app.overrides import set_overrides, control_chiller
+
+    override = str(body.get("override", "")).lower()
+    if override not in ("auto", "force_on", "force_off"):
+        return JSONResponse(status_code=400, content={"error": "override must be 'auto', 'force_on', or 'force_off'"})
+
+    # Persist setting
+    set_overrides(chiller_mode=override)
+
+    # Apply control once, respecting cooldowns (no thermostat in AUTO)
+    control_chiller("override")
+
+    return {"override": override}
+
 @app.get("/export_csv", response_class=PlainTextResponse)
 def export_csv(hours: float = Query(24.0)):
     secs = max(60, int(hours * 3600))
