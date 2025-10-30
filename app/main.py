@@ -85,6 +85,9 @@ async def sensor_loop():
 @app.on_event("startup")
 async def _start_tasks():
     global sensor_task
+    # Restore relay states from previous session
+    from app.relays_core import _load_state
+    _load_state()
     # Start async sensor loop
     sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
     # Also start the old thread as backup

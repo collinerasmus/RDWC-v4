@@ -4,6 +4,8 @@ Provides idempotent, rate-limited relay control with anti-flap protection.
 """
 import time
 import inspect
+import json
+import os
 from collections import deque, defaultdict
 from typing import Dict, Any, List
 from datetime import datetime
@@ -81,7 +83,8 @@ WHITELIST_LIGHTS = {
     "schedule_guard_off",    # scheduler guard ensures lights stay off
     "apply_settings",        # REASON_APPLY_SETTINGS - settings application
     "override",              # REASON_OVERRIDE - manual override
-    "emergency"              # REASON_EMERGENCY - emergency shutdown
+    "emergency",             # REASON_EMERGENCY - emergency shutdown
+    "restore"                # State restoration after restart/power failure
 }
 
 # Global state
@@ -95,6 +98,34 @@ _antiflap_until: Dict[str, float] = {}
 # Event logging for debugging
 _relay_event_logs: Dict[str, deque] = defaultdict(lambda: deque(maxlen=200))
 _hold_until: Dict[str, float] = {}  # Temporary holds for debugging
+
+# Persistence
+_STATE_FILE = os.path.expanduser("~/.rdwc/relay_state.json")
+
+def _save_state():
+    """Save relay states to disk for persistence across restarts."""
+    try:
+        os.makedirs(os.path.dirname(_STATE_FILE), exist_ok=True)
+        state = {name: _last_state.get(name, False) for name in RELAY_PINS.keys()}
+        with open(_STATE_FILE, 'w') as f:
+            json.dump(state, f)
+    except Exception as e:
+        logger.error(f"Failed to save relay state: {e}")
+
+def _load_state():
+    """Load and restore relay states from disk after restart."""
+    try:
+        if os.path.exists(_STATE_FILE):
+            with open(_STATE_FILE, 'r') as f:
+                state = json.load(f)
+            logger.info(f"Restoring relay states from {_STATE_FILE}")
+            for name, desired_state in state.items():
+                if name in RELAY_PINS:
+                    # Restore state with force=True to bypass cooldowns
+                    set_relay(name, desired_state, reason="restore", force=True)
+            logger.info("Relay state restoration complete")
+    except Exception as e:
+        logger.error(f"Failed to load relay state: {e}")
 
 def _get_min_time(relay_name: str, times_dict: Dict[str, int]) -> int:
     """Get minimum time for relay, supporting wildcard matching."""
@@ -256,6 +287,9 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False) -> 
         
         # Update anti-flap detector
         _update_antiflap_detector(name, desired_on)
+        
+        # Save state to disk for persistence across restarts
+        _save_state()
         
         logger.info(f"relay {name} -> {'ON' if desired_on else 'OFF'} (reason={reason})")
         
