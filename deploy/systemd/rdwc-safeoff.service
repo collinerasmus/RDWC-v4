@@ -1,12 +1,14 @@
 [Unit]
-Description=RDWC Safe-OFF fallback if app not ready
+Description=RDWC Safe-OFF oneshot (force all relays OFF at boot)
+Before=rdwc.service
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 /home/pi/RDWC-v4/scripts/health_guard.py
-TimeoutStartSec=45s
+WorkingDirectory=/home/pi/RDWC-v4
+ExecStart=/home/pi/RDWC-v4/venv/bin/python -m app.safeoff
+TimeoutStartSec=30s
 RemainAfterExit=no
 
 [Install]
