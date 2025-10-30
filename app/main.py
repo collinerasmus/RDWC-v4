@@ -359,6 +359,31 @@ def relay_status():
     from app.relays_core import get_relay_status
     return get_relay_status()
 
+@app.get("/relay/debug")
+def relay_debug():
+    """Get detailed relay debug information including antiflap state"""
+    from app.relays_core import _antiflap_until, _last_change_ts, _change_history, RELAY_PINS
+    import time
+    
+    now = time.monotonic()
+    debug_info = {}
+    
+    for name in RELAY_PINS.keys():
+        antiflap_remaining = 0
+        if name in _antiflap_until and now < _antiflap_until[name]:
+            antiflap_remaining = int(_antiflap_until[name] - now)
+        
+        history = _change_history.get(name, [])
+        recent_changes = [ts for ts, _ in history if ts > now - 300]  # Last 5 minutes
+        
+        debug_info[name] = {
+            "antiflap_remaining": antiflap_remaining,
+            "recent_changes_5min": len(recent_changes),
+            "seconds_since_last_change": int(now - _last_change_ts.get(name, now))
+        }
+    
+    return debug_info
+
 @app.post("/relay/set")
 def relay_set_new(body: dict = Body(...)):
     """Set relay state using proper relays_core with whitelisted 'override' reason"""
@@ -467,7 +492,8 @@ def relay_set_query(name: str = Query(...), on: int = Query(...)):
 @app.post("/relay/emergency_off")
 def relay_emergency_off():
     """Emergency endpoint to force all relays OFF and clear antiflap protection"""
-    from app.relays_core import set_relay, RELAY_PINS, _antiflap_until
+    from app.relays_core import set_relay, RELAY_PINS, _antiflap_until, _last_change_ts
+    import time
     
     results = {}
     # Clear all antiflap protection
@@ -481,9 +507,14 @@ def relay_emergency_off():
             "state": result.get("state", False)
         }
     
+    # Reset all change timestamps to allow immediate re-toggling
+    now = time.monotonic()
+    for name in RELAY_PINS.keys():
+        _last_change_ts[name] = now - 1000  # Set to 1000 seconds ago
+    
     return {
         "ok": True,
-        "message": "All relays forced OFF, antiflap cleared",
+        "message": "All relays forced OFF, antiflap cleared, cooldowns reset",
         "results": results
     }
 
