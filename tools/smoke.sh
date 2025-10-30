@@ -10,8 +10,16 @@ echo "== RDWC smoke on $BASE =="
 ok() { echo "✔ $1"; }
 fail() { echo "✘ $1"; exit 1; }
 
-# Health
-code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/health" || true)
+# Health (with brief readiness retry)
+tries=${SMOKE_HEALTH_TRIES:-10}
+sleep_s=${SMOKE_HEALTH_SLEEP:-2}
+code="000"
+for i in $(seq 1 "$tries"); do
+	code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/health" || true)
+	echo "health:$code"
+	[ "$code" = "200" ] && break
+	sleep "$sleep_s"
+done
 [ "$code" = "200" ] || fail "health not 200"
 ok "health 200"
 

@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Body, Query
-from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse, StreamingResponse
 import threading
 import time
 import os
@@ -804,3 +804,128 @@ def cam_status():
     svc = run(["systemctl", "is-active", "mjpg-streamer.service"], stdout=PIPE, stderr=PIPE, text=True)
     active = (svc.stdout.strip() == "active")
     return {"active": active, "url": "http://192.168.88.49:8081/?action=stream"}
+
+# --- Camera endpoints ---
+@app.get("/camera/status")
+def camera_status():
+    from app.camera import get_status
+    return get_status()
+
+@app.get("/camera/stream")
+def camera_stream():
+    from app.camera import frames, get_status
+    fps = int(os.environ.get("CAM_FPS", "8"))
+    quality = int(os.environ.get("CAM_QUALITY", "70"))
+    boundary = "frame"
+
+    def _gen():
+        for jpg in frames(fps=fps, quality=quality):
+            yield (b"--" + boundary.encode("ascii") + b"\r\n"
+                   b"Content-Type: image/jpeg\r\n" +
+                   f"Content-Length: {len(jpg)}\r\n\r\n".encode("ascii") +
+                   jpg + b"\r\n")
+
+    return StreamingResponse(_gen(), media_type=f"multipart/x-mixed-replace; boundary={boundary}")
+
+# --- Dose jog endpoint ---
+_jog_last = {}
+_jog_locks = {name: threading.Lock() for name in [
+    "dosing_grow","dosing_micro","dosing_bloom","dosing_ph_up"
+]}
+
+@app.post("/dose/jog")
+def dose_jog(body: dict = Body(...)):
+    from app.relays_core import (
+        set_dosing_grow, set_dosing_micro, set_dosing_bloom, set_dosing_ph_up
+    )
+    name_in = str(body.get("name", "")).strip()
+    ms = int(body.get("ms", 500))
+    ms = max(50, min(2000, ms))
+
+    # name mapping and whitelist
+    name_map = {
+        "dosing_grow": ("dosing_grow", set_dosing_grow),
+        "dosing_micro": ("dosing_micro", set_dosing_micro),
+        "dosing_bloom": ("dosing_bloom", set_dosing_bloom),
+        "dosing_ph_up": ("dosing_ph_up", set_dosing_ph_up),
+        "ph_up": ("dosing_ph_up", set_dosing_ph_up),
+    }
+    if name_in not in name_map:
+        return JSONResponse(status_code=400, content={"error": "invalid name", "allowed": list(name_map.keys())})
+    relay_name, setter = name_map[name_in]
+
+    # cooldown check (5s per pump)
+    now = time.monotonic()
+    last = _jog_last.get(relay_name, 0)
+    if now - last < 5:
+        remaining = int(5 - (now - last))
+        return {"ok": False, "started": False, "cooldown_remaining": max(0, remaining)}
+
+    lock = _jog_locks[relay_name]
+    if not lock.acquire(blocking=False):
+        return {"ok": False, "started": False, "error": "concurrent_jog"}
+
+    try:
+        # turn ON via relays_core (respecting cooldowns)
+        res_on = setter(True, reason="dose_jog", force=False)
+        if not res_on.get("changed", False) and not res_on.get("state", False):
+            # blocked by cooldown or antiflap
+            return {
+                "ok": False,
+                "started": False,
+                "reason": res_on.get("reason", "unknown"),
+                "cooldown_remaining": res_on.get("cooldown_remaining", 0)
+            }
+        # Jog duration (bounded)
+        time.sleep(ms/1000.0)
+    finally:
+        # Ensure OFF, even if sleep raised or client disconnected
+        try:
+            setter(False, reason="dose_jog", force=False)
+        except Exception:
+            pass
+        _jog_last[relay_name] = time.monotonic()
+        lock.release()
+
+    return {"ok": True, "started": True, "ms": ms}
+
+# --- CSV export ---
+@app.get("/export/sensors.csv", response_class=PlainTextResponse)
+def export_sensors_csv(hours: float = Query(24.0)):
+    secs = max(60, int(hours * 3600))
+    since = int(time.time()) - secs
+    rows = fetch_history_since(since)
+
+    def _iter():
+        yield "ts,temp_c,ph,ec_uS,ec_mS,comp_temp_c,t_write\n"
+        for r in rows:
+            ts = r.get("ts", "")
+            temp_c = r.get("temp_c", "")
+            ph = r.get("ph", "")
+            ec_ms = r.get("ec_ms_cm", None)
+            ec_us = int(ec_ms*1000) if isinstance(ec_ms, (int, float)) else ""
+            ec_ms_out = ec_ms if ec_ms is not None else ""
+            comp_t = ""  # not stored per-row
+            t_write = ""  # not stored per-row
+            yield f"{ts},{temp_c},{ph},{ec_us},{ec_ms_out},{comp_t},{t_write}\n"
+
+    return StreamingResponse(_iter(), media_type="text/csv")
+
+# --- Calibration stubs ---
+@app.post("/calib/ph/start")
+def calib_ph_start():
+    steps = [
+        "Rinse probe",
+        "Place in 7.00 buffer",
+        "Place in 4.00 buffer",
+        "Confirm and (optionally) apply"
+    ]
+    return {"ok": True, "mode": "ph", "steps": steps, "note": "Writes are disabled by default."}
+
+@app.post("/calib/ph/apply")
+def calib_ph_apply():
+    enabled = os.environ.get("CALIB_ENABLE", "0") == "1"
+    if not enabled:
+        return {"ok": False, "applied": False, "note": "Calibration writes disabled. Set CALIB_ENABLE=1 to enable."}
+    # TODO: perform actual calibration commands to the probe when enabled
+    return {"ok": True, "applied": False, "note": "Stub only - implement calibration logic when enabled."}

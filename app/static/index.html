@@ -92,8 +92,9 @@
     </div>
     <div class="card">
       <h3>Camera</h3>
+      <div id="camBanner" class="muted" style="margin-bottom:8px; display:none;">camera driver not available</div>
       <div class="cam">
-        <img id="cam" src="/cam.jpg" style="width:100%;border-radius:10px"/>
+        <img id="cam" src="/camera/stream" style="width:100%;border-radius:10px"/>
       </div>
     </div>
   </div>
@@ -104,6 +105,7 @@
   
   <div class="card" style="margin-top:16px;">
     <h3>Trends (last 6h)</h3>
+    <div class="row"><button onclick="exportCsv(24)" style="background:#374151;color:#e5e7eb">Export last 24h (CSV)</button></div>
     <canvas id="chartTemp" height="120"></canvas>
     <canvas id="chartPh"   height="120" style="margin-top:10px;"></canvas>
     <canvas id="chartEc"   height="120" style="margin-top:10px;"></canvas>
@@ -471,6 +473,42 @@ refresh();
 setInterval(() => { refresh().catch(()=>{}); }, 5000); // 5s refresh, ignore transient errors
 setInterval(() => { pollSensors().catch(()=>{}); }, 2000); // schedule poll; internal 10s guard
 setInterval(() => { loadOverrides().catch(()=>{}); }, 10000); // 10s override refresh
+function exportCsv(hours=24){ window.open(`/export/sensors.csv?hours=${hours}`,'_blank'); }
+async function loadCamera(){
+  try {
+    const s = await (await fetch(`/camera/status?${Date.now()}`, NO_CACHE)).json();
+    const banner = document.getElementById('camBanner');
+    if (s.mode !== 'picamera2') {
+      banner.style.display = 'block';
+      banner.textContent = 'camera driver not available' + (s.mode?` (using ${s.mode})`:'' );
+    } else {
+      banner.style.display = 'none';
+    }
+    const cam = document.getElementById('cam');
+    if (cam) cam.src = '/camera/stream';
+  } catch(e) {}
+}
+async function calibStart(){
+  try{
+    const r = await (await fetch('/calib/ph/start',{method:'POST'})).json();
+    document.getElementById('calibMsg').textContent = (r.note||'') + ' Steps: ' + (r.steps||[]).join(' → ');
+  }catch(e){ document.getElementById('calibMsg').textContent = 'Failed to start calibration'; }
+}
+async function calibApply(){
+  try{
+    const r = await (await fetch('/calib/ph/apply',{method:'POST'})).json();
+    document.getElementById('calibMsg').textContent = r.note || (r.applied? 'Calibration applied':'Not applied');
+  }catch(e){ document.getElementById('calibMsg').textContent = 'Failed to apply calibration'; }
+}
+loadCamera().catch(()=>{});
 </script>
+<div class="card" style="margin-top:16px;">
+  <h3>Calibration (pH) — stub</h3>
+  <div class="row">
+    <button onclick="calibStart()" style="background:#374151;color:#e5e7eb">Start</button>
+    <button onclick="calibApply()" style="background:#374151;color:#e5e7eb;margin-left:8px">Apply</button>
+    <span id="calibMsg" class="muted" style="margin-left:10px"></span>
+  </div>
+</div>
 </body>
 </html>
