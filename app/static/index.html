@@ -46,14 +46,26 @@ h1{font-weight:700;font-size:22px;margin:0 0 14px}
   grid-template-columns: 1.2fr .8fr;
   gap: var(--gap);
   align-items: start;
+  width: 100%;
+}
+
+/* Prevent left column from collapsing */
+#trends-card{
+  width: 100%;
+  min-width: 0;
+  grid-column: 1;
 }
 
 /* Right column stacks smaller cards neatly */
+#right-column-stack{
+  width: 100%;
+  min-width: 0;
+  grid-column: 2;
+}
 .stack > .card{ margin-top: var(--gap); }
 .stack > .card:first-child{ margin-top: 0; }
 
-/* Trends and Recent Readings should align widths */
-#trends-card,
+/* Recent Readings should align with trends width */
 #recent-readings-card{ width: 100%; }
 
 /* Bottom area spacing */
@@ -92,8 +104,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 #trends-card .chart-area{
   position: relative;
   height: var(--h-trends);
+  min-height: var(--h-trends);
   max-height: var(--h-trends);
   overflow: hidden;
+  contain: layout size;
 }
 
 #trends-card .chart-area canvas,
@@ -102,6 +116,8 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   inset: 0;
   width: 100% !important;
   height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
 }
 
 /* Camera full-width with capped height for neat look */
@@ -164,64 +180,73 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     <div id="right-column-stack" class="stack">
       <div class="card">
         <h3>Sensors</h3>
-      <div class="row kv">Temp: <b id="temp">—</b> °C</div>
-      <div class="row kv">pH: <b id="ph">—</b></div>
-      <div class="row kv">EC: <b id="ec">—</b> mS/cm</div>
-      <div class="row kv">Temp-comp write last read: <b id="twrite">—</b></div>
-      <div class="muted">/status every 5s, /sensors/read every 10s • age <span id="age">—</span>s</div>
-      <div class="row" id="sensorErrorsRow" style="display:none;align-items:center;gap:6px;">
-        <span title="Sensor errors" id="sensorErrorsDot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444"></span>
-        <span class="muted" id="sensorErrorsText" title=""></span>
+        <div class="row kv">Temp: <b id="temp">—</b> °C</div>
+        <div class="row kv">pH: <b id="ph">—</b></div>
+        <div class="row kv">EC: <b id="ec">—</b> mS/cm</div>
+        <div class="row kv">Temp-comp write last read: <b id="twrite">—</b></div>
+        <div class="muted">/status every 5s, /sensors/read every 10s • age <span id="age">—</span>s</div>
+        <div class="row" id="sensorErrorsRow" style="display:none;align-items:center;gap:6px;">
+          <span title="Sensor errors" id="sensorErrorsDot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444"></span>
+          <span class="muted" id="sensorErrorsText" title=""></span>
+        </div>
       </div>
-      <h3 style="margin-top:16px;">Relays</h3>
-      <div id="relays" class="relay-grid"></div>
-      <div class="muted">Active map: lights, main_pump, chiller_pump, chiller_power, dosing_grow, dosing_micro, dosing_bloom, dosing_ph_up</div>
-      <hr>
-  <h3>Scheduler</h3>
-      <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
-        <button id="btnSchedToggle" onclick="toggleSched()">Toggle Enable</button>
-        <button onclick="applyRecommended()">Apply Recommended (Lights 06–22; Micro/Grow/Bloom pulses)</button>
-        <span id="schedState"></span>
+
+      <div class="card">
+        <h3>Relays</h3>
+        <div id="relays" class="relay-grid"></div>
+        <div class="muted">Active map: lights, main_pump, chiller_pump, chiller_power, dosing_grow, dosing_micro, dosing_bloom, dosing_ph_up</div>
       </div>
-      <hr>
-      <h3>Settings</h3>
-      <div class="row">
-        <label>System Volume (L):</label>
-        <input type="number" id="systemVolume" min="0.1" step="0.1" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;width:80px">
+
+      <div class="card">
+        <h3>Scheduler</h3>
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
+          <button id="btnSchedToggle" onclick="toggleSched()">Toggle Enable</button>
+          <button onclick="applyRecommended()">Apply Recommended (Lights 06–22; Micro/Grow/Bloom pulses)</button>
+          <span id="schedState"></span>
+        </div>
       </div>
-      <div class="row">
-        <label>Lights Start Time:</label>
-        <input type="time" id="lightsStart" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3">
+
+      <div class="card">
+        <h3>Settings</h3>
+        <div class="row">
+          <label>System Volume (L):</label>
+          <input type="number" id="systemVolume" min="0.1" step="0.1" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;width:80px">
+        </div>
+        <div class="row">
+          <label>Lights Start Time:</label>
+          <input type="time" id="lightsStart" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3">
+        </div>
+        <div class="row">
+          <label>Lights Duration (hours):</label>
+          <input type="number" id="lightsDuration" min="1" max="24" step="1" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;width:60px">
+        </div>
+        <div class="row">
+          <button onclick="saveSettings()" style="background:#3b82f6;color:#eff6ff;margin-right:8px">Save Settings</button>
+          <span id="lightsWindow" class="muted">Lights: -- → -- (today)</span>
+        </div>
       </div>
-      <div class="row">
-        <label>Lights Duration (hours):</label>
-        <input type="number" id="lightsDuration" min="1" max="24" step="1" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;width:60px">
+
+      <div class="card">
+        <h3>Chiller Control</h3>
+        <div class="row">
+          <label><input type="radio" name="chillerMode" value="auto" onchange="updateChillerMode()"> Auto</label>
+          <label style="margin-left:12px"><input type="radio" name="chillerMode" value="force_on" onchange="updateChillerMode()"> Force ON</label>
+          <label style="margin-left:12px"><input type="radio" name="chillerMode" value="force_off" onchange="updateChillerMode()"> Force OFF</label>
+        </div>
+        <div class="row" id="durationRow" style="display:none">
+          <label>Duration:</label>
+          <select id="chillerDuration" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3">
+            <option value="30">30 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="240">4 hours</option>
+            <option value="midnight">Until midnight</option>
+          </select>
+          <button onclick="applyChillerOverride()" style="background:#10b981;color:#062314;margin-left:8px">Apply</button>
+        </div>
+        <div class="row">
+          <span id="chillerStatus" class="muted">Status: Auto</span>
+        </div>
       </div>
-      <div class="row">
-        <button onclick="saveSettings()" style="background:#3b82f6;color:#eff6ff;margin-right:8px">Save Settings</button>
-        <span id="lightsWindow" class="muted">Lights: -- → -- (today)</span>
-      </div>
-      <hr>
-  <h3>Chiller Control</h3>
-      <div class="row">
-        <label><input type="radio" name="chillerMode" value="auto" onchange="updateChillerMode()"> Auto</label>
-        <label style="margin-left:12px"><input type="radio" name="chillerMode" value="force_on" onchange="updateChillerMode()"> Force ON</label>
-        <label style="margin-left:12px"><input type="radio" name="chillerMode" value="force_off" onchange="updateChillerMode()"> Force OFF</label>
-      </div>
-      <div class="row" id="durationRow" style="display:none">
-        <label>Duration:</label>
-        <select id="chillerDuration" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3">
-          <option value="30">30 minutes</option>
-          <option value="60">1 hour</option>
-          <option value="240">4 hours</option>
-          <option value="midnight">Until midnight</option>
-        </select>
-        <button onclick="applyChillerOverride()" style="background:#10b981;color:#062314;margin-left:8px">Apply</button>
-      </div>
-      <div class="row">
-        <span id="chillerStatus" class="muted">Status: Auto</span>
-      </div>
-    </div>
       <div class="card">
         <h3>Lights Log (debug)</h3>
         <div class="row">
