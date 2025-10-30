@@ -33,9 +33,11 @@ h1{font-weight:700;font-size:22px;margin:0 0 14px}
   border-radius:var(--radius);
   padding:var(--pad);
   box-shadow: 0 2px 12px rgba(0,0,0,.25);
+  box-sizing: border-box;
+  position: relative;
 }
 .card + .card{ margin-top: var(--gap); }
-.card-wide{ width: 100%; }
+.card-wide{ width: 100%; box-sizing: border-box; }
 
 /* Camera full-width section sits above grid */
 #camera-card{ margin-bottom: var(--gap); }
@@ -43,27 +45,28 @@ h1{font-weight:700;font-size:22px;margin:0 0 14px}
 /* Main two-column content */
 #content-grid{
   display: grid;
-  grid-template-columns: 1.2fr .8fr;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
   gap: var(--gap);
   align-items: start;
   width: 100%;
+  grid-auto-flow: dense;
 }
 
 /* Prevent left column from collapsing */
 #trends-card{
   width: 100%;
   min-width: 0;
-  grid-column: 1;
+  overflow: hidden;
 }
 
 /* Right column stacks smaller cards neatly */
 #right-column-stack{
   width: 100%;
   min-width: 0;
-  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
 }
-.stack > .card{ margin-top: var(--gap); }
-.stack > .card:first-child{ margin-top: 0; }
 
 /* Recent Readings should align with trends width */
 #recent-readings-card{ width: 100%; }
@@ -147,6 +150,15 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 #recent-readings-card .table-wrap{
   max-height: var(--h-recent);
   overflow: auto;
+  transition: all 0.3s ease;
+}
+
+/* Collapsed state for recent readings */
+#recent-readings-card.collapsed .table-wrap{
+  display: none;
+}
+#recent-readings-card h3:hover{
+  color: #10b981;
 }
 </style>
 </head>
@@ -267,9 +279,12 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   </div>
 
   <!-- Recent Readings Card (Full Width, Bottom) -->
-  <section id="recent-readings-card" class="card card-wide">
-    <h3>Recent Readings</h3>
-    <div class="table-wrap">
+  <section id="recent-readings-card" class="card card-wide collapsed">
+    <h3 onclick="toggleRecentReadings()" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;">
+      <span>Recent Readings</span>
+      <span id="recentToggleIcon" style="font-size:16px;">▼</span>
+    </h3>
+    <div class="table-wrap" id="recentTableWrap" style="display:none;">
       <table id="hist"><thead><tr><th>Time</th><th>Temp (°C)</th><th>pH</th><th>EC (mS/cm)</th></tr></thead><tbody></tbody></table>
     </div>
   </section>
@@ -655,6 +670,23 @@ setInterval(() => { refresh().catch(()=>{}); }, 5000); // 5s refresh, ignore tra
 setInterval(() => { pollSensors().catch(()=>{}); }, 2000); // schedule poll; internal 10s guard
 setInterval(() => { loadOverrides().catch(()=>{}); }, 10000); // 10s override refresh
 function exportCsv(hours=24){ window.open(`/export/sensors.csv?hours=${hours}`,'_blank'); }
+
+function toggleRecentReadings(){
+  const card = document.getElementById('recent-readings-card');
+  const wrap = document.getElementById('recentTableWrap');
+  const icon = document.getElementById('recentToggleIcon');
+  
+  if(card.classList.contains('collapsed')){
+    card.classList.remove('collapsed');
+    wrap.style.display = 'block';
+    icon.textContent = '▲';
+  } else {
+    card.classList.add('collapsed');
+    wrap.style.display = 'none';
+    icon.textContent = '▼';
+  }
+}
+
 async function loadCamera(){
   try {
     const s = await (await fetch(`/camera/status?${Date.now()}`, NO_CACHE)).json();
