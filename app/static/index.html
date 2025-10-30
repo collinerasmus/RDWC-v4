@@ -11,6 +11,9 @@
   --gap: 16px;
   --radius: 14px;
   --pad: 16px;
+  --h-trends: 420px;          /* fixed visual height for chart area */
+  --h-camera: 420px;          /* camera area height cap (crop safely) */
+  --h-recent: 260px;          /* recent readings viewport */
 }
 body{
   background:#0b0f14;
@@ -84,6 +87,51 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 .relay{display:flex;align-items:center;justify-content:center;border-radius:10px;padding:10px 8px;font-weight:700;cursor:pointer;border:1px solid #1f2937}
 .relay.on{background:#10b981;color:#062314}
 .relay.off{background:#ef4444;color:#2c0c0c}
+
+/* Ensure fixed visual bands and prevent feedback growth */
+#trends-card .chart-area{
+  position: relative;
+  height: var(--h-trends);
+  max-height: var(--h-trends);
+  overflow: hidden;
+}
+
+#trends-card .chart-area canvas,
+#trends-card .chart-area svg{
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Camera full-width with capped height for neat look */
+#camera-card .camera-frame{
+  width: 100%;
+  height: var(--h-camera);
+  max-height: var(--h-camera);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#camera-card .camera-frame img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+#camera-card .camera-banner{
+  color:#ddd;
+  font-size: 14px;
+  opacity:.8;
+}
+
+/* Recent readings: fixed viewport, scroll inside */
+#recent-readings-card .table-wrap{
+  max-height: var(--h-recent);
+  overflow: auto;
+}
 </style>
 </head>
 <body>
@@ -94,8 +142,8 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <section id="camera-card" class="card card-wide">
     <h3>Camera</h3>
     <div id="camBanner" class="muted" style="margin-bottom:8px; display:none;">camera driver not available</div>
-    <div class="cam">
-      <img id="cam" src="/camera/stream" style="width:100%;border-radius:10px" alt="Camera stream"/>
+    <div class="camera-frame">
+      <img id="cam" src="/camera/stream" alt="Camera stream"/>
     </div>
   </section>
 
@@ -105,9 +153,11 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     <section id="trends-card" class="card card-wide">
       <h3>Trends (last 6h)</h3>
       <div class="row"><button onclick="exportCsv(24)" style="background:#374151;color:#e5e7eb">Export last 24h (CSV)</button></div>
-      <canvas id="chartTemp" height="120"></canvas>
-      <canvas id="chartPh"   height="120" style="margin-top:10px;"></canvas>
-      <canvas id="chartEc"   height="120" style="margin-top:10px;"></canvas>
+      <div class="chart-area">
+        <canvas id="chartTemp"></canvas>
+        <canvas id="chartPh" style="margin-top:10px;"></canvas>
+        <canvas id="chartEc" style="margin-top:10px;"></canvas>
+      </div>
     </section>
 
     <!-- Right Column: Stacked Cards -->
@@ -194,24 +244,42 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- Recent Readings Card (Full Width, Bottom) -->
   <section id="recent-readings-card" class="card card-wide">
     <h3>Recent Readings</h3>
-    <table id="hist"><thead><tr><th>Time</th><th>Temp (°C)</th><th>pH</th><th>EC (mS/cm)</th></tr></thead><tbody></tbody></table>
+    <div class="table-wrap">
+      <table id="hist"><thead><tr><th>Time</th><th>Temp (°C)</th><th>pH</th><th>EC (mS/cm)</th></tr></thead><tbody></tbody></table>
+    </div>
   </section>
 </main>
 <script>
 const NO_CACHE = { cache: 'no-store', headers: { 'Cache-Control': 'no-store' } };
 const bust = () => `t=${Date.now()}`;
 
+const MAX_POINTS = 300; // Cap data points to prevent growth
 let ct, ch, ce; // chart instances
 function mkChart(ctx,label){
   return new Chart(ctx,{type:'line',data:{labels:[],datasets:[{label,borderWidth:1,pointRadius:0}]},
-    options:{animation:false, responsive:true, scales:{x:{display:false}}}});
+    options:{
+      animation:false,
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{x:{display:false}}
+    }
+  });
 }
 async function updateCharts(){
   const rows = await (await fetch(`/history_window?hours=6&${Date.now()}`, {cache:'no-store'})).json();
-  const xs = rows.map(r => new Date(r.ts*1000).toLocaleTimeString()).reverse();
-  const t  = rows.map(r => r.temp_c).reverse();
-  const p  = rows.map(r => r.ph).reverse();
-  const e  = rows.map(r => r.ec_ms_cm).reverse();
+  let xs = rows.map(r => new Date(r.ts*1000).toLocaleTimeString()).reverse();
+  let t  = rows.map(r => r.temp_c).reverse();
+  let p  = rows.map(r => r.ph).reverse();
+  let e  = rows.map(r => r.ec_ms_cm).reverse();
+  
+  // Cap data to MAX_POINTS to prevent unbounded growth
+  if(xs.length > MAX_POINTS){
+    xs = xs.slice(-MAX_POINTS);
+    t = t.slice(-MAX_POINTS);
+    p = p.slice(-MAX_POINTS);
+    e = e.slice(-MAX_POINTS);
+  }
+  
   if(!ct){ ct = mkChart(document.getElementById('chartTemp').getContext('2d'), 'Temp (°C)'); }
   if(!ch){ ch = mkChart(document.getElementById('chartPh').getContext('2d'),   'pH'); }
   if(!ce){ ce = mkChart(document.getElementById('chartEc').getContext('2d'),   'EC (mS/cm)'); }
