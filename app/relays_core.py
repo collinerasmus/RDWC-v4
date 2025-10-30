@@ -114,7 +114,8 @@ def _get_min_time(relay_name: str, times_dict: Dict[str, int]) -> int:
 def _elapsed(relay_name: str) -> float:
     """Get elapsed time since last change for relay."""
     if relay_name not in _last_change_ts:
-        return 0
+        # Return a large value to allow immediate toggling on first use
+        return 999999
     return time.monotonic() - _last_change_ts[relay_name]
 
 def _initialize_device(relay_name: str) -> OutputDevice:
