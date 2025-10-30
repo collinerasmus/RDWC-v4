@@ -362,7 +362,10 @@ def relay_status():
 @app.post("/relay/set")
 def relay_set_new(body: dict = Body(...)):
     """Set relay state using proper relays_core with whitelisted 'override' reason"""
-    from app.relays_core import set_relay, RELAY_PINS
+    from app.relays_core import (
+        set_lights, set_main_pump, set_chiller_pump, set_chiller_power,
+        set_dosing_grow, set_dosing_micro, set_dosing_bloom, set_dosing_ph_up, RELAY_PINS
+    )
     
     name = body.get("name")
     on = body.get("on", False)
@@ -375,7 +378,25 @@ def relay_set_new(body: dict = Body(...)):
         )
     
     # Use whitelisted 'override' reason for manual control
-    result = set_relay(name, bool(on), reason="override", force=False)
+    # Route through specific functions for proper handling
+    relay_funcs = {
+        "lights": set_lights,
+        "main_pump": set_main_pump,
+        "chiller_pump": set_chiller_pump,
+        "chiller_power": set_chiller_power,
+        "dosing_grow": set_dosing_grow,
+        "dosing_micro": set_dosing_micro,
+        "dosing_bloom": set_dosing_bloom,
+        "dosing_ph_up": set_dosing_ph_up,
+    }
+    
+    func = relay_funcs.get(name)
+    if func:
+        result = func(bool(on), reason="override", force=False)
+    else:
+        # Fallback for any other relays
+        from app.relays_core import set_relay
+        result = set_relay(name, bool(on), reason="override", force=False)
     # Trace via debug module
     try:
         trace_relay_request(name, bool(on), "post", {
@@ -398,13 +419,34 @@ def relay_set_new(body: dict = Body(...)):
 @app.get("/relay/set")
 def relay_set_query(name: str = Query(...), on: int = Query(...)):
     """Fallback GET handler for relay control via query params. Mirrors /relay/set POST."""
-    from app.relays_core import set_relay, RELAY_PINS
+    from app.relays_core import (
+        set_lights, set_main_pump, set_chiller_pump, set_chiller_power,
+        set_dosing_grow, set_dosing_micro, set_dosing_bloom, set_dosing_ph_up, RELAY_PINS
+    )
 
     desired = bool(int(on))
     if name not in RELAY_PINS:
         return JSONResponse(status_code=400, content={"error": f"Invalid relay name '{name}'"})
 
-    result = set_relay(name, desired, reason="override", force=False)
+    # Route through specific functions for proper handling
+    relay_funcs = {
+        "lights": set_lights,
+        "main_pump": set_main_pump,
+        "chiller_pump": set_chiller_pump,
+        "chiller_power": set_chiller_power,
+        "dosing_grow": set_dosing_grow,
+        "dosing_micro": set_dosing_micro,
+        "dosing_bloom": set_dosing_bloom,
+        "dosing_ph_up": set_dosing_ph_up,
+    }
+    
+    func = relay_funcs.get(name)
+    if func:
+        result = func(desired, reason="override", force=False)
+    else:
+        # Fallback for any other relays
+        from app.relays_core import set_relay
+        result = set_relay(name, desired, reason="override", force=False)
     try:
         trace_relay_request(name, desired, "get", {
             "changed": result.get("changed", False),
