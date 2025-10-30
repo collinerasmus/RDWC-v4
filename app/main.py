@@ -464,6 +464,29 @@ def relay_set_query(name: str = Query(...), on: int = Query(...)):
         "cooldown_remaining": result.get("cooldown_remaining", 0)
     }
 
+@app.post("/relay/emergency_off")
+def relay_emergency_off():
+    """Emergency endpoint to force all relays OFF and clear antiflap protection"""
+    from app.relays_core import set_relay, RELAY_PINS, _antiflap_until
+    
+    results = {}
+    # Clear all antiflap protection
+    _antiflap_until.clear()
+    
+    # Force all relays OFF
+    for name in RELAY_PINS.keys():
+        result = set_relay(name, False, reason="emergency", force=True)
+        results[name] = {
+            "changed": result.get("changed", False),
+            "state": result.get("state", False)
+        }
+    
+    return {
+        "ok": True,
+        "message": "All relays forced OFF, antiflap cleared",
+        "results": results
+    }
+
 @app.post("/relay/{name}")
 def relay_set_legacy(name: str, body: dict = Body(...)):
     """Legacy endpoint - now redirects to relays_core for consistency"""

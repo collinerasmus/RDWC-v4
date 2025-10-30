@@ -168,13 +168,14 @@ def _update_antiflap_detector(relay_name: str, new_state: bool):
     history = _change_history[relay_name]
     history.append((now, new_state))
     
-    # Check for excessive changes in last 10 minutes
-    cutoff = now - 600  # 10 minutes
+    # Check for excessive changes in last 5 minutes (more reasonable for manual testing)
+    cutoff = now - 300  # 5 minutes
     recent_changes = [ts for ts, _ in history if ts > cutoff]
     
-    if len(recent_changes) > 6:
-        logger.warning(f"anti-flap: excessive changes on {relay_name} ({len(recent_changes)} in 10m), suppressing non-forced toggles for 5 minutes")
-        _antiflap_until[relay_name] = now + 300  # 5 minutes
+    # Increased threshold from 6 to 15 changes to avoid false triggers during testing
+    if len(recent_changes) > 15:
+        logger.warning(f"anti-flap: excessive changes on {relay_name} ({len(recent_changes)} in 5m), suppressing non-forced toggles for 2 minutes")
+        _antiflap_until[relay_name] = now + 120  # 2 minutes (reduced from 5)
 
 def set_relay(name: str, desired_on: bool, reason: str, force: bool = False) -> Dict[str, Any]:
     """
