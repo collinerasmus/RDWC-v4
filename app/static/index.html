@@ -248,6 +248,15 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       <table id="hist"><thead><tr><th>Time</th><th>Temp (°C)</th><th>pH</th><th>EC (mS/cm)</th></tr></thead><tbody></tbody></table>
     </div>
   </section>
+
+  <!-- Layout Debug Overlay -->
+  <div id="layoutDebug" style="display:none;position:fixed;top:10px;right:10px;background:rgba(17,24,39,0.95);border:2px solid #10b981;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;z-index:9999;min-width:200px;">
+    <div style="font-weight:700;margin-bottom:8px;color:#10b981;" id="debugBadge">Layout Debug ON</div>
+    <div style="color:#e6edf3;">Trends: <span id="debugTrends">—</span>px</div>
+    <div style="color:#e6edf3;">Camera: <span id="debugCamera">—</span>px</div>
+    <div style="color:#e6edf3;">Recent: <span id="debugRecent">—</span>px</div>
+    <div style="color:#9ca3af;font-size:10px;margin-top:6px;">Checking every 2s...</div>
+  </div>
 </main>
 <script>
 const NO_CACHE = { cache: 'no-store', headers: { 'Cache-Control': 'no-store' } };
@@ -648,6 +657,54 @@ async function calibApply(){
   }catch(e){ document.getElementById('calibMsg').textContent = 'Failed to apply calibration'; }
 }
 loadCamera().catch(()=>{});
+
+// Layout Debug Overlay
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has('debug') || params.get('debug') !== 'layout') return;
+  
+  const overlay = document.getElementById('layoutDebug');
+  if (!overlay) return;
+  overlay.style.display = 'block';
+  
+  const badge = document.getElementById('debugBadge');
+  const trendsSp = document.getElementById('debugTrends');
+  const cameraSp = document.getElementById('debugCamera');
+  const recentSp = document.getElementById('debugRecent');
+  
+  let prevTrends = null;
+  
+  function measureHeights() {
+    const trendsCard = document.getElementById('trends-card');
+    const cameraFrame = document.querySelector('#camera-card .camera-frame');
+    const recentWrap = document.querySelector('#recent-readings-card .table-wrap');
+    
+    const trendsH = trendsCard ? trendsCard.clientHeight : 0;
+    const cameraH = cameraFrame ? cameraFrame.clientHeight : 0;
+    const recentH = recentWrap ? recentWrap.clientHeight : 0;
+    
+    if (trendsSp) trendsSp.textContent = trendsH + 'px';
+    if (cameraSp) cameraSp.textContent = cameraH + 'px';
+    if (recentSp) recentSp.textContent = recentH + 'px';
+    
+    if (prevTrends !== null) {
+      const delta = Math.abs(trendsH - prevTrends);
+      if (delta > 2) {
+        badge.style.background = '#dc2626';
+        badge.textContent = 'Layout Debug DRIFT';
+        console.warn(`Layout drift detected: trends height changed ${prevTrends}px → ${trendsH}px (Δ${delta}px)`);
+      } else {
+        badge.style.background = '#059669';
+        badge.textContent = 'Layout Debug OK';
+      }
+    }
+    
+    prevTrends = trendsH;
+  }
+  
+  measureHeights();
+  setInterval(measureHeights, 2000);
+})();
 </script>
 </body>
 </html>
