@@ -1,6 +1,6 @@
 # app/debug.py
 from fastapi import APIRouter
-from typing import List, Dict, Any
+from typing import Dict, Any
 from collections import deque
 import time
 import threading
@@ -21,6 +21,7 @@ def trace_relay_request(name: str, on: bool, via: str, result: Dict[str, Any]) -
         _relay_requests.append(item)
 
 @router.get("/relay_requests")
-def relay_requests() -> List[Dict[str, Any]]:
+def relay_requests() -> Dict[str, Any]:
+    """Get the last 50 relay set requests for debugging."""
     with _lock:
-        return list(_relay_requests)
+        return {"count": len(_relay_requests), "items": list(_relay_requests)}
