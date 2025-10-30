@@ -256,15 +256,19 @@ async function loadSettings(){
     document.getElementById('lightsStart').value = settings.lights_on_time;
     document.getElementById('lightsDuration').value = settings.lights_duration_hours;
     
-    // Update lights window display from health endpoint  
-    try {
-      const health = await (await fetch(`/health?${Date.now()}`, {cache:'no-store'})).json();
-      if (health.lights_window && !health.lights_window.error) {
-        const window = health.lights_window;
-        document.getElementById('lightsWindow').textContent = 
-          `Lights: ${window.on_time} → ${window.off_time} (today)`;
-      }
-    } catch(e) {}
+    // Update lights window preview: prefer /settings.today_window, fallback to /health
+    if (settings.today_window && !settings.today_window.error) {
+      const window = settings.today_window;
+      document.getElementById('lightsWindow').textContent = `Lights: ${window.on_time} → ${window.off_time} (today)`;
+    } else {
+      try {
+        const health = await (await fetch(`/health?${Date.now()}`, {cache:'no-store'})).json();
+        if (health.lights_window && !health.lights_window.error) {
+          const window = health.lights_window;
+          document.getElementById('lightsWindow').textContent = `Lights: ${window.on_time} → ${window.off_time} (today)`;
+        }
+      } catch(e) {}
+    }
     
   } catch(e) {
     console.error('Failed to load settings:', e);
