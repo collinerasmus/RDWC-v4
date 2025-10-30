@@ -6,6 +6,26 @@ Single FastAPI service with one control loop for RDWC.
 - Target pH ~5.8–6.2; weekly res maintenance
 See `.env.example` for configuration. Start minimal, expand in tiny phases.
 
+## How it works
+
+- One FastAPI app under systemd, using a Python venv.
+- Central relay core enforces idempotency, active-low driving, cooldowns (MIN_ON/OFF), and anti-flap.
+- Lights scheduling is edge-only: exactly two edges per day (ON at start, OFF after duration) with small guards; no periodic catch-up loops.
+- Sensors use an RTD-first read and throttle temperature-compensation writes to pH/EC (ΔT ≥ 0.2°C or ≥ 60s).
+- Chiller override has explicit modes (auto | force_on | force_off). AUTO does not thermostat in software; hardware thermostat remains in control.
+- Alerts are OFF by default (opt-in via .env).
+
+## Endpoints (overview)
+
+- `/health` — readiness and service summary (DB/I2C/camera/relays/sensors heartbeat)
+- `/relay/status` — states, reasons, timers per relay
+- `/relay/set` — POST+GET manual control via relay core (respects cooldowns)
+- `/sensors/read` — RTD/pH/EC with temp-comp throttle info
+- `/settings` — GET/PUT system settings (lights schedule, volume) with immediate scheduler recompute
+- `/chiller/override` — GET/PUT chiller mode (auto | force_on | force_off)
+- `/debug/relay_requests` — recent relay requests ring buffer (for diagnostics)
+- `/debug/lights_log` — lights event log (summary + recent events)
+
 ## Settings
 
 The system supports configurable settings via the web dashboard or API:
@@ -58,6 +78,37 @@ curl -s http://192.168.88.49:8080/relay/status | jq .
 # Last 50 relay toggle attempts (ts/name/on/via/result)
 curl -s http://192.168.88.49:8080/debug/relay_requests | jq .
 ```
+
+### Chiller Override
+
+Explicit 3-mode control with no surprise thermostat behavior in software:
+
+- Modes: `auto` | `force_on` | `force_off`
+- In `auto`, the service does not thermostat the chiller; relays remain as they are until a user or schedule changes them. Hardware thermostats continue to operate.
+- All changes go through the relay core (active-low, idempotent, MIN_ON/OFF, anti-flap). Cooldowns are respected.
+
+API:
+```bash
+# Get current override
+curl -s http://192.168.88.49:8080/chiller/override
+
+# Force ON (both power and pump), subject to cooldowns
+curl -s -X PUT -H "Content-Type: application/json" \
+  -d '{"override":"force_on"}' http://192.168.88.49:8080/chiller/override
+
+# Force OFF (both), subject to cooldowns
+curl -s -X PUT -H "Content-Type: application/json" \
+  -d '{"override":"force_off"}' http://192.168.88.49:8080/chiller/override
+
+# Back to AUTO (no thermostat; holds current states)
+curl -s -X PUT -H "Content-Type: application/json" \
+  -d '{"override":"auto"}' http://192.168.88.49:8080/chiller/override
+
+# Inspect relay states and cooldowns
+curl -s http://192.168.88.49:8080/relay/status | jq '.chiller_power, .chiller_pump'
+```
+
+UI: A small card can present a 3-state selector and two live indicators for `chiller_power` and `chiller_pump`.
 
 #### Alerts
 
