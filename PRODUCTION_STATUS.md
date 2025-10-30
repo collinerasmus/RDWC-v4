@@ -32,11 +32,11 @@ All critical issues have been resolved. The RDWC v4 system is now fully operatio
 - `dosing_ph_up` - pH up dosing pump
 
 **Safety Features:**
-- **Cooldown Protection:** Prevents rapid cycling that could damage equipment
-  - Chiller power: 5 min ON, 5 min OFF
-  - Chiller pump: 2 min ON, 2 min OFF
-  - Main pump: 1 min ON, 30 sec OFF
-  - Lights: 30 sec ON, 10 sec OFF
+- **Cooldown Protection:** Prevents accidental double-clicks and rapid cycling
+  - Chiller power: 10 sec ON, 10 sec OFF (optimized for manual control)
+  - Chiller pump: 5 sec ON, 5 sec OFF (optimized for manual control)
+  - Main pump: 5 sec ON, 5 sec OFF (optimized for manual control)
+  - Lights: 3 sec ON, 3 sec OFF (optimized for manual control)
   - Dosing pumps: No restrictions (instant response)
 
 - **Anti-Flap Protection:** Prevents oscillation from buggy automation

@@ -80,11 +80,11 @@ curl -s http://192.168.88.49:8080/health
 
 | Relay | Min ON Time | Min OFF Time | Purpose |
 |-------|-------------|--------------|---------|
-| chiller_power | 5 minutes | 5 minutes | Prevent compressor damage |
-| chiller_pump | 2 minutes | 2 minutes | Prevent pump short-cycling |
-| main_pump | 1 minute | 30 seconds | Protect pump motor |
-| lights | 30 seconds | 10 seconds | Reduce stress on ballast |
-| dosing_* | None | None | Instant response needed |
+| chiller_power | 10 seconds | 10 seconds | Prevent accidental double-click |
+| chiller_pump | 5 seconds | 5 seconds | Prevent accidental double-click |
+| main_pump | 5 seconds | 5 seconds | Prevent accidental double-click |
+| lights | 3 seconds | 3 seconds | Prevent accidental double-click |
+| dosing_* | None | None | Instant response |
 
 ---
 
