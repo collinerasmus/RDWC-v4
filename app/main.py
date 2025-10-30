@@ -232,12 +232,27 @@ async def test_alerts():
 @app.get("/settings")
 def get_settings_api():
     """Get current system settings"""
-    from app.settings import get_settings
+    from app.settings import get_settings, get_todays_lights_window
     settings = get_settings()
+
+    # Also include today's lights window preview for UI/verify scripts
+    window = {}
+    try:
+        on_dt, off_dt = get_todays_lights_window()
+        window = {
+            "on_time": on_dt.strftime("%H:%M"),
+            "off_time": off_dt.strftime("%H:%M"),
+            "on_datetime": on_dt.isoformat(),
+            "off_datetime": off_dt.isoformat(),
+        }
+    except Exception as e:
+        window = {"error": str(e)}
+
     return {
         "system_volume_liters": settings.system_volume_liters,
         "lights_on_time": settings.lights_on_time,
-        "lights_duration_hours": settings.lights_duration_hours
+        "lights_duration_hours": settings.lights_duration_hours,
+        "today_window": window,
     }
 
 @app.put("/settings")
@@ -247,7 +262,7 @@ def update_settings_api(
     lights_duration_hours: Optional[int] = Body(None)
 ):
     """Update system settings with validation"""
-    from app.settings import update_settings
+    from app.settings import update_settings, get_todays_lights_window
     
     try:
         updated_settings = update_settings(
@@ -256,14 +271,27 @@ def update_settings_api(
             lights_duration_hours=lights_duration_hours
         )
         
-        # Trigger scheduler update if lights settings changed
-        if lights_on_time is not None or lights_duration_hours is not None:
-            _scheduler._update_lights_schedule()
-        
+        # Apply settings effects: recompute scheduler immediately (edge-only; no catch-up)
+        _scheduler._update_lights_schedule()
+
+        # Include today's window in response for immediate UI preview
+        window = {}
+        try:
+            on_dt, off_dt = get_todays_lights_window()
+            window = {
+                "on_time": on_dt.strftime("%H:%M"),
+                "off_time": off_dt.strftime("%H:%M"),
+                "on_datetime": on_dt.isoformat(),
+                "off_datetime": off_dt.isoformat(),
+            }
+        except Exception as e:
+            window = {"error": str(e)}
+
         return {
             "system_volume_liters": updated_settings.system_volume_liters,
             "lights_on_time": updated_settings.lights_on_time,
-            "lights_duration_hours": updated_settings.lights_duration_hours
+            "lights_duration_hours": updated_settings.lights_duration_hours,
+            "today_window": window,
         }
         
     except ValueError as e:
