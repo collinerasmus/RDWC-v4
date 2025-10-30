@@ -19,21 +19,23 @@ _last_t_set_ts: float = 0.0
 
 # Graceful I²C imports - works on Pi and dev PCs
 # Use the stabilized EZO interface that's proven to work
+I2C_AVAILABLE = False
+
+# Stub class for dev environments
+class _EZOStub:  # type: ignore
+    def __init__(self, bus_num, addr, name):
+        self.name = name
+    def init_once(self): pass
+    def read_value(self, request="R", timeout=1.8, poll=0.15):
+        return "23.0" if self.name == "RTD" else "6.5" if self.name == "pH" else "1500"
+    def cmd(self, cmd, read_len=0, settle=0.06): pass
+
 try:
     from .ezo_i2c_stabilized import EZO
     I2C_AVAILABLE = True
-except ImportError:
-    I2C_AVAILABLE = False
-    logger.warning("I²C libraries not available - running in simulation mode")
-    
-    # Stub class for dev environments
-    class EZO:  # type: ignore
-        def __init__(self, bus_num, addr, name):
-            self.name = name
-        def init_once(self): pass
-        def read_value(self, request="R", timeout=1.8, poll=0.15):
-            return "23.0" if self.name == "RTD" else "6.5" if self.name == "pH" else "1500"
-        def cmd(self, cmd, read_len=0, settle=0.06): pass
+except ImportError as e:
+    logger.warning(f"I²C libraries not available - running in simulation mode: {e}")
+    EZO = _EZOStub  # type: ignore
 
 
 def _should_send_temp_comp(temp_c: float) -> tuple[bool, float]:
