@@ -1,7 +1,15 @@
 /* global Chart */
 (function(){
+  console.log('[Trends] init');
   const chartEl = document.getElementById('trendChart');
-  if(!chartEl || typeof Chart === 'undefined') return;
+  if(!chartEl) {
+    console.error('[Trends] trendChart canvas not found');
+    return;
+  }
+  if(typeof Chart === 'undefined') {
+    console.error('[Trends] Chart.js not loaded');
+    return;
+  }
 
   const COLORS = {
     ph:   '#1f77b4', // blue
@@ -85,9 +93,22 @@
     const q = new URLSearchParams();
     if (fromISO) q.set('from', fromISO);
     if (toISO)   q.set('to', toISO);
-    const res = await fetch('/api/trends?' + q.toString(), { cache: 'no-store' });
-    if (!res.ok) throw new Error('trends_fetch_failed ' + res.status);
-    return res.json();
+    const url = '/api/trends?' + q.toString();
+    console.log('[Trends] GET', url);
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) {
+      console.error('[Trends] fetch failed', res.status);
+      return { series: { ph:[], ec:[], temp:[] } };
+    }
+    const j = await res.json();
+    console.log('[Trends] data', {
+      ph: j?.series?.ph?.length || 0,
+      ec: j?.series?.ec?.length || 0,
+      temp: j?.series?.temp?.length || 0,
+      note: j?.note,
+      error: j?.error
+    });
+    return j;
   }
   
   function toXY(series){ 
@@ -108,6 +129,7 @@
   }
 
   function render(data){
+    console.log('[Trends] render');
     const ph   = toXY(data?.series?.ph);
     const ec   = toXY(data?.series?.ec);
     const temp = toXY(data?.series?.temp);

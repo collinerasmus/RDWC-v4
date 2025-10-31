@@ -247,6 +247,7 @@ def api_trends(
     """
     Trends API endpoint for Chart.js frontend.
     Returns: { "series": { "ph": [{ts, value}], "ec": [...], "temp": [...] } }
+    Timestamps are Unix epoch seconds (not ISO strings) for Chart.js compatibility.
     """
     def parse_iso(s):
         if not s:
@@ -257,7 +258,8 @@ def api_trends(
                 s = s.replace('Z', '+00:00')
             dt = datetime.fromisoformat(s)
             return int(dt.timestamp())
-        except Exception:
+        except Exception as e:
+            print(f"[Trends API] Failed to parse timestamp '{s}': {e}")
             return None
     
     from_ts = parse_iso(from_param)
@@ -269,8 +271,18 @@ def api_trends(
     if not to_ts:
         to_ts = int(time.time())
     
+    print(f"[Trends API] Fetching data from {from_ts} to {to_ts}")
+    
     # Fetch historical data
-    rows = fetch_history_since(from_ts)
+    try:
+        rows = fetch_history_since(from_ts)
+        print(f"[Trends API] Fetched {len(rows)} rows from DB")
+    except Exception as e:
+        print(f"[Trends API] Error fetching history: {e}")
+        return {
+            "series": {"ph": [], "ec": [], "temp": []},
+            "error": str(e)
+        }
     
     # Filter by end time and structure for Chart.js
     ph_series = []
@@ -280,20 +292,38 @@ def api_trends(
     for row in rows:
         ts = row.get("ts")
         if ts and ts <= to_ts:
+            # Return Unix timestamp (seconds) - trends.js will multiply by 1000 for JS Date
             if row.get("ph") is not None:
-                ph_series.append({"ts": ts, "value": row["ph"]})
+                try:
+                    ph_series.append({"ts": int(ts), "value": float(row["ph"])})
+                except (ValueError, TypeError):
+                    pass
             if row.get("ec_ms_cm") is not None:
-                ec_series.append({"ts": ts, "value": row["ec_ms_cm"]})
+                try:
+                    ec_series.append({"ts": int(ts), "value": float(row["ec_ms_cm"])})
+                except (ValueError, TypeError):
+                    pass
             if row.get("temp_c") is not None:
-                temp_series.append({"ts": ts, "value": row["temp_c"]})
+                try:
+                    temp_series.append({"ts": int(ts), "value": float(row["temp_c"])})
+                except (ValueError, TypeError):
+                    pass
     
-    return {
+    print(f"[Trends API] Returning ph:{len(ph_series)}, ec:{len(ec_series)}, temp:{len(temp_series)}")
+    
+    result = {
         "series": {
             "ph": ph_series,
             "ec": ec_series,
             "temp": temp_series
         }
     }
+    
+    # Add diagnostic info if no data
+    if not (ph_series or ec_series or temp_series):
+        result["note"] = "No data in selected range"
+    
+    return result
 
 # Alert monitoring endpoints
 @app.get("/monitoring/status")
