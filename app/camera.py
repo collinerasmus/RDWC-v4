@@ -72,10 +72,15 @@ class CameraManager:
         if cls._Picamera2 is not None:
             try:
                 picam = cls._Picamera2()
-                cfg = picam.create_video_configuration(main={"size": (640, 480), "format": "RGB888"})
+                # Use video configuration with buffering for streaming
+                cfg = picam.create_video_configuration(
+                    main={"size": (640, 480), "format": "RGB888"},
+                    buffer_count=4
+                )
                 picam.configure(cfg)
                 picam.start()
-                time.sleep(0.3)
+                # Allow camera to warm up and stabilize
+                time.sleep(0.5)
                 cls._picam = picam
                 cls._cap = None
                 cls.available = True
@@ -153,10 +158,15 @@ class CameraManager:
             return
 
         interval = max(0.001, 1.0 / float(fps))
+        frame_count = 0
         while True:
             try:
                 if cls.mode == "picamera2" and cls._picam is not None:
+                    # Capture from picamera2 (non-blocking with buffer)
                     frame = cls._picam.capture_array()
+                    if frame is None:
+                        time.sleep(0.05)
+                        continue
                     img = cls._Image.fromarray(frame)
                 elif cls.mode == "opencv" and cls._cap is not None and cls._cv2 is not None:
                     ret, frame = cls._cap.read()
@@ -179,9 +189,14 @@ class CameraManager:
                        b"Content-Type: image/jpeg\r\n"
                        b"Content-Length: " + str(len(jpg)).encode() + b"\r\n\r\n"
                        + jpg + b"\r\n")
+                frame_count += 1
+                if frame_count == 1:
+                    print(f"[Camera] First frame delivered (mode={cls.mode}, size={len(jpg)})")
                 time.sleep(interval)
             except GeneratorExit:
+                print(f"[Camera] Stream closed after {frame_count} frames")
                 break
             except Exception as e:
                 cls.last_error = f"stream_error: {e}"
+                print(f"[Camera] Stream error: {e}")
                 time.sleep(0.2)
