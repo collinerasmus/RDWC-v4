@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Body, Query
 from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 import threading
 import time
 import os
@@ -26,6 +27,10 @@ DB_PATH = os.path.abspath(DB_PATH)
 app = FastAPI()
 app.include_router(diag_router)
 app.include_router(debug_router, prefix="/debug", tags=["debug"])
+
+# Mount static files directory for serving CSS/JS
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Initialize centralized relay system
 initialize_all_safe_off()
