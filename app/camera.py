@@ -72,12 +72,20 @@ class CameraManager:
         if cls._Picamera2 is not None:
             try:
                 picam = cls._Picamera2()
-                # Use video configuration with buffering for streaming
-                cfg = picam.create_video_configuration(
-                    main={"size": (640, 480), "format": "RGB888"},
-                    buffer_count=4
-                )
-                picam.configure(cfg)
+                # Use video configuration with higher resolution and proper RGB format
+                # Try 1280x720 first, fallback to 1024x768, then 800x600
+                for size in [(1280, 720), (1024, 768), (800, 600)]:
+                    try:
+                        cfg = picam.create_video_configuration(
+                            main={"size": size, "format": "RGB888"},
+                            buffer_count=4
+                        )
+                        picam.configure(cfg)
+                        break
+                    except Exception:
+                        if size == (800, 600):
+                            raise  # Last resort failed
+                        continue
                 picam.start()
                 # Allow camera to warm up and stabilize
                 time.sleep(0.5)
@@ -102,9 +110,9 @@ class CameraManager:
                 except Exception:
                     cap = cls._cv2.VideoCapture(0)
                 if cap is not None and cap.isOpened():
-                    # Try to set a reasonable resolution
-                    cap.set(3, 640)  # WIDTH
-                    cap.set(4, 480)  # HEIGHT
+                    # Try to set higher resolution for wider field of view
+                    cap.set(3, 1280)  # WIDTH
+                    cap.set(4, 720)   # HEIGHT
                     cls._cap = cap
                     cls._picam = None
                     cls.available = True
@@ -168,6 +176,9 @@ class CameraManager:
                         time.sleep(0.05)
                         continue
                     img = cls._Image.fromarray(frame)
+                    # Log first frame info
+                    if frame_count == 0:
+                        print(f"[Camera] Frame shape: {frame.shape if hasattr(frame, 'shape') else 'N/A'}, PIL mode: {img.mode}")
                     # Convert to RGB if needed (Pillow may return LA, P, or other modes)
                     if img.mode != "RGB":
                         img = img.convert("RGB")
