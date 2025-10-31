@@ -1,4 +1,4 @@
-"""
+﻿"""
 Camera module for RDWC v4 - Picamera2 MJPEG streaming with diagnostics
 No OpenCV dependency - uses Pillow (PIL) for JPEG encoding
 """
@@ -68,7 +68,7 @@ class CameraManager:
             cls.available = False
             cls.mode = "unavailable"
             return
-            # Use OpenCV for USB webcams (better format/resolution control than Picamera2/libcamera)
+        # Use OpenCV for USB webcams (better format/resolution control than Picamera2/libcamera)
         if cls._cv2 is not None:
             try:
                 # Prefer V4L2 backend when available
@@ -127,16 +127,21 @@ class CameraManager:
 
     @classmethod
     def mjpeg_generator(cls, fps: int = 5) -> Generator[bytes, None, None]:
-        """Multipart MJPEG stream with boundary=frame supporting picamera2 and opencv modes."""
+        """Multipart MJPEG stream with strict CRLF framing for browser compatibility."""
+        BOUNDARY = b"frame"
+        
         if not cls.available or cls._Image is None:
-            yield (b"--frame\r\nContent-Type: application/json\r\n\r\n"
+            yield (b"--" + BOUNDARY + b"\r\nContent-Type: application/json\r\n\r\n"
                    b'{"ok":false,"reason":"camera_unavailable"}\r\n')
             return
 
         interval = max(0.001, 1.0 / float(fps))
         frame_count = 0
+        
         while True:
             try:
+                jpeg_bytes = None
+                
                 if cls.mode == "picamera2" and cls._picam is not None:
                     # Capture from picamera2 (non-blocking with buffer)
                     frame = cls._picam.capture_array()
@@ -146,38 +151,50 @@ class CameraManager:
                     img = cls._Image.fromarray(frame)
                     # Log first frame info
                     if frame_count == 0:
-                        print(f"[Camera] Frame shape: {frame.shape if hasattr(frame, 'shape') else 'N/A'}, PIL mode: {img.mode}")
+                        print(f"[Camera] Frame shape: {frame.shape if hasattr(frame, 'shape') else ''N/A''}, PIL mode: {img.mode}")
                     # Convert to RGB if needed (Pillow may return LA, P, or other modes)
                     if img.mode != "RGB":
                         img = img.convert("RGB")
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=70)
+                    jpeg_bytes = buf.getvalue()
+                    
                 elif cls.mode == "opencv" and cls._cap is not None and cls._cv2 is not None:
                     ret, frame = cls._cap.read()
                     if not ret:
                         time.sleep(0.2)
                         continue
-                        # Log first frame info
-                        if frame_count == 0:
-                            print(f"[Camera] OpenCV frame shape: {frame.shape if hasattr(frame, 'shape') else 'N/A'}")
+                    # Log first frame info
+                    if frame_count == 0:
+                        print(f"[Camera] OpenCV frame shape: {frame.shape if hasattr(frame, ''shape'') else ''N/A''}")
                     # Convert BGR to RGB for Pillow
                     img = cls._Image.fromarray(frame[:, :, ::-1])
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=70)
+                    jpeg_bytes = buf.getvalue()
                 else:
                     # No active camera
-                    yield (b"--frame\r\nContent-Type: application/json\r\n\r\n"
+                    yield (b"--" + BOUNDARY + b"\r\nContent-Type: application/json\r\n\r\n"
                            b'{"ok":false,"reason":"no_active_camera"}\r\n')
                     time.sleep(0.5)
                     continue
 
-                buf = io.BytesIO()
-                img.save(buf, format="JPEG", quality=70)
-                jpg = buf.getvalue()
-                yield (b"--frame\r\n"
-                       b"Content-Type: image/jpeg\r\n"
-                       b"Content-Length: " + str(len(jpg)).encode() + b"\r\n\r\n"
-                       + jpg + b"\r\n")
-                frame_count += 1
-                if frame_count == 1:
-                    print(f"[Camera] First frame delivered (mode={cls.mode}, size={len(jpg)})")
+                if jpeg_bytes:
+                    # Strict CRLF framing for browser compatibility
+                    part = (
+                        b"--" + BOUNDARY + b"\r\n"
+                        b"Content-Type: image/jpeg\r\n"
+                        + f"Content-Length: {len(jpeg_bytes)}\r\n\r\n".encode("ascii")
+                        + jpeg_bytes
+                        + b"\r\n"
+                    )
+                    yield part
+                    frame_count += 1
+                    if frame_count == 1:
+                        print(f"[Camera] First frame delivered (mode={cls.mode}, size={len(jpeg_bytes)})")
+                
                 time.sleep(interval)
+                
             except GeneratorExit:
                 print(f"[Camera] Stream closed after {frame_count} frames")
                 break

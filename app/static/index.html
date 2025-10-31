@@ -182,10 +182,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   
   <!-- Camera Card (Full Width, Top) -->
   <section id="camera-card" class="card card-wide">
-    <h3>Camera <span id="camStatus" class="muted" style="font-size:0.85rem;font-weight:400;margin-left:8px;"></span></h3>
+    <h3>Camera <span id="camera-status-pill" class="muted" style="font-size:0.85rem;font-weight:400;margin-left:8px;"></span></h3>
     <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;">
-      <img id="cam" src="/camera/stream" alt="Camera stream" style="width:100%;height:100%;object-fit:cover;display:none;"/>
-      <div id="camBanner" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">camera driver not available</div>
+      <img id="camera-stream" alt="Camera stream" style="width:100%;height:100%;object-fit:cover;"/>
+      <div id="camera-overlay" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">Connecting...</div>
     </div>
   </section>
 
@@ -710,34 +710,85 @@ function toggleRecentReadings(){
   }
 }
 
-async function loadCamera(){
-  try {
-    const s = await (await fetch(`/camera/status?${Date.now()}`, NO_CACHE)).json();
-    const banner = document.getElementById('camBanner');
-    const status = document.getElementById('camStatus');
-    const cam = document.getElementById('cam');
-    
-    if (s.available && s.mode === 'picamera2') {
-      // Camera available - show stream, hide banner
-      if(banner) banner.style.display = 'none';
-      if(cam) {
-        cam.style.display = 'block';
-        cam.src = '/camera/stream';
+// Camera auto-reconnect with exponential backoff
+(function initCamera() {
+  const img = document.getElementById('camera-stream');
+  const overlay = document.getElementById('camera-overlay');
+  const pill = document.getElementById('camera-status-pill');
+  
+  let retryCount = 0;
+  const MAX_RETRIES = 10;
+  const BASE_DELAY_MS = 1000;
+  const MAX_DELAY_MS = 30000;
+  let statusCheckTimer = null;
+
+  async function refreshStatus() {
+    try {
+      const resp = await fetch(`/camera/status?t=${Date.now()}`, {cache: 'no-store'});
+      const data = await resp.json();
+      if (pill) {
+        pill.textContent = data.available 
+          ? `(${data.mode || 'unknown'})` 
+          : `(unavailable: ${data.note || 'no driver'})`;
       }
-      if(status) status.textContent = '(picamera2)';
-    } else {
-      // Camera unavailable - show banner, hide stream
-      if(cam) cam.style.display = 'none';
-      if(banner) {
-        banner.style.display = 'flex';
-        banner.textContent = s.note || 'camera driver not available';
-      }
-      if(status) status.textContent = `(${s.mode || 'unavailable'})`;
+      return data;
+    } catch (err) {
+      console.warn('[Camera] Status check failed:', err);
+      if (pill) pill.textContent = '(status unavailable)';
+      return { available: false };
     }
-  } catch(e) {
-    console.error('Camera load error:', e);
   }
-}
+
+  function startStream() {
+    if (retryCount >= MAX_RETRIES) {
+      if (overlay) overlay.textContent = 'Max retries reached';
+      if (pill) pill.textContent = '(failed)';
+      return;
+    }
+
+    const retryMs = Math.min(MAX_DELAY_MS, BASE_DELAY_MS * Math.pow(2, retryCount));
+    retryCount++;
+
+    if (overlay) overlay.style.display = 'flex';
+    if (overlay) overlay.textContent = retryCount === 1 ? 'Connecting...' : `Reconnecting (${retryCount})...`;
+
+    // Cache-busting timestamp + retry count
+    img.src = `/camera/stream?t=${Date.now()}&r=${retryCount}`;
+
+    img.onerror = () => {
+      console.warn(`[Camera] Stream error (retry ${retryCount}), retrying in ${retryMs}ms`);
+      img.src = '';  // Clear source to stop errors
+      setTimeout(startStream, retryMs);
+    };
+
+    img.onload = () => {
+      console.log('[Camera] First bytes received, hiding overlay');
+      retryCount = 0;  // Reset on success
+      if (overlay) overlay.style.display = 'none';
+      
+      // Refresh status pill every 30s while streaming
+      if (statusCheckTimer) clearInterval(statusCheckTimer);
+      statusCheckTimer = setInterval(refreshStatus, 30000);
+    };
+  }
+
+  function stopStream() {
+    if (img) img.src = '';
+    if (statusCheckTimer) clearInterval(statusCheckTimer);
+  }
+
+  // Initial status check, then start stream if available
+  refreshStatus().then(status => {
+    if (status.available) {
+      startStream();
+    } else {
+      if (overlay) overlay.textContent = status.note || 'Camera unavailable';
+    }
+  });
+
+  // Expose for external control if needed
+  window.cameraControl = { startStream, stopStream, refreshStatus };
+})();
 async function calibStart(){
   try{
     const r = await (await fetch('/calib/ph/start',{method:'POST'})).json();
@@ -750,7 +801,6 @@ async function calibApply(){
     document.getElementById('calibMsg').textContent = r.note || (r.applied? 'Calibration applied':'Not applied');
   }catch(e){ document.getElementById('calibMsg').textContent = 'Failed to apply calibration'; }
 }
-loadCamera().catch(()=>{});
 
 // Layout Debug Overlay
 (function() {

@@ -835,7 +835,16 @@ def camera_stream():
         for part in CameraManager.mjpeg_generator(fps=fps):
             yield part
 
-    return StreamingResponse(_gen(), media_type=f"multipart/x-mixed-replace; boundary={boundary}")
+    return StreamingResponse(
+        _gen(), 
+        media_type=f"multipart/x-mixed-replace; boundary={boundary}",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "X-Content-Type-Options": "nosniff"
+        }
+    )
 
 # --- Dose jog endpoint ---
 _jog_last = {}
