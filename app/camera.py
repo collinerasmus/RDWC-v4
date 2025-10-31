@@ -13,34 +13,51 @@ class CameraManager:
     mode: str = "unavailable"
     last_error: Optional[str] = None
     _picam = None
+    _cap = None
     _Image = None
     _Picamera2 = None
+    _cv2 = None
     _lock = threading.Lock()
 
     @classmethod
     def _import_drivers(cls) -> bool:
-        """Import Picamera2 and PIL; attempt system dist-packages path on failure."""
+        """Import Pillow, Picamera2 (preferred), and OpenCV (fallback)."""
+        # Pillow is required for JPEG encoding
+        try:
+            from PIL import Image  # type: ignore
+            cls._Image = Image
+        except Exception as e:
+            cls.last_error = f"import_failed_pillow: {e}"
+            return False
+
+        # Picamera2 (try normal, then system dist-packages)
+        cls._Picamera2 = None
         try:
             from picamera2 import Picamera2  # type: ignore
-            from PIL import Image  # type: ignore
             cls._Picamera2 = Picamera2
-            cls._Image = Image
-            return True
         except Exception:
-            # Try system paths if running inside a venv
             try:
                 import sys
                 for p in ("/usr/lib/python3/dist-packages", "/usr/local/lib/python3/dist-packages"):
                     if p not in sys.path:
                         sys.path.append(p)
                 from picamera2 import Picamera2  # type: ignore
-                from PIL import Image  # type: ignore
                 cls._Picamera2 = Picamera2
-                cls._Image = Image
-                return True
-            except Exception as e2:
-                cls.last_error = f"import_failed: {e2}"
-                return False
+            except Exception:
+                cls._Picamera2 = None
+
+        # OpenCV (optional fallback)
+        cls._cv2 = None
+        try:
+            import cv2  # type: ignore
+            cls._cv2 = cv2
+        except Exception:
+            cls._cv2 = None
+
+        if cls._Picamera2 is None and cls._cv2 is None:
+            cls.last_error = "import_failed: no camera drivers (picamera2/opencv)"
+            return False
+        return True
 
     @classmethod
     def init(cls):
@@ -50,26 +67,52 @@ class CameraManager:
             cls.available = False
             cls.mode = "unavailable"
             return
-        try:
-            if cls._Picamera2 is None or cls._Image is None:
+        # Try Picamera2 first if available
+        if cls._Picamera2 is not None:
+            try:
+                picam = cls._Picamera2()
+                cfg = picam.create_video_configuration(main={"size": (640, 480), "format": "RGB888"})
+                picam.configure(cfg)
+                picam.start()
+                time.sleep(0.3)
+                cls._picam = picam
+                cls._cap = None
+                cls.available = True
+                cls.mode = "picamera2"
+                cls.last_error = None
+                return
+            except Exception as e:
                 cls.available = False
                 cls.mode = "unavailable"
-                cls.last_error = "drivers_not_loaded"
-                return
-            picam = cls._Picamera2()
-            cfg = picam.create_video_configuration(main={"size": (640, 480), "format": "RGB888"})
-            picam.configure(cfg)
-            picam.start()
-            # Warm-up
-            time.sleep(0.3)
-            cls._picam = picam
-            cls.available = True
-            cls.mode = "picamera2"
-            cls.last_error = None
-        except Exception as e:
-            cls.available = False
-            cls.mode = "unavailable"
-            cls.last_error = f"start_failed: {e}"
+                cls.last_error = f"start_failed_picamera2: {e}"
+
+        # Fallback to OpenCV (USB webcams)
+        if cls._cv2 is not None:
+            try:
+                # Prefer V4L2 backend when available
+                cap = None
+                try:
+                    cap = cls._cv2.VideoCapture(0, cls._cv2.CAP_V4L2)
+                except Exception:
+                    cap = cls._cv2.VideoCapture(0)
+                if cap is not None and cap.isOpened():
+                    # Try to set a reasonable resolution
+                    cap.set(3, 640)  # WIDTH
+                    cap.set(4, 480)  # HEIGHT
+                    cls._cap = cap
+                    cls._picam = None
+                    cls.available = True
+                    cls.mode = "opencv"
+                    cls.last_error = None
+                    return
+                else:
+                    cls.last_error = "start_failed_opencv: camera not opened"
+            except Exception as e:
+                cls.last_error = f"start_failed_opencv: {e}"
+
+        # Nothing worked
+        cls.available = False
+        cls.mode = "unavailable"
 
     @classmethod
     def shutdown(cls):
@@ -78,10 +121,16 @@ class CameraManager:
                 if cls._picam:
                     cls._picam.stop()
                     cls._picam.close()
+                if cls._cap is not None:
+                    try:
+                        cls._cap.release()
+                    except Exception:
+                        pass
             except Exception:
                 pass
             finally:
                 cls._picam = None
+                cls._cap = None
                 cls.available = False
                 cls.mode = "unavailable"
 
@@ -96,17 +145,34 @@ class CameraManager:
 
     @classmethod
     def mjpeg_generator(cls, fps: int = 5) -> Generator[bytes, None, None]:
-        """Multipart MJPEG stream with boundary=frame"""
-        if not cls.available or not cls._picam or not cls._Image:
+        """Multipart MJPEG stream with boundary=frame supporting picamera2 and opencv modes."""
+        if not cls.available or cls._Image is None:
             yield (b"--frame\r\nContent-Type: application/json\r\n\r\n"
                    b'{"ok":false,"reason":"camera_unavailable"}\r\n')
             return
+
         interval = max(0.001, 1.0 / float(fps))
         while True:
             try:
-                frame = cls._picam.capture_array()
+                if cls.mode == "picamera2" and cls._picam is not None:
+                    frame = cls._picam.capture_array()
+                    img = cls._Image.fromarray(frame)
+                elif cls.mode == "opencv" and cls._cap is not None and cls._cv2 is not None:
+                    ret, frame = cls._cap.read()
+                    if not ret:
+                        time.sleep(0.2)
+                        continue
+                    # Convert BGR to RGB for Pillow
+                    img = cls._Image.fromarray(frame[:, :, ::-1])
+                else:
+                    # No active camera
+                    yield (b"--frame\r\nContent-Type: application/json\r\n\r\n"
+                           b'{"ok":false,"reason":"no_active_camera"}\r\n')
+                    time.sleep(0.5)
+                    continue
+
                 buf = io.BytesIO()
-                cls._Image.fromarray(frame).save(buf, format="JPEG", quality=70)
+                img.save(buf, format="JPEG", quality=70)
                 jpg = buf.getvalue()
                 yield (b"--frame\r\n"
                        b"Content-Type: image/jpeg\r\n"
