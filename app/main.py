@@ -239,6 +239,62 @@ def history_window(hours: float = Query(6.0)):
     rows = fetch_history_since(since)  # implement or adapt existing utility
     return rows
 
+@app.get("/api/trends")
+def api_trends(
+    from_param: Optional[str] = Query(None, alias="from"),
+    to: Optional[str] = Query(None)
+):
+    """
+    Trends API endpoint for Chart.js frontend.
+    Returns: { "series": { "ph": [{ts, value}], "ec": [...], "temp": [...] } }
+    """
+    def parse_iso(s):
+        if not s:
+            return None
+        try:
+            # Parse ISO string and convert to Unix timestamp
+            if s.endswith('Z'):
+                s = s.replace('Z', '+00:00')
+            dt = datetime.fromisoformat(s)
+            return int(dt.timestamp())
+        except Exception:
+            return None
+    
+    from_ts = parse_iso(from_param)
+    to_ts = parse_iso(to)
+    
+    # Default to last 7 days if no range specified
+    if not from_ts:
+        from_ts = int(time.time()) - (7 * 24 * 3600)
+    if not to_ts:
+        to_ts = int(time.time())
+    
+    # Fetch historical data
+    rows = fetch_history_since(from_ts)
+    
+    # Filter by end time and structure for Chart.js
+    ph_series = []
+    ec_series = []
+    temp_series = []
+    
+    for row in rows:
+        ts = row.get("ts")
+        if ts and ts <= to_ts:
+            if row.get("ph") is not None:
+                ph_series.append({"ts": ts, "value": row["ph"]})
+            if row.get("ec_ms_cm") is not None:
+                ec_series.append({"ts": ts, "value": row["ec_ms_cm"]})
+            if row.get("temp_c") is not None:
+                temp_series.append({"ts": ts, "value": row["temp_c"]})
+    
+    return {
+        "series": {
+            "ph": ph_series,
+            "ec": ec_series,
+            "temp": temp_series
+        }
+    }
+
 # Alert monitoring endpoints
 @app.get("/monitoring/status")
 def monitoring_status():

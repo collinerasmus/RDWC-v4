@@ -5,6 +5,7 @@
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
 <style>
 :root{
   --maxw: 1280px;
@@ -174,6 +175,85 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     grid-template-columns: 1fr;
   }
 }
+
+/* Trends Chart Controls */
+.btn-chip{
+  padding: 4px 10px; 
+  border: 1px solid #1f2937; 
+  border-radius: 999px; 
+  font-size: 0.85rem;
+  background: #111827; 
+  cursor: pointer;
+  color: #e0e0e0;
+}
+.btn-chip:hover{
+  background: #1f2937;
+}
+.btn-chip.active{ 
+  outline: 2px solid #3b82f6; 
+  background: #1f2937;
+}
+#trends-card .card-header{ 
+  gap: 8px; 
+}
+#trends-card .trend-controls{ 
+  display: flex; 
+  align-items: center; 
+  gap: 6px; 
+  flex-wrap: wrap;
+}
+#trends-card .trend-controls input{ 
+  height: 32px; 
+  padding: 0 8px; 
+  background: #1f2937;
+  border: 1px solid #374151;
+  color: #e0e0e0;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+#trends-card .trend-controls input:focus{
+  outline: 2px solid #3b82f6;
+  border-color: #3b82f6;
+}
+.btn-secondary{
+  padding: 6px 12px;
+  background: #374151;
+  color: #e5e7eb;
+  border: 1px solid #4b5563;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.btn-secondary:hover{
+  background: #4b5563;
+}
+
+/* KPI badges */
+.kpi{ 
+  min-width: 120px; 
+  padding: 8px 10px; 
+  border-radius: 10px; 
+  background: #0d1117; 
+  border: 1px solid #1f2937;
+}
+.kpi .kpi-label{ 
+  font-size: .8rem; 
+  opacity: .7; 
+}
+.kpi .kpi-value{ 
+  font-size: 1.1rem; 
+  font-weight: 700; 
+  letter-spacing: .2px; 
+}
+.kpi-ph{   
+  box-shadow: inset 0 0 0 2px rgba(31,119,180,.10); 
+}
+.kpi-ec{   
+  box-shadow: inset 0 0 0 2px rgba(44,160,44,.10); 
+}
+.kpi-temp{ 
+  box-shadow: inset 0 0 0 2px rgba(214,39,40,.10); 
+}
 </style>
 </head>
 <body>
@@ -190,19 +270,42 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   </section>
 
   <!-- Trends Card -->
+  <!-- Trends Card with Chart.js -->
   <section id="trends-card" class="card card-wide">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <div>
-        <h3 style="margin:0;">Trends (last 6h)</h3>
-        <div class="muted" style="font-size:11px;margin-top:4px;">Auto-updates every 10s</div>
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+      <div style="font-weight:600;">Trends</div>
+      <div class="trend-controls" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-chip" data-range="24h">24h</button>
+        <button class="btn btn-chip" data-range="7d">7d</button>
+        <button class="btn btn-chip" data-range="30d">30d</button>
+        <button class="btn btn-chip" data-range="90d">90d</button>
+        <span class="sep" style="opacity:.5;">|</span>
+        <input type="datetime-local" id="trendFrom" />
+        <input type="datetime-local" id="trendTo" />
+        <button class="btn btn-secondary" id="trendApply">Apply</button>
       </div>
-      <button onclick="exportCsv(24)" style="background:#374151;color:#e5e7eb;">Export last 24h (CSV)</button>
     </div>
-      <div class="chart-area">
-        <canvas id="chartTemp"></canvas>
-        <canvas id="chartPh" style="margin-top:10px;"></canvas>
-        <canvas id="chartEc" style="margin-top:10px;"></canvas>
+
+    <!-- KPI badges -->
+    <div class="kpi-row" style="display:flex;gap:12px;flex-wrap:wrap;padding:8px 0;">
+      <div class="kpi kpi-ph">
+        <div class="kpi-label">pH</div>
+        <div class="kpi-value" id="kpiPh">—</div>
       </div>
+      <div class="kpi kpi-ec">
+        <div class="kpi-label">EC (mS/cm)</div>
+        <div class="kpi-value" id="kpiEc">—</div>
+      </div>
+      <div class="kpi kpi-temp">
+        <div class="kpi-label">Temp (°C)</div>
+        <div class="kpi-value" id="kpiTemp">—</div>
+      </div>
+    </div>
+
+    <div class="card-body" style="padding-top:12px;">
+      <canvas id="trendChart" height="120"></canvas>
+      <div id="trendEmpty" style="display:none;margin-top:8px;opacity:.7;">No data for selected period.</div>
+    </div>
   </section>
 
   <!-- Control Cards -->
@@ -850,5 +953,6 @@ async function calibApply(){
   setInterval(measureHeights, 2000);
 })();
 </script>
+<script src="/static/js/trends.js"></script>
 </body>
 </html>
