@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251031c"/><!-- Cache-buster: crash-proof sensors poller -->
+<meta name="version" content="20251031d"/><!-- Cache-buster: add debug output -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
 <style>
@@ -442,6 +442,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <span>Temp-comp write last read:</span>
             <span id="temp-comp-flag" style="font-weight: bold; color: #ffd700;">no</span>
           </div>
+          <div id="sensors-debug" style="font-size:11px;opacity:.6;display:none;margin-top:6px;"></div>
         </div>
       </div>
 
@@ -749,6 +750,26 @@ async function pollSensors(){
     setBadge('cal-badge-temp', j?.cal?.temp);
     setBadge('cal-badge-ec', j?.cal?.ec);
     setBadge('cal-badge-ph', j?.cal?.ph);
+
+    // Optional debug output (show with ?DEBUG_UI=1 in URL)
+    const dbg = q('#sensors-debug');
+    const showDbg = new URLSearchParams(location.search).has('DEBUG_UI');
+    if (dbg) {
+      if (showDbg) {
+        dbg.style.display = 'block';
+        dbg.textContent = JSON.stringify({
+          t: j?.temperature_c,
+          ec: j?.ec_mscm ?? j?.ec,
+          ph: j?.ph,
+          comp: j?.temp_comp_applied,
+          reason: j?.temp_comp_reason || '',
+          ts: j?.ts,
+          online: j?.online
+        });
+      } else {
+        dbg.style.display = 'none';
+      }
+    }
 
   } catch (err) {
     // Never break the page if sensors fail; just mark offline
