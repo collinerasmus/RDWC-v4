@@ -151,7 +151,7 @@ class CameraManager:
                     img = cls._Image.fromarray(frame)
                     # Log first frame info
                     if frame_count == 0:
-                        print(f"[Camera] Frame shape: {frame.shape if hasattr(frame, 'shape') else ''N/A''}, PIL mode: {img.mode}")
+                        print(f"[Camera] Frame shape: {frame.shape if hasattr(frame, 'shape') else 'N/A'}, PIL mode: {img.mode}")
                     # Convert to RGB if needed (Pillow may return LA, P, or other modes)
                     if img.mode != "RGB":
                         img = img.convert("RGB")
@@ -166,7 +166,7 @@ class CameraManager:
                         continue
                     # Log first frame info
                     if frame_count == 0:
-                        print(f"[Camera] OpenCV frame shape: {frame.shape if hasattr(frame, ''shape'') else ''N/A''}")
+                        print(f"[Camera] OpenCV frame shape: {frame.shape if hasattr(frame, 'shape') else 'N/A'}")
                     # Convert BGR to RGB for Pillow
                     img = cls._Image.fromarray(frame[:, :, ::-1])
                     buf = io.BytesIO()
