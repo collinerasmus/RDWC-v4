@@ -155,6 +155,9 @@ class CameraManager:
                     if not ret:
                         time.sleep(0.2)
                         continue
+                        # Log first frame info
+                        if frame_count == 0:
+                            print(f"[Camera] OpenCV frame shape: {frame.shape if hasattr(frame, 'shape') else 'N/A'}")
                     # Convert BGR to RGB for Pillow
                     img = cls._Image.fromarray(frame[:, :, ::-1])
                 else:
