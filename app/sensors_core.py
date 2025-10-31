@@ -149,6 +149,7 @@ def read_all_sensors() -> Dict[str, Any]:
             "ec_mscm": 1.5,
             "ph": 6.5,
             "temp_comp_applied": False,
+            "temp_comp_reason": "mock",
             "ts": datetime.datetime.utcnow().isoformat() + "Z",
             "online": True,
             "errors": {}
@@ -165,6 +166,7 @@ def read_all_sensors() -> Dict[str, Any]:
             "ec_mscm": data.get("ec_ms_cm"),  # Already converted µS→mS in ezo_i2c
             "ph": data.get("ph"),
             "temp_comp_applied": data.get("temp_comp_applied", False),
+            "temp_comp_reason": data.get("temp_comp_reason", ""),
             "ts": datetime.datetime.utcnow().isoformat() + "Z",
             "errors": data.get("errors", {})
         }
@@ -184,6 +186,7 @@ def read_all_sensors() -> Dict[str, Any]:
             "ec_mscm": None,
             "ph": None,
             "temp_comp_applied": False,
+            "temp_comp_reason": "error",
             "ts": datetime.datetime.utcnow().isoformat() + "Z",
             "online": False,
             "errors": {"read_error": str(e)}
