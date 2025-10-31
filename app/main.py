@@ -247,12 +247,17 @@ def history_window(hours: float = Query(6.0)):
 @app.get("/api/trends")
 def api_trends(
     from_param: Optional[str] = Query(None, alias="from"),
-    to: Optional[str] = Query(None)
+    to: Optional[str] = Query(None),
+    gran: Optional[int] = Query(300),      # granularity in seconds (default 5min)
+    max_param: Optional[int] = Query(2000, alias="max")  # max points per series
 ):
     """
-    Trends API endpoint for Chart.js frontend.
+    Trends API endpoint with server-side bucketing and capping.
     Returns: { "series": { "ph": [{ts, value}], "ec": [...], "temp": [...] } }
     Timestamps are Unix epoch seconds (not ISO strings) for Chart.js compatibility.
+    
+    ?gran=<sec> - Time bucket size in seconds (avg values per bucket)
+    ?max=<n>    - Maximum points per series (downsample if exceeded)
     """
     def parse_iso(s):
         if not s:
@@ -267,6 +272,7 @@ def api_trends(
             print(f"[Trends API] Failed to parse timestamp '{s}': {e}")
             return None
     
+    # Parse and validate parameters
     from_ts = parse_iso(from_param)
     to_ts = parse_iso(to)
     
@@ -276,7 +282,11 @@ def api_trends(
     if not to_ts:
         to_ts = int(time.time())
     
-    print(f"[Trends API] Fetching data from {from_ts} to {to_ts}")
+    # Validate gran and max_param
+    gran_val = max(1, int(gran or 300))
+    max_points = max(100, int(max_param or 2000))
+    
+    print(f"[Trends API] from={from_ts}, to={to_ts}, gran={gran_val}s, max={max_points}")
     
     # Fetch historical data
     try:
@@ -289,32 +299,94 @@ def api_trends(
             "error": str(e)
         }
     
-    # Filter by end time and structure for Chart.js
+    # Filter by end time
+    rows_filtered = [r for r in rows if r.get("ts") and r["ts"] <= to_ts]
+    print(f"[Trends API] After time filter: {len(rows_filtered)} rows")
+    
+    # Bucket data by time granularity
+    buckets = {}  # key: bucket start epoch (int seconds)
+    
+    for row in rows_filtered:
+        ts = row.get("ts")
+        if not ts:
+            continue
+        
+        # Calculate bucket
+        bucket = (ts // gran_val) * gran_val
+        
+        if bucket not in buckets:
+            buckets[bucket] = {'count': 0, 'ph_sum': 0.0, 'ph_count': 0, 
+                              'ec_sum': 0.0, 'ec_count': 0, 
+                              'temp_sum': 0.0, 'temp_count': 0}
+        
+        obj = buckets[bucket]
+        
+        # Accumulate pH
+        if row.get("ph") is not None:
+            try:
+                obj['ph_sum'] += float(row["ph"])
+                obj['ph_count'] += 1
+            except (ValueError, TypeError):
+                pass
+        
+        # Accumulate EC
+        if row.get("ec_ms_cm") is not None:
+            try:
+                obj['ec_sum'] += float(row["ec_ms_cm"])
+                obj['ec_count'] += 1
+            except (ValueError, TypeError):
+                pass
+        
+        # Accumulate Temp
+        if row.get("temp_c") is not None:
+            try:
+                obj['temp_sum'] += float(row["temp_c"])
+                obj['temp_count'] += 1
+            except (ValueError, TypeError):
+                pass
+    
+    # Build series from buckets (sorted by time)
     ph_series = []
     ec_series = []
     temp_series = []
     
-    for row in rows:
-        ts = row.get("ts")
-        if ts and ts <= to_ts:
-            # Return Unix timestamp (seconds) - trends.js will multiply by 1000 for JS Date
-            if row.get("ph") is not None:
-                try:
-                    ph_series.append({"ts": int(ts), "value": float(row["ph"])})
-                except (ValueError, TypeError):
-                    pass
-            if row.get("ec_ms_cm") is not None:
-                try:
-                    ec_series.append({"ts": int(ts), "value": float(row["ec_ms_cm"])})
-                except (ValueError, TypeError):
-                    pass
-            if row.get("temp_c") is not None:
-                try:
-                    temp_series.append({"ts": int(ts), "value": float(row["temp_c"])})
-                except (ValueError, TypeError):
-                    pass
+    for bucket in sorted(buckets.keys()):
+        obj = buckets[bucket]
+        
+        if obj['ph_count'] > 0:
+            ph_series.append({
+                "ts": bucket,
+                "value": round(obj['ph_sum'] / obj['ph_count'], 3)
+            })
+        
+        if obj['ec_count'] > 0:
+            ec_series.append({
+                "ts": bucket,
+                "value": round(obj['ec_sum'] / obj['ec_count'], 3)
+            })
+        
+        if obj['temp_count'] > 0:
+            temp_series.append({
+                "ts": bucket,
+                "value": round(obj['temp_sum'] / obj['temp_count'], 2)
+            })
     
-    print(f"[Trends API] Returning ph:{len(ph_series)}, ec:{len(ec_series)}, temp:{len(temp_series)}")
+    print(f"[Trends API] After bucketing: ph={len(ph_series)}, ec={len(ec_series)}, temp={len(temp_series)}")
+    
+    # Downsample if still too many points (even stride)
+    def cap(arr, max_pts):
+        n = len(arr)
+        if n <= max_pts:
+            return arr
+        step = max(1, n // max_pts)
+        result = [arr[i] for i in range(0, n, step)][:max_pts]
+        return result
+    
+    ph_series = cap(ph_series, max_points)
+    ec_series = cap(ec_series, max_points)
+    temp_series = cap(temp_series, max_points)
+    
+    print(f"[Trends API] After capping: ph={len(ph_series)}, ec={len(ec_series)}, temp={len(temp_series)}")
     
     result = {
         "series": {

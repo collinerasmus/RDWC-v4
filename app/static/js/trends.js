@@ -17,6 +17,12 @@
     temp: '#d62728', // red
   };
 
+  const AXES = {
+    ph:   { id:'yPh',   min:5.2,  max:6.5,  title:'pH' },
+    ec:   { id:'yEc',   min:0.0,  max:3.0,  title:'EC (mS/cm)' },
+    temp: { id:'yTemp', min:16.0, max:28.0, title:'Temp (°C)' }
+  };
+
   const kpiPh   = document.getElementById('kpiPh');
   const kpiEc   = document.getElementById('kpiEc');
   const kpiTemp = document.getElementById('kpiTemp');
@@ -58,8 +64,25 @@
           },
           ticks: { maxRotation: 0, autoSkip: true }
         },
-        y: {
-          beginAtZero: false
+        yPh: {
+          position: 'left',
+          min: AXES.ph.min,
+          max: AXES.ph.max,
+          title: { display: true, text: AXES.ph.title }
+        },
+        yEc: {
+          position: 'right',
+          min: AXES.ec.min,
+          max: AXES.ec.max,
+          title: { display: true, text: AXES.ec.title },
+          grid: { drawOnChartArea: false }
+        },
+        yTemp: {
+          position: 'right',
+          min: AXES.temp.min,
+          max: AXES.temp.max,
+          title: { display: true, text: AXES.temp.title },
+          grid: { drawOnChartArea: false }
         }
       },
       elements: {
@@ -88,11 +111,22 @@
     if (preset === '90d') from.setDate(now.getDate() - 90);
     return { from, to: now };
   }
+
+  function presetParams(preset){
+    // All caps are conservative to keep UI snappy
+    if (preset === '24h') return { gran: 60,   max: 1200 };  // avg per minute, <=1200pts
+    if (preset === '7d')  return { gran: 300,  max: 2000 };  // 5-min buckets
+    if (preset === '30d') return { gran: 900,  max: 2500 };  // 15-min buckets
+    if (preset === '90d') return { gran: 3600, max: 2500 };  // hourly buckets
+    return { gran: 300, max: 2000 }; // default (custom)
+  }
   
-  async function fetchTrends(fromISO, toISO){
+  async function fetchTrends(fromISO, toISO, gran, max){
     const q = new URLSearchParams();
     if (fromISO) q.set('from', fromISO);
     if (toISO)   q.set('to', toISO);
+    if (gran)    q.set('gran', String(gran));
+    if (max)     q.set('max',  String(max));
     const url = '/api/trends?' + q.toString();
     console.log('[Trends] GET', url);
     const res = await fetch(url, { cache: 'no-store' });
@@ -136,7 +170,8 @@
 
     const datasets = [];
     if (ph?.length)   datasets.push({ 
-      id:'ph',   
+      id:'ph',
+      yAxisID:'yPh',
       label:'pH',         
       data:ph,   
       borderColor:COLORS.ph,   
@@ -144,7 +179,8 @@
       fill:false 
     });
     if (ec?.length)   datasets.push({ 
-      id:'ec',   
+      id:'ec',
+      yAxisID:'yEc',
       label:'EC',         
       data:ec,   
       borderColor:COLORS.ec,   
@@ -152,7 +188,8 @@
       fill:false 
     });
     if (temp?.length) datasets.push({ 
-      id:'temp', 
+      id:'temp',
+      yAxisID:'yTemp',
       label:'Temp (°C)',  
       data:temp, 
       borderColor:COLORS.temp, 
@@ -173,7 +210,8 @@
     const { from, to } = rangeFromPreset(preset);
     fromEl.value = isoLocal(from);
     toEl.value   = isoLocal(to);
-    const data = await fetchTrends(from.toISOString(), to.toISOString());
+    const {gran, max} = presetParams(preset);
+    const data = await fetchTrends(from.toISOString(), to.toISOString(), gran, max);
     render(data);
     markActive(preset);
   }
@@ -188,7 +226,8 @@
     if(!fromEl.value || !toEl.value) return;
     const fromISO = new Date(fromEl.value).toISOString();
     const toISO   = new Date(toEl.value).toISOString();
-    const data = await fetchTrends(fromISO, toISO);
+    const {gran, max} = presetParams('custom'); // default custom tuning
+    const data = await fetchTrends(fromISO, toISO, gran, max);
     render(data);
     markActive('');
   });
