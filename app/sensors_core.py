@@ -129,76 +129,65 @@ def _read_with_temp_comp_check():
 
 def read_all_sensors() -> Dict[str, Any]:
     """
-    Perform a complete sensor read with throttled temperature compensation.
+    Single source of truth for sensor reads - delegates to ezo_i2c.read_all().
     
-    Sequence:
+    Sequence (handled by ezo_i2c):
     1. Read RTD temperature first
-    2. Check throttle conditions for temp compensation
-    3. If throttle passes, send T to pH and EC
-    4. Read pH and EC values
+    2. Set temp comp for EC, wait 900ms, read EC (µS/cm → mS/cm)
+    3. Set temp comp for pH, wait 900ms, read pH
     
     Returns:
-        Comprehensive dict with sensor values, throttle info, I²C operation counts,
-        and any errors encountered
+        Dict with sensor values, temp_comp_applied flag, timestamp, and any errors.
+        Keys: temperature_c, ec_mscm, ph, temp_comp_applied, ts, errors
     """
-    result = {
-        "temp_c": None,
-        "ph": None,
-        "ec_uS": None,
-        "ec_mS": None,
-        "comp_temp_c": None,
-        "t_write": False,
-        "t_delta": 0.0,
-        "i2c_ops": {
-            "t_writes": 0,
-            "reads": {"rtd": 0, "ph": 0, "ec": 0}
-        },
-        "errors": []
-    }
+    import datetime
     
     # Use simulated values for dev environments
     if not I2C_AVAILABLE:
-        result["temp_c"] = 23.0
-        result["comp_temp_c"] = 23.0
-        result["ph"] = 6.5
-        result["ec_uS"] = 1500
-        result["ec_mS"] = 1.5
-        result["i2c_ops"]["reads"] = {"rtd": 1, "ph": 1, "ec": 1}
-        result["t_write"] = False
-        return result
+        return {
+            "temperature_c": 23.0,
+            "ec_mscm": 1.5,
+            "ph": 6.5,
+            "temp_comp_applied": False,
+            "ts": datetime.datetime.utcnow().isoformat() + "Z",
+            "online": True,
+            "errors": {}
+        }
     
-    # Read all sensors with throttled T compensation
+    # Read all sensors using ezo_i2c (with proper temp-comp sequence)
     try:
-        should_send_t, comp_results, temp_c, ph_val, ec_val = _read_with_temp_comp_check()
+        from . import ezo_i2c
+        data = ezo_i2c.read_all()
         
-        # Populate result with values
-        result["temp_c"] = round(temp_c, 2)
-        result["comp_temp_c"] = round(temp_c, 2)
-        result["ph"] = round(ph_val, 2)
-        result["ec_uS"] = round(ec_val, 0)
-        result["ec_mS"] = round(ec_val / 1000.0, 2)
+        # Map to expected frontend keys
+        result = {
+            "temperature_c": data.get("temp_c"),
+            "ec_mscm": data.get("ec_ms_cm"),  # Already converted µS→mS in ezo_i2c
+            "ph": data.get("ph"),
+            "temp_comp_applied": data.get("temp_comp_applied", False),
+            "ts": datetime.datetime.utcnow().isoformat() + "Z",
+            "errors": data.get("errors", {})
+        }
         
-        # Populate throttle info
-        result["t_write"] = should_send_t
-        result["t_delta"] = round(_last_t_sent_c - temp_c if _last_t_sent_c is not None else 999.0, 2)
-        result["i2c_ops"]["t_writes"] = sum(1 for v in comp_results.values() if v) if should_send_t else 0
-        result["i2c_ops"]["reads"]["rtd"] = 1
-        result["i2c_ops"]["reads"]["ph"] = 1
-        result["i2c_ops"]["reads"]["ec"] = 1
+        # Determine online status
+        result["online"] = (
+            result["temperature_c"] is not None and 
+            (result["ec_mscm"] is not None or result["ph"] is not None)
+        )
         
-        # Log T-write if it occurred
-        if should_send_t:
-            probes_updated = [k for k, v in comp_results.items() if v]
-            if probes_updated:
-                logger.info(f"T-comp sent: {temp_c:.2f}°C → {', '.join(probes_updated)} (ΔT={result['t_delta']:.2f}°C)")
-        else:
-            logger.debug(f"T-comp throttled: ΔT={result['t_delta']:.2f}°C")
+        return result
         
     except Exception as e:
         logger.error(f"Sensor read failed: {e}", exc_info=True)
-        result["errors"].append(f"Sensor read failed: {str(e)}")
-    
-    return result
+        return {
+            "temperature_c": None,
+            "ec_mscm": None,
+            "ph": None,
+            "temp_comp_applied": False,
+            "ts": datetime.datetime.utcnow().isoformat() + "Z",
+            "online": False,
+            "errors": {"read_error": str(e)}
+        }
 
 
 def get_last_temp_comp_state() -> Dict[str, Any]:

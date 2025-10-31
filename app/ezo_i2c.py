@@ -182,30 +182,66 @@ def read_single(addr: int, bus_id: int = DEFAULT_I2C_BUS, temp_c: Optional[float
         return _attempt_read()
 
 def read_all(bus_id: int = DEFAULT_I2C_BUS) -> dict:
-    out = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {}}
+    """
+    Read all sensors with proper temperature compensation sequence.
+    
+    Exact sequence per Atlas EZO specs:
+    1. Read RTD (temperature)
+    2. Send temp to EC, wait 900ms, read EC
+    3. Send temp to pH, wait 900ms, read pH
+    
+    Returns dict with temp_comp_applied flag for UI indicator.
+    """
+    out = {
+        "temp_c": None, 
+        "ph": None, 
+        "ec_ms_cm": None, 
+        "temp_comp_applied": False,
+        "errors": {}
+    }
 
-    # RTD first
+    # Step 1: RTD first
     temp_c = None
     try:
         temp_c = read_single(ADDR_RTD, bus_id=bus_id)
         out["temp_c"] = temp_c
     except Exception as e:
         out["errors"]["temp"] = str(e)
+        return out  # Can't continue without temperature
 
+    # Step 2: EC with temp compensation
+    ec_comp_sent = False
     if temp_c is not None:
         try:
-            set_temp_comp_both(temp_c, bus_id=bus_id)
-        except Exception:
-            pass
+            ec_comp_sent = set_temp_comp(ADDR_EC, temp_c, bus_id=bus_id)
+            if ec_comp_sent:
+                sleep(0.9)  # Wait 900ms for EC to apply temp comp
+        except Exception as e:
+            out["errors"]["ec_temp_comp"] = str(e)
 
     try:
-        out["ph"] = read_single(ADDR_PH, bus_id=bus_id, temp_c=temp_c)
+        ec_val = read_single(ADDR_EC, bus_id=bus_id)
+        # Convert µS/cm to mS/cm
+        out["ec_ms_cm"] = ec_val / 1000.0 if ec_val is not None else None
+    except Exception as e:
+        out["errors"]["ec"] = str(e)
+
+    # Step 3: pH with temp compensation
+    ph_comp_sent = False
+    if temp_c is not None:
+        try:
+            ph_comp_sent = set_temp_comp(ADDR_PH, temp_c, bus_id=bus_id)
+            if ph_comp_sent:
+                sleep(0.9)  # Wait 900ms for pH to apply temp comp
+        except Exception as e:
+            out["errors"]["ph_temp_comp"] = str(e)
+
+    try:
+        out["ph"] = read_single(ADDR_PH, bus_id=bus_id)
     except Exception as e:
         out["errors"]["ph"] = str(e)
 
-    try:
-        out["ec_ms_cm"] = read_single(ADDR_EC, bus_id=bus_id, temp_c=temp_c)
-    except Exception as e:
-        out["errors"]["ec"] = str(e)
+    # Set flag if either EC or pH received temp comp this cycle
+    out["temp_comp_applied"] = ec_comp_sent or ph_comp_sent
 
     return out

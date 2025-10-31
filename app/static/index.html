@@ -431,6 +431,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <span id="sensors-updated">--</span>
             <span id="sensors-online" class="badge status-badge">offline</span>
           </div>
+          <div class="sensor-row" style="margin-top: 8px; font-size: 0.85rem; color: #999;">
+            <span>Temp-comp write last read:</span>
+            <span id="temp-comp-flag" style="font-weight: bold; color: #ffd700;">no</span>
+          </div>
         </div>
       </div>
 
@@ -688,6 +692,14 @@ async function pollSensors(){
     if (elUpdated && r.ts) {
       const d = new Date(r.ts);
       elUpdated.textContent = d.toLocaleTimeString();
+    }
+    
+    // Update temp-comp flag
+    const elTempComp = document.getElementById('temp-comp-flag');
+    if (elTempComp) {
+      const applied = r.temp_comp_applied === true;
+      elTempComp.textContent = applied ? 'yes' : 'no';
+      elTempComp.style.color = applied ? '#00ff00' : '#999';
     }
     
   } catch(e){ 
