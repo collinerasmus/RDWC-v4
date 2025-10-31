@@ -168,6 +168,9 @@ class CameraManager:
                         time.sleep(0.05)
                         continue
                     img = cls._Image.fromarray(frame)
+                    # Convert to RGB if needed (Pillow may return LA, P, or other modes)
+                    if img.mode != "RGB":
+                        img = img.convert("RGB")
                 elif cls.mode == "opencv" and cls._cap is not None and cls._cv2 is not None:
                     ret, frame = cls._cap.read()
                     if not ret:
