@@ -846,6 +846,52 @@ def camera_stream():
         }
     )
 
+@app.get("/camera/snapshot.jpg")
+def camera_snapshot():
+    """Single JPEG snapshot from current camera frame."""
+    from app.camera import CameraManager
+    
+    jpeg_bytes = CameraManager.capture_single_frame()
+    
+    if jpeg_bytes is None:
+        # Return minimal 1x1 red JPEG as fallback
+        fallback_jpeg = (
+            b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00'
+            b'\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n\x0c'
+            b'\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c'
+            b'\x1c $.\' ",#\x1c\x1c(7),01444\x1f\'9=82<.342\xff\xc0\x00\x0b\x08\x00'
+            b'\x01\x00\x01\x01\x01\x11\x00\xff\xc4\x00\x14\x00\x01\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xc4\x00\x14\x10'
+            b'\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\xff\xda\x00\x08\x01\x01\x00\x00?\x00\x7f\x00\xff\xd9'
+        )
+        return StreamingResponse(
+            io.BytesIO(fallback_jpeg),
+            media_type="image/jpeg",
+            status_code=503,
+            headers={
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"
+            }
+        )
+    
+    return StreamingResponse(
+        io.BytesIO(jpeg_bytes),
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"
+        }
+    )
+
+@app.get("/camera/stream/health")
+def camera_stream_health():
+    """Health check for camera stream - 204 if healthy, 503 if not."""
+    from app.camera import CameraManager
+    
+    if CameraManager.is_healthy():
+        return StreamingResponse(content=iter([]), status_code=204)
+    else:
+        return JSONResponse(status_code=503, content={"healthy": False})
+
 # --- Dose jog endpoint ---
 _jog_last = {}
 _jog_locks = {name: threading.Lock() for name in [

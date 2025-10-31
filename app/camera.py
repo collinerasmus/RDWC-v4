@@ -202,3 +202,48 @@ class CameraManager:
                 cls.last_error = f"stream_error: {e}"
                 print(f"[Camera] Stream error: {e}")
                 time.sleep(0.2)
+
+    @classmethod
+    def capture_single_frame(cls) -> Optional[bytes]:
+        """Capture a single JPEG frame. Returns None if camera unavailable."""
+        if not cls.available or cls._Image is None:
+            return None
+        
+        with cls._lock:
+            try:
+                frame = None
+                if cls.mode == "picamera2" and cls._picam is not None:
+                    frame = cls._picam.capture_array()
+                    if frame is not None:
+                        img = cls._Image.fromarray(frame)
+                        if img.mode != "RGB":
+                            img = img.convert("RGB")
+                        buf = io.BytesIO()
+                        img.save(buf, format="JPEG", quality=70)
+                        return buf.getvalue()
+                
+                elif cls.mode == "opencv" and cls._cap is not None:
+                    ret, frame = cls._cap.read()
+                    if ret and frame is not None:
+                        # Convert BGR to RGB
+                        img = cls._Image.fromarray(frame[:, :, ::-1])
+                        buf = io.BytesIO()
+                        img.save(buf, format="JPEG", quality=70)
+                        return buf.getvalue()
+                
+            except Exception as e:
+                cls.last_error = f"snapshot_error: {e}"
+                print(f"[Camera] Snapshot error: {e}")
+        
+        return None
+    
+    @classmethod
+    def is_healthy(cls) -> bool:
+        """Check if camera capture is open and healthy."""
+        if not cls.available:
+            return False
+        if cls.mode == "opencv" and cls._cap is not None:
+            return cls._cap.isOpened()
+        if cls.mode == "picamera2" and cls._picam is not None:
+            return True  # If _picam exists and mode is set, assume healthy
+        return False
