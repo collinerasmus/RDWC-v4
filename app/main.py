@@ -96,6 +96,12 @@ async def _start_tasks():
     _scheduler.start()
     # Start alert monitoring
     start_monitoring()
+    # Initialize camera (non-blocking; will gracefully stay unavailable if drivers missing)
+    try:
+        from app.camera import CameraManager
+        CameraManager.init()
+    except Exception:
+        pass
 
 @app.on_event("shutdown")  
 async def _stop_tasks():
@@ -108,8 +114,8 @@ async def _stop_tasks():
     stop_monitoring()
     # Shutdown camera cleanly
     with suppress(Exception):
-        from app.camera import shutdown
-        shutdown()
+        from app.camera import CameraManager
+        CameraManager.shutdown()
 
 @app.get("/health")
 def health():
@@ -812,26 +818,22 @@ def cam_status():
 # --- Camera endpoints ---
 @app.get("/camera/status")
 def camera_status():
-    from app.camera import get_status
-    return get_status()
+    from app.camera import CameraManager
+    return CameraManager.status()
 
 @app.get("/camera/stream")
 def camera_stream():
-    from app.camera import frames, get_status
-    info = get_status()
+    from app.camera import CameraManager
+    info = CameraManager.status()
     if not info.get("available", False):
         return JSONResponse(status_code=404, content={"error": "camera unavailable", **info})
 
     fps = int(os.environ.get("CAM_FPS", "8"))
-    quality = int(os.environ.get("CAM_QUALITY", "70"))
     boundary = "frame"
 
     def _gen():
-        for jpg in frames(fps=fps, quality=quality):
-            yield (b"--" + boundary.encode("ascii") + b"\r\n"
-                   b"Content-Type: image/jpeg\r\n" +
-                   f"Content-Length: {len(jpg)}\r\n\r\n".encode("ascii") +
-                   jpg + b"\r\n")
+        for part in CameraManager.mjpeg_generator(fps=fps):
+            yield part
 
     return StreamingResponse(_gen(), media_type=f"multipart/x-mixed-replace; boundary={boundary}")
 
