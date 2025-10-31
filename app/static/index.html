@@ -603,30 +603,96 @@ async function refresh(){
   await refreshStatus();
 }
 let lastSensorsPoll = 0;
+
+function classifySensor(name, v){
+  if (v===null || Number.isNaN(v)) return 'bad';
+  if (name==='temp') {
+    if (v>=18 && v<=24) return 'good';
+    if ((v>=16 && v<18) || (v>24 && v<=28)) return 'warn';
+    return 'bad';
+  }
+  if (name==='ec') {
+    if (v>=1.2 && v<=2.0) return 'good';
+    if ((v>=0.8 && v<1.2) || (v>2.0 && v<=2.4)) return 'warn';
+    return 'bad';
+  }
+  if (name==='ph') {
+    if (v>=5.5 && v<=6.2) return 'good';
+    if ((v>=5.2 && v<5.5) || (v>6.2 && v<=6.5)) return 'warn';
+    return 'bad';
+  }
+  return 'bad';
+}
+
 async function pollSensors(){
   try {
     const now = Date.now();
-    if (now - lastSensorsPoll < 9500) return; // ~10s
+    if (now - lastSensorsPoll < 1800) return; // ~2s
     lastSensorsPoll = now;
     const r = await (await fetch(`/sensors/read?${bust()}`, NO_CACHE)).json();
-    // Update t_write indicator
-    const t = document.getElementById('twrite');
-    t.textContent = (r && typeof r.t_write === 'boolean') ? (r.t_write ? 'YES' : 'no') : '—';
-    t.style.color = r.t_write ? '#10b981' : '#9ca3af';
-    // Errors indicator
-    const errs = Array.isArray(r?.errors) ? r.errors.filter(Boolean) : [];
-    const row = document.getElementById('sensorErrorsRow');
-    const txt = document.getElementById('sensorErrorsText');
-    if (errs.length){
-      row.style.display = 'flex';
-      txt.textContent = `${errs.length} error(s)`;
-      txt.title = errs.join('\n');
-    } else {
-      row.style.display = 'none';
-      txt.textContent = '';
-      txt.title = '';
+    
+    // Update new sensors card with unified JSON format
+    const temp = r.temperature_c;
+    const ec = r.ec_mscm;
+    const ph = r.ph;
+    const online = r.online;
+    
+    // Update sensor values with color classes
+    const elTemp = document.getElementById('val-temp');
+    const elEc = document.getElementById('val-ec');
+    const elPh = document.getElementById('val-ph');
+    
+    if (elTemp) {
+      elTemp.textContent = (temp != null && !Number.isNaN(temp)) ? temp.toFixed(2) : '--';
+      elTemp.classList.remove('good', 'warn', 'bad');
+      elTemp.classList.add(classifySensor('temp', temp));
     }
-  } catch(e){ /* silent */ }
+    
+    if (elEc) {
+      elEc.textContent = (ec != null && !Number.isNaN(ec)) ? ec.toFixed(2) : '--';
+      elEc.classList.remove('good', 'warn', 'bad');
+      elEc.classList.add(classifySensor('ec', ec));
+    }
+    
+    if (elPh) {
+      elPh.textContent = (ph != null && !Number.isNaN(ph)) ? ph.toFixed(2) : '--';
+      elPh.classList.remove('good', 'warn', 'bad');
+      elPh.classList.add(classifySensor('ph', ph));
+    }
+    
+    // Update calibration badges
+    const setBadge = (id, cal) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const ok = cal?.is_calibrated === true;
+      el.textContent = ok ? 'OK' : 'Check';
+      el.classList.remove('ok', 'check');
+      el.classList.add(ok ? 'ok' : 'check');
+      if (cal?.detail) el.title = cal.detail;
+    };
+    
+    setBadge('cal-badge-temp', r.cal?.temp);
+    setBadge('cal-badge-ec', r.cal?.ec);
+    setBadge('cal-badge-ph', r.cal?.ph);
+    
+    // Update online/offline badge
+    const elOnline = document.getElementById('sensors-online');
+    if (elOnline) {
+      elOnline.textContent = online ? 'online' : 'offline';
+      elOnline.classList.remove('online', 'offline');
+      elOnline.classList.add(online ? 'online' : 'offline');
+    }
+    
+    // Update timestamp
+    const elUpdated = document.getElementById('sensors-updated');
+    if (elUpdated && r.ts) {
+      const d = new Date(r.ts);
+      elUpdated.textContent = d.toLocaleTimeString();
+    }
+    
+  } catch(e){ 
+    console.error('[Sensors] Poll error:', e);
+  }
 }
 
 async function viewLightsLog(){

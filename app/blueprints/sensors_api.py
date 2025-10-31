@@ -19,20 +19,14 @@ _provider = SensorsProvider(use_mock=USE_MOCK)
 
 logger.info(f"[SensorsAPI] Initialized with mock={USE_MOCK}")
 
-@sensors_router.get('/sensors')
-async def get_sensors():
-    """
-    GET /api/sensors
-    Returns current sensor readings with calibration status
-    Always returns 200 OK (even if hardware offline)
-    """
+def _get_sensors_data():
+    """Common function to get sensor data"""
     try:
-        data = _provider.read_all()
-        return JSONResponse(content=data, status_code=200)
+        return _provider.read_all()
     except Exception as e:
         logger.error(f"[SensorsAPI] Unexpected error: {e}")
         # Return safe fallback
-        return JSONResponse(content={
+        return {
             "temperature_c": None,
             "ec_mscm": None,
             "ph": None,
@@ -43,4 +37,24 @@ async def get_sensors():
             },
             "online": False,
             "ts": None
-        }, status_code=200)
+        }
+
+@sensors_router.get('/sensors')
+async def get_sensors():
+    """
+    GET /api/sensors
+    Returns current sensor readings with calibration status
+    Always returns 200 OK (even if hardware offline)
+    """
+    data = _get_sensors_data()
+    return JSONResponse(content=data, status_code=200)
+
+@sensors_router.get('/sensors/read')
+async def get_sensors_read():
+    """
+    GET /sensors/read
+    Shim for legacy frontend - returns same data as /api/sensors
+    Always returns 200 OK (even if hardware offline)
+    """
+    data = _get_sensors_data()
+    return JSONResponse(content=data, status_code=200)
