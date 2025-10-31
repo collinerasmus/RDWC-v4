@@ -22,6 +22,15 @@ class CameraManager:
     @classmethod
     def _import_drivers(cls) -> bool:
         """Import Pillow, Picamera2 (preferred), and OpenCV (fallback)."""
+        # Ensure system dist-packages are on sys.path for apt-installed modules (venv isolation fix)
+        try:
+            import sys
+            for p in ("/usr/lib/python3/dist-packages", "/usr/local/lib/python3/dist-packages"):
+                if p not in sys.path:
+                    sys.path.append(p)
+        except Exception:
+            pass
+
         # Pillow is required for JPEG encoding
         try:
             from PIL import Image  # type: ignore
@@ -30,21 +39,13 @@ class CameraManager:
             cls.last_error = f"import_failed_pillow: {e}"
             return False
 
-        # Picamera2 (try normal, then system dist-packages)
+        # Picamera2 (try normal, now that sys.path is augmented)
         cls._Picamera2 = None
         try:
             from picamera2 import Picamera2  # type: ignore
             cls._Picamera2 = Picamera2
         except Exception:
-            try:
-                import sys
-                for p in ("/usr/lib/python3/dist-packages", "/usr/local/lib/python3/dist-packages"):
-                    if p not in sys.path:
-                        sys.path.append(p)
-                from picamera2 import Picamera2  # type: ignore
-                cls._Picamera2 = Picamera2
-            except Exception:
-                cls._Picamera2 = None
+            cls._Picamera2 = None
 
         # OpenCV (optional fallback)
         cls._cv2 = None
