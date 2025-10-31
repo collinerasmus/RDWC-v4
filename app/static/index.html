@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251031d"/><!-- Cache-buster: add debug output -->
+<meta name="version" content="20251031e"/><!-- Cache-buster: single-instance poller + backoff -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
 <style>
@@ -636,148 +636,127 @@ function classifySensor(name, v){
   return 'bad';
 }
 
-// Crash-proof sensors poller - never blocks other page JS
-async function pollSensors(){
-  const q = (sel) => document.querySelector(sel);
-  const setText = (sel, txt) => {
-    const el = q(sel);
-    if (!el) return; // don't crash if missing
-    el.textContent = txt;
-  };
-  const setClass = (sel, add, removeList) => {
-    const el = q(sel);
-    if (!el) return;
-    (removeList || []).forEach(c => el.classList.remove(c));
-    if (add) el.classList.add(add);
-  };
-  const fmt = {
-    temp: v => (v == null || Number.isNaN(v)) ? "--" : Number(v).toFixed(3),
-    ph: v => (v == null || Number.isNaN(v)) ? "--" : Number(v).toFixed(3),
-    ec1d: v => {
-      if (v == null || Number.isNaN(v)) return "--";
-      // defensive: if raw looks like µS/cm, normalize to mS/cm
-      let ec = Number(v);
-      if (ec > 10) ec = ec / 1000;
-      return (Math.round(ec * 10) / 10).toFixed(1);
-    }
-  };
-
-  try {
-    const now = Date.now();
-    if (now - lastSensorsPoll < 1800) return; // ~2s throttle
-    lastSensorsPoll = now;
-
-    // Try canonical endpoint with timeout, fallback to /api/sensors if needed
-    let j = null;
-    const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 3500);
-    try {
-      const r = await fetch('/sensors/read?t=' + now, {cache: 'no-store', signal: ctrl.signal});
-      clearTimeout(timeout);
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      j = await r.json();
-    } catch (fetchErr) {
-      clearTimeout(timeout);
-      // Fallback to /api/sensors
-      try {
-        const r2 = await fetch('/api/sensors?t=' + now, {cache: 'no-store'});
-        if (r2.ok) j = await r2.json();
-      } catch (_) { /* both endpoints failed, j stays null */ }
-    }
-
-    // Extract values safely
-    const t = (j && (j.temperature_c ?? null));
-    let ec = (j && (j.ec_mscm ?? j.ec ?? null));
-    const p = (j && (j.ph ?? null));
-    const online = !!(j && j.online);
-
-    // Update numbers
-    setText('#val-temp', fmt.temp(t));
-    setText('#val-ec', fmt.ec1d(ec));
-    setText('#val-ph', fmt.ph(p));
-
-    // Online/offline badge
-    setClass('#sensors-online', online ? 'online' : 'offline', ['online', 'offline']);
-    const ts = (j && j.ts) ? new Date(j.ts).toLocaleTimeString() : new Date().toLocaleTimeString();
-    setText('#sensors-updated', ts);
-
-    // Temp-comp flag (optional span). Never crash if missing.
-    const applied = !!(j && j.temp_comp_applied === true);
-    const reason = (j && j.temp_comp_reason) || '';
-    const throttled = reason.indexOf('throttled') !== -1;
-    const flagTxt = applied ? 'yes' : (throttled ? 'no (throttled)' : 'no');
-    setText('#temp-comp-flag', flagTxt);
-    if (q('#temp-comp-flag')) {
-      q('#temp-comp-flag').title = reason || '';
-      setClass('#temp-comp-flag', applied ? 'ok' : (throttled ? 'warn' : 'muted'), ['ok', 'warn', 'muted']);
-    }
-
-    // Metric color classes (only if spans exist)
-    const classify = (name, v) => {
-      if (v == null || Number.isNaN(v)) return 'bad';
-      if (name === 'temp') {
-        if (v >= 18 && v <= 24) return 'good';
-        if ((v > 24 && v <= 28) || (v >= 16 && v < 18)) return 'warn';
-        return 'bad';
-      }
-      if (name === 'ec') {
-        let ev = Number(v);
-        if (ev > 10) ev /= 1000; // µS -> mS defensive
-        if (ev >= 1.2 && ev <= 2.0) return 'good';
-        if ((ev >= 0.8 && ev < 1.2) || (ev > 2.0 && ev <= 2.4)) return 'warn';
-        return 'bad';
-      }
-      if (name === 'ph') {
-        if (v >= 5.5 && v <= 6.2) return 'good';
-        if ((v >= 5.2 && v < 5.5) || (v > 6.2 && v <= 6.5)) return 'warn';
-        return 'bad';
-      }
-      return 'bad';
-    };
-    setClass('#val-temp', classify('temp', t), ['good', 'warn', 'bad']);
-    setClass('#val-ec', classify('ec', ec), ['good', 'warn', 'bad']);
-    setClass('#val-ph', classify('ph', p), ['good', 'warn', 'bad']);
-
-    // Calibration badges (safe - check if elements exist)
-    const setBadge = (id, cal) => {
-      const el = q('#' + id);
-      if (!el) return;
-      const ok = cal?.is_calibrated === true;
-      el.textContent = ok ? 'OK' : 'Check';
-      setClass('#' + id, ok ? 'ok' : 'check', ['ok', 'check']);
-      if (cal?.detail) el.title = cal.detail;
-    };
-    setBadge('cal-badge-temp', j?.cal?.temp);
-    setBadge('cal-badge-ec', j?.cal?.ec);
-    setBadge('cal-badge-ph', j?.cal?.ph);
-
-    // Optional debug output (show with ?DEBUG_UI=1 in URL)
-    const dbg = q('#sensors-debug');
-    const showDbg = new URLSearchParams(location.search).has('DEBUG_UI');
-    if (dbg) {
-      if (showDbg) {
-        dbg.style.display = 'block';
-        dbg.textContent = JSON.stringify({
-          t: j?.temperature_c,
-          ec: j?.ec_mscm ?? j?.ec,
-          ph: j?.ph,
-          comp: j?.temp_comp_applied,
-          reason: j?.temp_comp_reason || '',
-          ts: j?.ts,
-          online: j?.online
-        });
-      } else {
-        dbg.style.display = 'none';
-      }
-    }
-
-  } catch (err) {
-    // Never break the page if sensors fail; just mark offline
-    setClass('#sensors-online', 'offline', ['online', 'offline']);
-    // Log once to console for debugging
-    console.debug('sensors tick error', err && err.message ? err.message : err);
+// Single-instance sensors poller with visibility pause and offline backoff
+(function(){
+  if (window.__RDWC_SENSORS_POLL_RUNNING__) {
+    console.debug("sensors: poller already running; skipping duplicate");
+    return;
   }
-}
+  window.__RDWC_SENSORS_POLL_RUNNING__ = true;
+
+  const q  = (sel)=>document.querySelector(sel);
+  const setText = (sel, txt)=>{ const el=q(sel); if(el) el.textContent=txt; };
+  const setClass=(sel,add,rem)=>{ const el=q(sel); if(!el) return; (rem||[]).forEach(c=>el.classList.remove(c)); if(add) el.classList.add(add); };
+
+  const fmt = {
+    temp:v=>(v==null||Number.isNaN(v))?"--":Number(v).toFixed(3),
+    ph:  v=>(v==null||Number.isNaN(v))?"--":Number(v).toFixed(3),
+    ec1d:v=>{
+      if(v==null||Number.isNaN(v)) return "--";
+      let ec=Number(v); if(ec>10) ec/=1000; // µS→mS defensive
+      return (Math.round(ec*10)/10).toFixed(1);
+    }
+  };
+
+  async function fetchJSON(url, timeoutMs=3500){
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(), timeoutMs);
+    try{
+      const r=await fetch(url,{cache:"no-store",signal:ctrl.signal});
+      clearTimeout(t); if(!r.ok) throw new Error("HTTP "+r.status); return await r.json();
+    }catch(e){ clearTimeout(t); throw e; }
+  }
+
+  let intervalMs = 2000;            // normal
+  let timerId    = null;
+  let failStreak = 0;
+
+  async function tick(){
+    if (document.hidden) return;    // pause when tab not visible
+
+    try{
+      // Prefer /sensors/read, fallback to /api/sensors
+      let j=null;
+      try { j = await fetchJSON("/sensors/read"); }
+      catch { j = await fetchJSON("/api/sensors"); }
+
+      // reset backoff on success
+      failStreak = 0;
+      if (intervalMs !== 2000){ intervalMs = 2000; restart(); }
+
+      const t  = j?.temperature_c ?? null;
+      let   ec = j?.ec_mscm ?? j?.ec ?? null;
+      const p  = j?.ph ?? null;
+
+      setText("#val-temp", fmt.temp(t));
+      setText("#val-ec",   fmt.ec1d(ec));
+      setText("#val-ph",   fmt.ph(p));
+
+      const online = !!j?.online;
+      setClass("#sensors-online", online ? "online" : "offline", ["online","offline"]);
+      setText("#sensors-updated", j?.ts || new Date().toISOString());
+
+      const applied   = j?.temp_comp_applied === true;
+      const throttled = (j?.temp_comp_reason || "").includes("throttled");
+      const flagTxt   = applied ? "yes" : (throttled ? "no (throttled)" : "no");
+      setText("#temp-comp-flag", flagTxt);
+      if (q("#temp-comp-flag")) {
+        setClass("#temp-comp-flag", applied ? "ok" : (throttled ? "warn" : "muted"), ["ok","warn","muted"]);
+        q("#temp-comp-flag").title = j?.temp_comp_reason || "";
+      }
+
+      // Optional debug echo
+      const dbg = q("#sensors-debug");
+      if (dbg && new URLSearchParams(location.search).has("DEBUG_UI")) {
+        dbg.style.display="block";
+        dbg.textContent = JSON.stringify({
+          t:j?.temperature_c, ec:j?.ec_mscm ?? j?.ec, ph:j?.ph,
+          comp:j?.temp_comp_applied, reason:j?.temp_comp_reason||"",
+          ts:j?.ts, online:j?.online
+        });
+      }
+
+      // metric color classes
+      const classify=(name,v)=>{
+        if(v==null||Number.isNaN(v)) return "bad";
+        if(name==="temp"){ if(v>=18&&v<=24) return "good"; if((v>24&&v<=28)||(v>=16&&v<18)) return "warn"; return "bad"; }
+        if(name==="ec"){ let ev=Number(v); if(ev>10) ev/=1000; if(ev>=1.2&&ev<=2.0) return "good"; if((ev>=0.8&&ev<1.2)||(ev>2.0&&ev<=2.4)) return "warn"; return "bad"; }
+        if(name==="ph"){ if(v>=5.5&&v<=6.2) return "good"; if((v>=5.2&&v<5.5)||(v>6.2&&v<=6.5)) return "warn"; return "bad"; }
+        return "bad";
+      };
+      const setMetricClass=(sel,cls)=>{ const el=q(sel); if(!el) return; el.classList.remove("good","warn","bad"); el.classList.add(cls); };
+      setMetricClass("#val-temp", classify("temp", t));
+      setMetricClass("#val-ec",   classify("ec", ec));
+      setMetricClass("#val-ph",   classify("ph", p));
+
+      // Calibration badges
+      const setBadge=(id,cal)=>{ const el=q("#"+id); if(!el) return; const ok=cal?.is_calibrated===true; el.textContent=ok?"OK":"Check"; setClass("#"+id,ok?"ok":"check",["ok","check"]); if(cal?.detail) el.title=cal.detail; };
+      setBadge("cal-badge-temp", j?.cal?.temp);
+      setBadge("cal-badge-ec", j?.cal?.ec);
+      setBadge("cal-badge-ph", j?.cal?.ph);
+
+    }catch(err){
+      // Backoff when failing to reduce pressure
+      failStreak++;
+      if (failStreak===1 && intervalMs!==4000){ intervalMs=4000; restart(); }
+      else if (failStreak>=5 && intervalMs!==8000){ intervalMs=8000; restart(); }
+      setClass("#sensors-online","offline",["online","offline"]);
+      // Keep console quiet; expected when sensors down
+    }
+  }
+
+  function restart(){
+    if (timerId) clearInterval(timerId);
+    timerId = setInterval(tick, intervalMs);
+  }
+
+  document.addEventListener("visibilitychange", ()=>{
+    if (!document.hidden && !timerId) restart();
+  });
+
+  // Start immediately then poll
+  tick();
+  restart();
+})();
 
 async function viewLightsLog(){
   try {
@@ -1054,7 +1033,7 @@ loadOverrides().catch(()=>{});
 camRefresh();
 refresh();
 setInterval(() => { refresh().catch(()=>{}); }, 5000); // 5s refresh, ignore transient errors
-setInterval(() => { pollSensors().catch(()=>{}); }, 2000); // schedule poll; internal 10s guard
+// Sensors poller now self-contained (IIFE above) with single-instance guard
 setInterval(() => { loadOverrides().catch(()=>{}); }, 10000); // 10s override refresh
 function exportCsv(hours=24){ window.open(`/export/sensors.csv?hours=${hours}`,'_blank'); }
 
