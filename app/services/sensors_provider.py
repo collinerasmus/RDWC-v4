@@ -37,81 +37,49 @@ class SensorsProvider:
     
     def read_all(self) -> Dict[str, Any]:
         """
-        Read all sensor values and calibration status
-        Returns dict with temperature_c, ec_mscm, ph, cal status, online flag, and timestamp
+        Read all sensor values using sensors_core as single source of truth
+        Adds calibration status for UI display
         """
-        if self.use_mock or not self.ezo_available:
-            return self.mock_read_all()
+        from app.sensors_core import read_all_sensors as core_read
         
         try:
-            return self._read_real()
+            # Get data from core (includes temp_comp_applied, ts, etc)
+            data = core_read()
+            
+            # Add calibration status for UI (stub for now - can enhance later)
+            if "cal" not in data:
+                data["cal"] = {
+                    "temp": {"is_calibrated": False, "detail": "unknown"},
+                    "ec": {"is_calibrated": False, "detail": "unknown"},
+                    "ph": {"is_calibrated": False, "detail": "unknown"}
+                }
+            
+            return data
+            
         except Exception as e:
-            logger.error(f"[SensorsProvider] Read failed, falling back to mock: {e}")
-            return self.mock_read_all()
-    
-    def _read_real(self) -> Dict[str, Any]:
-        """Read from actual hardware with sequential temp-compensation"""
-        import time
-        
-        try:
-            # 1) Read RTD temperature first
-            temp_val = self.ezo.read_single(ADDR_RTD)
-            if temp_val is None or temp_val == 0.0:
-                raise RuntimeError("RTD returned empty or zero")
-            
-            # 2) Set temp comp for EC, wait, then read
-            self.ezo.set_temp_comp(ADDR_EC, float(temp_val))
-            time.sleep(0.9)  # Wait for temp comp to settle
-            ec_val = self.ezo.read_single(ADDR_EC)
-            if ec_val is None or ec_val == 0.0:
-                raise RuntimeError("EC returned empty or zero")
-            
-            # EC comes in µS/cm from Atlas, convert to mS/cm
-            ec_mscm = float(ec_val) / 1000.0
-            
-            # 3) Set temp comp for pH, wait, then read
-            self.ezo.set_temp_comp(ADDR_PH, float(temp_val))
-            time.sleep(0.9)  # Wait for temp comp to settle
-            ph_val = self.ezo.read_single(ADDR_PH)
-            if ph_val is None or ph_val == 0.0:
-                raise RuntimeError("pH returned empty or zero")
-            
-            # Success - return all values
-            return {
-                "temperature_c": float(temp_val),
-                "ec_mscm": ec_mscm,
-                "ph": float(ph_val),
-                "cal": {
-                    "temp": {"is_calibrated": True, "detail": "rtd: assumed OK"},
-                    "ec": {"is_calibrated": True, "detail": "ec: temp-comp applied"},
-                    "ph": {"is_calibrated": True, "detail": "ph: temp-comp applied"}
-                },
-                "online": True,
-                "ts": datetime.utcnow().isoformat() + "Z"
-            }
-            
-        except Exception as ex:
-            logger.error(f"[SensorsProvider] Hardware read error: {ex}")
+            logger.error(f"[SensorsProvider] Read failed: {e}")
             return {
                 "temperature_c": None,
                 "ec_mscm": None,
                 "ph": None,
-                "cal": {
-                    "temp": {"is_calibrated": False, "detail": str(ex)},
-                    "ec": {"is_calibrated": False, "detail": str(ex)},
-                    "ph": {"is_calibrated": False, "detail": str(ex)}
-                },
+                "temp_comp_applied": False,
+                "ts": datetime.utcnow().isoformat() + "Z",
                 "online": False,
-                "ts": datetime.utcnow().isoformat() + "Z"
+                "cal": {
+                    "temp": {"is_calibrated": False, "detail": "unknown"},
+                    "ec": {"is_calibrated": False, "detail": "unknown"},
+                    "ph": {"is_calibrated": False, "detail": "unknown"}
+                },
+                "errors": {"provider_error": str(e)}
             }
     
-    @staticmethod
-    def mock_read_all() -> Dict[str, Any]:
+    def mock_read_all(self) -> Dict[str, Any]:
         """Return stable mock data for development"""
         return {
             "temperature_c": 22.4,
             "ec_mscm": 1.62,
             "ph": 5.86,
+            "temp_comp_applied": False,  # Mock doesn't do real temp comp
             "cal": {
                 "temp": {"is_calibrated": True, "detail": "mock"},
                 "ec": {"is_calibrated": True, "detail": "mock"},
