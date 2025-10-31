@@ -4,6 +4,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="version" content="20251031b"/><!-- Cache-buster: sensors EC normalization + temp-comp flag -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
 <style>
@@ -302,6 +303,12 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 #sensors-card .metric.good{ color: #16a34a; }   /* green */
 #sensors-card .metric.warn{ color: #f59e0b; }   /* amber */
 #sensors-card .metric.bad{  color: #ef4444; }   /* red */
+
+/* Temp-comp flag styling */
+.ok   { color: #16a34a; font-weight: bold; }    /* green */
+.warn { color: #f59e0b; font-weight: bold; }    /* amber/orange */
+.muted{ color: #9ca3af; }                        /* gray */
+
 #sensors-card .badge{
   font-size: 11px;
   padding: 3px 8px;
@@ -633,33 +640,40 @@ async function pollSensors(){
     const now = Date.now();
     if (now - lastSensorsPoll < 1800) return; // ~2s
     lastSensorsPoll = now;
-    const r = await (await fetch(`/api/sensors?${bust()}`, NO_CACHE)).json();
+    const r = await (await fetch(`/sensors/read?${bust()}`, {cache: 'no-store'})).json();
     
-    // Update new sensors card with unified JSON format
+    // Extract and normalize sensor values
     const temp = r.temperature_c;
-    const ec = r.ec_mscm;
     const ph = r.ph;
     const online = r.online;
     
-    // Update sensor values with color classes
+    // Defensive EC normalization: handle ec_mscm, legacy ec field, and raw µS/cm
+    let ec = r.ec_mscm;
+    if (ec == null && typeof r.ec === 'number') ec = r.ec;  // legacy field fallback
+    // If some path still returns raw µS/cm (>10), convert defensively
+    if (typeof ec === 'number' && ec > 10) ec = ec / 1000;
+    
+    // Update sensor values with color classes and proper formatting
     const elTemp = document.getElementById('val-temp');
     const elEc = document.getElementById('val-ec');
     const elPh = document.getElementById('val-ph');
     
     if (elTemp) {
-      elTemp.textContent = (temp != null && !Number.isNaN(temp)) ? temp.toFixed(2) : '--';
+      elTemp.textContent = (temp != null && !Number.isNaN(temp)) ? Number(temp).toFixed(3) : '--';
       elTemp.classList.remove('good', 'warn', 'bad');
       elTemp.classList.add(classifySensor('temp', temp));
     }
     
     if (elEc) {
-      elEc.textContent = (ec != null && !Number.isNaN(ec)) ? ec.toFixed(2) : '--';
+      // EC: 1 decimal place (e.g., 1.6 mS/cm)
+      const ecText = (ec == null || Number.isNaN(ec)) ? '--' : (Math.round(ec * 10) / 10).toFixed(1);
+      elEc.textContent = ecText;
       elEc.classList.remove('good', 'warn', 'bad');
       elEc.classList.add(classifySensor('ec', ec));
     }
     
     if (elPh) {
-      elPh.textContent = (ph != null && !Number.isNaN(ph)) ? ph.toFixed(2) : '--';
+      elPh.textContent = (ph != null && !Number.isNaN(ph)) ? Number(ph).toFixed(3) : '--';
       elPh.classList.remove('good', 'warn', 'bad');
       elPh.classList.add(classifySensor('ph', ph));
     }
@@ -701,12 +715,10 @@ async function pollSensors(){
       const reason = r.temp_comp_reason || '';
       const isThrottled = reason.includes('throttled');
       
-      const yesNo = applied ? 'yes' : 'no';
-      const detail = isThrottled ? ' (throttled)' : '';
-      
-      elTempComp.textContent = yesNo + detail;
-      elTempComp.style.color = applied ? '#00ff00' : (isThrottled ? '#ffa500' : '#999');
-      elTempComp.title = reason ? `Reason: ${reason}` : '';
+      elTempComp.textContent = applied ? 'yes' : (isThrottled ? 'no (throttled)' : 'no');
+      elTempComp.title = reason || '';
+      elTempComp.classList.remove('ok', 'warn', 'muted');
+      elTempComp.classList.add(applied ? 'ok' : (isThrottled ? 'warn' : 'muted'));
     }
     
   } catch(e){ 
