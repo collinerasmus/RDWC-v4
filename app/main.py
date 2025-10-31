@@ -15,6 +15,7 @@ from app.debug import router as debug_router, trace_relay_request
 from app.ezo_i2c_stabilized import read_all
 from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
 from app.diag import router as diag_router
+from app.blueprints.sensors_api import sensors_router
 from app.hardware import PumpController, RelayBank
 from app.logger import log_reading, last_n, fetch_history_since
 from app.scheduler import Scheduler, load_cfg, save_cfg
@@ -27,6 +28,7 @@ DB_PATH = os.path.abspath(DB_PATH)
 app = FastAPI()
 app.include_router(diag_router)
 app.include_router(debug_router, prefix="/debug", tags=["debug"])
+app.include_router(sensors_router)
 
 # Mount static files directory for serving CSS/JS
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -401,6 +403,45 @@ def api_trends(
         result["note"] = "No data in selected range"
     
     return result
+
+@app.get("/api/grow/start")
+def grow_start():
+    """
+    Returns the earliest timestamp available in the database for the "Grow" preset.
+    This allows the trends chart to span from grow start → now.
+    """
+    from datetime import timezone
+    
+    now = datetime.now(timezone.utc)
+    start_iso = now.isoformat().replace('+00:00', 'Z')
+    
+    try:
+        # Fetch the earliest timestamp from the database
+        rows = fetch_history_since(0)  # Fetch from epoch 0 to get earliest
+        
+        if rows and len(rows) > 0:
+            # Get the first row's timestamp
+            earliest_ts = rows[0].get("ts")
+            if earliest_ts:
+                earliest_dt = datetime.fromtimestamp(earliest_ts, tz=timezone.utc)
+                start_iso = earliest_dt.isoformat().replace('+00:00', 'Z')
+                print(f"[Grow API] Earliest timestamp: {start_iso} (ts={earliest_ts})")
+                return {"start": start_iso}
+        
+        # Fallback: 30 days ago if no data
+        fallback_ts = int(time.time()) - (30 * 24 * 3600)
+        fallback_dt = datetime.fromtimestamp(fallback_ts, tz=timezone.utc)
+        start_iso = fallback_dt.isoformat().replace('+00:00', 'Z')
+        print(f"[Grow API] No data found, using 30d fallback: {start_iso}")
+        return {"start": start_iso, "note": "no_data_fallback"}
+        
+    except Exception as e:
+        print(f"[Grow API] Error: {e}")
+        # Fallback: 30 days ago on error
+        fallback_ts = int(time.time()) - (30 * 24 * 3600)
+        fallback_dt = datetime.fromtimestamp(fallback_ts, tz=timezone.utc)
+        start_iso = fallback_dt.isoformat().replace('+00:00', 'Z')
+        return {"start": start_iso, "error": str(e)}
 
 # Alert monitoring endpoints
 @app.get("/monitoring/status")

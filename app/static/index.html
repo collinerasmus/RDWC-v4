@@ -254,6 +254,89 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 .kpi-temp{ 
   box-shadow: inset 0 0 0 2px rgba(214,39,40,.10); 
 }
+
+/* Sensors Card Styles */
+#sensors-card .card-header{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+#sensors-card .card-title{
+  margin: 0;
+}
+#sensors-card .calibration-badges{
+  display: flex;
+  gap: 6px;
+}
+#sensors-card .sensor-row{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+#sensors-card .sensor-row:last-of-type{
+  border-bottom: none;
+}
+#sensors-card .sensor-name{
+  opacity: 0.9;
+  font-weight: 500;
+}
+#sensors-card .sensor-value{
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+#sensors-card .sensor-value .metric{
+  font-weight: 700;
+  font-size: 1.2rem;
+  letter-spacing: 0.3px;
+}
+#sensors-card .sensor-value .unit{
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+#sensors-card .metric.good{ color: #16a34a; }   /* green */
+#sensors-card .metric.warn{ color: #f59e0b; }   /* amber */
+#sensors-card .metric.bad{  color: #ef4444; }   /* red */
+#sensors-card .badge{
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+#sensors-card .status-badge.online{
+  background: rgba(22,163,74,0.15);
+  color: #16a34a;
+}
+#sensors-card .status-badge.offline{
+  background: rgba(239,68,68,0.15);
+  color: #ef4444;
+}
+#sensors-card .calibration-badges .badge.ok{
+  background: rgba(22,163,74,0.15);
+  color: #16a34a;
+}
+#sensors-card .calibration-badges .badge.check{
+  background: rgba(245,158,11,0.15);
+  color: #f59e0b;
+}
+#sensors-card .last-update{
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 12px;
+  opacity: 0.8;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
 </style>
 </head>
 <body>
@@ -279,6 +362,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <button class="btn btn-chip" data-range="7d">7d</button>
         <button class="btn btn-chip" data-range="30d">30d</button>
         <button class="btn btn-chip" data-range="90d">90d</button>
+        <button class="btn btn-chip" data-range="grow">Grow</button>
         <span class="sep" style="opacity:.5;">|</span>
         <input type="datetime-local" id="trendFrom" />
         <input type="datetime-local" id="trendTo" />
@@ -310,20 +394,47 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- Control Cards -->
   <div id="right-column-stack">
-      <div class="card">
-        <h3>Sensors</h3>
-        <div class="row kv">Temp: <b id="temp">—</b> °C</div>
-        <div class="row kv">pH: <b id="ph">—</b></div>
-        <div class="row kv">EC: <b id="ec">—</b> mS/cm</div>
-        <div class="row kv">Temp-comp write last read: <b id="twrite">—</b></div>
-        <div class="muted">/status every 5s, /sensors/read every 10s • age <span id="age">—</span>s</div>
-        <div class="row" id="sensorErrorsRow" style="display:none;align-items:center;gap:6px;">
-          <span title="Sensor errors" id="sensorErrorsDot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444"></span>
-          <span class="muted" id="sensorErrorsText" title=""></span>
+      <!-- Sensors Card (new real-time version) -->
+      <div id="sensors-card" class="card">
+        <div class="card-header">
+          <h3 class="card-title">Sensors</h3>
+          <div class="calibration-badges">
+            <span id="cal-badge-temp" class="badge">Temp Cal</span>
+            <span id="cal-badge-ec"   class="badge">EC Cal</span>
+            <span id="cal-badge-ph"   class="badge">pH Cal</span>
+          </div>
         </div>
-        
-        <hr class="separator">
-        
+        <div class="card-body">
+          <div class="sensor-row">
+            <div class="sensor-name">Temperature</div>
+            <div class="sensor-value">
+              <span id="val-temp" class="metric">--</span>
+              <span class="unit">°C</span>
+            </div>
+          </div>
+          <div class="sensor-row">
+            <div class="sensor-name">EC</div>
+            <div class="sensor-value">
+              <span id="val-ec" class="metric">--</span>
+              <span class="unit">mS/cm</span>
+            </div>
+          </div>
+          <div class="sensor-row">
+            <div class="sensor-name">pH</div>
+            <div class="sensor-value">
+              <span id="val-ph" class="metric">--</span>
+              <span class="unit">pH</span>
+            </div>
+          </div>
+          <div class="last-update">
+            <span>Last update:</span>
+            <span id="sensors-updated">--</span>
+            <span id="sensors-online" class="badge status-badge">offline</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
         <h3>Relays</h3>
         <div id="relays" class="relay-grid"></div>
         <div class="muted">Active map: lights, main_pump, chiller_pump, chiller_power, dosing_grow, dosing_micro, dosing_bloom, dosing_ph_up</div>
@@ -954,5 +1065,6 @@ async function calibApply(){
 })();
 </script>
 <script src="/static/js/trends.js"></script>
+<script src="/static/js/sensors.js"></script>
 </body>
 </html>
