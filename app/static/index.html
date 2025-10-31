@@ -694,12 +694,19 @@ async function pollSensors(){
       elUpdated.textContent = d.toLocaleTimeString();
     }
     
-    // Update temp-comp flag
+    // Update temp-comp flag with throttle indicator
     const elTempComp = document.getElementById('temp-comp-flag');
     if (elTempComp) {
       const applied = r.temp_comp_applied === true;
-      elTempComp.textContent = applied ? 'yes' : 'no';
-      elTempComp.style.color = applied ? '#00ff00' : '#999';
+      const reason = r.temp_comp_reason || '';
+      const isThrottled = reason.includes('throttled');
+      
+      const yesNo = applied ? 'yes' : 'no';
+      const detail = isThrottled ? ' (throttled)' : '';
+      
+      elTempComp.textContent = yesNo + detail;
+      elTempComp.style.color = applied ? '#00ff00' : (isThrottled ? '#ffa500' : '#999');
+      elTempComp.title = reason ? `Reason: ${reason}` : '';
     }
     
   } catch(e){ 

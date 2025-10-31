@@ -181,22 +181,29 @@ def read_single(addr: int, bus_id: int = DEFAULT_I2C_BUS, temp_c: Optional[float
         sleep(0.1)  # Brief retry delay
         return _attempt_read()
 
+# Module-level throttle tracking for temp compensation
+_LAST_COMP_TS = 0.0
+_THROTTLE_S = 8.0  # Don't rewrite temp-comp more than once every 8s
+
 def read_all(bus_id: int = DEFAULT_I2C_BUS) -> dict:
     """
     Read all sensors with proper temperature compensation sequence.
     
     Exact sequence per Atlas EZO specs:
     1. Read RTD (temperature)
-    2. Send temp to EC, wait 900ms, read EC
-    3. Send temp to pH, wait 900ms, read pH
+    2. Send temp to EC, wait 900ms, read EC (throttled to avoid spam)
+    3. Send temp to pH, wait 900ms, read pH (throttled to avoid spam)
     
-    Returns dict with temp_comp_applied flag for UI indicator.
+    Returns dict with temp_comp_applied flag and reason for UI indicator.
     """
+    global _LAST_COMP_TS
+    
     out = {
         "temp_c": None, 
         "ph": None, 
         "ec_ms_cm": None, 
         "temp_comp_applied": False,
+        "temp_comp_reason": "",
         "errors": {}
     }
 
@@ -209,39 +216,69 @@ def read_all(bus_id: int = DEFAULT_I2C_BUS) -> dict:
         out["errors"]["temp"] = str(e)
         return out  # Can't continue without temperature
 
-    # Step 2: EC with temp compensation
-    ec_comp_sent = False
+    # Track whether we actually wrote temp comp this cycle
+    now = time()
+    comp_applied = False
+    comp_reason = []
+
+    # Step 2: EC with temp compensation (throttled)
     if temp_c is not None:
         try:
-            ec_comp_sent = set_temp_comp(ADDR_EC, temp_c, bus_id=bus_id)
-            if ec_comp_sent:
-                sleep(0.9)  # Wait 900ms for EC to apply temp comp
+            # Check throttle: only write if enough time passed
+            if now - _LAST_COMP_TS > _THROTTLE_S:
+                if set_temp_comp(ADDR_EC, temp_c, bus_id=bus_id):
+                    comp_applied = True
+                    comp_reason.append("ec")
+                    sleep(0.9)  # Wait 900ms for EC to apply temp comp
+                else:
+                    comp_reason.append("ec-skipped")
+            else:
+                comp_reason.append("ec-throttled")
         except Exception as e:
             out["errors"]["ec_temp_comp"] = str(e)
+            comp_reason.append("ec-error")
 
     try:
         ec_val = read_single(ADDR_EC, bus_id=bus_id)
-        # Convert µS/cm to mS/cm
-        out["ec_ms_cm"] = ec_val / 1000.0 if ec_val is not None else None
+        # Robust EC unit conversion with heuristic for missing units
+        if ec_val is not None:
+            v = float(ec_val)
+            # Heuristic: if value > 10, assume µS/cm and convert to mS/cm
+            # Typical nutrient EC: 1.0–3.0 mS/cm == 1000–3000 µS/cm
+            out["ec_ms_cm"] = v / 1000.0 if v > 10.0 else v
+        else:
+            out["ec_ms_cm"] = None
     except Exception as e:
         out["errors"]["ec"] = str(e)
 
-    # Step 3: pH with temp compensation
-    ph_comp_sent = False
+    # Step 3: pH with temp compensation (throttled)
     if temp_c is not None:
         try:
-            ph_comp_sent = set_temp_comp(ADDR_PH, temp_c, bus_id=bus_id)
-            if ph_comp_sent:
-                sleep(0.9)  # Wait 900ms for pH to apply temp comp
+            # Check throttle: only write if enough time passed
+            if time() - _LAST_COMP_TS > _THROTTLE_S:
+                if set_temp_comp(ADDR_PH, temp_c, bus_id=bus_id):
+                    comp_applied = True
+                    comp_reason.append("ph")
+                    sleep(0.9)  # Wait 900ms for pH to apply temp comp
+                else:
+                    comp_reason.append("ph-skipped")
+            else:
+                comp_reason.append("ph-throttled")
         except Exception as e:
             out["errors"]["ph_temp_comp"] = str(e)
+            comp_reason.append("ph-error")
 
     try:
         out["ph"] = read_single(ADDR_PH, bus_id=bus_id)
     except Exception as e:
         out["errors"]["ph"] = str(e)
 
-    # Set flag if either EC or pH received temp comp this cycle
-    out["temp_comp_applied"] = ec_comp_sent or ph_comp_sent
+    # Update throttle timestamp if we actually wrote
+    if comp_applied:
+        _LAST_COMP_TS = time()
+
+    # Set flags for UI
+    out["temp_comp_applied"] = comp_applied
+    out["temp_comp_reason"] = ",".join(comp_reason)
 
     return out
