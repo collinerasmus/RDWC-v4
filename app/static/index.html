@@ -629,7 +629,7 @@ async function pollSensors(){
     const now = Date.now();
     if (now - lastSensorsPoll < 1800) return; // ~2s
     lastSensorsPoll = now;
-    const r = await (await fetch(`/sensors/read?${bust()}`, NO_CACHE)).json();
+    const r = await (await fetch(`/api/sensors?${bust()}`, NO_CACHE)).json();
     
     // Update new sensors card with unified JSON format
     const temp = r.temperature_c;

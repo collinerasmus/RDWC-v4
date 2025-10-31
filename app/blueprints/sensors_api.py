@@ -48,13 +48,3 @@ async def get_sensors():
     """
     data = _get_sensors_data()
     return JSONResponse(content=data, status_code=200)
-
-@sensors_router.get('/sensors/read')
-async def get_sensors_read():
-    """
-    GET /sensors/read
-    Shim for legacy frontend - returns same data as /api/sensors
-    Always returns 200 OK (even if hardware offline)
-    """
-    data = _get_sensors_data()
-    return JSONResponse(content=data, status_code=200)
