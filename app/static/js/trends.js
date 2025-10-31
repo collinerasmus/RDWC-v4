@@ -19,42 +19,6 @@
 
   let LAST_RANGE = { fromISO: null, toISO: null };
 
-  const AXES_PREF = {
-    ph:   { min: 5.2,  max: 6.5,  title:'pH' },
-    ec:   { min: 0.0,  max: 3.0,  title:'EC (mS/cm)' },
-    temp: { min: 16.0, max: 28.0, title:'Temp (°C)' }
-  };
-
-  function padRange(min, max, pad=0.05){
-    const span = Math.max(1e-9, max - min);
-    return { min: min - span*pad, max: max + span*pad };
-  }
-
-  function autoAxis(pref, series){
-    if (!series || !series.length) return { suggestedMin: pref.min, suggestedMax: pref.max };
-    let lo = Infinity, hi = -Infinity;
-    for (const p of series){ 
-      const v = p.y; 
-      if (Number.isFinite(v)){ 
-        lo = Math.min(lo, v); 
-        hi = Math.max(hi, v); 
-      } 
-    }
-    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return { suggestedMin: pref.min, suggestedMax: pref.max };
-    if (lo < pref.min || hi > pref.max){
-      const r = padRange(Math.min(lo, pref.min), Math.max(hi, pref.max));
-      return { min: r.min, max: r.max }; // hard min/max when out-of-band
-    }
-    return { suggestedMin: pref.min, suggestedMax: pref.max }; // prefer but allow auto-fit
-  }
-
-  function median(arr){
-    if (!arr || !arr.length) return null;
-    const a = arr.map(v => v.y).filter(Number.isFinite).sort((a,b) => a-b);
-    const m = Math.floor(a.length/2);
-    return a.length % 2 ? a[m] : (a[m-1]+a[m])/2;
-  }
-
   const kpiPh   = document.getElementById('kpiPh');
   const kpiEc   = document.getElementById('kpiEc');
   const kpiTemp = document.getElementById('kpiTemp');
@@ -94,32 +58,27 @@
             tooltipFormat: 'yyyy-MM-dd HH:mm', 
             displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'MMM d' } 
           },
-          ticks: { maxRotation: 0, autoSkip: true }
+          ticks: { maxRotation: 0, autoSkip: true },
+          bounds: 'ticks'
         },
         yPh: {
           position: 'left',
-          min: AXES_PREF.ph.min,
-          max: AXES_PREF.ph.max,
-          title: { display: true, text: AXES_PREF.ph.title }
+          title: { display: true, text: 'pH' }
         },
         yEc: {
           position: 'right',
-          min: AXES_PREF.ec.min,
-          max: AXES_PREF.ec.max,
-          title: { display: true, text: AXES_PREF.ec.title },
+          title: { display: true, text: 'EC (mS/cm)' },
           grid: { drawOnChartArea: false }
         },
         yTemp: {
           position: 'right',
-          min: AXES_PREF.temp.min,
-          max: AXES_PREF.temp.max,
-          title: { display: true, text: AXES_PREF.temp.title },
+          title: { display: true, text: 'Temp (°C)' },
           grid: { drawOnChartArea: false }
         }
       },
       elements: {
-        line: { borderWidth: 2, tension: 0.3 },
-        point: { radius: 1.8, hoverRadius: 4 }
+        line: { tension: 0.3 },
+        point: { radius: 0, hoverRadius: 4 }
       }
     }
   });
@@ -181,8 +140,8 @@
     if (toISO)   q.set('to', toISO);
     if (gran)    q.set('gran', String(gran));
     if (max)     q.set('max',  String(max));
+    LAST_RANGE = { fromISO, toISO };
     const url = '/api/trends?' + q.toString();
-    LAST_RANGE = { fromISO, toISO }; // Track selected range for x-axis frame
     console.log('[Trends] GET', url);
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) {
@@ -193,82 +152,101 @@
     console.log('[Trends] data', {
       ph: j?.series?.ph?.length || 0,
       ec: j?.series?.ec?.length || 0,
-      temp: j?.series?.temp?.length || 0,
-      note: j?.note,
-      error: j?.error
+      temp: j?.series?.temp?.length || 0
     });
     return j;
   }
 
   function render(data){
     console.log('[Trends] render');
-    
-    // Build arrays (timestamps in seconds from API, convert to ms for Chart.js)
-    const ph    = (data?.series?.ph   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
-    const ecRaw = (data?.series?.ec   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
-    const temp  = (data?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
 
-    // EC unit auto-detection: if median > 20, assume µS/cm and scale to mS/cm
-    let ecScale = 1.0;
-    const ecMed = median(ecRaw);
-    if (ecMed != null && ecMed > 20) {
-      ecScale = 1/1000;
-      console.log('[Trends] EC unit detection: scaling µS/cm → mS/cm');
+    // Series to XY (timestamps in seconds from API)
+    const ph    = (data?.series?.ph   || []).map(p => ({ x:new Date(p.ts * 1000), y:Number(p.value) }));
+    const ecRaw = (data?.series?.ec   || []).map(p => ({ x:new Date(p.ts * 1000), y:Number(p.value) }));
+    const temp  = (data?.series?.temp || []).map(p => ({ x:new Date(p.ts * 1000), y:Number(p.value) }));
+
+    // EC unit autodetect: if median > 20, assume µS/cm and convert to mS/cm
+    function median(arr){
+      if (!arr || !arr.length) return null;
+      const a = arr.map(v=>v.y).filter(Number.isFinite).sort((a,b)=>a-b);
+      const m = Math.floor(a.length/2);
+      return a.length % 2 ? a[m] : (a[m-1]+a[m])/2;
     }
-    const ec = ecRaw.map(p => ({ x: p.x, y: p.y * ecScale }));
-    
-    // Update EC KPI label
-    const kpiLbl = document.querySelector('.kpi-ec .kpi-label');
-    if (kpiLbl) kpiLbl.textContent = 'EC (mS/cm)';
+    let ecScale = 1.0;
+    if (median(ecRaw) > 20) ecScale = 1/1000; // µS -> mS
+    const ec = ecRaw.map(p => ({ x:p.x, y: p.y * ecScale }));
 
-    // Compute y-axis targets (auto-fit with grow preferences)
-    const axPh   = autoAxis(AXES_PREF.ph,   ph);
-    const axEc   = autoAxis(AXES_PREF.ec,   ec);
-    const axTemp = autoAxis(AXES_PREF.temp, temp);
+    // KPIs (scaled EC)
+    const last = arr => (arr && arr.length ? arr[arr.length-1].y : null);
+    if (typeof kpiPh   !== 'undefined') kpiPh.textContent   = last(ph)   != null ? Number(last(ph)).toFixed(2) : '—';
+    if (typeof kpiEc   !== 'undefined') kpiEc.textContent   = last(ec)   != null ? Number(last(ec)).toFixed(2) : '—';
+    if (typeof kpiTemp !== 'undefined') kpiTemp.textContent = last(temp) != null ? Number(last(temp)).toFixed(1) : '—';
+    const ecLbl = document.querySelector('.kpi-ec .kpi-label');
+    if (ecLbl) ecLbl.textContent = 'EC (mS/cm)';
 
-    // 1) Force x-axis to selected window (even if data is sparse)
+    // Preferred grow ranges; we will expand if data is out-of-band
+    const PREF = {
+      ph:   { min: 5.2,  max: 6.5 },
+      ec:   { min: 0.0,  max: 3.0 },
+      temp: { min: 16.0, max: 28.0 }
+    };
+    function dataMinMax(series){
+      let lo = Infinity, hi = -Infinity;
+      for (const p of series){ if (Number.isFinite(p.y)){ lo = Math.min(lo, p.y); hi = Math.max(hi, p.y); } }
+      if (!Number.isFinite(lo) || !Number.isFinite(hi)) return null;
+      return { lo, hi };
+    }
+    function padded(min, max, pad=0.05){
+      const span = Math.max(1e-9, max - min);
+      return { min: min - span*pad, max: max + span*pad };
+    }
+    function chooseAxis(pref, series){
+      const mm = dataMinMax(series);
+      if (!mm) return { min: pref.min, max: pref.max };
+      const outOfBand = (mm.lo < pref.min) || (mm.hi > pref.max);
+      if (outOfBand) return padded(Math.min(mm.lo, pref.min), Math.max(mm.hi, pref.max));
+      // keep preferred but let Chart adjust within soft bounds
+      return { min: pref.min, max: pref.max };
+    }
+    const aPh   = chooseAxis(PREF.ph,   ph);
+    const aEc   = chooseAxis(PREF.ec,   ec);
+    const aTemp = chooseAxis(PREF.temp, temp);
+
+    // Force x-axis to selected window using Date objects
     if (LAST_RANGE.fromISO && LAST_RANGE.toISO){
-      trendChart.options.scales.x.min = new Date(LAST_RANGE.fromISO).getTime();
-      trendChart.options.scales.x.max = new Date(LAST_RANGE.toISO).getTime();
+      trendChart.options.scales.x.min = new Date(LAST_RANGE.fromISO);
+      trendChart.options.scales.x.max = new Date(LAST_RANGE.toISO);
     } else {
       delete trendChart.options.scales.x.min;
       delete trendChart.options.scales.x.max;
     }
 
-    // 2) Apply y-axes auto-fit
-    Object.assign(trendChart.options.scales.yPh,   axPh);
-    Object.assign(trendChart.options.scales.yEc,   axEc);
-    Object.assign(trendChart.options.scales.yTemp, axTemp);
+    // IMPORTANT: clear any previous suggestedMin/suggestedMax to avoid conflicts
+    ['yPh','yEc','yTemp'].forEach(id => {
+      delete trendChart.options.scales[id].suggestedMin;
+      delete trendChart.options.scales[id].suggestedMax;
+      delete trendChart.options.scales[id].min;
+      delete trendChart.options.scales[id].max;
+    });
 
-    // 3) Build datasets
+    // Apply hard min/max so lines are guaranteed visible
+    trendChart.options.scales.yPh.min   = aPh.min;   trendChart.options.scales.yPh.max   = aPh.max;
+    trendChart.options.scales.yEc.min   = aEc.min;   trendChart.options.scales.yEc.max   = aEc.max;
+    trendChart.options.scales.yTemp.min = aTemp.min; trendChart.options.scales.yTemp.max = aTemp.max;
+
+    // Build datasets (ensure visible, small point radius for speed)
     const datasets = [];
-    if (ph.length)   datasets.push({ 
-      id:'ph',   yAxisID:'yPh',   label:'pH',        
-      data:ph,   borderColor:COLORS.ph,   backgroundColor:COLORS.ph,   
-      fill:false, spanGaps:true 
-    });
-    if (ec.length)   datasets.push({ 
-      id:'ec',   yAxisID:'yEc',   label:'EC',        
-      data:ec,   borderColor:COLORS.ec,   backgroundColor:COLORS.ec,   
-      fill:false, spanGaps:true 
-    });
-    if (temp.length) datasets.push({ 
-      id:'temp', yAxisID:'yTemp', label:'Temp (°C)', 
-      data:temp, borderColor:COLORS.temp, backgroundColor:COLORS.temp, 
-      fill:false, spanGaps:true 
-    });
+    if (ph.length)   datasets.push({ id:'ph',   yAxisID:'yPh',   label:'pH',        data:ph,   borderWidth:2, borderColor:COLORS.ph,   backgroundColor:COLORS.ph,   pointRadius:0, spanGaps:true });
+    if (ec.length)   datasets.push({ id:'ec',   yAxisID:'yEc',   label:'EC',        data:ec,   borderWidth:2, borderColor:COLORS.ec,   backgroundColor:COLORS.ec,   pointRadius:0, spanGaps:true });
+    if (temp.length) datasets.push({ id:'temp', yAxisID:'yTemp', label:'Temp (°C)', data:temp, borderWidth:2, borderColor:COLORS.temp, backgroundColor:COLORS.temp, pointRadius:0, spanGaps:true });
+
     trendChart.data.datasets = datasets;
 
-    // Update KPIs (using displayed units for EC)
-    const last = arr => arr && arr.length ? arr[arr.length-1].y : null;
-    if (kpiPh)   kpiPh.textContent   = (last(ph)   != null) ? Number(last(ph)).toFixed(2) : '—';
-    if (kpiEc)   kpiEc.textContent   = (last(ec)   != null) ? Number(last(ec)).toFixed(2) : '—';
-    if (kpiTemp) kpiTemp.textContent = (last(temp) != null) ? Number(last(temp)).toFixed(1) : '—';
+    // Empty state toggle
+    const hasAny = (ph.length || ec.length || temp.length);
+    if (typeof emptyEl !== 'undefined') emptyEl.style.display = hasAny ? 'none' : 'block';
 
     trendChart.update('none');
-
-    const hasAny = (ph.length || ec.length || temp.length);
-    emptyEl.style.display = hasAny ? 'none' : 'block';
   }
 
   async function loadPreset(preset){
