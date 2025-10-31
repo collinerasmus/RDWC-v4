@@ -72,20 +72,30 @@ class CameraManager:
         if cls._Picamera2 is not None:
             try:
                 picam = cls._Picamera2()
-                # Use video configuration with higher resolution and proper RGB format
-                # Try 1280x720 first, fallback to 1024x768, then 800x600
-                for size in [(1280, 720), (1024, 768), (800, 600)]:
+                # For USB webcams via libcamera, try different format/size combos
+                # YUYV, MJPEG are common for USB cams; RGB888 often fails
+                configs_to_try = [
+                    {"size": (1280, 720), "format": "YUYV"},
+                    {"size": (1280, 720), "format": "MJPEG"},
+                    {"size": (1024, 768), "format": "YUYV"},
+                    {"size": (800, 600), "format": "YUYV"},
+                    {"size": (640, 480), "format": "YUYV"},
+                ]
+                configured = False
+                for config_params in configs_to_try:
                     try:
                         cfg = picam.create_video_configuration(
-                            main={"size": size, "format": "RGB888"},
+                            main=config_params,
                             buffer_count=4
                         )
                         picam.configure(cfg)
+                        configured = True
+                        print(f"[Camera] Configured with {config_params}")
                         break
                     except Exception:
-                        if size == (800, 600):
-                            raise  # Last resort failed
                         continue
+                if not configured:
+                    raise Exception("No compatible camera configuration found")
                 picam.start()
                 # Allow camera to warm up and stabilize
                 time.sleep(0.5)
