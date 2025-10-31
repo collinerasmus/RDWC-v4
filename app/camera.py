@@ -68,49 +68,7 @@ class CameraManager:
             cls.available = False
             cls.mode = "unavailable"
             return
-        # Try Picamera2 first if available
-        if cls._Picamera2 is not None:
-            try:
-                picam = cls._Picamera2()
-                # For USB webcams via libcamera, try different format/size combos
-                # YUYV, MJPEG are common for USB cams; RGB888 often fails
-                configs_to_try = [
-                    {"size": (1280, 720), "format": "YUYV"},
-                    {"size": (1280, 720), "format": "MJPEG"},
-                    {"size": (1024, 768), "format": "YUYV"},
-                    {"size": (800, 600), "format": "YUYV"},
-                    {"size": (640, 480), "format": "YUYV"},
-                ]
-                configured = False
-                for config_params in configs_to_try:
-                    try:
-                        cfg = picam.create_video_configuration(
-                            main=config_params,
-                            buffer_count=4
-                        )
-                        picam.configure(cfg)
-                        configured = True
-                        print(f"[Camera] Configured with {config_params}")
-                        break
-                    except Exception:
-                        continue
-                if not configured:
-                    raise Exception("No compatible camera configuration found")
-                picam.start()
-                # Allow camera to warm up and stabilize
-                time.sleep(0.5)
-                cls._picam = picam
-                cls._cap = None
-                cls.available = True
-                cls.mode = "picamera2"
-                cls.last_error = None
-                return
-            except Exception as e:
-                cls.available = False
-                cls.mode = "unavailable"
-                cls.last_error = f"start_failed_picamera2: {e}"
-
-        # Fallback to OpenCV (USB webcams)
+            # Use OpenCV for USB webcams (better format/resolution control than Picamera2/libcamera)
         if cls._cv2 is not None:
             try:
                 # Prefer V4L2 backend when available
