@@ -186,7 +186,7 @@
 
     // Preferred grow ranges; we will expand if data is out-of-band
     const PREF = {
-      ph:   { min: 5.2,  max: 6.5 },
+      ph:   { min: 5.0,  max: 7.8 },
       ec:   { min: 0.0,  max: 3.0 },
       temp: { min: 16.0, max: 28.0 }
     };
