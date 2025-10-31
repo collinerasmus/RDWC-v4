@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251031b"/><!-- Cache-buster: sensors EC normalization + temp-comp flag -->
+<meta name="version" content="20251031c"/><!-- Cache-buster: crash-proof sensors poller -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
 <style>
@@ -635,94 +635,126 @@ function classifySensor(name, v){
   return 'bad';
 }
 
+// Crash-proof sensors poller - never blocks other page JS
 async function pollSensors(){
+  const q = (sel) => document.querySelector(sel);
+  const setText = (sel, txt) => {
+    const el = q(sel);
+    if (!el) return; // don't crash if missing
+    el.textContent = txt;
+  };
+  const setClass = (sel, add, removeList) => {
+    const el = q(sel);
+    if (!el) return;
+    (removeList || []).forEach(c => el.classList.remove(c));
+    if (add) el.classList.add(add);
+  };
+  const fmt = {
+    temp: v => (v == null || Number.isNaN(v)) ? "--" : Number(v).toFixed(3),
+    ph: v => (v == null || Number.isNaN(v)) ? "--" : Number(v).toFixed(3),
+    ec1d: v => {
+      if (v == null || Number.isNaN(v)) return "--";
+      // defensive: if raw looks like µS/cm, normalize to mS/cm
+      let ec = Number(v);
+      if (ec > 10) ec = ec / 1000;
+      return (Math.round(ec * 10) / 10).toFixed(1);
+    }
+  };
+
   try {
     const now = Date.now();
-    if (now - lastSensorsPoll < 1800) return; // ~2s
+    if (now - lastSensorsPoll < 1800) return; // ~2s throttle
     lastSensorsPoll = now;
-    const r = await (await fetch(`/sensors/read?${bust()}`, {cache: 'no-store'})).json();
-    
-    // Extract and normalize sensor values
-    const temp = r.temperature_c;
-    const ph = r.ph;
-    const online = r.online;
-    
-    // Defensive EC normalization: handle ec_mscm, legacy ec field, and raw µS/cm
-    let ec = r.ec_mscm;
-    if (ec == null && typeof r.ec === 'number') ec = r.ec;  // legacy field fallback
-    // If some path still returns raw µS/cm (>10), convert defensively
-    if (typeof ec === 'number' && ec > 10) ec = ec / 1000;
-    
-    // Update sensor values with color classes and proper formatting
-    const elTemp = document.getElementById('val-temp');
-    const elEc = document.getElementById('val-ec');
-    const elPh = document.getElementById('val-ph');
-    
-    if (elTemp) {
-      elTemp.textContent = (temp != null && !Number.isNaN(temp)) ? Number(temp).toFixed(3) : '--';
-      elTemp.classList.remove('good', 'warn', 'bad');
-      elTemp.classList.add(classifySensor('temp', temp));
+
+    // Try canonical endpoint with timeout, fallback to /api/sensors if needed
+    let j = null;
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 3500);
+    try {
+      const r = await fetch('/sensors/read?t=' + now, {cache: 'no-store', signal: ctrl.signal});
+      clearTimeout(timeout);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      j = await r.json();
+    } catch (fetchErr) {
+      clearTimeout(timeout);
+      // Fallback to /api/sensors
+      try {
+        const r2 = await fetch('/api/sensors?t=' + now, {cache: 'no-store'});
+        if (r2.ok) j = await r2.json();
+      } catch (_) { /* both endpoints failed, j stays null */ }
     }
-    
-    if (elEc) {
-      // EC: 1 decimal place (e.g., 1.6 mS/cm)
-      const ecText = (ec == null || Number.isNaN(ec)) ? '--' : (Math.round(ec * 10) / 10).toFixed(1);
-      elEc.textContent = ecText;
-      elEc.classList.remove('good', 'warn', 'bad');
-      elEc.classList.add(classifySensor('ec', ec));
+
+    // Extract values safely
+    const t = (j && (j.temperature_c ?? null));
+    let ec = (j && (j.ec_mscm ?? j.ec ?? null));
+    const p = (j && (j.ph ?? null));
+    const online = !!(j && j.online);
+
+    // Update numbers
+    setText('#val-temp', fmt.temp(t));
+    setText('#val-ec', fmt.ec1d(ec));
+    setText('#val-ph', fmt.ph(p));
+
+    // Online/offline badge
+    setClass('#sensors-online', online ? 'online' : 'offline', ['online', 'offline']);
+    const ts = (j && j.ts) ? new Date(j.ts).toLocaleTimeString() : new Date().toLocaleTimeString();
+    setText('#sensors-updated', ts);
+
+    // Temp-comp flag (optional span). Never crash if missing.
+    const applied = !!(j && j.temp_comp_applied === true);
+    const reason = (j && j.temp_comp_reason) || '';
+    const throttled = reason.indexOf('throttled') !== -1;
+    const flagTxt = applied ? 'yes' : (throttled ? 'no (throttled)' : 'no');
+    setText('#temp-comp-flag', flagTxt);
+    if (q('#temp-comp-flag')) {
+      q('#temp-comp-flag').title = reason || '';
+      setClass('#temp-comp-flag', applied ? 'ok' : (throttled ? 'warn' : 'muted'), ['ok', 'warn', 'muted']);
     }
-    
-    if (elPh) {
-      elPh.textContent = (ph != null && !Number.isNaN(ph)) ? Number(ph).toFixed(3) : '--';
-      elPh.classList.remove('good', 'warn', 'bad');
-      elPh.classList.add(classifySensor('ph', ph));
-    }
-    
-    // Update calibration badges
+
+    // Metric color classes (only if spans exist)
+    const classify = (name, v) => {
+      if (v == null || Number.isNaN(v)) return 'bad';
+      if (name === 'temp') {
+        if (v >= 18 && v <= 24) return 'good';
+        if ((v > 24 && v <= 28) || (v >= 16 && v < 18)) return 'warn';
+        return 'bad';
+      }
+      if (name === 'ec') {
+        let ev = Number(v);
+        if (ev > 10) ev /= 1000; // µS -> mS defensive
+        if (ev >= 1.2 && ev <= 2.0) return 'good';
+        if ((ev >= 0.8 && ev < 1.2) || (ev > 2.0 && ev <= 2.4)) return 'warn';
+        return 'bad';
+      }
+      if (name === 'ph') {
+        if (v >= 5.5 && v <= 6.2) return 'good';
+        if ((v >= 5.2 && v < 5.5) || (v > 6.2 && v <= 6.5)) return 'warn';
+        return 'bad';
+      }
+      return 'bad';
+    };
+    setClass('#val-temp', classify('temp', t), ['good', 'warn', 'bad']);
+    setClass('#val-ec', classify('ec', ec), ['good', 'warn', 'bad']);
+    setClass('#val-ph', classify('ph', p), ['good', 'warn', 'bad']);
+
+    // Calibration badges (safe - check if elements exist)
     const setBadge = (id, cal) => {
-      const el = document.getElementById(id);
+      const el = q('#' + id);
       if (!el) return;
       const ok = cal?.is_calibrated === true;
       el.textContent = ok ? 'OK' : 'Check';
-      el.classList.remove('ok', 'check');
-      el.classList.add(ok ? 'ok' : 'check');
+      setClass('#' + id, ok ? 'ok' : 'check', ['ok', 'check']);
       if (cal?.detail) el.title = cal.detail;
     };
-    
-    setBadge('cal-badge-temp', r.cal?.temp);
-    setBadge('cal-badge-ec', r.cal?.ec);
-    setBadge('cal-badge-ph', r.cal?.ph);
-    
-    // Update online/offline badge
-    const elOnline = document.getElementById('sensors-online');
-    if (elOnline) {
-      elOnline.textContent = online ? 'online' : 'offline';
-      elOnline.classList.remove('online', 'offline');
-      elOnline.classList.add(online ? 'online' : 'offline');
-    }
-    
-    // Update timestamp
-    const elUpdated = document.getElementById('sensors-updated');
-    if (elUpdated && r.ts) {
-      const d = new Date(r.ts);
-      elUpdated.textContent = d.toLocaleTimeString();
-    }
-    
-    // Update temp-comp flag with throttle indicator
-    const elTempComp = document.getElementById('temp-comp-flag');
-    if (elTempComp) {
-      const applied = r.temp_comp_applied === true;
-      const reason = r.temp_comp_reason || '';
-      const isThrottled = reason.includes('throttled');
-      
-      elTempComp.textContent = applied ? 'yes' : (isThrottled ? 'no (throttled)' : 'no');
-      elTempComp.title = reason || '';
-      elTempComp.classList.remove('ok', 'warn', 'muted');
-      elTempComp.classList.add(applied ? 'ok' : (isThrottled ? 'warn' : 'muted'));
-    }
-    
-  } catch(e){ 
-    console.error('[Sensors] Poll error:', e);
+    setBadge('cal-badge-temp', j?.cal?.temp);
+    setBadge('cal-badge-ec', j?.cal?.ec);
+    setBadge('cal-badge-ph', j?.cal?.ph);
+
+  } catch (err) {
+    // Never break the page if sensors fail; just mark offline
+    setClass('#sensors-online', 'offline', ['online', 'offline']);
+    // Log once to console for debugging
+    console.debug('sensors tick error', err && err.message ? err.message : err);
   }
 }
 
