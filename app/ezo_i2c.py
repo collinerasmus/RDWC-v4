@@ -1,3 +1,4 @@
+import os
 from time import sleep, time
 from typing import Optional, Tuple, Any
 from .infra.i2c_bus import get_bus
@@ -15,6 +16,12 @@ ADDR_PH  = 0x63
 ADDR_EC  = 0x64
 ADDR_RTD = 0x66
 
+# Env-tunable timeouts (fast defaults, stable in prod)
+POLL_TIMEOUT_S   = float(os.getenv("RDWC_I2C_POLL_TIMEOUT_S",   "1.0"))   # was 6.0
+RETRY_DELAY_S    = float(os.getenv("RDWC_I2C_RETRY_DELAY_S",    "0.15"))  # was 0.35
+IO_RETRY_DELAY_S = float(os.getenv("RDWC_I2C_IO_RETRY_DELAY_S", "0.05"))  # was 0.10
+COMP_SETTLE_S    = float(os.getenv("RDWC_I2C_COMP_SETTLE_S",    "0.90"))
+
 # Slightly longer settles to avoid empty first payloads
 SETTLE_RTD = 0.8
 SETTLE_PH  = 1.0
@@ -23,6 +30,13 @@ SETTLE_EC  = 1.0
 # Temperature compensation throttling
 # {addr: (last_temp, last_time)}
 _temp_comp_cache = {}
+
+def _sleep(s: float) -> None:
+    """Safe sleep wrapper that won't crash on interrupts."""
+    try:
+        sleep(s)
+    except Exception:
+        pass
 
 def _send_cmd(bus: Any, addr: int, cmd: str) -> None:
     data = list(cmd.encode("ascii")) + [0x00]   # null-terminated
@@ -38,7 +52,9 @@ def _read_raw(bus: Any, addr: int, max_len: int = MAX_REPLY_LEN) -> Tuple[int, s
     payload = bytes(raw[1:1+end-1]).decode("ascii", errors="ignore").strip()
     return status, payload
 
-def _poll_until_ready(bus: Any, addr: int, timeout_s: float = 6.0, interval_s: float = 0.15) -> Tuple[int, str]:
+def _poll_until_ready(bus: Any, addr: int, timeout_s: Optional[float] = None, interval_s: float = 0.15) -> Tuple[int, str]:
+    if timeout_s is None:
+        timeout_s = POLL_TIMEOUT_S
     t0 = time()
     last = (255, "")
     while True:
@@ -49,7 +65,7 @@ def _poll_until_ready(bus: Any, addr: int, timeout_s: float = 6.0, interval_s: f
             return last
         if time() - t0 > timeout_s:
             return last
-        sleep(interval_s)
+        _sleep(interval_s)
 
 def _disable_continuous(bus: Any, addr: int) -> None:
     # Some boards can be left in continuous mode—turn it off (non-fatal if unsupported)
@@ -140,13 +156,17 @@ def set_temp_comp_both(temp_c: float, bus_id: int = DEFAULT_I2C_BUS) -> dict:
     results['ec'] = set_temp_comp(ADDR_EC, temp_c, bus_id)
     return results
 
-def _read_numeric_token(payload: str) -> float:
-    token = payload.split(",")[0].strip()
-    if token == "":
-        raise ValueError("Empty token")
-    return float(token)
+def _read_numeric_token(payload: str) -> Optional[float]:
+    """Parse first numeric token; return None on empty/invalid instead of raising."""
+    try:
+        token = payload.split(",")[0].strip()
+        if token == "":
+            return None
+        return float(token)
+    except Exception:
+        return None
 
-def read_single(addr: int, bus_id: int = DEFAULT_I2C_BUS, temp_c: Optional[float] = None) -> float:
+def read_single(addr: int, bus_id: int = DEFAULT_I2C_BUS, temp_c: Optional[float] = None) -> Optional[float]:
     bus = get_bus()
     
     def _attempt_read():
@@ -168,17 +188,17 @@ def read_single(addr: int, bus_id: int = DEFAULT_I2C_BUS, temp_c: Optional[float
         if status == EZO_STATUS_SYNTAX_ERROR:
             raise ValueError(f"EZO status 2 (syntax error) on 0x{addr:02X}, payload='{payload}'")
         if not payload:
-            # One more chance after short wait
-            sleep(0.35)
+            # One more chance after short wait; if still empty, return None
+            _sleep(RETRY_DELAY_S)
             status, payload = _poll_until_ready(bus, addr)
             if not payload:
-                raise ValueError(f"Empty payload from 0x{addr:02X}")
+                return None
         return _read_numeric_token(payload)
     
     try:
         return _attempt_read()
     except (IOError, OSError):
-        sleep(0.1)  # Brief retry delay
+        _sleep(IO_RETRY_DELAY_S)  # Brief retry delay
         return _attempt_read()
 
 # Module-level throttle tracking for temp compensation
@@ -229,7 +249,7 @@ def read_all(bus_id: int = DEFAULT_I2C_BUS) -> dict:
                 if set_temp_comp(ADDR_EC, temp_c, bus_id=bus_id):
                     comp_applied = True
                     comp_reason.append("ec")
-                    sleep(0.9)  # Wait 900ms for EC to apply temp comp
+                    _sleep(COMP_SETTLE_S)  # Wait for EC to apply temp comp
                 else:
                     comp_reason.append("ec-skipped")
             else:
@@ -259,7 +279,7 @@ def read_all(bus_id: int = DEFAULT_I2C_BUS) -> dict:
                 if set_temp_comp(ADDR_PH, temp_c, bus_id=bus_id):
                     comp_applied = True
                     comp_reason.append("ph")
-                    sleep(0.9)  # Wait 900ms for pH to apply temp comp
+                    _sleep(COMP_SETTLE_S)  # Wait for pH to apply temp comp
                 else:
                     comp_reason.append("ph-skipped")
             else:
@@ -282,3 +302,100 @@ def read_all(bus_id: int = DEFAULT_I2C_BUS) -> dict:
     out["temp_comp_reason"] = ",".join(comp_reason)
 
     return out
+
+
+# ----- LED helpers (Atlas EZO) -----
+def set_led(addr: int, on: bool = True) -> bool:
+    """
+    Atlas EZO LED control: "L,1"=on, "L,0"=off
+    Returns True if command accepted; False otherwise.
+    """
+    try:
+        bus = get_bus()
+        cmd = "L,1" if on else "L,0"
+        _send_cmd(bus, addr, cmd)
+        # Short poll until ready, honoring env-tunable timeout
+        _poll_until_ready(bus, addr, timeout_s=POLL_TIMEOUT_S)
+        return True
+    except Exception:
+        return False
+
+def enable_all_leds(on: bool = True) -> dict:
+    out = {"0x66": False, "0x64": False, "0x63": False}
+    try:
+        out["0x66"] = set_led(ADDR_RTD, on)
+    except Exception:
+        pass
+    try:
+        out["0x64"] = set_led(ADDR_EC, on)
+    except Exception:
+        pass
+    try:
+        out["0x63"] = set_led(ADDR_PH, on)
+    except Exception:
+        pass
+    return out
+# -----------------------------------
+
+
+def blink_leds(count: int = 8, period_s: float = 0.25) -> dict:
+    """
+    Best-effort blink sequence so the user can visually confirm activity.
+    Leaves LEDs ON at the end. Returns {ok: bool, count: int, error?: str}.
+    """
+    out = {"ok": True, "count": int(count)}
+    try:
+        n = max(0, int(count))
+        per = max(0.05, float(period_s))
+        for _ in range(n):
+            enable_all_leds(True)
+            _sleep(per)
+            enable_all_leds(False)
+            _sleep(per)
+        enable_all_leds(True)
+        return out
+    except Exception as ex:
+        out["ok"] = False
+        out["error"] = type(ex).__name__
+        return out
+
+
+# ---------- FAST READ (no temp-comp, fail-fast) ----------
+def read_all_fast():
+    """
+    Minimal, non-blocking read.
+    - No temp-comp writes
+    - 1.0s poll timeout per device (uses existing POLL_TIMEOUT_S env if present)
+    - µS→mS normalization for EC
+    Returns dict: {temperature_c, ec_mscm, ph, temp_comp_applied=False}
+    """
+    out = {"temperature_c": None, "ec_mscm": None, "ph": None, "temp_comp_applied": False}
+    
+    # RTD (temperature)
+    try:
+        t_val = read_single(ADDR_RTD)
+        if t_val is not None:
+            out["temperature_c"] = float(t_val)
+    except Exception:
+        pass
+    
+    # EC
+    try:
+        ec_val = read_single(ADDR_EC)
+        if ec_val is not None:
+            v = float(ec_val)
+            # Heuristic: if value > 10, assume µS/cm and convert to mS/cm
+            out["ec_mscm"] = v / 1000.0 if v > 10 else v
+    except Exception:
+        pass
+    
+    # pH
+    try:
+        ph_val = read_single(ADDR_PH)
+        if ph_val is not None:
+            out["ph"] = float(ph_val)
+    except Exception:
+        pass
+    
+    return out
+# ---------------------------------------------------------

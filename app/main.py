@@ -8,7 +8,7 @@ import csv
 import io
 import asyncio
 from contextlib import suppress
-from typing import Optional
+from typing import Optional, Any
 from subprocess import run, PIPE
 from datetime import datetime, timedelta  # Keep global import
 from app.debug import router as debug_router, trace_relay_request
@@ -390,7 +390,7 @@ def api_trends(
     
     print(f"[Trends API] After capping: ph={len(ph_series)}, ec={len(ec_series)}, temp={len(temp_series)}")
     
-    result = {
+    result: dict[str, Any] = {
         "series": {
             "ph": ph_series,
             "ec": ec_series,
@@ -983,16 +983,145 @@ def status():
 
 @app.get("/sensors/read")
 def sensors_read():
-    """Get sensor readings with throttled temperature compensation details."""
+    """
+    Get sensor readings with deadline-aware pH-first read.
+    sensors_core.read_all_sensors() enforces its own 2.5s deadline internally.
+    """
     from app.sensors_core import read_all_sensors
+    return read_all_sensors()
+
+@app.get("/sensors/last")
+def sensors_last():
+    """
+    GET /sensors/last
+    Returns the most recent sensor reading from database (stale fallback).
+    Used when live sensors are offline to show last known values.
+    """
+    from app.services.sensors_fallback import get_last_reading
+    data = get_last_reading()
+    return data or {
+        "temperature_c": None,
+        "ec_mscm": None,
+        "ph": None,
+        "ts": None,
+        "stale_seconds": None,
+        "online": False,
+        "temp_comp_applied": False,
+        "temp_comp_reason": "fallback-empty"
+    }
+
+@app.get("/api/sensors")
+def api_sensors():
+    """
+    Compatibility endpoint for static UI expecting /api/sensors.
+    Returns live readings via sensors_core.read_all_sensors(); if offline and all
+    values are null, returns last-known reading from the database.
+    """
+    from app.sensors_core import read_all_sensors
+    from app.services.sensors_fallback import get_last_reading
     try:
-        result = read_all_sensors()
-        return result
+        j = read_all_sensors()
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e), "errors": [str(e)]}
-        )
+        j = {
+            "temperature_c": None,
+            "ec_mscm": None,
+            "ph": None,
+            "online": False,
+            "errors": {"read": str(e)},
+            "ts": None,
+        }
+    t = j.get("temperature_c")
+    ec = j.get("ec_mscm") or j.get("ec")
+    p = j.get("ph")
+    online = bool(j.get("online"))
+    need_fallback = (not online) and (t is None and ec is None and p is None)
+    if need_fallback:
+        last = get_last_reading()
+        if last:
+            # Ensure expected shape for sensors.js
+            return {
+                "temperature_c": last.get("temperature_c"),
+                "ec_mscm": last.get("ec_mscm") or last.get("ec"),
+                "ph": last.get("ph"),
+                "ts": last.get("ts"),
+                "online": False,
+                "temp_comp_applied": False,
+                "temp_comp_reason": "fallback-db",
+            }
+    return j
+
+@app.get("/diag/sensors/once")
+def diag_sensors_once():
+    """
+    Diagnostic endpoint: read each sensor once with timing.
+    Returns raw values and millisecond timing for each step.
+    """
+    import time as _t
+    import datetime as _dt
+    from app import ezo_i2c as _ezo
+    
+    t0 = _t.time()
+    steps = {}
+    
+    def stamp(k):
+        steps[k] = round((_t.time() - t0) * 1000, 1)
+    
+    t, ec, ph = None, None, None
+    
+    # RTD (temperature)
+    try:
+        v = _ezo.read_single(0x66)
+        t = float(v) if v is not None else None
+    except Exception:
+        pass
+    stamp("rtd_done_ms")
+    
+    # EC
+    try:
+        v = _ezo.read_single(0x64)
+        if v is not None:
+            v = float(v)
+            # Heuristic: if value > 10, assume µS/cm
+            ec = v / 1000.0 if v > 10 else v
+    except Exception:
+        pass
+    stamp("ec_done_ms")
+    
+    # pH
+    try:
+        v = _ezo.read_single(0x63)
+        ph = float(v) if v is not None else None
+    except Exception:
+        pass
+    stamp("ph_done_ms")
+    
+    return {
+        "temperature_c": t,
+        "ec_mscm": ec,
+        "ph": ph,
+        "ts": _dt.datetime.utcnow().isoformat() + "Z",
+        "steps": steps
+    }
+
+@app.get("/diag/sensors/leds")
+def diag_sensors_leds(on: int = 1):
+    """
+    Toggle EZO LEDs on/off for RTD(0x66) / EC(0x64) / pH(0x63).
+    /diag/sensors/leds?on=1  -> ON
+    /diag/sensors/leds?on=0  -> OFF
+    """
+    from app import ezo_i2c as _e
+    res = _e.enable_all_leds(bool(on))
+    return {"on": bool(on), "result": res}
+
+@app.get("/diag/sensors/flash")
+def diag_sensors_flash(count: int = 8, period_ms: int = 250):
+    """Flash all EZO LEDs for visual confirmation.
+    Query: count (blinks), period_ms (on/off per half-cycle); leaves LEDs ON at end.
+    """
+    from app import ezo_i2c as _e
+    res = _e.blink_leds(count=max(1, int(count)), period_s=max(0.05, period_ms/1000.0))
+    return {"requested": {"count": int(count), "period_ms": int(period_ms)}, "result": res}
 
 @app.post("/read_now")
 def read_now():

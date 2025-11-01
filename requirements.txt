@@ -4,3 +4,4 @@ smbus2
 gpiozero
 httpx
 pytz
+playwright>=1.45,<2

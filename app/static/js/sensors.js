@@ -1,5 +1,10 @@
 /* Sensors real-time display with color thresholds and calibration status */
 (function(){
+  // Respect existing inline poller guard if present
+  if (window.__RDWC_SENSORS_POLL_RUNNING__) {
+    console.log("[Sensors.js] Another sensors poller active; skipping.");
+    return;
+  }
   const $ = (id)=>document.getElementById(id);
   
   const setMetric = (el, val, classes) => {

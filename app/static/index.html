@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251031e"/><!-- Cache-buster: single-instance poller + backoff -->
+<meta name="version" content="20251031i"/><!-- Cache-buster: fast-fallback read -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
 <style>
@@ -638,11 +638,21 @@ function classifySensor(name, v){
 
 // Single-instance sensors poller with visibility pause and offline backoff
 (function(){
+  // URL kill-switch: ?SENSORS=off disables poller completely
+  const urlFlags = new URLSearchParams(location.search);
+  if (urlFlags.get("SENSORS") === "off") {
+    console.warn("Sensors poller disabled via ?SENSORS=off");
+    return;
+  }
+
   if (window.__RDWC_SENSORS_POLL_RUNNING__) {
     console.debug("sensors: poller already running; skipping duplicate");
     return;
   }
   window.__RDWC_SENSORS_POLL_RUNNING__ = true;
+  
+  // Log active flags once
+  console.log("Sensors poller active. DEBUG_UI=", urlFlags.has("DEBUG_UI"));
 
   const q  = (sel)=>document.querySelector(sel);
   const setText = (sel, txt)=>{ const el=q(sel); if(el) el.textContent=txt; };
@@ -658,7 +668,7 @@ function classifySensor(name, v){
     }
   };
 
-  async function fetchJSON(url, timeoutMs=3500){
+  async function fetchJSON(url, timeoutMs=2000){
     const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(), timeoutMs);
     try{
       const r=await fetch(url,{cache:"no-store",signal:ctrl.signal});
@@ -666,7 +676,7 @@ function classifySensor(name, v){
     }catch(e){ clearTimeout(t); throw e; }
   }
 
-  let intervalMs = 2000;            // normal
+  let intervalMs = 5000;            // start slower: 5s
   let timerId    = null;
   let failStreak = 0;
 
@@ -674,24 +684,63 @@ function classifySensor(name, v){
     if (document.hidden) return;    // pause when tab not visible
 
     try{
-      // Prefer /sensors/read, fallback to /api/sensors
+      // Prefer /sensors/read with strict 2s timeout
       let j=null;
       try { j = await fetchJSON("/sensors/read"); }
-      catch { j = await fetchJSON("/api/sensors"); }
+      catch(err) { 
+        // If primary fails, skip fallback to avoid more delays
+        throw err;
+      }
 
       // reset backoff on success
       failStreak = 0;
-      if (intervalMs !== 2000){ intervalMs = 2000; restart(); }
+      if (intervalMs !== 5000){ intervalMs = 5000; restart(); }
 
-      const t  = j?.temperature_c ?? null;
-      let   ec = j?.ec_mscm ?? j?.ec ?? null;
-      const p  = j?.ph ?? null;
+      let t  = j?.temperature_c ?? null;
+      let ec = j?.ec_mscm ?? j?.ec ?? null;
+      let p  = j?.ph ?? null;
+      
+      const online = !!j?.online;
+
+      // Check if we need fallback (live is offline AND all values are null)
+      const needFallback = (!j || !online) && (t == null && ec == null && p == null);
+      
+      if (needFallback) {
+        // Fetch last-known reading once; don't hammer it
+        try {
+          const rLast = await fetch("/sensors/last", {cache: "no-store"}).then(r => r.json());
+          const lt  = rLast?.temperature_c ?? null;
+          let   lec = rLast?.ec_mscm ?? rLast?.ec ?? null;
+          const lp  = rLast?.ph ?? null;
+
+          // Defensive EC µS→mS just in case
+          if (typeof lec === "number" && lec > 10) lec = lec / 1000;
+
+          // Render stale values muted
+          setText("#val-temp", fmt.temp(lt));
+          setText("#val-ec",   fmt.ec1d(lec));
+          setText("#val-ph",   fmt.ph(lp));
+
+          // Mark badge offline + show age if we have it
+          setClass("#sensors-online", "offline", ["online", "offline"]);
+          const age = rLast?.stale_seconds;
+          setText("#sensors-updated", (age != null) ? `${Math.max(0, Math.floor(age))}s ago (stale)` : (rLast?.ts || "--"));
+
+          // Temp-comp line stays 'no' when stale
+          setText("#temp-comp-flag", "no");
+          setClass("#temp-comp-flag", "muted", ["ok", "warn", "muted"]);
+
+          // Stop here for this tick; next tick will try live again
+          return;
+        } catch (_) {
+          // Ignore and continue with "--"
+        }
+      }
 
       setText("#val-temp", fmt.temp(t));
       setText("#val-ec",   fmt.ec1d(ec));
       setText("#val-ph",   fmt.ph(p));
 
-      const online = !!j?.online;
       setClass("#sensors-online", online ? "online" : "offline", ["online","offline"]);
       setText("#sensors-updated", j?.ts || new Date().toISOString());
 
@@ -727,6 +776,17 @@ function classifySensor(name, v){
       setMetricClass("#val-temp", classify("temp", t));
       setMetricClass("#val-ec",   classify("ec", ec));
       setMetricClass("#val-ph",   classify("ph", p));
+
+      // If we have values but offline (fast-fallback), show muted styling
+      const hasAny = (q("#val-temp")?.textContent !== "--") ||
+                     (q("#val-ec")?.textContent !== "--") ||
+                     (q("#val-ph")?.textContent !== "--");
+      if (!online && hasAny) {
+        // Show we have values but offline (fast-fallback)
+        [q("#val-temp"), q("#val-ec"), q("#val-ph")].forEach(el => {
+          if (el && el.textContent !== "--") el.classList.add("muted");
+        });
+      }
 
       // Calibration badges
       const setBadge=(id,cal)=>{ const el=q("#"+id); if(!el) return; const ok=cal?.is_calibrated===true; el.textContent=ok?"OK":"Check"; setClass("#"+id,ok?"ok":"check",["ok","check"]); if(cal?.detail) el.title=cal.detail; };
