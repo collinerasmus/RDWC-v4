@@ -564,6 +564,8 @@ def ph_dose_log_csv(
     """CSV export of dose events with range support."""
     try:
         # Handle grow preset
+        start_for_filename = start
+        end_for_filename = end
         if grow:
             grow_date_str = _settings_get("general.grow_start_date", "")
             if grow_date_str:
@@ -576,8 +578,22 @@ def ph_dose_log_csv(
                     local_dt = naive_dt.replace(tzinfo=timezone.utc)
                 start = local_dt.astimezone(timezone.utc).isoformat()
                 end = datetime.now(timezone.utc).isoformat()
+                start_for_filename = start
+                end_for_filename = end
         
         events = _dose_events_range(start=start, end=end, hours=hours, limit=limit)
+        
+        # Build filename based on range
+        filename = "ph_dose_log"
+        if start_for_filename and end_for_filename:
+            start_date = datetime.fromisoformat(start_for_filename.replace('Z', '+00:00')).strftime("%Y%m%d")
+            end_date = datetime.fromisoformat(end_for_filename.replace('Z', '+00:00')).strftime("%Y%m%d")
+            filename = f"ph_dose_log_{start_date}_{end_date}.csv"
+        elif hours:
+            filename = f"ph_dose_log_{hours}h.csv"
+        else:
+            filename = "ph_dose_log.csv"
+        
         lines = ["ts,seconds,volume_ml,reason,ph_before,ph_after,guard_triggered"]
         for e in events:
             line = ",".join([
@@ -589,6 +605,8 @@ def ph_dose_log_csv(
                 "" if not e["guard_triggered"] else str(e["guard_triggered"]) 
             ])
             lines.append(line)
-        return PlainTextResponse("\n".join(lines), media_type="text/csv")
+        
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return PlainTextResponse("\n".join(lines), media_type="text/csv", headers=headers)
     except ValueError as ve:
         return PlainTextResponse(f"Error: {ve}", status_code=422)

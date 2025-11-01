@@ -188,7 +188,7 @@
     }
     
     // Restore last preset or default to 24h
-    const lastPreset = window.rdwcRange.getLastPreset('ph', '24h');
+    const lastPreset = window.rdwcRange.getLastPreset('rdwc.ph.range', '24h');
     currentRange.preset = lastPreset;
     
     // Wire preset buttons
@@ -196,7 +196,21 @@
     btns.forEach(btn => {
       const preset = btn.getAttribute('data-range');
       if (preset === currentRange.preset) btn.classList.add('active');
-      btn.addEventListener('click', () => selectPreset(preset));
+      
+      // Disable Grow if no grow_start_date
+      if (preset === 'grow') {
+        const growDate = window.rdwcSettings?.get('general.grow_start_date');
+        if (!growDate) {
+          btn.disabled = true;
+          btn.title = 'Set Grow start date in Settings';
+          btn.style.opacity = '0.5';
+          btn.style.cursor = 'not-allowed';
+        }
+      }
+      
+      btn.addEventListener('click', () => {
+        if (!btn.disabled) selectPreset(preset);
+      });
     });
     
     // Wire custom range
@@ -209,7 +223,7 @@
         const start = fromEl.value;
         const end = toEl.value;
         if (start && end) {
-          window.rdwcRange.saveCustomRange('ph', start, end);
+          window.rdwcRange.saveCustomRange('rdwc.ph.range', start, end);
           selectPreset('custom');
         }
       });
@@ -221,7 +235,7 @@
   
   async function selectPreset(preset){
     currentRange.preset = preset;
-    window.rdwcRange.saveLastPreset('ph', preset);
+    window.rdwcRange.saveLastPreset('rdwc.ph.range', preset);
     
     // Update button states
     const btns = document.querySelectorAll('#ph-card .btn-chip[data-range]');
@@ -237,7 +251,7 @@
     if (!window.rdwcRange) return;
     
     const growDate = window.rdwcSettings?.get('general.grow_start_date');
-    const customRange = window.rdwcRange.getCustomRange('ph');
+    const customRange = window.rdwcRange.getCustomRange('rdwc.ph.range');
     
     // Compute start/end
     const range = await window.rdwcRange.rangeToStartEnd(
@@ -289,9 +303,16 @@
       const week = (weekRows||[]).reduce((acc,r)=> acc + (r.total_ml||0), 0);
       const tEl = document.getElementById('ph-total-today'); if (tEl) tEl.textContent = hasVol ? `Today: ${today.toFixed(1)} ml` : `Today: — ml`;
       const wEl = document.getElementById('ph-total-week'); if (wEl) wEl.textContent = hasVol ? `Week: ${week.toFixed(1)} ml` : `Week: — ml`;
-      // Calibration banner if all volumes are null/undefined in the 24h window
-      const allNull = (log||[]).length>0 && (log||[]).every(e=> e.volume_ml==null);
-      const banner = document.getElementById('ph-calib-banner'); if (banner) banner.style.display = allNull ? 'block':'none';
+      
+      // Calibration banner: show only when events exist + all null + invalid rate
+      const banner = document.getElementById('ph-calib-banner');
+      if (banner) {
+        const hasEvents = (log||[]).length > 0;
+        const allNull = (log||[]).every(e => e.volume_ml == null);
+        const rate = window.rdwcSettings?.get('dosing.ph_up_ml_per_sec');
+        const invalidRate = !rate || rate <= 0;
+        banner.style.display = (hasEvents && allNull && invalidRate) ? 'block' : 'none';
+      }
     }catch(e){ /* ignore */ }
   }
 
@@ -378,11 +399,34 @@
       const emptyEl = document.getElementById('phDoseEmpty'); if (emptyEl) emptyEl.style.display = empty ? 'block':'none';
       const canv = document.getElementById('phDoseChart'); if (canv) canv.style.opacity = empty ? 0.5 : 1;
       
-      // Update "In range" counter
-      const inRangeTotal = (doses||[]).reduce((sum, e) => sum + (e.volume_ml || 0), 0);
+      // Update "In range" counter with calibration-aware estimate
+      const inRangeMl = (doses||[]).reduce((sum, e) => sum + (e.volume_ml || 0), 0);
       const inRangeEl = document.getElementById('ph-in-range');
       if (inRangeEl) {
-        inRangeEl.textContent = inRangeTotal > 0 ? `In range: ${inRangeTotal.toFixed(1)} ml` : 'In range: — ml';
+        if (inRangeMl > 0) {
+          // Has calibrated volumes
+          inRangeEl.textContent = `In range: ${inRangeMl.toFixed(1)} ml`;
+        } else if ((doses||[]).length > 0) {
+          // Has doses but all volume_ml are null - check for calibration
+          const allNull = (doses||[]).every(e => e.volume_ml == null);
+          if (allNull) {
+            const rate = window.rdwcSettings?.get('dosing.ph_up_ml_per_sec');
+            if (rate && rate > 0) {
+              // Valid rate - show estimate
+              const totalSeconds = (doses||[]).reduce((sum, e) => sum + (e.seconds || 0), 0);
+              const estimate = (totalSeconds * rate).toFixed(1);
+              inRangeEl.textContent = `In range: ~${estimate} ml (est.)`;
+            } else {
+              // No valid rate
+              inRangeEl.textContent = 'In range: — ml';
+            }
+          } else {
+            inRangeEl.textContent = 'In range: — ml';
+          }
+        } else {
+          // No doses
+          inRangeEl.textContent = 'In range: — ml';
+        }
       }
       
       chart.update('none');
