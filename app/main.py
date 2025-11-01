@@ -26,8 +26,31 @@ from app.relays_core import initialize_all_safe_off, get_relay_event_log, allowe
 DB_PATH = os.environ.get("RDWC_DB", os.path.join(os.path.dirname(__file__), "..", "data", "rdwc.db"))
 DB_PATH = os.path.abspath(DB_PATH)
 
-# Asset version for cache-busting of static JS/CSS assets
-ASSET_VERSION = os.environ.get("ASSET_VERSION") or datetime.utcnow().date().isoformat()
+def _compute_asset_version() -> str:
+    """Return a robust asset version token for cache busting.
+    Preference order:
+    1) ASSET_VERSION env var (explicit override)
+    2) Current git short SHA of the repo
+    3) UTC timestamp down to seconds
+    """
+    v = os.environ.get("ASSET_VERSION")
+    if v:
+        return v
+    # Try git short SHA from repository root
+    try:
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        res = run(["git", "-C", repo_root, "rev-parse", "--short", "HEAD"], stdout=PIPE, stderr=PIPE, text=True)
+        if res.returncode == 0:
+            sha = (res.stdout or "").strip()
+            if sha:
+                return sha
+    except Exception:
+        pass
+    # Fallback: timestamp to seconds ensures a new value on each service start
+    return datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+
+# Asset version for cache-busting of static JS/CSS assets (used by /api/version and loader)
+ASSET_VERSION = _compute_asset_version()
 
 app = FastAPI()
 app.include_router(diag_router)
