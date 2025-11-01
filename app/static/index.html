@@ -564,10 +564,20 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <!-- History chart -->
           <hr class="separator" />
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-            <div class="muted">Dose History</div>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <button class="btn btn-chip" id="ph-chart-24h">24h</button>
-              <button class="btn btn-chip" id="ph-chart-7d">7d</button>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="muted">Dose History</div>
+              <span id="ph-in-range" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;">In range: — ml</span>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+              <button class="btn btn-chip" data-range="24h">24h</button>
+              <button class="btn btn-chip" data-range="7d">7d</button>
+              <button class="btn btn-chip" data-range="30d">30d</button>
+              <button class="btn btn-chip" data-range="90d">90d</button>
+              <button class="btn btn-chip" data-range="grow" title="From grow start date to now">Grow</button>
+              <span style="opacity:.5;">|</span>
+              <input type="datetime-local" id="phDoseFrom" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
+              <input type="datetime-local" id="phDoseTo" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
+              <button class="btn btn-secondary" id="phDoseApply">Apply</button>
             </div>
           </div>
           <canvas id="phDoseChart" height="120"></canvas>
@@ -1071,6 +1081,7 @@ async function calibApply(){
   setInterval(measureHeights, 2000);
 })();
 </script>
+<script src="/static/js/range.js"></script>
 <script src="/static/js/trends.js"></script>
 <script src="/static/js/ph.js"></script>
 <script src="/static/js/settings.js"></script>

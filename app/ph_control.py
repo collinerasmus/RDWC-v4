@@ -111,19 +111,33 @@ def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
         })
     return out
 
-def _dose_events_since(hours: int) -> List[Dict[str, Any]]:
+def _dose_events_range(start: Optional[str] = None, end: Optional[str] = None, hours: Optional[int] = None, limit: int = 2000) -> List[Dict[str, Any]]:
+    """Get dose events within a range. Prefers start/end over hours."""
     _ensure_tables()
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, int(hours)))
+    if start and end:
+        # Use explicit range
+        start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
+        end_dt = datetime.fromisoformat(end.replace('Z', '+00:00'))
+        if start_dt >= end_dt:
+            raise ValueError("start must be before end")
+        cutoff = start_dt.isoformat()
+        upper = end_dt.isoformat()
+    else:
+        # Fallback to hours
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=max(1, int(hours or 24)))).isoformat()
+        upper = datetime.now(timezone.utc).isoformat()
+    
     with sqlite3.connect(str(DB_PATH)) as conn:
         cur = conn.cursor()
         cur.execute(
             """
             SELECT ts_utc, action, volume_ml, duration_ms, pre_ph, post_ph, result, reason
             FROM ph_dose_log
-            WHERE ts_utc >= ?
+            WHERE ts_utc >= ? AND ts_utc < ?
             ORDER BY ts_utc ASC
+            LIMIT ?
             """,
-            (cutoff.isoformat(),)
+            (cutoff, upper, int(limit))
         )
         rows = cur.fetchall()
     events = []
@@ -145,20 +159,32 @@ def _dose_events_since(hours: int) -> List[Dict[str, Any]]:
         })
     return events
 
-def _dose_daily(days: int) -> List[Dict[str, Any]]:
+def _dose_daily_range(start: Optional[str] = None, end: Optional[str] = None, days: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Aggregate dose events by day (UTC). Prefers start/end over days."""
     _ensure_tables()
-    start_day = (datetime.now(timezone.utc) - timedelta(days=max(1, int(days))-1)).date().isoformat()
+    if start and end:
+        start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
+        end_dt = datetime.fromisoformat(end.replace('Z', '+00:00'))
+        if start_dt >= end_dt:
+            raise ValueError("start must be before end")
+        start_day = start_dt.date().isoformat()
+        end_day = end_dt.date().isoformat()
+    else:
+        # Fallback to days
+        start_day = (datetime.now(timezone.utc) - timedelta(days=max(1, int(days or 7))-1)).date().isoformat()
+        end_day = datetime.now(timezone.utc).date().isoformat()
+    
     with sqlite3.connect(str(DB_PATH)) as conn:
         cur = conn.cursor()
         cur.execute(
             """
             SELECT substr(ts_utc,1,10) AS day, SUM(COALESCE(volume_ml,0)) AS total_ml
             FROM ph_dose_log
-            WHERE result='ok' AND substr(ts_utc,1,10) >= ?
+            WHERE result='ok' AND substr(ts_utc,1,10) >= ? AND substr(ts_utc,1,10) <= ?
             GROUP BY day
             ORDER BY day ASC
             """,
-            (start_day,)
+            (start_day, end_day)
         )
         rows = cur.fetchall()
     return [{"day": r[0], "total_ml": float(r[1] or 0.0)} for r in rows]
@@ -455,42 +481,114 @@ def ph_export(hours: int = Query(24)):
 
 # --- New telemetry endpoints -------------------------------------------------
 @router.get("/api/ph/dose_log")
-def ph_dose_log(hours: int = Query(24)):
-    events = _dose_events_since(max(1, int(hours)))
-    # Align field names with spec
-    out = []
-    for e in events:
-        out.append({
-            "ts": e["ts"],
-            "seconds": e["seconds"],
-            "volume_ml": e["volume_ml"],
-            "reason": e.get("detail") or e.get("action") or "manual",
-            "ph_before": e["ph_before"],
-            "ph_after": e["ph_after"],
-            "guard_triggered": e["guard_triggered"],
-        })
-    return out
+def ph_dose_log(
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
+    hours: Optional[int] = Query(None),
+    grow: Optional[bool] = Query(False),
+    limit: int = Query(2000)
+):
+    """Get dose events. Prefers start/end over hours. If grow=true, computes range from settings."""
+    try:
+        # Handle grow preset
+        if grow:
+            grow_date_str = _settings_get("general.grow_start_date", "")
+            if grow_date_str:
+                try:
+                    from app.settings import SA_TZ
+                    # pytz timezone needs localize
+                    naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                    local_dt = SA_TZ.localize(naive_dt)
+                except Exception:
+                    # Fallback to UTC if import fails
+                    naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                    local_dt = naive_dt.replace(tzinfo=timezone.utc)
+                start = local_dt.astimezone(timezone.utc).isoformat()
+                end = datetime.now(timezone.utc).isoformat()
+        
+        events = _dose_events_range(start=start, end=end, hours=hours, limit=limit)
+        # Align field names with spec
+        out = []
+        for e in events:
+            out.append({
+                "ts": e["ts"],
+                "seconds": e["seconds"],
+                "volume_ml": e["volume_ml"],
+                "reason": e.get("detail") or e.get("action") or "manual",
+                "ph_before": e["ph_before"],
+                "ph_after": e["ph_after"],
+                "guard_triggered": e["guard_triggered"],
+            })
+        return out
+    except ValueError as ve:
+        return JSONResponse(status_code=422, content={"ok": False, "error": str(ve)})
 
 
 @router.get("/api/ph/dose_summary")
-def ph_dose_summary(days: int = Query(7)):
-    days = max(1, int(days))
-    rows = _dose_daily(days)
-    return rows
+def ph_dose_summary(
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
+    days: Optional[int] = Query(None),
+    grow: Optional[bool] = Query(False)
+):
+    """Get daily aggregated dose totals. Prefers start/end over days."""
+    try:
+        # Handle grow preset
+        if grow:
+            grow_date_str = _settings_get("general.grow_start_date", "")
+            if grow_date_str:
+                try:
+                    from app.settings import SA_TZ
+                    naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                    local_dt = SA_TZ.localize(naive_dt)
+                except Exception:
+                    naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                    local_dt = naive_dt.replace(tzinfo=timezone.utc)
+                start = local_dt.astimezone(timezone.utc).isoformat()
+                end = datetime.now(timezone.utc).isoformat()
+        
+        rows = _dose_daily_range(start=start, end=end, days=days)
+        return rows
+    except ValueError as ve:
+        return JSONResponse(status_code=422, content={"ok": False, "error": str(ve)})
 
 
 @router.get("/api/ph/dose_log.csv")
-def ph_dose_log_csv(hours: int = Query(168)):
-    events = _dose_events_since(max(1, int(hours)))
-    lines = ["ts,seconds,volume_ml,reason,ph_before,ph_after,guard_triggered"]
-    for e in events:
-        line = ",".join([
-            str(e["ts"]), str(e["seconds"]),
-            "" if e["volume_ml"] is None else str(e["volume_ml"]),
-            str(e.get("detail") or e.get("action") or "manual"),
-            "" if e["ph_before"] is None else str(e["ph_before"]),
-            "" if e["ph_after"] is None else str(e["ph_after"]),
-            "" if not e["guard_triggered"] else str(e["guard_triggered"]) 
-        ])
-        lines.append(line)
-    return PlainTextResponse("\n".join(lines), media_type="text/csv")
+def ph_dose_log_csv(
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
+    hours: Optional[int] = Query(None),
+    grow: Optional[bool] = Query(False),
+    limit: int = Query(2000)
+):
+    """CSV export of dose events with range support."""
+    try:
+        # Handle grow preset
+        if grow:
+            grow_date_str = _settings_get("general.grow_start_date", "")
+            if grow_date_str:
+                try:
+                    from app.settings import SA_TZ
+                    naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                    local_dt = SA_TZ.localize(naive_dt)
+                except Exception:
+                    naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                    local_dt = naive_dt.replace(tzinfo=timezone.utc)
+                start = local_dt.astimezone(timezone.utc).isoformat()
+                end = datetime.now(timezone.utc).isoformat()
+        
+        events = _dose_events_range(start=start, end=end, hours=hours, limit=limit)
+        lines = ["ts,seconds,volume_ml,reason,ph_before,ph_after,guard_triggered"]
+        for e in events:
+            line = ",".join([
+                str(e["ts"]), str(e["seconds"]),
+                "" if e["volume_ml"] is None else str(e["volume_ml"]),
+                str(e.get("detail") or e.get("action") or "manual"),
+                "" if e["ph_before"] is None else str(e["ph_before"]),
+                "" if e["ph_after"] is None else str(e["ph_after"]),
+                "" if not e["guard_triggered"] else str(e["guard_triggered"]) 
+            ])
+            lines.append(line)
+        return PlainTextResponse("\n".join(lines), media_type="text/csv")
+    except ValueError as ve:
+        return PlainTextResponse(f"Error: {ve}", status_code=422)

@@ -6,7 +6,8 @@
   let lastStatus = null;
   let countdownTimer = null;
   let lastPollAt = Date.now();
-  let chart, chartMode = (localStorage.getItem('ph.chartMode') || '24h'); // '24h' | '7d'
+  let chart;
+  let currentRange = { preset: null, start: null, end: null };
 
   function el(id){ return document.getElementById(id); }
 
@@ -166,19 +167,107 @@
       if(window.showToast){ showToast(j.guard || 'Set', j.guard? 'error':'success'); }
       else { alert(j.guard || 'Set'); }
     });
-  // Use unified dose_log.csv endpoint for 24h export
-  el('btnPhExport24')?.addEventListener('click', ()=>{ window.open('/api/ph/dose_log.csv?hours=24','_blank'); });
-    el('ph-dose-csv')?.addEventListener('click', ()=>{ window.open('/api/ph/dose_log.csv?hours=168','_blank'); });
-
-    // Chart range buttons
-  el('ph-chart-24h')?.addEventListener('click', ()=>{ chartMode='24h'; localStorage.setItem('ph.chartMode', chartMode); refreshDoseChart(); });
-  el('ph-chart-7d')?.addEventListener('click', ()=>{ chartMode='7d'; localStorage.setItem('ph.chartMode', chartMode); refreshDoseChart(); });
+    // Wire range controls (matching Trends template)
+    wireRangeControls();
+    
+    // CSV export uses current range
+    el('ph-dose-csv')?.addEventListener('click', ()=>{ exportCSV(); });
 
     // listen for settings UI updates to ui.sensors_poll_ms
     window.addEventListener('settings:ui', (ev)=>{
       const ms = ev.detail?.['ui.sensors_poll_ms'];
       if(ms){ pollMs = parseInt(ms)||POLL_DEFAULT; schedule(); }
     });
+  }
+
+  function wireRangeControls(){
+    // Get range utility
+    if (!window.rdwcRange) {
+      console.error('[pH] rdwcRange not loaded');
+      return;
+    }
+    
+    // Restore last preset or default to 24h
+    const lastPreset = window.rdwcRange.getLastPreset('ph', '24h');
+    currentRange.preset = lastPreset;
+    
+    // Wire preset buttons
+    const btns = document.querySelectorAll('#ph-card .btn-chip[data-range]');
+    btns.forEach(btn => {
+      const preset = btn.getAttribute('data-range');
+      if (preset === currentRange.preset) btn.classList.add('active');
+      btn.addEventListener('click', () => selectPreset(preset));
+    });
+    
+    // Wire custom range
+    const fromEl = el('phDoseFrom');
+    const toEl = el('phDoseTo');
+    const applyEl = el('phDoseApply');
+    
+    if (applyEl && fromEl && toEl) {
+      applyEl.addEventListener('click', () => {
+        const start = fromEl.value;
+        const end = toEl.value;
+        if (start && end) {
+          window.rdwcRange.saveCustomRange('ph', start, end);
+          selectPreset('custom');
+        }
+      });
+    }
+    
+    // Load initial range
+    loadRange(currentRange.preset);
+  }
+  
+  async function selectPreset(preset){
+    currentRange.preset = preset;
+    window.rdwcRange.saveLastPreset('ph', preset);
+    
+    // Update button states
+    const btns = document.querySelectorAll('#ph-card .btn-chip[data-range]');
+    btns.forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-range') === preset);
+    });
+    
+    // Load range
+    await loadRange(preset);
+  }
+  
+  async function loadRange(preset){
+    if (!window.rdwcRange) return;
+    
+    const growDate = window.rdwcSettings?.get('general.grow_start_date');
+    const customRange = window.rdwcRange.getCustomRange('ph');
+    
+    // Compute start/end
+    const range = await window.rdwcRange.rangeToStartEnd(
+      preset, 
+      customRange.start, 
+      customRange.end, 
+      growDate
+    );
+    
+    if (!range) {
+      console.warn('[pH] Invalid range');
+      return;
+    }
+    
+    currentRange.start = range.start;
+    currentRange.end = range.end;
+    
+    // Refresh chart and summary
+    await refreshDoseChart();
+    await refreshSummary();
+  }
+  
+  function exportCSV(){
+    if (!currentRange.start || !currentRange.end) {
+      window.open('/api/ph/dose_log.csv?hours=168', '_blank');
+      return;
+    }
+    const startISO = new Date(currentRange.start).toISOString();
+    const endISO = new Date(currentRange.end).toISOString();
+    window.open(`/api/ph/dose_log.csv?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=5000`, '_blank');
   }
 
   document.addEventListener('DOMContentLoaded', ()=>{
@@ -241,14 +330,31 @@
     try{
       if (!chart) chart = makeChart();
       if (!chart) return;
+      
+      // Determine if we have a valid range
       let doses = [];
       let daily = [];
-      if (chartMode==='24h'){
-        doses = await (await fetch('/api/ph/dose_log?hours=24',{cache:'no-store'})).json();
+      
+      if (currentRange.start && currentRange.end) {
+        // Use start/end range
+        const startISO = new Date(currentRange.start).toISOString();
+        const endISO = new Date(currentRange.end).toISOString();
+        const windowHours = (currentRange.end - currentRange.start) / (1000 * 60 * 60);
+        
+        // Fetch dose log
+        const logUrl = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`;
+        doses = await (await fetch(logUrl, {cache:'no-store'})).json();
+        
+        // If window > 48h, fetch daily summary
+        if (windowHours > 48) {
+          const summaryUrl = `/api/ph/dose_summary?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
+          daily = await (await fetch(summaryUrl, {cache:'no-store'})).json();
+        }
       } else {
-        doses = await (await fetch('/api/ph/dose_log?hours=168',{cache:'no-store'})).json();
-        daily = await (await fetch('/api/ph/dose_summary?days=7',{cache:'no-store'})).json();
+        // Fallback to 24h
+        doses = await (await fetch('/api/ph/dose_log?hours=24',{cache:'no-store'})).json();
       }
+      
       // Build datasets
       const dosePoints = (doses||[]).map(e=>({
         x: new Date(e.ts), y: e.volume_ml==null ? e.seconds : e.volume_ml, kind:'dose',
@@ -256,18 +362,33 @@
       }));
       const dailyBars = (daily||[]).map(d=>({ x: new Date(d.day+'T00:00:00'), y: d.total_ml, kind:'daily' }));
 
-      // Configure datasets
+      // Configure datasets based on mode
       const doseDs = { type:'scatter', label:'Doses', data: dosePoints, parsing:false,
         backgroundColor:'rgba(59,130,246,0.9)', pointRadius:4, pointHoverRadius:6, showLine:false };
       const dailyDs = { type:'bar', label:'Daily total', data: dailyBars, parsing:false,
         backgroundColor:'rgba(34,197,94,0.35)', borderColor:'rgba(34,197,94,0.6)' };
-  chart.data.datasets = (chartMode==='24h') ? [doseDs] : [dailyDs, doseDs];
-  // Empty state helper
-  const empty = (!doses || doses.length===0) && (!daily || daily.length===0);
-  const emptyEl = document.getElementById('phDoseEmpty'); if (emptyEl) emptyEl.style.display = empty ? 'block':'none';
-  const canv = document.getElementById('phDoseChart'); if (canv) canv.style.opacity = empty ? 0.5 : 1;
-  chart.update('none');
-    }catch(e){ /* ignore */ }
+      
+      // Detail mode (≤48h) vs overview mode (>48h)
+      const windowHours = currentRange.start && currentRange.end ? 
+        (currentRange.end - currentRange.start) / (1000 * 60 * 60) : 24;
+      chart.data.datasets = (windowHours <= 48) ? [doseDs] : [dailyDs, doseDs];
+      
+      // Empty state helper
+      const empty = (!doses || doses.length===0) && (!daily || daily.length===0);
+      const emptyEl = document.getElementById('phDoseEmpty'); if (emptyEl) emptyEl.style.display = empty ? 'block':'none';
+      const canv = document.getElementById('phDoseChart'); if (canv) canv.style.opacity = empty ? 0.5 : 1;
+      
+      // Update "In range" counter
+      const inRangeTotal = (doses||[]).reduce((sum, e) => sum + (e.volume_ml || 0), 0);
+      const inRangeEl = document.getElementById('ph-in-range');
+      if (inRangeEl) {
+        inRangeEl.textContent = inRangeTotal > 0 ? `In range: ${inRangeTotal.toFixed(1)} ml` : 'In range: — ml';
+      }
+      
+      chart.update('none');
+    }catch(e){ 
+      console.error('[pH] Chart refresh failed:', e);
+    }
     // Refresh summary alongside
     refreshSummary().catch(()=>{});
   }
