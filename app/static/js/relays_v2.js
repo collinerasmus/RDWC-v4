@@ -416,8 +416,18 @@
     refreshEstop();
     refreshRelays();
     wire();
-    setInterval(refreshRelays, 1000);
-    setInterval(refreshEstop, 2000);
+      // Dynamic polling intervals from settings (fallbacks)
+      window.APP_POLL = window.APP_POLL || { relays: 1000, sensors: 5000 };
+      let relaysTimer = setInterval(refreshRelays, window.APP_POLL.relays || 1000);
+      let estopTimer = setInterval(refreshEstop, 2000);
+
+      window.addEventListener('settings:ui', (ev)=>{
+        try {
+          const poll = (ev.detail && ev.detail.poll) || window.APP_POLL || {};
+          if (relaysTimer) clearInterval(relaysTimer);
+          relaysTimer = setInterval(refreshRelays, Math.max(250, parseInt(poll.relays||1000,10)));
+        } catch(e) { /* noop */ }
+      });
   });
 
   // Public toggle that honors lockout feedback

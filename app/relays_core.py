@@ -105,6 +105,32 @@ _estop_active: bool = False  # Global emergency stop (latching)
 # Persistence
 _STATE_FILE = os.path.expanduser("~/.rdwc/relay_state.json")
 
+def _refresh_lockouts_from_settings():
+    """Refresh MIN_ON/MIN_OFF from namespaced settings if available.
+    Keeps existing defaults if keys are missing or settings module unavailable.
+    """
+    try:
+        from app.settings import get_setting_key
+        def geti(key, default):
+            try:
+                v = int(float(get_setting_key(key, str(default)) or default))
+                return max(0, v)
+            except Exception:
+                return default
+        # Update OFF lockouts
+        MIN_OFF.update({
+            "main_pump": geti("safety.main_pump_min_off_s", MIN_OFF.get("main_pump", 5)),
+            "chiller_pump": geti("safety.chiller_pump_min_off_s", MIN_OFF.get("chiller_pump", 5)),
+            "chiller_power": geti("safety.chiller_min_off_s", MIN_OFF.get("chiller_power", 60)),
+        })
+        # Update ON minimums
+        MIN_ON.update({
+            "chiller_power": geti("safety.chiller_min_on_s", MIN_ON.get("chiller_power", 60)),
+        })
+    except Exception:
+        # Silent fallback to hardcoded defaults
+        pass
+
 def _save_state():
     """Save relay states to disk and database for persistence across restarts."""
     try:
@@ -393,6 +419,9 @@ def initialize_all_safe_off():
         else:
             # Use boot_safe_off for other relays
             set_relay(relay_name, False, "boot_safe_off", force=True)
+
+# Refresh lockouts on import
+_refresh_lockouts_from_settings()
 
 def get_relay_status() -> Dict[str, Dict[str, Any]]:
     """Get status of all relays for diagnostics with lockout information."""

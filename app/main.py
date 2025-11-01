@@ -551,11 +551,49 @@ def update_settings_api(
             status_code=400,
             content={"error": f"Validation failed: {str(e)}"}
         )
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Failed to update settings: {str(e)}"}
-        )
+
+# ---------------- New Namespaced Settings API ------------------------------
+@app.get("/api/settings")
+def api_settings_get():
+    """Return grouped settings by namespace.
+    Secrets are not included; email credentials must live outside this table.
+    """
+    from app.settings import get_settings_grouped
+    return get_settings_grouped()
+
+
+@app.put("/api/settings")
+def api_settings_put(body: dict = Body(...)):
+    """Accept partial updates; validate; persist; return summary.
+    Response: {ok: true, updated: {k:v}, requires_restart: false}
+    """
+    from app.settings import validate_partial, upsert_settings
+    ok, err = validate_partial(body or {})
+    if not ok:
+        return JSONResponse(status_code=422, content={"ok": False, **(err or {})})
+    updated = upsert_settings(body or {})
+    # Inform other modules (e.g., relays_core) to refresh lockouts if needed
+    try:
+        from app.relays_core import MIN_OFF as _X  # noqa
+        from app.relays_core import _refresh_lockouts_from_settings  # type: ignore
+        _refresh_lockouts_from_settings()
+    except Exception:
+        pass
+    return {"ok": True, "updated": updated, "requires_restart": False}
+
+
+@app.get("/api/settings/export")
+def api_settings_export():
+    from app.settings import export_all
+    return export_all()
+
+
+@app.post("/api/settings/import")
+def api_settings_import(payload: dict = Body(...)):
+    from app.settings import import_all
+    res = import_all(payload or {})
+    status = 200 if res.get("ok") else 422
+    return JSONResponse(status_code=status, content=res)
 
 # System Mode endpoints (Auto/Manual)
 @app.get("/api/system_mode")
@@ -811,7 +849,15 @@ def api_estop_set(body: dict = Body(...)):
     active = bool(body.get("active", False))
     result = engage_estop() if active else release_estop()
     try:
-        set_setting_key('estop_active', 'true' if active else 'false')
+        # Only persist if safety.estop_persist == true
+        from app.settings import get_setting_key
+        persist_flag = (get_setting_key('safety.estop_persist', 'false') or 'false').lower() == 'true'
+        if persist_flag:
+            set_setting_key('estop_active', 'true' if active else 'false')
+        else:
+            # ensure cleared if disabling persistence
+            if not active:
+                set_setting_key('estop_active', 'false')
     except Exception:
         pass
     # Attach persisted info
