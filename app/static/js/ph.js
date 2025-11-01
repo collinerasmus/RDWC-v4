@@ -349,6 +349,7 @@
 
   async function refreshDoseChart(){
     try{
+      console.log('[pH] refreshDoseChart called, currentRange:', currentRange);
       if (!chart) chart = makeChart();
       if (!chart) return;
       
@@ -364,7 +365,9 @@
         
         // Fetch dose log
         const logUrl = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`;
+        console.log('[pH] Fetching:', logUrl);
         doses = await (await fetch(logUrl, {cache:'no-store'})).json();
+        console.log('[pH] Got doses:', doses);
         
         // If window > 48h, fetch daily summary
         if (windowHours > 48) {
@@ -373,7 +376,9 @@
         }
       } else {
         // Fallback to 24h
+        console.log('[pH] Falling back to 24h');
         doses = await (await fetch('/api/ph/dose_log?hours=24',{cache:'no-store'})).json();
+        console.log('[pH] Got doses (24h fallback):', doses);
       }
       
       // Build datasets
