@@ -427,25 +427,34 @@
     } catch(_){}
   }
 
-  // Initialize on load
-  document.addEventListener('DOMContentLoaded', () => {
+  // Initialize when DOM is ready (works even if script loads after DOMContentLoaded)
+  let _bootstrapped = false;
+  function initRelaysUI(){
+    if (_bootstrapped) return; _bootstrapped = true;
     refreshSystemMode();
     refreshEstop();
     refreshRelays();
     wire();
-      // Dynamic polling intervals from settings (fallbacks)
-      window.APP_POLL = window.APP_POLL || { relays: 1000, sensors: 5000 };
-      let relaysTimer = setInterval(refreshRelays, window.APP_POLL.relays || 1000);
-      let estopTimer = setInterval(refreshEstop, 2000);
+    // Dynamic polling intervals from settings (fallbacks)
+    window.APP_POLL = window.APP_POLL || { relays: 1000, sensors: 5000 };
+    let relaysTimer = setInterval(refreshRelays, window.APP_POLL.relays || 1000);
+    let estopTimer = setInterval(refreshEstop, 2000);
 
-      window.addEventListener('settings:ui', (ev)=>{
-        try {
-          const poll = (ev.detail && ev.detail.poll) || window.APP_POLL || {};
-          if (relaysTimer) clearInterval(relaysTimer);
-          relaysTimer = setInterval(refreshRelays, Math.max(250, parseInt(poll.relays||1000,10)));
-        } catch(e) { /* noop */ }
-      });
-  });
+    window.addEventListener('settings:ui', (ev)=>{
+      try {
+        const poll = (ev.detail && ev.detail.poll) || window.APP_POLL || {};
+        if (relaysTimer) clearInterval(relaysTimer);
+        relaysTimer = setInterval(refreshRelays, Math.max(250, parseInt(poll.relays||1000,10)));
+      } catch(e) { /* noop */ }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initRelaysUI);
+  } else {
+    // DOM already loaded; initialize immediately
+    initRelaysUI();
+  }
 
   // Public toggle that honors lockout feedback
   async function requestToggle(key){
