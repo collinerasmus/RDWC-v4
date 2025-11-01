@@ -81,6 +81,8 @@ DEFAULTS: Dict[str, str] = {
     "safety.estop_persist": "false",
     # allow force-bypass of cooldown/daily cap for testing only
     "safety.allow_force": "false",
+    # maintenance override (global test mode)
+    "safety.maintenance_override": "false",
 
     # alerts
     "alerts.email_to": "",

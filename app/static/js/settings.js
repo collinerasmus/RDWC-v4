@@ -42,7 +42,8 @@
         'safety.chiller_min_off_s': {label:'Chiller AC min OFF (s)', type:'number', min:0, max:3600, step:1, tooltip:'Compressor protection — recommended ≥ 300s'},
         'safety.chiller_min_on_s': {label:'Chiller AC min ON (s)', type:'number', min:0, max:3600, step:1},
         'safety.estop_persist': {label:'E‑STOP persists across reboot', type:'checkbox'},
-        'safety.allow_force': {label:'Allow Force (test)', type:'checkbox', tooltip:'Temporarily allow bypassing cooldown and daily cap for testing only'}
+        'safety.allow_force': {label:'Allow Force (test)', type:'checkbox', tooltip:'Temporarily allow bypassing cooldown and daily cap for testing only'},
+        'safety.maintenance_override': {label:'Maintenance override (test only)', type:'checkbox', tooltip:'Bypasses cooldown/daily cap; clamps single dose; E-STOP/empty reservoir still enforced'}
       }
     },
     alerts: {

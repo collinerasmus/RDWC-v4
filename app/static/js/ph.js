@@ -73,11 +73,11 @@
         recent.appendChild(li);
       });
     }
-    // Determine disabled state; allow Force (test) to bypass interval/daily_cap only
+    // Determine disabled state; maintenance override bypasses cooldown/daily_cap
     const g = s?.guards || {};
+  const maint = (s?.maintenance_override === true) || ((window.rdwcSettings?.get('safety.maintenance_override')||'false').toLowerCase() === 'true');
     const allowForce = (window.rdwcSettings?.get('safety.allow_force')||'false').toLowerCase() === 'true';
-    const forceChecked = !!el('phForce')?.checked;
-    const bypass = allowForce && forceChecked;
+    const bypass = maint; // no manual force checkbox in UI
     const blockedCooldown = (g.interval || g.daily_cap) && !bypass;
     const blockedHard = !!(g.estop || g.safe_off || g.sensor_stale || g.reservoir);
     const disabled = blockedCooldown || blockedHard;
@@ -85,9 +85,9 @@
       const e = el(id); if(e){ e.disabled = disabled; e.title = disabled ? 'Blocked by guard(s)' : ''; }
     });
 
-    // Countdown pill for min-interval
+    // Countdown pill for min-interval (hide when maintenance override is active)
     if(cdPill){
-      if(s?.guards?.interval){
+      if(s?.guards?.interval && !maint){
         cdPill.style.display = 'inline-block';
         updateCountdownPill();
         startCountdown();
@@ -96,6 +96,10 @@
         stopCountdown();
       }
     }
+
+    // Maintenance override badge visibility
+    const badge = el('phMaintBadge');
+    if (badge) badge.style.display = maint ? 'inline-block' : 'none';
   }
 
   async function tick(){
@@ -139,11 +143,10 @@
   }
 
   async function postDose(body){
-    // Add force flag when enabled
-    const allowForce = (window.rdwcSettings?.get('safety.allow_force')||'false').toLowerCase() === 'true';
-    const forceChecked = !!el('phForce')?.checked;
+    // Add force flag when Maintenance override is active
+    const maint = (window.rdwcSettings?.get('safety.maintenance_override')||'false').toLowerCase() === 'true';
     const payload = { ...body };
-    if (allowForce && forceChecked) payload.force = true;
+    if (maint) payload.force = true;
     const r = await fetch('/api/ph/dose', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(payload)
@@ -206,10 +209,7 @@
       if(ms){ pollMs = parseInt(ms)||POLL_DEFAULT; schedule(); }
     });
 
-    // Show Force (test) toggle only when allowed
-    const allowForce = (window.rdwcSettings?.get('safety.allow_force')||'false').toLowerCase() === 'true';
-    const wrap = el('phForceWrap');
-    if (allowForce && wrap) { wrap.style.display = 'inline-block'; }
+    // Maintenance override badge visibility handled in renderStatus
   }
 
   async function wireRangeControls(){
