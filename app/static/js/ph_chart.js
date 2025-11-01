@@ -171,17 +171,18 @@
     const hasAnyMl = events.some(r => r && r.volume_ml != null);
     console.log('[pH Chart] hasAnyMl:', hasAnyMl, 'sample event:', events[0]);
     const pts = events.map(r => ({
-      x: r.ts,
+      x: new Date(r.ts),  // Convert ISO string to Date object for Chart.js
       y: hasAnyMl ? (r.volume_ml != null ? r.volume_ml : 0) : (r.seconds ?? 0),
       ml: (r.volume_ml != null ? r.volume_ml : null),
       sec: r.seconds ?? null,
       phb: r.ph_before ?? null,
       pha: r.ph_after ?? null
     }));
+    console.log('[pH Chart] Sample point:', pts[0]);
 
     // When long windows, also build a bar dataset from summary (only meaningful when ml calibration exists)
     const bars = hasAnyMl ? summary.map(d => ({
-      x: d.day,
+      x: new Date(d.day),  // Convert day string to Date object
       y: d.total_ml ?? 0
     })) : [];
 
@@ -207,8 +208,10 @@
 
     // Render chart
     const axisTitle = hasAnyMl ? 'Dose (ml)' : 'Dose (s)';
-    const tmin = events.length ? events[0].ts : (summary[0]?.day ?? null);
-    const tmax = events.length ? events[events.length-1].ts : (summary[summary.length-1]?.day ?? null);
+    // Use Date objects for axis bounds too
+    const tmin = events.length ? new Date(events[0].ts) : (summary[0]?.day ? new Date(summary[0].day) : null);
+    const tmax = events.length ? new Date(events[events.length-1].ts) : (summary[summary.length-1]?.day ? new Date(summary[summary.length-1].day) : null);
+    console.log('[pH Chart] Axis bounds', {tmin, tmax});
     phBuildChart(datasets, tmin, tmax, axisTitle);
 
     // Update "In range" pill
