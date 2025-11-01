@@ -4,6 +4,8 @@
   let pollMs = POLL_DEFAULT;
   let pollTimer = null;
   let lastStatus = null;
+  let countdownTimer = null;
+  let lastPollAt = Date.now();
 
   function el(id){ return document.getElementById(id); }
 
@@ -31,19 +33,35 @@
     return out;
   }
 
+  function guardHints(g){
+    const tips = [];
+    if(g.estop) tips.push('E-STOP: Emergency stop is active; all dosing blocked.');
+    if(g.safe_off) tips.push('SAFE-OFF: System is in safe-off mode.');
+    if(g.sensor_stale) tips.push('Sensor stale: pH reading is older than 90s.');
+    if(g.interval) tips.push(`Min interval: Waiting between doses. (${g.since_last_ok_s ?? '?'}s/${g.min_interval_s ?? '?'}s)`);
+    if(g.daily_cap) tips.push(`Daily cap reached: Max per day is ${g.daily_cap_ml ?? '?'} ml.`);
+    if(g.reservoir) tips.push('Reservoir set to 0 L; dosing disabled.');
+    return tips.join('\n');
+  }
+
   function renderStatus(s){
     lastStatus = s;
+    lastPollAt = Date.now();
     const p = el('ph-current');
     const band = el('ph-band');
     const guards = el('ph-guards');
     const recent = el('ph-recent');
+    const resBanner = el('ph-reservoir-banner');
+    const cdPill = el('ph-countdown-pill');
     if(p){ p.textContent = (s && s.ph!=null) ? s.ph.toFixed(2) : '—'; }
     if(band && s){ band.textContent = `Targets ${s.targets.low} – ${s.targets.high}`; }
     if(guards && s){
       const list = guardList(s.guards);
       guards.textContent = list.length ? list.join(' · ') : 'All clear';
       guards.style.color = list.length ? '#f59e0b' : '#16a34a';
+      guards.title = list.length ? guardHints(s.guards) : '';
     }
+    if(resBanner && s){ resBanner.style.display = s.guards?.reservoir ? 'block' : 'none'; }
     if(recent && s){
       recent.innerHTML = '';
       (s.recent||[]).forEach(r => {
@@ -58,6 +76,18 @@
     ['btnPrime','btnDose1','btnDose5','btnDoseCustom','phCustomMl'].forEach(id=>{
       const e = el(id); if(e){ e.disabled = disabled; e.title = disabled ? 'Blocked by guard(s)' : ''; }
     });
+
+    // Countdown pill for min-interval
+    if(cdPill){
+      if(s?.guards?.interval){
+        cdPill.style.display = 'inline-block';
+        updateCountdownPill();
+        startCountdown();
+      } else {
+        cdPill.style.display = 'none';
+        stopCountdown();
+      }
+    }
   }
 
   async function tick(){
@@ -70,6 +100,25 @@
     pollTimer = setInterval(tick, pollMs);
   }
 
+  function startCountdown(){
+    if(countdownTimer) return;
+    countdownTimer = setInterval(updateCountdownPill, 1000);
+  }
+  function stopCountdown(){
+    if(countdownTimer){ clearInterval(countdownTimer); countdownTimer = null; }
+  }
+  function updateCountdownPill(){
+    const cdPill = el('ph-countdown-pill');
+    if(!cdPill || !lastStatus?.guards) return;
+    const g = lastStatus.guards;
+    if(!g.interval){ cdPill.style.display = 'none'; return; }
+    // Estimate since_last_ok_s locally since last poll
+    const elapsed = Math.floor((Date.now() - lastPollAt)/1000);
+    const since = (g.since_last_ok_s ?? 0) + Math.max(0, elapsed);
+    const need = Math.max(0, (g.min_interval_s ?? 0) - since);
+    cdPill.textContent = `⏱ ${need}s`;
+  }
+
   async function postDose(body){
     const r = await fetch('/api/ph/dose', {
       method: 'POST', headers: {'Content-Type':'application/json'},
@@ -77,9 +126,13 @@
     });
     let j = null; try{ j = await r.json(); }catch(e){}
     if(!r.ok){
-      alert('Dose failed: ' + (j?.error || j?.reasons?.join(',') || r.status));
+      const reasons = (j?.reasons && Array.isArray(j.reasons)) ? j.reasons.join(', ') : null;
+      const msg = j?.error || reasons || `HTTP ${r.status}`;
+      if(window.showToast){ showToast(`Dose blocked: ${msg}`, 'error'); }
+      else { alert('Dose blocked: ' + msg); }
     } else {
       // immediate refresh of status list
+      if(window.showToast){ showToast('Dose started', 'success'); }
       tick();
     }
   }
@@ -98,8 +151,10 @@
     el('btnAutoToggle')?.addEventListener('click', async ()=>{
       const r = await fetch('/api/ph/auto', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enable:true})});
       const j = await r.json();
-      alert(j.guard || 'Set');
+      if(window.showToast){ showToast(j.guard || 'Set', j.guard? 'error':'success'); }
+      else { alert(j.guard || 'Set'); }
     });
+    el('btnPhExport24')?.addEventListener('click', ()=>{ window.open('/api/ph/export?hours=24','_blank'); });
 
     // listen for settings UI updates to ui.sensors_poll_ms
     window.addEventListener('settings:ui', (ev)=>{

@@ -509,12 +509,16 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <div class="muted" id="ph-band">Targets 5.8 – 6.2</div>
         </div>
         <div class="card-body">
+          <div id="ph-reservoir-banner" class="muted" style="display:none;margin-bottom:8px;padding:6px 10px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#fecaca;">
+            Reservoir set to 0 L — dosing disabled
+          </div>
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
             <div class="kpi kpi-ph">
               <div class="kpi-label">pH</div>
               <div class="kpi-value" id="ph-current">—</div>
             </div>
-            <div id="ph-guards" class="muted">—</div>
+            <div id="ph-guards" class="muted" title="">—</div>
+            <span id="ph-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
           </div>
 
           <div class="tabs" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px 0;">
@@ -524,6 +528,12 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           </div>
 
           <div id="ph-tab-status">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap;">
+              <div class="muted">Recent</div>
+              <div>
+                <button id="btnPhExport24" class="btn-secondary" title="Download CSV of recent pH doses (24h)">Export CSV (24h)</button>
+              </div>
+            </div>
             <div id="ph-recent" class="muted"></div>
           </div>
           <div id="ph-tab-manual" style="display:none;">
