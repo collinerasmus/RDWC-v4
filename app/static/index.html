@@ -401,56 +401,16 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- Control Cards -->
   <div id="right-column-stack">
-      <!-- Sensors Card (new real-time version) -->
-      <div id="sensors-card" class="card">
-        <div class="card-header">
-          <h3 class="card-title">Sensors</h3>
-          <div class="calibration-badges">
-            <span id="cal-badge-temp" class="badge">Temp Cal</span>
-            <span id="cal-badge-ec"   class="badge">EC Cal</span>
-            <span id="cal-badge-ph"   class="badge">pH Cal</span>
-          </div>
+      <!-- Relays Control Panel -->
+      <section class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <h3 class="card-title" style="margin:0;">Relays</h3>
         </div>
         <div class="card-body">
-          <div class="sensor-row">
-            <div class="sensor-name">Temperature</div>
-            <div class="sensor-value">
-              <span id="val-temp" class="metric">--</span>
-              <span class="unit">°C</span>
-            </div>
-          </div>
-          <div class="sensor-row">
-            <div class="sensor-name">EC</div>
-            <div class="sensor-value">
-              <span id="val-ec" class="metric">--</span>
-              <span class="unit">mS/cm</span>
-            </div>
-          </div>
-          <div class="sensor-row">
-            <div class="sensor-name">pH</div>
-            <div class="sensor-value">
-              <span id="val-ph" class="metric">--</span>
-              <span class="unit">pH</span>
-            </div>
-          </div>
-          <div class="last-update">
-            <span>Last update:</span>
-            <span id="sensors-updated">--</span>
-            <span id="sensors-online" class="badge status-badge">offline</span>
-          </div>
-          <div class="sensor-row" style="margin-top: 8px; font-size: 0.85rem; color: #999;">
-            <span>Temp-comp write last read:</span>
-            <span id="temp-comp-flag" style="font-weight: bold; color: #ffd700;">no</span>
-          </div>
-          <div id="sensors-debug" style="font-size:11px;opacity:.6;display:none;margin-top:6px;"></div>
+          <div id="relays-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;"></div>
+          <div id="relays-note" class="muted" style="margin-top:12px;font-size:12px;"></div>
         </div>
-      </div>
-
-      <div class="card">
-        <h3>Relays</h3>
-        <div id="relays" class="relay-grid"></div>
-        <div class="muted">Active map: lights, main_pump, chiller_pump, chiller_power, dosing_grow, dosing_micro, dosing_bloom, dosing_ph_up</div>
-      </div>
+      </section>
 
       <div class="card">
         <h3>System Settings</h3>
@@ -585,21 +545,10 @@ async function updateCharts(){
   apply(ct,t); apply(ch,p); apply(ce,e);
 }
 
+function fmt(v){ return (v===null||v===undefined)?'—':Number(v).toFixed(3).replace(/\.000$/,''); }
+
 async function refresh(){
-  // sensor status
-  const s = await (await fetch(`/status?${bust()}`, NO_CACHE)).json();
-  document.getElementById('temp').textContent = s.temp_c?.toFixed?.(3) ?? '—';
-  document.getElementById('ph').textContent = s.ph?.toFixed?.(3) ?? '—';
-  document.getElementById('ec').textContent = s.ec_ms_cm?.toFixed?.(1) ?? '—';
-  document.getElementById('age').textContent = s.age_s ?? '—';
-
-  // pump legacy buttons (if present)
-  try {
-    const p = await (await fetch(`/pump/status?${bust()}`, NO_CACHE)).json();
-    setBtn('btn-main', p.main); setBtn('btn-chiller', p.chiller);
-  } catch {}
-
-  // history table
+  // history table only
   const h = await (await fetch(`/history?limit=20&${bust()}`, NO_CACHE)).json();
   const tb = document.querySelector('#hist tbody'); if (tb) { tb.innerHTML = '';
     for (const r of h){
@@ -609,214 +558,9 @@ async function refresh(){
       tb.appendChild(tr);
     }
   }
-
-  // relays
-  await ensureRelayButtons();
-  await refreshStatus();
-}
-let lastSensorsPoll = 0;
-
-function classifySensor(name, v){
-  if (v===null || Number.isNaN(v)) return 'bad';
-  if (name==='temp') {
-    if (v>=18 && v<=24) return 'good';
-    if ((v>=16 && v<18) || (v>24 && v<=28)) return 'warn';
-    return 'bad';
-  }
-  if (name==='ec') {
-    if (v>=1.2 && v<=2.0) return 'good';
-    if ((v>=0.8 && v<1.2) || (v>2.0 && v<=2.4)) return 'warn';
-    return 'bad';
-  }
-  if (name==='ph') {
-    if (v>=5.5 && v<=6.2) return 'good';
-    if ((v>=5.2 && v<5.5) || (v>6.2 && v<=6.5)) return 'warn';
-    return 'bad';
-  }
-  return 'bad';
 }
 
-// Single-instance sensors poller with visibility pause and offline backoff
-(function(){
-  // URL kill-switch: ?SENSORS=off disables poller completely
-  const urlFlags = new URLSearchParams(location.search);
-  if (urlFlags.get("SENSORS") === "off") {
-    console.warn("Sensors poller disabled via ?SENSORS=off");
-    return;
-  }
-
-  if (window.__RDWC_SENSORS_POLL_RUNNING__) {
-    console.debug("sensors: poller already running; skipping duplicate");
-    return;
-  }
-  window.__RDWC_SENSORS_POLL_RUNNING__ = true;
-  
-  // Log active flags once
-  console.log("Sensors poller active. DEBUG_UI=", urlFlags.has("DEBUG_UI"));
-
-  const q  = (sel)=>document.querySelector(sel);
-  const setText = (sel, txt)=>{ const el=q(sel); if(el) el.textContent=txt; };
-  const setClass=(sel,add,rem)=>{ const el=q(sel); if(!el) return; (rem||[]).forEach(c=>el.classList.remove(c)); if(add) el.classList.add(add); };
-
-  const fmt = {
-    temp:v=>(v==null||Number.isNaN(v))?"--":Number(v).toFixed(3),
-    ph:  v=>(v==null||Number.isNaN(v))?"--":Number(v).toFixed(3),
-    ec1d:v=>{
-      if(v==null||Number.isNaN(v)) return "--";
-      let ec=Number(v); if(ec>10) ec/=1000; // µS→mS defensive
-      return (Math.round(ec*10)/10).toFixed(1);
-    }
-  };
-
-  async function fetchJSON(url, timeoutMs=2000){
-    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(), timeoutMs);
-    try{
-      const r=await fetch(url,{cache:"no-store",signal:ctrl.signal});
-      clearTimeout(t); if(!r.ok) throw new Error("HTTP "+r.status); return await r.json();
-    }catch(e){ clearTimeout(t); throw e; }
-  }
-
-  let intervalMs = 5000;            // start slower: 5s
-  let timerId    = null;
-  let failStreak = 0;
-
-  async function tick(){
-    if (document.hidden) return;    // pause when tab not visible
-
-    try{
-      // Prefer /sensors/read with strict 2s timeout
-      let j=null;
-      try { j = await fetchJSON("/sensors/read"); }
-      catch(err) { 
-        // If primary fails, skip fallback to avoid more delays
-        throw err;
-      }
-
-      // reset backoff on success
-      failStreak = 0;
-      if (intervalMs !== 5000){ intervalMs = 5000; restart(); }
-
-      let t  = j?.temperature_c ?? null;
-      let ec = j?.ec_mscm ?? j?.ec ?? null;
-      let p  = j?.ph ?? null;
-      
-      const online = !!j?.online;
-
-      // Check if we need fallback (live is offline AND all values are null)
-      const needFallback = (!j || !online) && (t == null && ec == null && p == null);
-      
-      if (needFallback) {
-        // Fetch last-known reading once; don't hammer it
-        try {
-          const rLast = await fetch("/sensors/last", {cache: "no-store"}).then(r => r.json());
-          const lt  = rLast?.temperature_c ?? null;
-          let   lec = rLast?.ec_mscm ?? rLast?.ec ?? null;
-          const lp  = rLast?.ph ?? null;
-
-          // Defensive EC µS→mS just in case
-          if (typeof lec === "number" && lec > 10) lec = lec / 1000;
-
-          // Render stale values muted
-          setText("#val-temp", fmt.temp(lt));
-          setText("#val-ec",   fmt.ec1d(lec));
-          setText("#val-ph",   fmt.ph(lp));
-
-          // Mark badge offline + show age if we have it
-          setClass("#sensors-online", "offline", ["online", "offline"]);
-          const age = rLast?.stale_seconds;
-          setText("#sensors-updated", (age != null) ? `${Math.max(0, Math.floor(age))}s ago (stale)` : (rLast?.ts || "--"));
-
-          // Temp-comp line stays 'no' when stale
-          setText("#temp-comp-flag", "no");
-          setClass("#temp-comp-flag", "muted", ["ok", "warn", "muted"]);
-
-          // Stop here for this tick; next tick will try live again
-          return;
-        } catch (_) {
-          // Ignore and continue with "--"
-        }
-      }
-
-      setText("#val-temp", fmt.temp(t));
-      setText("#val-ec",   fmt.ec1d(ec));
-      setText("#val-ph",   fmt.ph(p));
-
-      setClass("#sensors-online", online ? "online" : "offline", ["online","offline"]);
-      setText("#sensors-updated", j?.ts || new Date().toISOString());
-
-      const applied   = j?.temp_comp_applied === true;
-      const throttled = (j?.temp_comp_reason || "").includes("throttled");
-      const flagTxt   = applied ? "yes" : (throttled ? "no (throttled)" : "no");
-      setText("#temp-comp-flag", flagTxt);
-      if (q("#temp-comp-flag")) {
-        setClass("#temp-comp-flag", applied ? "ok" : (throttled ? "warn" : "muted"), ["ok","warn","muted"]);
-        q("#temp-comp-flag").title = j?.temp_comp_reason || "";
-      }
-
-      // Optional debug echo
-      const dbg = q("#sensors-debug");
-      if (dbg && new URLSearchParams(location.search).has("DEBUG_UI")) {
-        dbg.style.display="block";
-        dbg.textContent = JSON.stringify({
-          t:j?.temperature_c, ec:j?.ec_mscm ?? j?.ec, ph:j?.ph,
-          comp:j?.temp_comp_applied, reason:j?.temp_comp_reason||"",
-          ts:j?.ts, online:j?.online
-        });
-      }
-
-      // metric color classes
-      const classify=(name,v)=>{
-        if(v==null||Number.isNaN(v)) return "bad";
-        if(name==="temp"){ if(v>=18&&v<=24) return "good"; if((v>24&&v<=28)||(v>=16&&v<18)) return "warn"; return "bad"; }
-        if(name==="ec"){ let ev=Number(v); if(ev>10) ev/=1000; if(ev>=1.2&&ev<=2.0) return "good"; if((ev>=0.8&&ev<1.2)||(ev>2.0&&ev<=2.4)) return "warn"; return "bad"; }
-        if(name==="ph"){ if(v>=5.5&&v<=6.2) return "good"; if((v>=5.2&&v<5.5)||(v>6.2&&v<=6.5)) return "warn"; return "bad"; }
-        return "bad";
-      };
-      const setMetricClass=(sel,cls)=>{ const el=q(sel); if(!el) return; el.classList.remove("good","warn","bad"); el.classList.add(cls); };
-      setMetricClass("#val-temp", classify("temp", t));
-      setMetricClass("#val-ec",   classify("ec", ec));
-      setMetricClass("#val-ph",   classify("ph", p));
-
-      // If we have values but offline (fast-fallback), show muted styling
-      const hasAny = (q("#val-temp")?.textContent !== "--") ||
-                     (q("#val-ec")?.textContent !== "--") ||
-                     (q("#val-ph")?.textContent !== "--");
-      if (!online && hasAny) {
-        // Show we have values but offline (fast-fallback)
-        [q("#val-temp"), q("#val-ec"), q("#val-ph")].forEach(el => {
-          if (el && el.textContent !== "--") el.classList.add("muted");
-        });
-      }
-
-      // Calibration badges
-      const setBadge=(id,cal)=>{ const el=q("#"+id); if(!el) return; const ok=cal?.is_calibrated===true; el.textContent=ok?"OK":"Check"; setClass("#"+id,ok?"ok":"check",["ok","check"]); if(cal?.detail) el.title=cal.detail; };
-      setBadge("cal-badge-temp", j?.cal?.temp);
-      setBadge("cal-badge-ec", j?.cal?.ec);
-      setBadge("cal-badge-ph", j?.cal?.ph);
-
-    }catch(err){
-      // Backoff when failing to reduce pressure
-      failStreak++;
-      if (failStreak===1 && intervalMs!==4000){ intervalMs=4000; restart(); }
-      else if (failStreak>=5 && intervalMs!==8000){ intervalMs=8000; restart(); }
-      setClass("#sensors-online","offline",["online","offline"]);
-      // Keep console quiet; expected when sensors down
-    }
-  }
-
-  function restart(){
-    if (timerId) clearInterval(timerId);
-    timerId = setInterval(tick, intervalMs);
-  }
-
-  document.addEventListener("visibilitychange", ()=>{
-    if (!document.hidden && !timerId) restart();
-  });
-
-  // Start immediately then poll
-  tick();
-  restart();
-})();
+// Sensors poller removed - Trends is the sole sensor display
 
 async function viewLightsLog(){
   try {
@@ -836,64 +580,7 @@ async function viewLightsLog(){
     document.getElementById('lightsLog').textContent = 'Failed to load lights log';
   }
 }
-const RELAY_NAMES = ["lights","main_pump","chiller_pump","chiller_power","dosing_grow","dosing_micro","dosing_bloom","dosing_ph_up"];
-
-function fmt(v){ return (v===null||v===undefined)?'—':Number(v).toFixed(3).replace(/\.000$/,''); }
-function setBtn(id,on){ const b=document.getElementById(id); if(!b) return; b.className = 'relay ' + (on?'on':'off'); b.textContent = (on?'ON ':'OFF ') + b.dataset.label; }
-
-async function refreshStatus(){
-  const rs = await (await fetch(`/relay/status?${bust()}`, NO_CACHE)).json();
-  
-  // Convert new format {lights: {state: true}} to flat format {lights: true} for compatibility
-  window.latestRelayStatus = {};
-  for(const n of RELAY_NAMES){
-    // Handle both old flat format and new nested format
-    const state = rs[n]?.state !== undefined ? rs[n].state : !!rs[n];
-    window.latestRelayStatus[n] = state;
-    setBtn(`relay-${n}`, state);
-  }
-}
-
-async function toggleRelay(name){
-  const current = window.latestRelayStatus?.[name];
-  const desired = !current;
-  
-  let data;
-  try {
-    const res = await fetch('/relay/set', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name, on: desired})
-    });
-    if (!res.ok) throw new Error(`POST /relay/set failed: ${res.status}`);
-    data = await res.json();
-  } catch(err) {
-    // Fallback to GET for environments where POST JSON might be blocked/cached
-    console.warn('POST /relay/set failed, trying GET fallback', err);
-    const res2 = await fetch(`/relay/set?name=${encodeURIComponent(name)}&on=${desired?1:0}`);
-    data = await res2.json();
-  }
-  console.log('toggleRelay', name, data);
-  
-  await refreshStatus();
-}
-
-async function ensureRelayButtons(){
-  const host = document.getElementById('relays');
-  if(host.dataset.ready) return;
-  host.dataset.ready = "1";
-  for(const n of RELAY_NAMES){
-    const label = n.replace('_',' ').replace('_',' ');
-    const div = document.createElement('button');
-    div.id = `relay-${n}`;
-    div.dataset.name = n;
-    div.dataset.label = label;
-    div.className = 'relay off';
-    div.onclick = () => toggleRelay(n);
-    div.textContent = 'OFF ' + label;
-    host.appendChild(div);
-  }
-}
+// Old relay functions removed - relays.js now handles all relay UI
 function camRefresh(){
   const u = `http://${location.hostname}:8081/?action=stream&ts=${Date.now()}`;
   const cam = document.getElementById('cam');
@@ -1254,6 +941,6 @@ async function calibApply(){
 })();
 </script>
 <script src="/static/js/trends.js"></script>
-<script src="/static/js/sensors.js"></script>
+<script src="/static/js/relays.js?v=1"></script>
 </body>
 </html>
