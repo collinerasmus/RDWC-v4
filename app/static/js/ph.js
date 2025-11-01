@@ -6,7 +6,6 @@
   let lastStatus = null;
   let countdownTimer = null;
   let lastPollAt = Date.now();
-  let chart;
   let currentRange = { preset: null, start: null, end: null };
 
   function el(id){ return document.getElementById(id); }
@@ -275,12 +274,24 @@
   }
   
   function exportCSV(){
-    if (!currentRange.start || !currentRange.end) {
+    // Try to use chart state first, fallback to currentRange
+    let start = currentRange.start;
+    let end = currentRange.end;
+    
+    if (window.phDoseChart && window.phDoseChart.getState) {
+      const state = window.phDoseChart.getState();
+      if (state.lastStart) start = new Date(state.lastStart).getTime();
+      if (state.lastEnd) end = new Date(state.lastEnd).getTime();
+    }
+    
+    if (!start || !end) {
+      // Fallback to 7d
       window.open('/api/ph/dose_log.csv?hours=168', '_blank');
       return;
     }
-    const startISO = new Date(currentRange.start).toISOString();
-    const endISO = new Date(currentRange.end).toISOString();
+    
+    const startISO = new Date(start).toISOString();
+    const endISO = new Date(end).toISOString();
     window.open(`/api/ph/dose_log.csv?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=5000`, '_blank');
   }
 
@@ -316,136 +327,23 @@
     }catch(e){ /* ignore */ }
   }
 
-  function makeChart(){
-    const ctx = el('phDoseChart'); if (!ctx) return null;
-    const cfg = {
-      type:'bar',
-      data:{datasets:[]},
-      options:{
-        animation:false,
-        maintainAspectRatio:true,
-        parsing:false,
-        normalized:true,
-        scales:{
-          x:{type:'time', time:{tooltipFormat:'yyyy-MM-dd HH:mm', displayFormats:{hour:'MMM d HH:mm', day:'MMM d'}}},
-          y:{title:{display:true,text:'ml'}, beginAtZero:true}
-        },
-        plugins:{legend:{display:true}, tooltip:{callbacks:{
-          label:(ctx)=>{
-            const d = ctx.raw || {};
-            if (d.kind==='dose'){
-              const vol = (d.volume_ml==null)? `~${d.seconds}s` : `+${d.volume_ml} ml`;
-              const ph = (d.ph_before!=null || d.ph_after!=null) ? ` pH: ${d.ph_before??'—'} → ${d.ph_after??'—'}` : '';
-              return `${vol} (${d.reason||'manual'})${ph}`;
-            }
-            if (d.kind==='daily'){ return ` Total: ${d.y.toFixed(1)} ml`; }
-            return '';
-          }
-        }}}
-      }
-    };
-    return new Chart(ctx, cfg);
-  }
+
 
   async function refreshDoseChart(){
-    try{
-      console.log('[pH] refreshDoseChart called, currentRange:', currentRange);
-      if (!chart) chart = makeChart();
-      if (!chart) return;
-      
-      // Determine if we have a valid range
-      let doses = [];
-      let daily = [];
-      
-      if (currentRange.start && currentRange.end) {
-        // Use start/end range
-        const startISO = new Date(currentRange.start).toISOString();
-        const endISO = new Date(currentRange.end).toISOString();
-        const windowHours = (currentRange.end - currentRange.start) / (1000 * 60 * 60);
-        
-        // Fetch dose log
-        const logUrl = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`;
-        console.log('[pH] Fetching:', logUrl);
-        const response = await fetch(logUrl, {cache:'no-store'});
-        console.log('[pH] Response status:', response.status, response.statusText);
-        const text = await response.text();
-        console.log('[pH] Response text:', text);
-        doses = text ? JSON.parse(text) : [];
-        console.log('[pH] Got doses:', doses);
-        
-        // If window > 48h, fetch daily summary
-        if (windowHours > 48) {
-          const summaryUrl = `/api/ph/dose_summary?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
-          daily = await (await fetch(summaryUrl, {cache:'no-store'})).json();
-        }
-      } else {
-        // Fallback to 24h
-        console.log('[pH] Falling back to 24h');
-        const response = await fetch('/api/ph/dose_log?hours=24',{cache:'no-store'});
-        console.log('[pH] Response status:', response.status, response.statusText);
-        const text = await response.text();
-        console.log('[pH] Response text:', text);
-        doses = text ? JSON.parse(text) : [];
-        console.log('[pH] Got doses (24h fallback):', doses);
+    // Delegate to ph_chart.js module
+    if (window.phDoseChart && window.phDoseChart.render) {
+      try {
+        await window.phDoseChart.render({
+          start: currentRange.start,
+          end: currentRange.end
+        });
+      } catch(e) {
+        console.error('[pH] Chart refresh failed:', e);
       }
-      
-      // Build datasets
-      const dosePoints = (doses||[]).map(e=>({
-        x: new Date(e.ts), y: e.volume_ml==null ? e.seconds : e.volume_ml, kind:'dose',
-        volume_ml:e.volume_ml, seconds:e.seconds, reason:e.reason, ph_before:e.ph_before, ph_after:e.ph_after
-      }));
-      const dailyBars = (daily||[]).map(d=>({ x: new Date(d.day+'T00:00:00'), y: d.total_ml, kind:'daily' }));
-
-      // Configure datasets based on mode
-      const doseDs = { type:'scatter', label:'Doses', data: dosePoints, parsing:false,
-        backgroundColor:'rgba(59,130,246,0.9)', pointRadius:4, pointHoverRadius:6, showLine:false };
-      const dailyDs = { type:'bar', label:'Daily total', data: dailyBars, parsing:false,
-        backgroundColor:'rgba(34,197,94,0.35)', borderColor:'rgba(34,197,94,0.6)' };
-      
-      // Detail mode (≤48h) vs overview mode (>48h)
-      const windowHours = currentRange.start && currentRange.end ? 
-        (currentRange.end - currentRange.start) / (1000 * 60 * 60) : 24;
-      chart.data.datasets = (windowHours <= 48) ? [doseDs] : [dailyDs, doseDs];
-      
-      // Empty state helper
-      const empty = (!doses || doses.length===0) && (!daily || daily.length===0);
-      const emptyEl = document.getElementById('phDoseEmpty'); if (emptyEl) emptyEl.style.display = empty ? 'block':'none';
-      const canv = document.getElementById('phDoseChart'); if (canv) canv.style.opacity = empty ? 0.5 : 1;
-      
-      // Update "In range" counter with calibration-aware estimate
-      const inRangeMl = (doses||[]).reduce((sum, e) => sum + (e.volume_ml || 0), 0);
-      const inRangeEl = document.getElementById('ph-in-range');
-      if (inRangeEl) {
-        if (inRangeMl > 0) {
-          // Has calibrated volumes
-          inRangeEl.textContent = `In range: ${inRangeMl.toFixed(1)} ml`;
-        } else if ((doses||[]).length > 0) {
-          // Has doses but all volume_ml are null - check for calibration
-          const allNull = (doses||[]).every(e => e.volume_ml == null);
-          if (allNull) {
-            const rate = window.rdwcSettings?.get('dosing.ph_up_ml_per_sec');
-            if (rate && rate > 0) {
-              // Valid rate - show estimate
-              const totalSeconds = (doses||[]).reduce((sum, e) => sum + (e.seconds || 0), 0);
-              const estimate = (totalSeconds * rate).toFixed(1);
-              inRangeEl.textContent = `In range: ~${estimate} ml (est.)`;
-            } else {
-              // No valid rate
-              inRangeEl.textContent = 'In range: — ml';
-            }
-          } else {
-            inRangeEl.textContent = 'In range: — ml';
-          }
-        } else {
-          // No doses
-          inRangeEl.textContent = 'In range: — ml';
-        }
-      }
-      
-      chart.update('none');
-    }catch(e){ 
-      console.error('[pH] Chart refresh failed:', e);
+    } else {
+      console.warn('[pH] phDoseChart module not loaded');
     }
+    
     // Refresh summary alongside
     refreshSummary().catch(()=>{});
   }

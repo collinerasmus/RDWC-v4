@@ -421,6 +421,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   }
   /* Subtle click feedback */
   .relay-btn.loading{ opacity:.7; }
+
+  /* pH Dose History chart wrapper */
+  #ph-dose-chart-wrap { min-height: 260px; }
+  #phDoseChart { display: block; width: 100%; height: 260px; }
 </style>
 </head>
 <body>
@@ -580,8 +584,12 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <button class="btn btn-secondary" id="phDoseApply">Apply</button>
             </div>
           </div>
-          <canvas id="phDoseChart" height="120"></canvas>
-          <div id="phDoseEmpty" class="muted" style="display:none;margin-top:8px;opacity:.7;">No doses recorded in this period.</div>
+          <div id="ph-dose-chart-wrap" class="chart-card">
+            <canvas id="phDoseChart" width="1200" height="260"></canvas>
+            <div id="ph-dose-empty" class="muted small" style="display:none;padding:8px 0;">
+              No doses recorded in this period.
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1099,8 +1107,8 @@ async function calibApply(){
     }
     fetch('/api/version', {cache:'no-store'})
       .then(function(r){ return r.json(); })
-      .then(function(j){ return chain(['range.js','trends.js','ph.js','settings.js','relays_v2.js'], j && j.version); })
-      .catch(function(){ return chain(['range.js','trends.js','ph.js','settings.js','relays_v2.js'], (new Date()).toISOString().slice(0,10)); });
+      .then(function(j){ return chain(['range.js','trends.js','ph_chart.js','ph.js','settings.js','relays_v2.js'], j && j.version); })
+      .catch(function(){ return chain(['range.js','trends.js','ph_chart.js','ph.js','settings.js','relays_v2.js'], (new Date()).toISOString().slice(0,10)); });
   })();
   </script>
 </body>
