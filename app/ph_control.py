@@ -189,6 +189,11 @@ def _dose_daily_range(start: Optional[str] = None, end: Optional[str] = None, da
         rows = cur.fetchall()
     return [{"day": r[0], "total_ml": float(r[1] or 0.0)} for r in rows]
 
+
+def _dose_daily(days: int) -> List[Dict[str, Any]]:
+    """Compatibility shim for tests: returns last N days (UTC) aggregated."""
+    return _dose_daily_range(days=int(days))
+
 def _today_total_ml(now_dt: datetime) -> float:
     _ensure_tables()
     # Use SA timezone if available from settings
@@ -323,6 +328,11 @@ def ph_status():
     # Last ok ts for reference
     last_ok = _last_ok_ts()
     recent = _recent_doses(5)
+    try:
+        from app.settings import get_setting_key
+        maint_override = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
+    except Exception:
+        maint_override = False
     return {
         "ph": ph_val,
         "ts": ts,
@@ -331,6 +341,7 @@ def ph_status():
         "guards": guards,
         "recent": recent,
         "remaining_cooldown_s": remaining,
+        "maintenance_override": maint_override,
         "last_dose_ts": int(last_ok.timestamp()) if last_ok else None,
     }
 
@@ -441,9 +452,11 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
     try:
         from app.settings import get_setting_key
         allow_force = (get_setting_key("safety.allow_force", "false") or "false").lower() == "true"
+        maint_override = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
     except Exception:
         allow_force = False
-    if force_req and allow_force:
+        maint_override = False
+    if maint_override or (force_req and allow_force):
         blocked_reasons = [r for r in blocked_reasons if r not in ("interval","daily_cap")]
     ts_iso = datetime.now(timezone.utc).isoformat()
 
@@ -479,7 +492,7 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
     rowid = _log_row({
         "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
         "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
-        "result": "ok", "reason": ("force_bypass; " + reason) if (force_req and allow_force) else reason
+        "result": "ok", "reason": ("maintenance_override; " + reason) if maint_override else (("force_bypass; " + reason) if (force_req and allow_force) else reason)
     })
 
     # Schedule background observe to update post_ph with next sample (avoid request blocking)
@@ -487,7 +500,7 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
     observe_s = min(10, _settings_get_int("dosing.observe_s_after_dose", 60))
     threading.Thread(target=_background_observe_and_update, args=(rowid, pre_ts, observe_s), daemon=True).start()
 
-    return {"ok": True, "rowid": rowid, "pre_ph": pre_ph, "volume_ml": None if volume_ml is None else float(volume_ml), "duration_ms": int(duration_ms)}
+    return {"ok": True, "rowid": rowid, "pre_ph": pre_ph, "volume_ml": None if volume_ml is None else float(volume_ml), "duration_ms": int(duration_ms), "clamped_ms": min(duration_ms, MAX_MS), "override": bool(maint_override or (force_req and allow_force))}
 
 
 @router.post("/api/ph/auto")
