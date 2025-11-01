@@ -42,6 +42,22 @@ def _ensure_tables() -> None:
             )
             """
         )
+        # Helpful index for time-ordered queries
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ph_dose_log_ts ON ph_dose_log(ts_utc)")
+        # Optional daily totals view (idempotent)
+        try:
+            conn.execute(
+                """
+                CREATE VIEW IF NOT EXISTS ph_dose_daily AS
+                SELECT substr(ts_utc,1,10) AS day, SUM(COALESCE(volume_ml,0)) AS total_ml
+                FROM ph_dose_log
+                WHERE result='ok'
+                GROUP BY day
+                ORDER BY day ASC
+                """
+            )
+        except Exception:
+            pass
         conn.commit()
 
 def _log_row(row: Dict[str, Any]) -> int:
@@ -85,6 +101,58 @@ def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
             "result": r[7], "reason": r[8]
         })
     return out
+
+def _dose_events_since(hours: int) -> List[Dict[str, Any]]:
+    _ensure_tables()
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, int(hours)))
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT ts_utc, action, volume_ml, duration_ms, pre_ph, post_ph, result, reason
+            FROM ph_dose_log
+            WHERE ts_utc >= ?
+            ORDER BY ts_utc ASC
+            """,
+            (cutoff.isoformat(),)
+        )
+        rows = cur.fetchall()
+    events = []
+    for r in rows:
+        duration_ms = r[3] if r[3] is not None else 0
+        seconds = round((duration_ms or 0)/1000.0, 3)
+        guard = r[7] if (r[6] == 'blocked' and r[7]) else None
+        events.append({
+            "ts": r[0],
+            "seconds": seconds,
+            "volume_ml": r[2],
+            "reason": r[1],  # action field maps to reason ('dose' with reason string below)
+            "ph_before": r[4],
+            "ph_after": r[5],
+            "guard_triggered": guard,
+            "result": r[6],
+            "action": r[1],
+            "detail": r[7]
+        })
+    return events
+
+def _dose_daily(days: int) -> List[Dict[str, Any]]:
+    _ensure_tables()
+    start_day = (datetime.now(timezone.utc) - timedelta(days=max(1, int(days))-1)).date().isoformat()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT substr(ts_utc,1,10) AS day, SUM(COALESCE(volume_ml,0)) AS total_ml
+            FROM ph_dose_log
+            WHERE result='ok' AND substr(ts_utc,1,10) >= ?
+            GROUP BY day
+            ORDER BY day ASC
+            """,
+            (start_day,)
+        )
+        rows = cur.fetchall()
+    return [{"day": r[0], "total_ml": float(r[1] or 0.0)} for r in rows]
 
 def _today_total_ml(now_dt: datetime) -> float:
     _ensure_tables()
@@ -349,6 +417,50 @@ def ph_export(hours: int = Query(24)):
         line = ",".join([
             str(r[0]), str(r[1]), str(r[2] if r[2] is not None else ""), str(r[3] if r[3] is not None else ""),
             str(r[4] if r[4] is not None else ""), str(r[5] if r[5] is not None else ""), str(r[6]), str(r[7] if r[7] else "")
+        ])
+        lines.append(line)
+    return PlainTextResponse("\n".join(lines), media_type="text/csv")
+
+
+# --- New telemetry endpoints -------------------------------------------------
+@router.get("/api/ph/dose_log")
+def ph_dose_log(hours: int = Query(24)):
+    events = _dose_events_since(max(1, int(hours)))
+    # Align field names with spec
+    out = []
+    for e in events:
+        out.append({
+            "ts": e["ts"],
+            "seconds": e["seconds"],
+            "volume_ml": e["volume_ml"],
+            "reason": e.get("detail") or e.get("action") or "manual",
+            "ph_before": e["ph_before"],
+            "ph_after": e["ph_after"],
+            "guard_triggered": e["guard_triggered"],
+            "result": e["result"],
+        })
+    return out
+
+
+@router.get("/api/ph/dose_summary")
+def ph_dose_summary(days: int = Query(7)):
+    days = max(1, int(days))
+    rows = _dose_daily(days)
+    return rows
+
+
+@router.get("/api/ph/dose_log.csv")
+def ph_dose_log_csv(hours: int = Query(168)):
+    events = _dose_events_since(max(1, int(hours)))
+    lines = ["ts,seconds,volume_ml,reason,ph_before,ph_after,guard_triggered"]
+    for e in events:
+        line = ",".join([
+            str(e["ts"]), str(e["seconds"]),
+            "" if e["volume_ml"] is None else str(e["volume_ml"]),
+            str(e.get("detail") or e.get("action") or "manual"),
+            "" if e["ph_before"] is None else str(e["ph_before"]),
+            "" if e["ph_after"] is None else str(e["ph_after"]),
+            "" if not e["guard_triggered"] else str(e["guard_triggered"]) 
         ])
         lines.append(line)
     return PlainTextResponse("\n".join(lines), media_type="text/csv")

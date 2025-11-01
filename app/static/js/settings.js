@@ -30,7 +30,8 @@
         'dosing.pulse_ml_bloom': {label:'Bloom pulse (ml)', type:'number', min:0, max:1000, step:1},
         'dosing.max_ml_hour_': {label:'Max per hour (ml)', type:'number', min:0, max:5000, step:1},
         'dosing.max_ml_day_': {label:'Max per day (ml)', type:'number', min:0, max:20000, step:1},
-        'dosing.mix_delay_s': {label:'Mix delay (s)', type:'number', min:0, max:3600, step:1}
+        'dosing.mix_delay_s': {label:'Mix delay (s)', type:'number', min:0, max:3600, step:1},
+        'dosing.ph_up_ml_per_sec': {label:'pH Up calibration (ml/s)', type:'number', min:0.1, max:200, step:0.1, tooltip:'Used to convert seconds to ml for totals'}
       }
     },
     safety: {

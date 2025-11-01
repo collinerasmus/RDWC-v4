@@ -6,6 +6,7 @@
   let lastStatus = null;
   let countdownTimer = null;
   let lastPollAt = Date.now();
+  let chart, chartMode = '24h'; // '24h' | '7d'
 
   function el(id){ return document.getElementById(id); }
 
@@ -155,6 +156,11 @@
       else { alert(j.guard || 'Set'); }
     });
     el('btnPhExport24')?.addEventListener('click', ()=>{ window.open('/api/ph/export?hours=24','_blank'); });
+    el('ph-dose-csv')?.addEventListener('click', ()=>{ window.open('/api/ph/dose_log.csv?hours=168','_blank'); });
+
+    // Chart range buttons
+    el('ph-chart-24h')?.addEventListener('click', ()=>{ chartMode='24h'; refreshDoseChart(); });
+    el('ph-chart-7d')?.addEventListener('click', ()=>{ chartMode='7d'; refreshDoseChart(); });
 
     // listen for settings UI updates to ui.sensors_poll_ms
     window.addEventListener('settings:ui', (ev)=>{
@@ -167,5 +173,83 @@
     wire();
     tick();
     schedule();
+    refreshSummary();
+    refreshDoseChart();
   });
 })();
+  async function refreshSummary(){
+    try{
+      // Today: sum from 24h log; Week: 7d summary
+      const log = await (await fetch('/api/ph/dose_log?hours=24',{cache:'no-store'})).json();
+      const today = (log||[]).reduce((acc,e)=> acc + (e.volume_ml||0), 0);
+      const weekRows = await (await fetch('/api/ph/dose_summary?days=7',{cache:'no-store'})).json();
+      const week = (weekRows||[]).reduce((acc,r)=> acc + (r.total_ml||0), 0);
+      const tEl = el('ph-total-today'); if (tEl) tEl.textContent = `Today: ${today.toFixed(1)} ml`;
+      const wEl = el('ph-total-week'); if (wEl) wEl.textContent = `Week: ${week.toFixed(1)} ml`;
+      // Calibration banner if any volumes are null/undefined
+      const anyNull = (log||[]).some(e=> e.volume_ml==null);
+      const banner = el('ph-calib-banner'); if (banner) banner.style.display = anyNull ? 'block':'none';
+    }catch(e){ /* ignore */ }
+  }
+
+  function makeChart(){
+    const ctx = el('phDoseChart'); if (!ctx) return null;
+    const cfg = {
+      type:'bar',
+      data:{datasets:[]},
+      options:{
+        animation:false,
+        maintainAspectRatio:true,
+        parsing:false,
+        normalized:true,
+        scales:{
+          x:{type:'time', time:{tooltipFormat:'yyyy-MM-dd HH:mm', displayFormats:{hour:'MMM d HH:mm', day:'MMM d'}}},
+          y:{title:{display:true,text:'ml'}, beginAtZero:true}
+        },
+        plugins:{legend:{display:true}, tooltip:{callbacks:{
+          label:(ctx)=>{
+            const d = ctx.raw || {};
+            if (d.kind==='dose'){
+              const vol = (d.volume_ml==null)? '—' : `${d.volume_ml} ml`;
+              const ph = (d.ph_before!=null || d.ph_after!=null) ? ` pH: ${d.ph_before??'—'} → ${d.ph_after??'—'}` : '';
+              return ` +${vol} (${d.seconds}s, ${d.reason||'manual'})${ph}`;
+            }
+            if (d.kind==='daily'){ return ` Total: ${d.y.toFixed(1)} ml`; }
+            return '';
+          }
+        }}}
+      }
+    };
+    return new Chart(ctx, cfg);
+  }
+
+  async function refreshDoseChart(){
+    try{
+      if (!chart) chart = makeChart();
+      if (!chart) return;
+      let doses = [];
+      let daily = [];
+      if (chartMode==='24h'){
+        doses = await (await fetch('/api/ph/dose_log?hours=24',{cache:'no-store'})).json();
+      } else {
+        doses = await (await fetch('/api/ph/dose_log?hours=168',{cache:'no-store'})).json();
+        daily = await (await fetch('/api/ph/dose_summary?days=7',{cache:'no-store'})).json();
+      }
+      // Build datasets
+      const dosePoints = (doses||[]).map(e=>({
+        x: new Date(e.ts), y: e.volume_ml==null ? 0 : e.volume_ml, kind:'dose',
+        volume_ml:e.volume_ml, seconds:e.seconds, reason:e.reason, ph_before:e.ph_before, ph_after:e.ph_after
+      }));
+      const dailyBars = (daily||[]).map(d=>({ x: new Date(d.day+'T00:00:00'), y: d.total_ml, kind:'daily' }));
+
+      // Configure datasets
+      const doseDs = { type:'scatter', label:'Doses', data: dosePoints, parsing:false,
+        backgroundColor:'rgba(59,130,246,0.9)', pointRadius:4, pointHoverRadius:6, showLine:false };
+      const dailyDs = { type:'bar', label:'Daily total', data: dailyBars, parsing:false,
+        backgroundColor:'rgba(34,197,94,0.35)', borderColor:'rgba(34,197,94,0.6)' };
+      chart.data.datasets = (chartMode==='24h') ? [doseDs] : [dailyDs, doseDs];
+      chart.update('none');
+    }catch(e){ /* ignore */ }
+    // Refresh summary alongside
+    refreshSummary().catch(()=>{});
+  }

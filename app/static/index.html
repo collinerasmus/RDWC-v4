@@ -524,6 +524,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <span id="ph-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
           </div>
 
+          <!-- Summary pills -->
+          <div id="ph-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px 0;">
+            <span id="ph-total-today" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#a7f3d0;">Today: — ml</span>
+            <span id="ph-total-week" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Week: — ml</span>
+            <button id="ph-dose-csv" class="btn-secondary" title="Download dose log CSV (7d)">Download CSV</button>
+          </div>
+
           <div class="tabs" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px 0;">
             <button class="btn-secondary" onclick="document.getElementById('ph-tab-status').style.display='block';document.getElementById('ph-tab-manual').style.display='none';document.getElementById('ph-tab-auto').style.display='none';">Status</button>
             <button class="btn-secondary" onclick="document.getElementById('ph-tab-status').style.display='none';document.getElementById('ph-tab-manual').style.display='block';document.getElementById('ph-tab-auto').style.display='none';">Manual</button>
@@ -538,6 +545,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               </div>
             </div>
             <div id="ph-recent" class="muted"></div>
+            <div id="ph-calib-banner" class="muted" style="display:none;margin-top:8px;padding:6px 10px;border-radius:8px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.3);color:#cbd5e1;">Set <strong>pH Up ml/s</strong> in Settings → Dosing to enable volume totals.</div>
           </div>
           <div id="ph-tab-manual" style="display:none;">
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -552,6 +560,17 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <div class="muted" style="margin-bottom:8px;">Automation placeholder</div>
             <button id="btnAutoToggle" class="btn-secondary">Enable automation</button>
           </div>
+
+          <!-- History chart -->
+          <hr class="separator" />
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+            <div class="muted">Dose History</div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <button class="btn btn-chip" id="ph-chart-24h">24h</button>
+              <button class="btn btn-chip" id="ph-chart-7d">7d</button>
+            </div>
+          </div>
+          <canvas id="phDoseChart" height="120"></canvas>
         </div>
       </section>
 
