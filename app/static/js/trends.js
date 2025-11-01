@@ -17,7 +17,10 @@
     temp: '#d62728', // red
   };
 
-  let LAST_RANGE = { fromISO: null, toISO: null };
+  const state = {
+    window: { start: null, end: null }, // epoch ms for explicit x-axis bounds
+    refreshTimer: null
+  };
 
   const kpiPh   = document.getElementById('kpiPh');
   const kpiEc   = document.getElementById('kpiEc');
@@ -84,7 +87,7 @@
   });
 
   const emptyEl = document.getElementById('trendEmpty');
-  const btns = document.querySelectorAll('#trends-card .btn-chip');
+  const btns = document.querySelectorAll('#sensors-card .btn-chip, #trends-card .btn-chip');
   const fromEl = document.getElementById('trendFrom');
   const toEl = document.getElementById('trendTo');
   const applyEl = document.getElementById('trendApply');
@@ -94,13 +97,13 @@
   }
   
   function rangeFromPreset(preset){
-    const now = new Date();
-    let from = new Date(now);
-    if (preset === '24h') from.setHours(now.getHours() - 24);
-    if (preset === '7d')  from.setDate(now.getDate() - 7);
-    if (preset === '30d') from.setDate(now.getDate() - 30);
-    if (preset === '90d') from.setDate(now.getDate() - 90);
-    return { from, to: now };
+    const now = Date.now();
+    let start = now;
+    if (preset === '24h') start = now - 24*60*60*1000;
+    if (preset === '7d')  start = now - 7*24*60*60*1000;
+    if (preset === '30d') start = now - 30*24*60*60*1000;
+    if (preset === '90d') start = now - 90*24*60*60*1000;
+    return { start, end: now };
   }
 
   function presetParams(preset){
@@ -127,11 +130,15 @@
       startISO = fallback.toISOString();
     }
     const nowISO = new Date().toISOString();
-    fromEl.value = isoLocal(new Date(startISO));
-    toEl.value = isoLocal(new Date(nowISO));
+    const startMs = new Date(startISO).getTime();
+    const endMs = new Date(nowISO).getTime();
+    state.window = { start: startMs, end: endMs };
+    fromEl.value = isoLocal(new Date(startMs));
+    toEl.value = isoLocal(new Date(endMs));
     const { gran, max } = presetParams('grow');
     const data = await fetchTrends(startISO, nowISO, gran, max);
     render(data);
+    scheduleAutoRefresh();
   }
   
   async function fetchTrends(fromISO, toISO, gran, max){
@@ -140,30 +147,43 @@
     if (toISO)   q.set('to', toISO);
     if (gran)    q.set('gran', String(gran));
     if (max)     q.set('max',  String(max));
-    LAST_RANGE = { fromISO, toISO };
-    const url = '/api/trends?' + q.toString();
-    console.log('[Trends] GET', url);
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) {
-      console.error('[Trends] fetch failed', res.status);
-      return { series: { ph:[], ec:[], temp:[] } };
+    
+    // Try multiple endpoints with fallback
+    const endpoints = [
+      '/api/trends?' + q.toString(),
+      '/history?' + q.toString(),
+      '/api/history?' + q.toString()
+    ];
+    
+    for (const url of endpoints) {
+      try {
+        console.log('[Sensors] GET', url);
+        const res = await fetch(url, { cache: 'no-store' });
+        if (res.ok) {
+          const j = await res.json();
+          console.log('[Sensors] data', {
+            ph: j?.series?.ph?.length || 0,
+            ec: j?.series?.ec?.length || 0,
+            temp: j?.series?.temp?.length || 0
+          });
+          return j;
+        }
+      } catch(err) {
+        console.warn('[Sensors] failed:', url, err);
+      }
     }
-    const j = await res.json();
-    console.log('[Trends] data', {
-      ph: j?.series?.ph?.length || 0,
-      ec: j?.series?.ec?.length || 0,
-      temp: j?.series?.temp?.length || 0
-    });
-    return j;
+    
+    console.error('[Sensors] all endpoints failed');
+    return { series: { ph:[], ec:[], temp:[] } };
   }
 
   function render(data){
-    console.log('[Trends] render');
+    console.log('[Sensors] render');
 
-    // Series to XY (timestamps in seconds from API)
-    const ph    = (data?.series?.ph   || []).map(p => ({ x:new Date(p.ts * 1000), y:Number(p.value) }));
-    const ecRaw = (data?.series?.ec   || []).map(p => ({ x:new Date(p.ts * 1000), y:Number(p.value) }));
-    const temp  = (data?.series?.temp || []).map(p => ({ x:new Date(p.ts * 1000), y:Number(p.value) }));
+    // Series to XY (timestamps in seconds from API, convert to ms)
+    const ph    = (data?.series?.ph   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
+    const ecRaw = (data?.series?.ec   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
+    const temp  = (data?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
 
     // EC unit autodetect: if median > 20, assume µS/cm and convert to mS/cm
     function median(arr){
@@ -212,10 +232,10 @@
     const aEc   = chooseAxis(PREF.ec,   ec);
     const aTemp = chooseAxis(PREF.temp, temp);
 
-    // Force x-axis to selected window using Date objects
-    if (LAST_RANGE.fromISO && LAST_RANGE.toISO){
-      trendChart.options.scales.x.min = new Date(LAST_RANGE.fromISO);
-      trendChart.options.scales.x.max = new Date(LAST_RANGE.toISO);
+    // Force x-axis to explicit window bounds (epoch ms)
+    if (state.window.start && state.window.end) {
+      trendChart.options.scales.x.min = state.window.start;
+      trendChart.options.scales.x.max = state.window.end;
     } else {
       delete trendChart.options.scales.x.min;
       delete trendChart.options.scales.x.max;
@@ -249,14 +269,53 @@
     trendChart.update('none');
   }
 
+  function scheduleAutoRefresh() {
+    // Cancel existing timer
+    if (state.refreshTimer) {
+      clearTimeout(state.refreshTimer);
+      state.refreshTimer = null;
+    }
+
+    // If window end is within 5 min of now, auto-refresh every 5s
+    const now = Date.now();
+    if (state.window.end && Math.abs(state.window.end - now) < 5*60*1000) {
+      console.log('[Sensors] Auto-refresh enabled (near real-time)');
+      state.refreshTimer = setTimeout(async () => {
+        const fromISO = new Date(state.window.start).toISOString();
+        const toISO = new Date(state.window.end).toISOString();
+        const preset = detectPreset();
+        const { gran, max } = presetParams(preset || 'custom');
+        const data = await fetchTrends(fromISO, toISO, gran, max);
+        render(data);
+        scheduleAutoRefresh(); // reschedule
+      }, 5000);
+    }
+  }
+
+  function detectPreset() {
+    if (!state.window.start || !state.window.end) return null;
+    const span = state.window.end - state.window.start;
+    const near24h = Math.abs(span - 24*60*60*1000) < 60*1000;
+    const near7d = Math.abs(span - 7*24*60*60*1000) < 60*1000;
+    const near30d = Math.abs(span - 30*24*60*60*1000) < 60*1000;
+    const near90d = Math.abs(span - 90*24*60*60*1000) < 60*1000;
+    if (near24h) return '24h';
+    if (near7d) return '7d';
+    if (near30d) return '30d';
+    if (near90d) return '90d';
+    return 'custom';
+  }
+
   async function loadPreset(preset){
-    const { from, to } = rangeFromPreset(preset);
-    fromEl.value = isoLocal(from);
-    toEl.value   = isoLocal(to);
+    const { start, end } = rangeFromPreset(preset);
+    state.window = { start, end };
+    fromEl.value = isoLocal(new Date(start));
+    toEl.value   = isoLocal(new Date(end));
     const {gran, max} = presetParams(preset);
-    const data = await fetchTrends(from.toISOString(), to.toISOString(), gran, max);
+    const data = await fetchTrends(new Date(start).toISOString(), new Date(end).toISOString(), gran, max);
     render(data);
     markActive(preset);
+    scheduleAutoRefresh();
   }
   
   function markActive(preset){ 
@@ -275,17 +334,21 @@
   
   applyEl.addEventListener('click', async () => {
     if(!fromEl.value || !toEl.value) return;
-    const fromISO = new Date(fromEl.value).toISOString();
-    const toISO   = new Date(toEl.value).toISOString();
-    const {gran, max} = presetParams('custom'); // default custom tuning
+    const startMs = new Date(fromEl.value).getTime();
+    const endMs = new Date(toEl.value).getTime();
+    state.window = { start: startMs, end: endMs };
+    const fromISO = new Date(startMs).toISOString();
+    const toISO = new Date(endMs).toISOString();
+    const {gran, max} = presetParams('custom');
     const data = await fetchTrends(fromISO, toISO, gran, max);
     render(data);
     markActive('');
+    scheduleAutoRefresh();
   });
 
-  // Initial: 7d
-  loadPreset('7d').catch(err => {
-    console.error('[Trends]', err);
-    emptyEl.style.display = 'block';
+  // Initial: 24h (changed to match user preference for full window demo)
+  loadPreset('24h').catch(err => {
+    console.error('[Sensors]', err);
+    if (emptyEl) emptyEl.style.display = 'block';
   });
 })();

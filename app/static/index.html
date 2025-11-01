@@ -54,6 +54,7 @@ h2, h3{
 
 /* Single column layout - everything stacked vertically at same width */
 #camera-card,
+#sensors-card,
 #trends-card,
 #right-column-stack,
 #recent-readings-card{
@@ -86,6 +87,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 .relay.off{background:#ff5555;color:#2c0c0c}
 
 /* Ensure fixed visual bands and prevent feedback growth */
+#sensors-card .chart-area,
 #trends-card .chart-area{
   position: relative;
   height: var(--h-trends);
@@ -95,6 +97,8 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   contain: layout size;
 }
 
+#sensors-card .chart-area canvas,
+#sensors-card .chart-area svg,
 #trends-card .chart-area canvas,
 #trends-card .chart-area svg{
   position: absolute;
@@ -178,7 +182,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   }
 }
 
-/* Trends Chart Controls */
+/* Sensors/Trends Chart Controls */
 .btn-chip{
   padding: 4px 10px; 
   border: 1px solid #1f2937; 
@@ -195,15 +199,18 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   outline: 2px solid #3b82f6; 
   background: #1f2937;
 }
+#sensors-card .card-header,
 #trends-card .card-header{ 
   gap: 8px; 
 }
+#sensors-card .trend-controls,
 #trends-card .trend-controls{ 
   display: flex; 
   align-items: center; 
   gap: 6px; 
   flex-wrap: wrap;
 }
+#sensors-card .trend-controls input,
 #trends-card .trend-controls input{ 
   height: 32px; 
   padding: 0 8px; 
@@ -213,6 +220,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   border-radius: 6px;
   font-size: 0.85rem;
 }
+#sensors-card .trend-controls input:focus,
 #trends-card .trend-controls input:focus{
   outline: 2px solid #3b82f6;
   border-color: #3b82f6;
@@ -428,11 +436,11 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
   </section>
 
-  <!-- Trends Card -->
-  <!-- Trends Card with Chart.js -->
-  <section id="trends-card" class="card card-wide">
+  <!-- Sensors Card -->
+  <!-- Sensors Card with Chart.js -->
+  <section id="sensors-card" class="card card-wide">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-      <div style="font-weight:600;">Trends</div>
+      <div style="font-weight:600;">Sensors</div>
       <div class="trend-controls" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         <button class="btn btn-chip" data-range="24h">24h</button>
         <button class="btn btn-chip" data-range="7d">7d</button>
@@ -991,31 +999,31 @@ async function calibApply(){
   let prevTrends = null;
   
   function measureHeights() {
-    const trendsCard = document.getElementById('trends-card');
+    const sensorsCard = document.getElementById('sensors-card') || document.getElementById('trends-card');
     const cameraFrame = document.querySelector('#camera-card .camera-frame');
     const recentWrap = document.querySelector('#recent-readings-card .table-wrap');
     
-    const trendsH = trendsCard ? trendsCard.clientHeight : 0;
+    const sensorsH = sensorsCard ? sensorsCard.clientHeight : 0;
     const cameraH = cameraFrame ? cameraFrame.clientHeight : 0;
     const recentH = recentWrap ? recentWrap.clientHeight : 0;
     
-    if (trendsSp) trendsSp.textContent = trendsH + 'px';
+    if (trendsSp) trendsSp.textContent = sensorsH + 'px';
     if (cameraSp) cameraSp.textContent = cameraH + 'px';
     if (recentSp) recentSp.textContent = recentH + 'px';
     
     if (prevTrends !== null) {
-      const delta = Math.abs(trendsH - prevTrends);
+      const delta = Math.abs(sensorsH - prevTrends);
       if (delta > 2) {
         badge.style.background = '#dc2626';
         badge.textContent = 'Layout Debug DRIFT';
-        console.warn(`Layout drift detected: trends height changed ${prevTrends}px → ${trendsH}px (Δ${delta}px)`);
+        console.warn(`Layout drift detected: sensors height changed ${prevTrends}px → ${sensorsH}px (Δ${delta}px)`);
       } else {
         badge.style.background = '#059669';
         badge.textContent = 'Layout Debug OK';
       }
     }
     
-    prevTrends = trendsH;
+    prevTrends = sensorsH;
   }
   
   measureHeights();
