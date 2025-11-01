@@ -143,9 +143,15 @@
       if(window.showToast){ showToast(`Dose blocked: ${msg}`, 'error'); }
       else { alert('Dose blocked: ' + msg); }
     } else {
-      // immediate refresh of status list
-      if(window.showToast){ showToast('Dose started', 'success'); }
+      // immediate refresh of status list, chart, and summary
+      if(window.showToast){ 
+        const vol = j?.volume_ml ? `${j.volume_ml.toFixed(1)} ml` : `${j?.duration_ms||0} ms`;
+        showToast(`Dose complete: ${vol}`, 'success'); 
+      }
       tick();
+      // Refresh chart and summary to show new dose
+      refreshDoseChart().catch(e => console.warn('[pH] Chart refresh after dose failed:', e));
+      refreshSummary().catch(e => console.warn('[pH] Summary refresh after dose failed:', e));
     }
   }
 
