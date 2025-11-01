@@ -335,8 +335,11 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False) -> 
             # Force OFF regardless of cooldown/antiflap
             force = True
     
-    # Idempotent check
-    if current_state == desired_on:
+    # Idempotent check (skip only when not forcing)
+    # When force=True (e.g., during E-STOP or boot safe-off), we still drive
+    # the physical pin to the desired state to guarantee hardware sync even
+    # if our cached _last_state already matches.
+    if current_state == desired_on and not force:
         return {
             "changed": False,
             "state": current_state,
@@ -419,6 +422,10 @@ def initialize_all_safe_off():
         else:
             # Use boot_safe_off for other relays
             set_relay(relay_name, False, "boot_safe_off", force=True)
+    # Backdate timestamps so UI/tests don't see initial cooldown locks
+    now = time.monotonic()
+    for relay_name in RELAY_PINS:
+        _last_change_ts[relay_name] = now - 1000
 
 # Refresh lockouts on import
 _refresh_lockouts_from_settings()
