@@ -15,18 +15,18 @@
 
   // Fixed relay order + display names
   const RELAY_ORDER = [
-    'ph_up', 'dosing_grow', 'dosing_micro', 'dosing_bloom',
-    'main_pump', 'chiller_pump', 'water_chiller', 'grow_lights'
+    'dosing_ph_up', 'dosing_grow', 'dosing_micro', 'dosing_bloom',
+    'main_pump', 'chiller_pump', 'chiller_power', 'lights'
   ];
   const RELAY_LABELS = {
-    ph_up: 'pH Up Pump',
+    dosing_ph_up: 'pH Up Pump',
     dosing_grow: 'Grow Pump',
     dosing_micro: 'Micro Pump',
     dosing_bloom: 'Bloom Pump',
     main_pump: 'Main Pump',
     chiller_pump: 'Chiller Pump',
-    water_chiller: 'Water Chiller (AC)',
-    grow_lights: 'Grow Lights (AC)'
+    chiller_power: 'Water Chiller (AC)',
+    lights: 'Grow Lights (AC)'
   };
 
   // Global UI state
@@ -160,23 +160,21 @@
     const isLocked = lockout && lockout.active;
     const isAutoMode = currentMode === 'auto';
     
-    let bgClass = isOn ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-600 hover:bg-gray-700';
+  let bgClass = isOn ? 'relay-on' : 'relay-off';
     let label = (isOn ? '● ' : '○ ') + name;
     let badges = '';
 
     // Auto mode: add readonly class and remove hover
-    if (isAutoMode) {
-      bgClass = isOn ? 'bg-green-600' : 'bg-gray-600';  // Remove hover states
-    }
+    // Auto mode: keep same background; readonly styling handled by CSS class
 
     if (isLocked) {
       bgClass = 'bg-gray-500 cursor-not-allowed';
-      badges += `<span class="text-xs ml-2 px-2 py-0.5 bg-red-500 rounded lock-pill">${formatCountdown(lockout.seconds_remaining)}</span>`;
+  badges += `<span class="countdown-pill" data-countdown="${lockout.seconds_remaining}">${formatCountdown(lockout.seconds_remaining)}</span>`;
     }
 
     // Add Auto pill in auto mode
     if (isAutoMode) {
-      badges += `<span class="text-xs ml-2 px-2 py-0.5 bg-blue-500 rounded lock-pill">Auto</span>`;
+  badges += `<span class="lock-pill">Auto</span>`;
     }
 
     const readonlyClass = isAutoMode ? 'readonly' : '';
@@ -189,7 +187,7 @@
     return el(`
       <button 
         data-relay="${key}" 
-        class="relay-btn ${bgClass} ${readonlyClass} text-white rounded-lg py-2 px-3 text-sm font-medium transition-all duration-200 flex items-center justify-between"
+  class="relay-btn ${bgClass} ${readonlyClass} text-white rounded-lg py-2 px-3 text-sm font-medium transition-all duration-200 flex items-center justify-between"
         ${disabledAttr}
         ${ariaDisabled}
         title="${title}"
