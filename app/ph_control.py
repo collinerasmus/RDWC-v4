@@ -490,6 +490,7 @@ def ph_dose_log(
 ):
     """Get dose events. Prefers start/end over hours. If grow=true, computes range from settings."""
     try:
+        print(f"[DEBUG] dose_log called: start={start}, end={end}, hours={hours}, grow={grow}")
         # Handle grow preset
         if grow:
             grow_date_str = _settings_get("general.grow_start_date", "")
@@ -507,6 +508,7 @@ def ph_dose_log(
                 end = datetime.now(timezone.utc).isoformat()
         
         events = _dose_events_range(start=start, end=end, hours=hours, limit=limit)
+        print(f"[DEBUG] _dose_events_range returned {len(events)} events")
         # Align field names with spec
         out = []
         for e in events:
