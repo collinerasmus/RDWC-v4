@@ -43,7 +43,8 @@
         'safety.chiller_min_on_s': {label:'Chiller AC min ON (s)', type:'number', min:0, max:3600, step:1},
         'safety.estop_persist': {label:'E‑STOP persists across reboot', type:'checkbox'},
         'safety.allow_force': {label:'Allow Force (test)', type:'checkbox', tooltip:'Temporarily allow bypassing cooldown and daily cap for testing only'},
-        'safety.maintenance_override': {label:'Maintenance override (test only)', type:'checkbox', tooltip:'Bypasses cooldown/daily cap; clamps single dose; E-STOP/empty reservoir still enforced'}
+        'safety.maintenance_override': {label:'Maintenance override (test only)', type:'checkbox', tooltip:'Bypasses cooldown/daily cap; clamps single dose; E-STOP/empty reservoir still enforced'},
+        'safety.allow_stale_on_override': {label:'Allow stale sensors on override', type:'checkbox', tooltip:'Allows dosing when sensors are stale (TEST ONLY). Off by default.', badge:'TEST'}
       }
     },
     alerts: {
@@ -130,6 +131,13 @@
         tip.style.marginLeft = '8px';
         tip.textContent = meta.tooltip;
         wrap.appendChild(tip);
+      }
+      // Optional badge (e.g., TEST)
+      if (meta.badge){
+        const badge = document.createElement('span');
+        badge.textContent = meta.badge;
+        badge.style.cssText = 'margin-left:8px;padding:2px 6px;border-radius:6px;background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);color:#fca5a5;font-size:0.75rem;';
+        wrap.appendChild(badge);
       }
       
       // Add Day N badge after grow_start_date input

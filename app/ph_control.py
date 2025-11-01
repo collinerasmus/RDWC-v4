@@ -453,13 +453,20 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
         from app.settings import get_setting_key
         allow_force = (get_setting_key("safety.allow_force", "false") or "false").lower() == "true"
         maint_override = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
+        allow_stale_on_override = (get_setting_key("safety.allow_stale_on_override", "false") or "false").lower() == "true"
     except Exception:
         allow_force = False
         maint_override = False
+        allow_stale_on_override = False
     if maint_override or (force_req and allow_force):
-        # Maintenance override bypasses: interval, daily_cap, and sensor_stale (test-only)
-        # Still enforces: estop, safe_off, reservoir (hard safety gates)
-        blocked_reasons = [r for r in blocked_reasons if r not in ("interval","daily_cap","sensor_stale")]
+        # Under overrides, allow bypassing interval and daily caps.
+        # Stale-sensor bypass is only permitted when BOTH maintenance_override is true
+        # AND safety.allow_stale_on_override is explicitly enabled (test-only).
+        bypass = {"interval", "daily_cap"}
+        if maint_override and allow_stale_on_override:
+            bypass.add("sensor_stale")
+        # Still enforce hard safety guards: estop, safe_off, reservoir
+        blocked_reasons = [r for r in blocked_reasons if r not in bypass]
     ts_iso = datetime.now(timezone.utc).isoformat()
 
     pre_ph, pre_ts = _get_latest_ph()

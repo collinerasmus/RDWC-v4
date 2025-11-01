@@ -83,6 +83,9 @@ DEFAULTS: Dict[str, str] = {
     "safety.allow_force": "false",
     # maintenance override (global test mode)
     "safety.maintenance_override": "false",
+    # TEST-ONLY: allow dosing when sensors are stale, but only when maintenance_override is also true
+    # Defaults to OFF for production safety
+    "safety.allow_stale_on_override": "false",
 
     # alerts
     "alerts.email_to": "",
