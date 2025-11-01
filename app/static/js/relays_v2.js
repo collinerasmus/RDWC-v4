@@ -113,14 +113,22 @@
 
   async function setEstop(active) {
     try {
-      const r = await fetch('/api/estop', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: !!active })
-      });
-      if (!r.ok) throw new Error('HTTP '+r.status);
-      const j = await r.json().catch(()=>({}));
-      state.estop = !!(j.active ?? active);
+      // Prefer wrapper that toggles server-side (no race with client state)
+      let j;
+      try {
+        const r1 = await fetch('/api/relays/estop/toggle', { method: 'POST' });
+        if (r1.ok) j = await r1.json().catch(()=>({}));
+      } catch(_){ /* fall back */ }
+      if (!j) {
+        const r2 = await fetch('/api/estop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active: !!active })
+        });
+        if (!r2.ok) throw new Error('HTTP '+r2.status);
+        j = await r2.json().catch(()=>({}));
+      }
+      state.estop = !!(j.active ?? !state.estop);
       updateEstopButton();
       // Refresh relays as backend forces OFF on engage
       setTimeout(refreshRelays, 100);
