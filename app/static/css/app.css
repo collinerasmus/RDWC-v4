@@ -1,0 +1,10 @@
+/* Minimal shared styles for Relays card additions */
+.estop-banner {
+  background: rgba(239,68,68,.12);
+  border: 1px solid rgba(239,68,68,.45);
+  color: #fecaca;
+  padding: .5rem .75rem;
+  border-radius: .5rem;
+  margin-bottom: .5rem;
+}
+.hidden { display: none; }

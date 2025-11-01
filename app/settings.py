@@ -67,6 +67,28 @@ def _init_settings_table():
         
         conn.commit()
 
+def get_setting_key(key: str, default: Optional[str] = None) -> Optional[str]:
+    """Get a raw setting value by key (string), or default if missing."""
+    _init_settings_table()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        row = cur.fetchone()
+        if row and row[0] is not None:
+            return str(row[0])
+        return default
+
+def set_setting_key(key: str, value: str) -> None:
+    """Set a raw setting value by key (string)."""
+    _init_settings_table()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (key, value)
+        )
+        conn.commit()
+
 
 def _load_settings_from_db() -> Settings:
     """Load settings from database"""

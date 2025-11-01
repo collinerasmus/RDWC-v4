@@ -96,10 +96,28 @@ async def _start_tasks():
     from app.system_mode import _init_tables
     _init_tables()
     
-    # Smart restore relay states based on system_mode (auto/manual)
-    # This replaces the old _load_state() with mode-aware restoration
-    from app.relays_core import smart_restore_critical_relays
-    smart_restore_critical_relays()
+    # E-STOP persisted state: honor before any auto-restore
+    estop_persisted = False
+    try:
+        from app.settings import get_setting_key
+        val = (get_setting_key('estop_active', 'false') or 'false').lower()
+        estop_persisted = (val == 'true')
+    except Exception:
+        estop_persisted = False
+
+    if estop_persisted:
+        try:
+            from app.relays_core import engage_estop
+            engage_estop()
+        except Exception:
+            pass
+        print("E-STOP persisted: ACTIVE")
+    else:
+        print("E-STOP persisted: INACTIVE")
+        # Smart restore relay states based on system_mode (auto/manual)
+        # This replaces the old _load_state() with mode-aware restoration
+        from app.relays_core import smart_restore_critical_relays
+        smart_restore_critical_relays()
     
     # Start async sensor loop
     sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
@@ -773,6 +791,32 @@ def relay_set_new(body: dict = Body(...)):
         "reason": result.get("reason", "unknown"),
         "cooldown_remaining": result.get("cooldown_remaining", 0)
     }
+
+@app.get("/api/estop")
+def api_estop_status():
+    """Return E-Stop latch status and persisted flag."""
+    from app.relays_core import get_estop_status
+    try:
+        from app.settings import get_setting_key
+        persisted = (get_setting_key('estop_active', 'false') or 'false').lower() == 'true'
+    except Exception:
+        persisted = False
+    return {"active": get_estop_status(), "persisted": persisted}
+
+@app.post("/api/estop")
+def api_estop_set(body: dict = Body(...)):
+    """Engage or release E-Stop latch. When engaged, all relays are forced OFF immediately and persisted."""
+    from app.relays_core import engage_estop, release_estop
+    from app.settings import set_setting_key
+    active = bool(body.get("active", False))
+    result = engage_estop() if active else release_estop()
+    try:
+        set_setting_key('estop_active', 'true' if active else 'false')
+    except Exception:
+        pass
+    # Attach persisted info
+    result["persisted"] = active
+    return result
 
 @app.get("/relay/set")
 def relay_set_query(name: str = Query(...), on: int = Query(...)):

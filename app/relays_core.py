@@ -48,19 +48,19 @@ RELAY_PINS = {
 # Minimum ON/OFF times to prevent short-cycling (seconds)
 # Optimized for responsive manual control with minimal protection
 MIN_ON = {
-    # Production-safe timings per checklist
-    "chiller_power": 300,  # 300 seconds ON minimum
-    "chiller_pump": 120,   # 120 seconds ON minimum
-    "main_pump": 5,        # 5 seconds
+    # Tuned per request: quick manual response; only chiller power needs 60s
+    "chiller_power": 60,   # 60 seconds ON minimum (compressor safety)
+    "chiller_pump": 0,     # match main_pump: no switch-off hold
+    "main_pump": 0,        # allow immediate OFF after ON
     "lights": 10,          # 10 seconds ON minimum
     "dosing_*": 0,         # No restriction
     "ph_*": 0,             # No restriction
 }
 
 MIN_OFF = {
-    # Production-safe timings per checklist
-    "chiller_power": 300,  # 300 seconds OFF minimum
-    "chiller_pump": 5,     # 5 seconds OFF minimum (not specified; conservative)
+    # Tuned per request: only chiller power needs 60s cooldown
+    "chiller_power": 60,   # 60 seconds OFF minimum (compressor anti-short-cycle)
+    "chiller_pump": 5,     # same as main pump
     "main_pump": 5,        # 5 seconds
     "lights": 5,           # 5 seconds OFF minimum
     "dosing_*": 0,         # No restriction
@@ -100,6 +100,7 @@ _antiflap_until: Dict[str, float] = {}
 # Event logging for debugging
 _relay_event_logs: Dict[str, deque] = defaultdict(lambda: deque(maxlen=200))
 _hold_until: Dict[str, float] = {}  # Temporary holds for debugging
+_estop_active: bool = False  # Global emergency stop (latching)
 
 # Persistence
 _STATE_FILE = os.path.expanduser("~/.rdwc/relay_state.json")
@@ -293,6 +294,20 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False) -> 
     
     device = _devices[name]
     current_state = _last_state.get(name, False)
+
+    # Emergency stop behavior: latching block for ON; force OFF allowed
+    if _estop_active:
+        if desired_on:
+            _log_relay_event(name, True, current_state, "estop_active", 0, blocked=True)
+            return {
+                "changed": False,
+                "state": current_state,
+                "reason": "estop_active",
+                "cooldown_remaining": 0
+            }
+        else:
+            # Force OFF regardless of cooldown/antiflap
+            force = True
     
     # Idempotent check
     if current_state == desired_on:
@@ -431,6 +446,39 @@ def get_antiflap_relays() -> list:
     """Get list of relays currently under anti-flap protection."""
     now = time.monotonic()
     return [name for name, until_time in _antiflap_until.items() if now < until_time]
+
+# --- Emergency Stop (latching) ----------------------------------------------
+def engage_estop() -> Dict[str, Any]:
+    """Engage E-Stop: latch active, force all relays OFF immediately."""
+    global _estop_active
+    _estop_active = True
+    results = {}
+    try:
+        # Clear antiflap to avoid residual lockouts post-release
+        _antiflap_until.clear()
+        # Turn everything OFF with force, using lights-specific helper for whitelist
+        for relay_name in RELAY_PINS.keys():
+            if relay_name == "lights":
+                res = set_lights(False, REASON_EMERGENCY, force=True)
+            else:
+                res = set_relay(relay_name, False, REASON_EMERGENCY, force=True)
+            results[relay_name] = {"changed": res.get("changed", False), "state": res.get("state", False)}
+        # Backdate last change timestamps so UI shows no cooldown
+        now = time.monotonic()
+        for relay_name in RELAY_PINS.keys():
+            _last_change_ts[relay_name] = now - 1000
+    except Exception as e:
+        logger.error(f"engage_estop error: {e}")
+    return {"active": True, "results": results}
+
+def release_estop() -> Dict[str, Any]:
+    """Release E-Stop latch: allow normal operation again (does not auto-restore)."""
+    global _estop_active
+    _estop_active = False
+    return {"active": False}
+
+def get_estop_status() -> bool:
+    return bool(_estop_active)
 
 # Convenience functions for specific relays
 def set_lights(on: bool, reason: str, force: bool = False) -> Dict[str, Any]:

@@ -28,9 +28,20 @@
     chiller_power: 'Water Chiller (AC)',
     lights: 'Grow Lights (AC)'
   };
+  // Mirror backend relay pins for tooltip context
+  const RELAY_PINS = {
+    lights: 21,
+    chiller_pump: 16,
+    chiller_power: 20,
+    main_pump: 26,
+    dosing_grow: 6,
+    dosing_micro: 13,
+    dosing_bloom: 19,
+    dosing_ph_up: 5,
+  };
 
   // Global UI state
-  const state = { systemMode: 'manual', relays: {} };
+  const state = { systemMode: 'manual', relays: {}, estop: false };
 
   async function getJSON(url){
     const r = await fetch(url, {cache:'no-store'});
@@ -76,16 +87,61 @@
     const manualBtn = q('#mode-manual');
     if (!autoBtn || !manualBtn) return;
 
+    // Reset active classes
+    autoBtn.classList.remove('active-auto');
+    manualBtn.classList.remove('active-manual');
+
     if (currentMode === 'auto') {
-      autoBtn.classList.add('bg-blue-600', 'text-white');
-      autoBtn.classList.remove('bg-gray-700', 'text-gray-300');
-      manualBtn.classList.add('bg-gray-700', 'text-gray-300');
-      manualBtn.classList.remove('bg-blue-600', 'text-white');
+      autoBtn.classList.add('active-auto');
     } else {
-      manualBtn.classList.add('bg-blue-600', 'text-white');
-      manualBtn.classList.remove('bg-gray-700', 'text-gray-300');
-      autoBtn.classList.add('bg-gray-700', 'text-gray-300');
-      autoBtn.classList.remove('bg-blue-600', 'text-white');
+      manualBtn.classList.add('active-manual');
+    }
+  }
+
+  // --- E-Stop API ------------------------------------------------------------
+  async function getEstop() {
+    try {
+      const r = await fetch('/api/estop', { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP '+r.status);
+      const j = await r.json();
+      return !!j.active;
+    } catch(e) {
+      console.warn('getEstop failed', e);
+      return false;
+    }
+  }
+
+  async function setEstop(active) {
+    try {
+      const r = await fetch('/api/estop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !!active })
+      });
+      if (!r.ok) throw new Error('HTTP '+r.status);
+      const j = await r.json().catch(()=>({}));
+      state.estop = !!(j.active ?? active);
+      updateEstopButton();
+      // Refresh relays as backend forces OFF on engage
+      setTimeout(refreshRelays, 100);
+      showToast(state.estop ? 'E-STOP engaged: all relays OFF' : 'E-STOP released', state.estop ? 'error' : 'success');
+    } catch(e) {
+      console.error('setEstop failed', e);
+      showToast('Failed to toggle E-STOP', 'error');
+    }
+  }
+
+  function updateEstopButton() {
+    const btn = q('#estop-btn');
+    if (!btn) return;
+    if (state.estop) {
+      btn.classList.add('active');
+      btn.textContent = 'E‑STOP ACTIVE';
+      btn.title = 'E-Stop is engaged: all relays forced OFF and blocked until release';
+    } else {
+      btn.classList.remove('active');
+      btn.textContent = 'E‑STOP';
+      btn.title = 'Emergency Stop: forces all relays OFF and blocks ON until released';
     }
   }
 
@@ -158,7 +214,8 @@
     // Compact buttons: half width, color-coded
     const isOn = state;
     const isLocked = lockout && lockout.active;
-    const isAutoMode = currentMode === 'auto';
+  const isAutoMode = currentMode === 'auto';
+  const isEstop = state.estop === true;
     
       let bgClass = isOn ? 'relay-on' : 'relay-off';
     let label = (isOn ? '● ' : '○ ') + name;
@@ -168,21 +225,27 @@
     // Auto mode: keep same background; readonly styling handled by CSS class
 
       // Add countdown pill when lockout info exists (still allow click in Manual)
-      if (isLocked) {
+      if (isLocked && !isEstop) {
         badges += `<span class="countdown-pill" data-countdown="${lockout.seconds_remaining}">${formatCountdown(lockout.seconds_remaining)}</span>`;
       }
 
     // Add Auto pill in auto mode
-    if (isAutoMode) {
-  badges += `<span class="lock-pill">Auto</span>`;
-    }
+    if (isAutoMode && !isEstop) { badges += `<span class="lock-pill">Auto</span>`; }
+    if (isEstop) { badges += `<span class="lock-pill" style="border-color: rgba(239,68,68,.65); color:#fecaca;">E‑Stop</span>`; }
 
-    const readonlyClass = isAutoMode ? 'readonly' : '';
-      const disabledAttr = isAutoMode ? 'disabled' : '';
-    const ariaDisabled = isAutoMode ? 'aria-disabled="true"' : '';
-      const title = isAutoMode 
-        ? 'Auto mode: controls disabled. Switch to Manual to operate.' 
-        : (isLocked ? `Cooldown active (${formatCountdown(lockout.seconds_remaining)}) — manual override allowed.` : '');
+    const readonlyClass = (isAutoMode || isEstop) ? 'readonly' : '';
+    const disabledAttr = (isAutoMode || isEstop) ? 'disabled' : '';
+    const ariaDisabled = (isAutoMode || isEstop) ? 'aria-disabled="true"' : '';
+    const title = isEstop
+      ? 'E-Stop engaged: controls disabled until released.'
+      : (isAutoMode
+        ? 'Auto mode: controls disabled. Switch to Manual to operate.'
+        : (isLocked ? `Cooldown active (${formatCountdown(lockout.seconds_remaining)}) — manual override allowed.` : ''));
+
+    const pin = RELAY_PINS[key];
+    const onOff = isOn ? 'ON' : 'OFF';
+    const tooltip = (title ? `${title}\n` : '') + `${name} — BCM ${pin ?? 'N/A'} — ${onOff}`;
+    const ariaPressed = isOn ? 'true' : 'false';
 
     return el(`
       <button 
@@ -190,7 +253,8 @@
   class="relay-btn ${bgClass} ${readonlyClass} text-white rounded-lg py-2 px-3 text-sm font-medium transition-all duration-200 flex items-center justify-between"
         ${disabledAttr}
         ${ariaDisabled}
-        title="${title}"
+        role="button" aria-pressed="${ariaPressed}"
+        title="${tooltip}"
       >
         <span>${label}</span>
         ${badges ? `<span class="flex gap-1">${badges}</span>` : ''}
@@ -202,7 +266,10 @@
     const el = q('#relays-mode-hint');
     if (!el) return;
     
-    if (currentMode === 'auto') {
+    if (state.estop) {
+      el.textContent = 'E‑STOP ACTIVE: all relays are forced OFF and controls are disabled until released.';
+      el.className = 'text-xs text-red-400 mt-2';
+    } else if (currentMode === 'auto') {
       el.textContent = 'Auto: controls disabled. Switch to Manual to operate.';
       el.className = 'text-xs text-blue-400 mt-2';
     } else {
@@ -211,9 +278,15 @@
     }
   }
 
+  function updateEstopBanner() {
+    const banner = q('#estop-banner');
+    if (!banner) return;
+    banner.classList.toggle('hidden', !state.estop);
+  }
+
   // Render the 8-button grid consistently
   function renderRelays(){
-    const grid = q('#relays-grid');
+  const grid = q('#relays-grid');
     if (!grid) return console.warn('#relays-grid missing');
     grid.innerHTML = '';
 
@@ -231,15 +304,15 @@
         info.lockout
       );
       // Readonly class in Auto mode
-      if (state.systemMode === 'auto') btn.classList.add('readonly');
+  if (state.systemMode === 'auto' || state.estop) btn.classList.add('readonly');
 
       // Handlers (only in Manual)
       btn.onclick = () => {
-        if (state.systemMode === 'auto') return;
+        if (state.systemMode === 'auto' || state.estop) return;
         requestToggle(key);
       };
       btn.onkeydown = (e) => {
-        if (state.systemMode === 'auto') return;
+        if (state.systemMode === 'auto' || state.estop) return;
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); requestToggle(key); }
       };
 
@@ -249,23 +322,26 @@
       grid.innerHTML = '<div class="text-sm text-gray-400">No relays found from API.</div>';
     }
     renderModeHint();
+    updateEstopBanner();
   }
 
   function wire(){
     const grid = q('#relays-grid');
-    if (!grid) return;
+  if (!grid) return;
     
     grid.querySelectorAll('.relay-btn').forEach(btn => {
       // keep wiring minimal; click/keydown set in renderRelays based on mode
-      if (state.systemMode === 'auto') {
-        btn.addEventListener('click', (e) => { e.preventDefault(); showToast('Controls disabled in Auto mode', 'warning'); });
+      if (state.systemMode === 'auto' || state.estop) {
+        const msg = state.estop ? 'E-STOP engaged: controls disabled' : 'Controls disabled in Auto mode';
+        btn.addEventListener('click', (e) => { e.preventDefault(); showToast(msg, 'warning'); });
         btn.addEventListener('keydown', (e) => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); }});
       }
     });
 
     // Wire mode toggle buttons
-    const autoBtn = q('#mode-auto');
-    const manualBtn = q('#mode-manual');
+  const autoBtn = q('#mode-auto');
+  const manualBtn = q('#mode-manual');
+  const estopBtn = q('#estop-btn');
     
     if (autoBtn) {
       autoBtn.addEventListener('click', () => {
@@ -280,6 +356,15 @@
         if (currentMode !== 'manual') {
           setSystemMode('manual');
         }
+      });
+    }
+    if (estopBtn) {
+      estopBtn.addEventListener('click', () => {
+        if (!state.estop) {
+          const ok = confirm('Engage E-STOP?\nThis will immediately turn all relays OFF and block ON commands until released.');
+          if (!ok) return;
+        }
+        setEstop(!state.estop);
       });
     }
   }
@@ -314,19 +399,35 @@
       renderModeHint();
     }catch(_){ }
   }
+  async function refreshEstop(){
+    try {
+      const active = await getEstop();
+      if (state.estop !== active) {
+        state.estop = active;
+        updateEstopButton();
+        renderRelays();
+      }
+    } catch(_){}
+  }
 
   // Initialize on load
   document.addEventListener('DOMContentLoaded', () => {
     refreshSystemMode();
+    refreshEstop();
     refreshRelays();
     wire();
     setInterval(refreshRelays, 1000);
+    setInterval(refreshEstop, 2000);
   });
 
   // Public toggle that honors lockout feedback
   async function requestToggle(key){
     try{
+      if (state.estop) { showToast('E-STOP engaged: action blocked', 'warning'); return; }
       const info = state.relays[key] || {};
+      // micro feedback
+      const btn = document.querySelector(`[data-relay="${key}"]`);
+      if (btn) btn.classList.add('loading');
       const desired = !info.state;
       const result = await setRelay(key, desired);
       if (result && (result.ok===false || result.changed===false)){
@@ -340,6 +441,7 @@
       }
       // Refresh after toggle
       setTimeout(refreshRelays, 150);
+      if (btn) setTimeout(() => btn.classList.remove('loading'), 250);
     }catch(e){
       console.error('Toggle failed', key, e);
       showToast(`Failed to toggle ${key}`, 'error');
