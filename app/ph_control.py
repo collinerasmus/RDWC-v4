@@ -129,6 +129,7 @@ def _dose_events_range(start: Optional[str] = None, end: Optional[str] = None, h
     
     with sqlite3.connect(str(DB_PATH)) as conn:
         cur = conn.cursor()
+        print(f"[DEBUG] SQL query params: cutoff={cutoff}, upper={upper}, limit={limit}")
         cur.execute(
             """
             SELECT ts_utc, action, volume_ml, duration_ms, pre_ph, post_ph, result, reason
@@ -140,6 +141,7 @@ def _dose_events_range(start: Optional[str] = None, end: Optional[str] = None, h
             (cutoff, upper, int(limit))
         )
         rows = cur.fetchall()
+        print(f"[DEBUG] SQL returned {len(rows)} rows")
     events = []
     for r in rows:
         duration_ms = r[3] if r[3] is not None else 0
