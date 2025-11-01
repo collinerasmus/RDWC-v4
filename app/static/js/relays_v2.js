@@ -111,30 +111,25 @@
     }
   }
 
-  async function setEstop(active) {
+  async function toggleEstop() {
     try {
-      // Prefer wrapper that toggles server-side (no race with client state)
-      let j;
-      try {
-        const r1 = await fetch('/api/relays/estop/toggle', { method: 'POST' });
-        if (r1.ok) j = await r1.json().catch(()=>({}));
-      } catch(_){ /* fall back */ }
-      if (!j) {
-        const r2 = await fetch('/api/estop', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ active: !!active })
-        });
-        if (!r2.ok) throw new Error('HTTP '+r2.status);
-        j = await r2.json().catch(()=>({}));
-      }
-      state.estop = !!(j.active ?? !state.estop);
+      // Use server-side toggle endpoint (backend owns the truth)
+      const r = await fetch('/api/relays/estop/toggle', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!r.ok) throw new Error('HTTP '+r.status);
+      const j = await r.json().catch(()=>({}));
+      
+      // Update UI state from backend response
+      state.estop = !!(j.active);
       updateEstopButton();
+      
       // Refresh relays as backend forces OFF on engage
       setTimeout(refreshRelays, 100);
       showToast(state.estop ? 'E-STOP engaged: all relays OFF' : 'E-STOP released', state.estop ? 'error' : 'success');
     } catch(e) {
-      console.error('setEstop failed', e);
+      console.error('toggleEstop failed', e);
       showToast('Failed to toggle E-STOP', 'error');
     }
   }
@@ -389,7 +384,7 @@
           const ok = confirm('Engage E-STOP?\nThis will immediately turn all relays OFF and block ON commands until released.');
           if (!ok) return;
         }
-        setEstop(!state.estop);
+        toggleEstop();
       });
     }
   }
