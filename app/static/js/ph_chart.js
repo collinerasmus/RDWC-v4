@@ -37,7 +37,7 @@
    * @param {string|null} timeMin - ISO timestamp or null
    * @param {string|null} timeMax - ISO timestamp or null
    */
-  function phBuildChart(datasets, timeMin, timeMax) {
+  function phBuildChart(datasets, timeMin, timeMax, axisTitle) {
     const el = document.getElementById('phDoseChart');
     const empty = document.getElementById('ph-dose-empty');
 
@@ -85,7 +85,7 @@
             ticks: { source: 'auto' }
           },
           y: {
-            title: { display: true, text: 'Dose (ml)' },
+            title: { display: true, text: axisTitle || 'Dose (ml)' },
             suggestedMin: 0
           }
         },
@@ -117,11 +117,33 @@
   async function phLoadRangeAndRender({start, end}) {
     const wrap = (id, v) => { console.debug(`[pH] ${id}:`, v); return v; };
 
-    console.debug('[pH] Range request', {start, end});
+    // Normalize inputs: accept epoch ms numbers or ISO strings; always send ISO with 'Z'
+    const toIso = (v) => {
+      if (v == null) return null;
+      // If already looks like an ISO string, pass through (ensure Z if missing timezone by treating as Date)
+      if (typeof v === 'string') {
+        // If string has no timezone, coerce via Date to normalize to UTC Z
+        try {
+          const d = new Date(v);
+          if (!isNaN(d.getTime())) return d.toISOString();
+        } catch(e) {/* fallthrough */}
+        return v;
+      }
+      if (typeof v === 'number') {
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? null : d.toISOString();
+      }
+      return null;
+    };
+
+    const startISO = toIso(start);
+    const endISO = toIso(end);
+
+    console.debug('[pH] Range request', {start, end, startISO, endISO});
 
     // Build URLs for events and summary
-    const uEvents = `/api/ph/dose_log?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&limit=2000`;
-    const uSummary = `/api/ph/dose_summary?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+    const uEvents = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`;
+    const uSummary = `/api/ph/dose_summary?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
 
     let events = [];
     let summary = [];
@@ -144,20 +166,21 @@
     wrap('summary.len', summary.length);
 
     // Build datasets
+    const hasAnyMl = events.some(r => r && r.volume_ml != null);
     const pts = events.map(r => ({
-      x: r.ts, 
-      y: (r.volume_ml != null ? r.volume_ml : 0),
+      x: r.ts,
+      y: hasAnyMl ? (r.volume_ml != null ? r.volume_ml : 0) : (r.seconds ?? 0),
       ml: (r.volume_ml != null ? r.volume_ml : null),
       sec: r.seconds ?? null,
       phb: r.ph_before ?? null,
       pha: r.ph_after ?? null
     }));
 
-    // When long windows, also build a bar dataset from summary
-    const bars = summary.map(d => ({
-      x: d.day, 
+    // When long windows, also build a bar dataset from summary (only meaningful when ml calibration exists)
+    const bars = hasAnyMl ? summary.map(d => ({
+      x: d.day,
       y: d.total_ml ?? 0
-    }));
+    })) : [];
 
     const haveBars = bars.length > 0;
     const datasets = [
@@ -171,7 +194,7 @@
       } : null,
       {
         type: 'scatter',
-        label: 'Dose events',
+        label: hasAnyMl ? 'Dose events (ml)' : 'Dose events (s)',
         data: pts,
         order: 1,
         pointRadius: 3,
@@ -180,19 +203,24 @@
     ].filter(Boolean);
 
     // Render chart
+    const axisTitle = hasAnyMl ? 'Dose (ml)' : 'Dose (s)';
     const tmin = events.length ? events[0].ts : (summary[0]?.day ?? null);
     const tmax = events.length ? events[events.length-1].ts : (summary[summary.length-1]?.day ?? null);
-    phBuildChart(datasets, tmin, tmax);
+    phBuildChart(datasets, tmin, tmax, axisTitle);
 
     // Update "In range" pill
-    const sumMl = events.reduce((a, r) => a + (r.volume_ml ?? 0), 0);
-    const hasAnyMl = events.some(r => r.volume_ml != null);
     const pill = document.getElementById('ph-in-range');
     if (pill) {
-      pill.textContent = hasAnyMl ? `In range: ${sumMl.toFixed(1)} ml` : 'In range: — ml';
+      if (hasAnyMl) {
+        const sumMl = events.reduce((a, r) => a + (r.volume_ml ?? 0), 0);
+        pill.textContent = `In range: ${sumMl.toFixed(1)} ml`;
+      } else {
+        const sumSec = events.reduce((a, r) => a + (r.seconds ?? 0), 0);
+        pill.textContent = sumSec > 0 ? `In range: ${Math.round(sumSec)} s` : 'In range: — s';
+      }
     }
 
-    PH_CHART_STATE = { lastStart: start, lastEnd: end, lastCount: events.length };
+    PH_CHART_STATE = { lastStart: startISO || start || null, lastEnd: endISO || end || null, lastCount: events.length };
     console.debug('[pH] Render complete', PH_CHART_STATE);
   }
 
@@ -204,8 +232,8 @@
     
     // Compute default start/end (24h)
     const now = new Date();
-    const start = new Date(now.getTime() - 24*3600*1000).toISOString().slice(0,19);
-    const end = now.toISOString().slice(0,19);
+    const start = new Date(now.getTime() - 24*3600*1000).toISOString();
+    const end = now.toISOString();
     
     phLoadRangeAndRender({start, end});
   }
