@@ -205,6 +205,69 @@ def health():
 def asset_version():
     """Expose a simple asset version token for cache-busting (ASSET_VERSION env or today's date)."""
     return {"version": ASSET_VERSION}
+
+@app.get("/api/relays/status")
+def api_relays_status():
+    """Wrapper endpoint for UI/verify tools: returns mode, estop, and relay map.
+    Shape: {"mode":"manual|auto","estop":bool,"relays":{ name: {pin_bcm, active_low, is_on, label} }}
+    """
+    from app.relays_core import get_relay_status, RELAY_PINS, get_estop_status
+    from app.system_mode import get_system_mode
+    status = get_relay_status()
+    mode = get_system_mode() or 'manual'
+    estop = bool(get_estop_status())
+    # Labels mapping (keep backend keys: lights/chiller_power)
+    LABELS = {
+        'dosing_ph_up': 'pH Up Pump',
+        'dosing_grow': 'Grow Pump',
+        'dosing_micro': 'Micro Pump',
+        'dosing_bloom': 'Bloom Pump',
+        'main_pump': 'Main Pump',
+        'chiller_pump': 'Chiller Pump',
+        'chiller_power': 'Water Chiller (AC)',
+        'lights': 'Grow Lights (AC)',
+    }
+    rel = {}
+    for name, pin in RELAY_PINS.items():
+        info = status.get(name, {})
+        rel[name] = {
+            "pin_bcm": pin,
+            "active_low": True,
+            "is_on": bool(info.get("state", False)),
+            "label": LABELS.get(name, name)
+        }
+    return {"mode": mode, "estop": estop, "relays": rel}
+
+@app.post("/api/relay/{key}/toggle")
+def api_relay_toggle(key: str):
+    """Toggle a relay by key, honoring system mode and protections via relays_core.
+    In manual mode, 'force' is enabled; in auto, protections apply and UI should be disabled.
+    """
+    from app.relays_core import get_relay_status, RELAY_PINS
+    if key not in RELAY_PINS:
+        return JSONResponse(status_code=400, content={"ok": False, "error": f"invalid_relay:{key}"})
+    cur = get_relay_status().get(key, {})
+    desired = not bool(cur.get("state", False))
+    # Reuse existing /relay/set POST path for centralized logic and tracing
+    try:
+        return relay_set_new({"name": key, "on": desired})  # type: ignore[arg-type]
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+@app.post("/api/relays/mode")
+def api_relays_mode(body: dict = Body(...)):
+    """Set system mode using existing system_mode endpoint."""
+    mode = (body.get("mode") or "").lower()
+    if mode not in ("manual", "auto"):
+        return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_mode"})
+    return set_system_mode_api({"mode": mode})  # type: ignore[arg-type]
+
+@app.post("/api/relays/estop/toggle")
+def api_relays_estop_toggle():
+    """Toggle E-STOP latch using existing /api/estop endpoints."""
+    from app.relays_core import get_estop_status
+    active = bool(get_estop_status())
+    return api_estop_set({"active": (not active)})
     
     # Get relay status
     relay_states = {}
