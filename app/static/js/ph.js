@@ -150,7 +150,7 @@
     }
   }
 
-  function wire(){
+  async function wire(){
     const c = document.getElementById('ph-card');
     if(!c) return;
     el('btnPrime')?.addEventListener('click', ()=> postDose({ms:200, reason:'prime'}));
@@ -167,8 +167,8 @@
       if(window.showToast){ showToast(j.guard || 'Set', j.guard? 'error':'success'); }
       else { alert(j.guard || 'Set'); }
     });
-    // Wire range controls (matching Trends template)
-    wireRangeControls();
+    // Wire range controls (matching Trends template) - await to ensure range is loaded
+    await wireRangeControls();
     
     // CSV export uses current range
     el('ph-dose-csv')?.addEventListener('click', ()=>{ exportCSV(); });
@@ -180,7 +180,7 @@
     });
   }
 
-  function wireRangeControls(){
+  async function wireRangeControls(){
     // Get range utility
     if (!window.rdwcRange) {
       console.error('[pH] rdwcRange not loaded');
@@ -229,8 +229,8 @@
       });
     }
     
-    // Load initial range
-    loadRange(currentRange.preset);
+    // Load initial range (await to ensure start/end are set before chart refresh)
+    await loadRange(currentRange.preset);
   }
   
   async function selectPreset(preset){
@@ -284,8 +284,8 @@
     window.open(`/api/ph/dose_log.csv?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=5000`, '_blank');
   }
 
-  document.addEventListener('DOMContentLoaded', ()=>{
-    wire();
+  document.addEventListener('DOMContentLoaded', async ()=>{
+    await wire();
     tick();
     schedule();
     refreshSummary();
