@@ -18,6 +18,7 @@ import time
 import sqlite3
 import threading
 from pathlib import Path
+import os
 
 router = APIRouter()
 
@@ -42,6 +43,30 @@ def _ensure_tables() -> None:
             )
             """
         )
+        # Helpful index for time-ordered queries
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ph_dose_log_ts ON ph_dose_log(ts_utc)")
+        # Optional daily totals view (idempotent)
+        try:
+            conn.execute(
+                """
+                CREATE VIEW IF NOT EXISTS ph_dose_daily AS
+                SELECT substr(ts_utc,1,10) AS day, SUM(COALESCE(volume_ml,0)) AS total_ml
+                FROM ph_dose_log
+                WHERE result='ok'
+                GROUP BY day
+                ORDER BY day ASC
+                """
+            )
+        except Exception:
+            pass
+        # Optional retention purge
+        try:
+            keep_days = int(os.environ.get("PH_DOSE_LOG_RETENTION_DAYS", "0") or "0")
+        except Exception:
+            keep_days = 0
+        if keep_days and keep_days > 0:
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=keep_days)).isoformat()
+            conn.execute("DELETE FROM ph_dose_log WHERE ts_utc < ?", (cutoff,))
         conn.commit()
 
 def _log_row(row: Dict[str, Any]) -> int:
@@ -85,6 +110,89 @@ def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
             "result": r[7], "reason": r[8]
         })
     return out
+
+def _dose_events_range(start: Optional[str] = None, end: Optional[str] = None, hours: Optional[int] = None, limit: int = 2000) -> List[Dict[str, Any]]:
+    """Get dose events within a range. Prefers start/end over hours."""
+    _ensure_tables()
+    if start and end:
+        # Use explicit range
+        start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
+        end_dt = datetime.fromisoformat(end.replace('Z', '+00:00'))
+        if start_dt >= end_dt:
+            raise ValueError("start must be before end")
+        cutoff = start_dt.isoformat()
+        upper = end_dt.isoformat()
+    else:
+        # Fallback to hours
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=max(1, int(hours or 24)))).isoformat()
+        upper = datetime.now(timezone.utc).isoformat()
+    
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT ts_utc, action, volume_ml, duration_ms, pre_ph, post_ph, result, reason
+            FROM ph_dose_log
+            WHERE ts_utc >= ? AND ts_utc < ?
+            ORDER BY ts_utc ASC
+            LIMIT ?
+            """,
+            (cutoff, upper, int(limit))
+        )
+        rows = cur.fetchall()
+    events = []
+    for r in rows:
+        duration_ms = r[3] if r[3] is not None else 0
+        seconds = round((duration_ms or 0)/1000.0, 3)
+        guard = r[7] if (r[6] == 'blocked' and r[7]) else None
+        events.append({
+            "ts": r[0],
+            "seconds": seconds,
+            "volume_ml": r[2],
+            "reason": r[1],  # action field maps to reason ('dose' with reason string below)
+            "ph_before": r[4],
+            "ph_after": r[5],
+            "guard_triggered": guard,
+            "result": r[6],
+            "action": r[1],
+            "detail": r[7]
+        })
+    return events
+
+def _dose_daily_range(start: Optional[str] = None, end: Optional[str] = None, days: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Aggregate dose events by day (UTC). Prefers start/end over days."""
+    _ensure_tables()
+    if start and end:
+        start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
+        end_dt = datetime.fromisoformat(end.replace('Z', '+00:00'))
+        if start_dt >= end_dt:
+            raise ValueError("start must be before end")
+        start_day = start_dt.date().isoformat()
+        end_day = end_dt.date().isoformat()
+    else:
+        # Fallback to days
+        start_day = (datetime.now(timezone.utc) - timedelta(days=max(1, int(days or 7))-1)).date().isoformat()
+        end_day = datetime.now(timezone.utc).date().isoformat()
+    
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT substr(ts_utc,1,10) AS day, SUM(COALESCE(volume_ml,0)) AS total_ml
+            FROM ph_dose_log
+            WHERE result='ok' AND substr(ts_utc,1,10) >= ? AND substr(ts_utc,1,10) <= ?
+            GROUP BY day
+            ORDER BY day ASC
+            """,
+            (start_day, end_day)
+        )
+        rows = cur.fetchall()
+    return [{"day": r[0], "total_ml": float(r[1] or 0.0)} for r in rows]
+
+
+def _dose_daily(days: int) -> List[Dict[str, Any]]:
+    """Compatibility shim for tests: returns last N days (UTC) aggregated."""
+    return _dose_daily_range(days=int(days))
 
 def _today_total_ml(now_dt: datetime) -> float:
     _ensure_tables()
@@ -132,6 +240,17 @@ def _get_latest_ph() -> Tuple[Optional[float], Optional[int]]:
     except Exception:
         pass
     return (None, None)
+
+def _volume_ml_from_ms(duration_ms: int) -> Optional[float]:
+    """Compute volume_ml using calibration rate; return None if not configured (>0)."""
+    try:
+        rate = _settings_get_float("dosing.ph_up_ml_per_sec", 25.0)
+        if rate is None or rate <= 0:
+            return None
+        seconds = max(0.0, float(duration_ms or 0) / 1000.0)
+        return round(seconds * rate, 3)
+    except Exception:
+        return None
 
 def _settings_get(key: str, default: str) -> str:
     try:
@@ -202,14 +321,28 @@ def ph_status():
         "high": _settings_get_float("targets.ph_high", 6.2),
     }
     guards = _compute_guards(now)
+    # Remaining cooldown helper
+    since = guards.get("since_last_ok_s") or 0
+    min_int = guards.get("min_interval_s") or 0
+    remaining = int(max(0, min_int - since))
+    # Last ok ts for reference
+    last_ok = _last_ok_ts()
     recent = _recent_doses(5)
+    try:
+        from app.settings import get_setting_key
+        maint_override = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
+    except Exception:
+        maint_override = False
     return {
         "ph": ph_val,
         "ts": ts,
         "targets": targets,
         "auto": {"enabled": False, "guard": "automation unsupported: only pH Up available"},
         "guards": guards,
-        "recent": recent
+        "recent": recent,
+        "remaining_cooldown_s": remaining,
+        "maintenance_override": maint_override,
+        "last_dose_ts": int(last_ok.timestamp()) if last_ok else None,
     }
 
 
@@ -227,20 +360,40 @@ def _dose_ms_from_ml(ml: float) -> Tuple[int, Optional[str]]:
 def _actuate_ph_up(duration_ms: int) -> Dict[str, Any]:
     from app.relays_core import set_dosing_ph_up
     # Active-low handled in relays_core
-    on = set_dosing_ph_up(True, reason="ph_dose", force=True)
-    if not on.get("changed") and not on.get("state"):
-        # Could be blocked by estop or cooldown
-        return {"ok": False, "reason": on.get("reason", "blocked")}
-    time.sleep(max(0, duration_ms) / 1000.0)
-    set_dosing_ph_up(False, reason="ph_dose", force=True)
-    return {"ok": True}
-
-
-def _background_observe_and_update(rowid: int, observe_s: int):
     try:
-        time.sleep(max(0, observe_s))
-        ph_after, _ = _get_latest_ph()
-        _update_post_ph(rowid, ph_after)
+        print(f"[pH] GPIO LOW (ON) ms={duration_ms} on dosing_ph_up")
+        on = set_dosing_ph_up(True, reason="ph_dose", force=True)
+        if not on.get("changed") and not on.get("state"):
+            # Could be blocked by estop or cooldown
+            return {"ok": False, "reason": on.get("reason", "blocked")}
+        time.sleep(max(0, duration_ms) / 1000.0)
+        return {"ok": True}
+    finally:
+        # Always return HIGH (OFF)
+        try:
+            set_dosing_ph_up(False, reason="ph_dose", force=True)
+            print("[pH] GPIO HIGH (OFF) dosing_ph_up")
+        except Exception:
+            pass
+
+
+def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], max_wait_s: int):
+    """Poll for the next pH sample after dosing completes, up to max_wait_s seconds.
+    Updates post_ph when a newer sample than baseline appears; otherwise leaves as-is.
+    """
+    try:
+        deadline = time.time() + max(0, max_wait_s)
+        last_seen_ts = baseline_ts_unix or 0
+        while time.time() < deadline:
+            ph_after, ts = _get_latest_ph()
+            if ts and ts > last_seen_ts:
+                _update_post_ph(rowid, ph_after)
+                return
+            time.sleep(1.0)
+        # Fallback single read at end (may still be same sample)
+        ph_after, ts = _get_latest_ph()
+        if ts and (baseline_ts_unix is None or ts >= baseline_ts_unix):
+            _update_post_ph(rowid, ph_after)
     except Exception:
         pass
 
@@ -252,9 +405,11 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
     """
     ml = body.get("ml")
     ms = body.get("ms")
+    seconds = body.get("seconds")
     reason = str(body.get("reason", "manual"))[:200]
+    force_req = bool(body.get("force", False))
 
-    # Prefer ml if provided
+    # Prefer ml if provided (convert to ms using calibration), but log-time ml always derived from ms
     if ml is not None:
         try:
             ml = float(ml)
@@ -264,15 +419,23 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
         if err:
             return JSONResponse(status_code=422, content={"ok": False, "error": err})
         duration_ms = ms_calc
-        volume_ml = ml
     else:
+        # Accept either ms or seconds
         try:
-            duration_ms = int(float(ms or 0))
+            if ms is not None:
+                duration_ms = int(round(float(ms)))
+            elif seconds is not None:
+                duration_ms = int(round(float(seconds) * 1000.0))
+            else:
+                duration_ms = 0
         except Exception:
-            return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_ms"})
-        # Infer ml from rate for logging
-        rate = _settings_get_float("dosing.ph_up_ml_per_sec", 25.0)
-        volume_ml = round((duration_ms/1000.0) * rate, 3)
+            return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_duration"})
+    # Compute volume at log-time using calibration (nullable if no calibration)
+    volume_ml = _volume_ml_from_ms(duration_ms)
+    # Clamp duration
+    MAX_MS = int(_settings_get_int("dosing.ph_up_max_ms", 5000))
+    if duration_ms <= 0 or duration_ms > MAX_MS:
+        return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_duration_ms", "max_ms": MAX_MS})
 
     # Guards
     g = _compute_guards(time.time())
@@ -285,39 +448,68 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
         "reservoir": g["reservoir"],
     }
     blocked_reasons = [k for k,v in guard_map.items() if v]
+    # Force bypass (testing only) for interval/daily_cap guards
+    try:
+        from app.settings import get_setting_key
+        allow_force = (get_setting_key("safety.allow_force", "false") or "false").lower() == "true"
+        maint_override = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
+        allow_stale_on_override = (get_setting_key("safety.allow_stale_on_override", "false") or "false").lower() == "true"
+    except Exception:
+        allow_force = False
+        maint_override = False
+        allow_stale_on_override = False
+    if maint_override or (force_req and allow_force):
+        # Under overrides, allow bypassing interval and daily caps.
+        # Stale-sensor bypass is only permitted when BOTH maintenance_override is true
+        # AND safety.allow_stale_on_override is explicitly enabled (test-only).
+        bypass = {"interval", "daily_cap"}
+        if maint_override and allow_stale_on_override:
+            bypass.add("sensor_stale")
+        # Still enforce hard safety guards: estop, safe_off, reservoir
+        blocked_reasons = [r for r in blocked_reasons if r not in bypass]
     ts_iso = datetime.now(timezone.utc).isoformat()
 
-    pre_ph, _ = _get_latest_ph()
+    pre_ph, pre_ts = _get_latest_ph()
 
     if blocked_reasons:
+        # Provide structured reason and remaining cooldown if applicable
+        remaining = None
+        if guard_map.get("interval"):
+            since = guard_map.get("since_last_ok_s") or 0
+            min_int = guard_map.get("min_interval_s") or 0
+            remaining = int(max(0, min_int - since))
         rowid = _log_row({
-            "ts_utc": ts_iso, "action": "dose", "volume_ml": float(volume_ml),
+            "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
             "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
             "result": "blocked", "reason": ",".join(blocked_reasons)
         })
-        return JSONResponse(status_code=409, content={"ok": False, "blocked": True, "reasons": blocked_reasons, "rowid": rowid})
+        payload = {"ok": False, "blocked": True, "reasons": blocked_reasons, "rowid": rowid}
+        if remaining is not None:
+            payload.update({"reason": "cooldown", "remaining_cooldown_s": remaining})
+        return JSONResponse(status_code=409, content=payload)
 
     # Actuate pump
     act = _actuate_ph_up(int(duration_ms))
     if not act.get("ok"):
         rowid = _log_row({
-            "ts_utc": ts_iso, "action": "dose", "volume_ml": float(volume_ml),
+            "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
             "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
             "result": "error", "reason": act.get("reason","error")
         })
         return JSONResponse(status_code=500, content={"ok": False, "error": act.get("reason","error"), "rowid": rowid})
 
     rowid = _log_row({
-        "ts_utc": ts_iso, "action": "dose", "volume_ml": float(volume_ml),
+        "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
         "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
-        "result": "ok", "reason": reason
+        "result": "ok", "reason": ("maintenance_override; " + reason) if maint_override else (("force_bypass; " + reason) if (force_req and allow_force) else reason)
     })
 
-    # Schedule background observe to update post_ph later (avoid request blocking)
-    observe_s = _settings_get_int("dosing.observe_s_after_dose", 60)
-    threading.Thread(target=_background_observe_and_update, args=(rowid, observe_s), daemon=True).start()
+    # Schedule background observe to update post_ph with next sample (avoid request blocking)
+    # Hard-limit to 10s to capture next sample quickly
+    observe_s = min(10, _settings_get_int("dosing.observe_s_after_dose", 60))
+    threading.Thread(target=_background_observe_and_update, args=(rowid, pre_ts, observe_s), daemon=True).start()
 
-    return {"ok": True, "rowid": rowid, "pre_ph": pre_ph, "volume_ml": float(volume_ml), "duration_ms": int(duration_ms)}
+    return {"ok": True, "rowid": rowid, "pre_ph": pre_ph, "volume_ml": None if volume_ml is None else float(volume_ml), "duration_ms": int(duration_ms), "clamped_ms": min(duration_ms, MAX_MS), "override": bool(maint_override or (force_req and allow_force))}
 
 
 @router.post("/api/ph/auto")
@@ -352,3 +544,136 @@ def ph_export(hours: int = Query(24)):
         ])
         lines.append(line)
     return PlainTextResponse("\n".join(lines), media_type="text/csv")
+
+
+# --- New telemetry endpoints -------------------------------------------------
+@router.get("/api/ph/dose_log")
+def ph_dose_log(
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
+    hours: Optional[int] = Query(None),
+    grow: Optional[bool] = Query(False),
+    limit: int = Query(2000)
+):
+    """Get dose events. Prefers start/end over hours. If grow=true, computes range from settings."""
+    try:
+        # Handle grow preset
+        if grow:
+            grow_date_str = _settings_get("general.grow_start_date", "")
+            if grow_date_str:
+                try:
+                    from app.settings import SA_TZ
+                    # pytz timezone needs localize
+                    naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                    local_dt = SA_TZ.localize(naive_dt)
+                except Exception:
+                    # Fallback to UTC if import fails
+                    naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                    local_dt = naive_dt.replace(tzinfo=timezone.utc)
+                start = local_dt.astimezone(timezone.utc).isoformat()
+                end = datetime.now(timezone.utc).isoformat()
+        
+        events = _dose_events_range(start=start, end=end, hours=hours, limit=limit)
+        # Align field names with spec
+        out = []
+        for e in events:
+            out.append({
+                "ts": e["ts"],
+                "seconds": e["seconds"],
+                "volume_ml": e["volume_ml"],
+                "reason": e.get("detail") or e.get("action") or "manual",
+                "ph_before": e["ph_before"],
+                "ph_after": e["ph_after"],
+                "guard_triggered": e["guard_triggered"],
+            })
+        return out
+    except ValueError as ve:
+        return JSONResponse(status_code=422, content={"ok": False, "error": str(ve)})
+
+
+@router.get("/api/ph/dose_summary")
+def ph_dose_summary(
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
+    days: Optional[int] = Query(None),
+    grow: Optional[bool] = Query(False)
+):
+    """Get daily aggregated dose totals. Prefers start/end over days."""
+    try:
+        # Handle grow preset
+        if grow:
+            grow_date_str = _settings_get("general.grow_start_date", "")
+            if grow_date_str:
+                try:
+                    from app.settings import SA_TZ
+                    naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                    local_dt = SA_TZ.localize(naive_dt)
+                except Exception:
+                    naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                    local_dt = naive_dt.replace(tzinfo=timezone.utc)
+                start = local_dt.astimezone(timezone.utc).isoformat()
+                end = datetime.now(timezone.utc).isoformat()
+        
+        rows = _dose_daily_range(start=start, end=end, days=days)
+        return rows
+    except ValueError as ve:
+        return JSONResponse(status_code=422, content={"ok": False, "error": str(ve)})
+
+
+@router.get("/api/ph/dose_log.csv")
+def ph_dose_log_csv(
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
+    hours: Optional[int] = Query(None),
+    grow: Optional[bool] = Query(False),
+    limit: int = Query(2000)
+):
+    """CSV export of dose events with range support."""
+    try:
+        # Handle grow preset
+        start_for_filename = start
+        end_for_filename = end
+        if grow:
+            grow_date_str = _settings_get("general.grow_start_date", "")
+            if grow_date_str:
+                try:
+                    from app.settings import SA_TZ
+                    naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                    local_dt = SA_TZ.localize(naive_dt)
+                except Exception:
+                    naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                    local_dt = naive_dt.replace(tzinfo=timezone.utc)
+                start = local_dt.astimezone(timezone.utc).isoformat()
+                end = datetime.now(timezone.utc).isoformat()
+                start_for_filename = start
+                end_for_filename = end
+        
+        events = _dose_events_range(start=start, end=end, hours=hours, limit=limit)
+        
+        # Build filename based on range
+        filename = "ph_dose_log"
+        if start_for_filename and end_for_filename:
+            start_date = datetime.fromisoformat(start_for_filename.replace('Z', '+00:00')).strftime("%Y%m%d")
+            end_date = datetime.fromisoformat(end_for_filename.replace('Z', '+00:00')).strftime("%Y%m%d")
+            filename = f"ph_dose_log_{start_date}_{end_date}.csv"
+        elif hours:
+            filename = f"ph_dose_log_{hours}h.csv"
+        else:
+            filename = "ph_dose_log.csv"
+        
+        lines = ["ts,seconds,volume_ml,reason,ph_before,ph_after,guard_triggered"]
+        for e in events:
+            line = ",".join([
+                str(e["ts"]), str(e["seconds"]),
+                "" if e["volume_ml"] is None else str(e["volume_ml"]),
+                str(e.get("detail") or e.get("action") or "manual"),
+                "" if e["ph_before"] is None else str(e["ph_before"]),
+                "" if e["ph_after"] is None else str(e["ph_after"]),
+                "" if not e["guard_triggered"] else str(e["guard_triggered"]) 
+            ])
+            lines.append(line)
+        
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return PlainTextResponse("\n".join(lines), media_type="text/csv", headers=headers)
+    except ValueError as ve:
+        return PlainTextResponse(f"Error: {ve}", status_code=422)

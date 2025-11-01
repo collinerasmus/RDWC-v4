@@ -30,7 +30,8 @@
         'dosing.pulse_ml_bloom': {label:'Bloom pulse (ml)', type:'number', min:0, max:1000, step:1},
         'dosing.max_ml_hour_': {label:'Max per hour (ml)', type:'number', min:0, max:5000, step:1},
         'dosing.max_ml_day_': {label:'Max per day (ml)', type:'number', min:0, max:20000, step:1},
-        'dosing.mix_delay_s': {label:'Mix delay (s)', type:'number', min:0, max:3600, step:1}
+        'dosing.mix_delay_s': {label:'Mix delay (s)', type:'number', min:0, max:3600, step:1},
+        'dosing.ph_up_ml_per_sec': {label:'pH Up calibration (ml/s)', type:'number', min:0.1, max:200, step:0.1, tooltip:'Used to convert seconds to ml for totals'}
       }
     },
     safety: {
@@ -40,7 +41,10 @@
         'safety.chiller_pump_min_off_s': {label:'Chiller pump min OFF (s)', type:'number', min:0, max:3600, step:1},
         'safety.chiller_min_off_s': {label:'Chiller AC min OFF (s)', type:'number', min:0, max:3600, step:1, tooltip:'Compressor protection — recommended ≥ 300s'},
         'safety.chiller_min_on_s': {label:'Chiller AC min ON (s)', type:'number', min:0, max:3600, step:1},
-        'safety.estop_persist': {label:'E‑STOP persists across reboot', type:'checkbox'}
+        'safety.estop_persist': {label:'E‑STOP persists across reboot', type:'checkbox'},
+        'safety.allow_force': {label:'Allow Force (test)', type:'checkbox', tooltip:'Temporarily allow bypassing cooldown and daily cap for testing only'},
+        'safety.maintenance_override': {label:'Maintenance override (test only)', type:'checkbox', tooltip:'Bypasses cooldown/daily cap; clamps single dose; E-STOP/empty reservoir still enforced'},
+        'safety.allow_stale_on_override': {label:'Allow stale sensors on override', type:'checkbox', tooltip:'Allows dosing when sensors are stale (TEST ONLY). Off by default.', badge:'TEST'}
       }
     },
     alerts: {
@@ -127,6 +131,13 @@
         tip.style.marginLeft = '8px';
         tip.textContent = meta.tooltip;
         wrap.appendChild(tip);
+      }
+      // Optional badge (e.g., TEST)
+      if (meta.badge){
+        const badge = document.createElement('span');
+        badge.textContent = meta.badge;
+        badge.style.cssText = 'margin-left:8px;padding:2px 6px;border-radius:6px;background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);color:#fca5a5;font-size:0.75rem;';
+        wrap.appendChild(badge);
       }
       
       // Add Day N badge after grow_start_date input

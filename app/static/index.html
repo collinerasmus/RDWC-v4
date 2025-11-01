@@ -421,6 +421,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   }
   /* Subtle click feedback */
   .relay-btn.loading{ opacity:.7; }
+
+  /* pH Dose History chart wrapper */
+  #ph-dose-chart-wrap { min-height: 260px; }
+  #phDoseChart { display: block; width: 100%; height: 260px; }
 </style>
 </head>
 <body>
@@ -524,6 +528,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <span id="ph-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
           </div>
 
+          <!-- Summary pills -->
+          <div id="ph-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px 0;">
+            <span id="ph-total-today" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#a7f3d0;">Today: — ml</span>
+            <span id="ph-total-week" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Week: — ml</span>
+            <button id="ph-dose-csv" class="btn-secondary" title="Download dose log CSV (7d)">Download CSV</button>
+          </div>
+
           <div class="tabs" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px 0;">
             <button class="btn-secondary" onclick="document.getElementById('ph-tab-status').style.display='block';document.getElementById('ph-tab-manual').style.display='none';document.getElementById('ph-tab-auto').style.display='none';">Status</button>
             <button class="btn-secondary" onclick="document.getElementById('ph-tab-status').style.display='none';document.getElementById('ph-tab-manual').style.display='block';document.getElementById('ph-tab-auto').style.display='none';">Manual</button>
@@ -538,6 +549,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               </div>
             </div>
             <div id="ph-recent" class="muted"></div>
+            <div id="ph-calib-banner" class="muted" style="display:none;margin-top:8px;padding:6px 10px;border-radius:8px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.3);color:#cbd5e1;">Set <strong>pH Up ml/s</strong> in Settings → Dosing to enable volume totals.</div>
           </div>
           <div id="ph-tab-manual" style="display:none;">
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -546,11 +558,38 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <button id="btnDose5" class="btn-secondary">+5 ml</button>
               <input id="phCustomMl" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
               <button id="btnDoseCustom" class="btn-secondary">Dose</button>
+              <span id="phMaintBadge" class="muted" style="display:none;margin-left:6px;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.85rem;" title="Bypasses cooldown/daily cap; clamps single dose; E-STOP/empty reservoir still enforced.">Maintenance override active</span>
             </div>
           </div>
           <div id="ph-tab-auto" style="display:none;">
             <div class="muted" style="margin-bottom:8px;">Automation placeholder</div>
             <button id="btnAutoToggle" class="btn-secondary">Enable automation</button>
+          </div>
+
+          <!-- History chart -->
+          <hr class="separator" />
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="muted">Dose History</div>
+              <span id="ph-in-range" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;">In range: — ml</span>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+              <button class="btn btn-chip" data-range="24h">24h</button>
+              <button class="btn btn-chip" data-range="7d">7d</button>
+              <button class="btn btn-chip" data-range="30d">30d</button>
+              <button class="btn btn-chip" data-range="90d">90d</button>
+              <button class="btn btn-chip" data-range="grow" title="From grow start date to now">Grow</button>
+              <span style="opacity:.5;">|</span>
+              <input type="datetime-local" id="phDoseFrom" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
+              <input type="datetime-local" id="phDoseTo" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
+              <button class="btn btn-secondary" id="phDoseApply">Apply</button>
+            </div>
+          </div>
+          <div id="ph-dose-chart-wrap" class="chart-card">
+            <canvas id="phDoseChart" width="1200" height="260"></canvas>
+            <div id="ph-dose-empty" class="muted small" style="display:none;padding:8px 0;">
+              No doses recorded in this period.
+            </div>
           </div>
         </div>
       </section>
@@ -1051,9 +1090,27 @@ async function calibApply(){
   setInterval(measureHeights, 2000);
 })();
 </script>
-<script src="/static/js/trends.js"></script>
-<script src="/static/js/ph.js"></script>
-<script src="/static/js/settings.js"></script>
-<script src="/static/js/relays_v2.js?v=2"></script>
+  <script>
+  // Dynamically load JS assets with a cache-busting version from /api/version
+  (function(){
+    function loadScript(src){
+      return new Promise(function(resolve, reject){
+        var s = document.createElement('script');
+        s.src = src; s.async = false; s.onload = resolve; s.onerror = reject;
+        document.body.appendChild(s);
+      });
+    }
+    function chain(files, v){
+      var base = '/static/js/';
+      return files.reduce(function(p, f){
+        return p.then(function(){ return loadScript(base + f + (v? ('?v='+encodeURIComponent(v)) : '')); });
+      }, Promise.resolve());
+    }
+    fetch('/api/version', {cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){ return chain(['range.js','trends.js','ph_chart.js','ph.js','settings.js','relays_v2.js'], j && j.version); })
+      .catch(function(){ return chain(['range.js','trends.js','ph_chart.js','ph.js','settings.js','relays_v2.js'], (new Date()).toISOString().slice(0,10)); });
+  })();
+  </script>
 </body>
 </html>
