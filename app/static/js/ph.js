@@ -328,13 +328,21 @@
     window.open(`/api/ph/dose_log.csv?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=5000`, '_blank');
   }
 
-  document.addEventListener('DOMContentLoaded', async ()=>{
+  // Initialize when DOM is ready (works even if script loads after DOMContentLoaded)
+  async function initPH(){
     await wire();
     tick();
     schedule();
     refreshSummary();
     refreshDoseChart();
-  });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPH);
+  } else {
+    // DOM already loaded; initialize immediately
+    initPH();
+  }
 })();
   async function refreshSummary(){
     try{
