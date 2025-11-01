@@ -1,0 +1,450 @@
+/**
+ * Relays Control Panel - Auto/Manual modes with smart restoration
+ * Features:
+ * - Auto/Manual system mode toggle
+ * - Compact half-width buttons with color coding
+ * - 1-second refresh for responsive UI
+ * - Lockout countdown badges for protected relays
+ * - Non-blocking notices for protection violations
+ */
+(() => {
+  const q  = (s) => document.querySelector(s);
+  const el = (h) => { const d=document.createElement('div'); d.innerHTML=h.trim(); return d.firstChild; };
+
+  let currentMode = 'manual';  // Track current system mode
+
+  // Fixed relay order + display names
+  const RELAY_ORDER = [
+    'dosing_ph_up', 'dosing_grow', 'dosing_micro', 'dosing_bloom',
+    'main_pump', 'chiller_pump', 'chiller_power', 'lights'
+  ];
+  const RELAY_LABELS = {
+    dosing_ph_up: 'pH Up Pump',
+    dosing_grow: 'Grow Pump',
+    dosing_micro: 'Micro Pump',
+    dosing_bloom: 'Bloom Pump',
+    main_pump: 'Main Pump',
+    chiller_pump: 'Chiller Pump',
+    chiller_power: 'Water Chiller (AC)',
+    lights: 'Grow Lights (AC)'
+  };
+  // Mirror backend relay pins for tooltip context
+  const RELAY_PINS = {
+    lights: 21,
+    chiller_pump: 16,
+    chiller_power: 20,
+    main_pump: 26,
+    dosing_grow: 6,
+    dosing_micro: 13,
+    dosing_bloom: 19,
+    dosing_ph_up: 5,
+  };
+
+  // Global UI state
+  const state = { systemMode: 'manual', relays: {}, estop: false };
+
+  async function getJSON(url){
+    const r = await fetch(url, {cache:'no-store'});
+    if (!r.ok) throw new Error('HTTP '+r.status+' for '+url);
+    return r.json();
+  }
+
+  async function postJSON(url, body){
+    const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    if (!r.ok) throw new Error('HTTP '+r.status+' for '+url);
+    return r.json().catch(()=> ({}));
+  }
+
+  // --- System Mode -----------------------------------------------------------
+  async function getSystemMode() {
+    try {
+      const data = await getJSON('/api/system_mode');
+      return data.mode || 'manual';
+    } catch(e) {
+      console.error('Failed to get system mode:', e);
+      return 'manual';
+    }
+  }
+
+  async function setSystemMode(mode) {
+    try {
+      await postJSON('/api/system_mode', { mode });
+      currentMode = mode;
+      state.systemMode = mode;
+      updateModeButtons();
+      renderModeHint();
+      showToast(`System mode set to ${mode.toUpperCase()}`, 'success');
+      // Repaint to apply readonly styles
+      renderRelays();
+    } catch(e) {
+      console.error('Failed to set system mode:', e);
+      showToast('Failed to change system mode', 'error');
+    }
+  }
+
+  function updateModeButtons() {
+    const autoBtn = q('#mode-auto');
+    const manualBtn = q('#mode-manual');
+    if (!autoBtn || !manualBtn) return;
+
+    // Reset active classes
+    autoBtn.classList.remove('active-auto');
+    manualBtn.classList.remove('active-manual');
+
+    if (currentMode === 'auto') {
+      autoBtn.classList.add('active-auto');
+    } else {
+      manualBtn.classList.add('active-manual');
+    }
+  }
+
+  // --- E-Stop API ------------------------------------------------------------
+  async function getEstop() {
+    try {
+      const r = await fetch('/api/estop', { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP '+r.status);
+      const j = await r.json();
+      return !!j.active;
+    } catch(e) {
+      console.warn('getEstop failed', e);
+      return false;
+    }
+  }
+
+  async function setEstop(active) {
+    try {
+      const r = await fetch('/api/estop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !!active })
+      });
+      if (!r.ok) throw new Error('HTTP '+r.status);
+      const j = await r.json().catch(()=>({}));
+      state.estop = !!(j.active ?? active);
+      updateEstopButton();
+      // Refresh relays as backend forces OFF on engage
+      setTimeout(refreshRelays, 100);
+      showToast(state.estop ? 'E-STOP engaged: all relays OFF' : 'E-STOP released', state.estop ? 'error' : 'success');
+    } catch(e) {
+      console.error('setEstop failed', e);
+      showToast('Failed to toggle E-STOP', 'error');
+    }
+  }
+
+  function updateEstopButton() {
+    const btn = q('#estop-btn');
+    if (!btn) return;
+    if (state.estop) {
+      btn.classList.add('active');
+      btn.textContent = 'E‑STOP ACTIVE';
+      btn.title = 'E-Stop is engaged: all relays forced OFF and blocked until release';
+    } else {
+      btn.classList.remove('active');
+      btn.textContent = 'E‑STOP';
+      btn.title = 'Emergency Stop: forces all relays OFF and blocks ON until released';
+    }
+  }
+
+  // --- Relay Status with Lockout Info (smart fallback) ----------------------
+  async function getRelayStatusSmart() {
+    // Preferred: /relay/status -> { name: {state, lockout?} }
+    try { return await getJSON('/relay/status'); } catch(_){ }
+    // Fallbacks that return flat maps -> coerce to uniform shape
+    const coerce = (flat) => Object.fromEntries(
+      Object.entries(flat || {}).map(([k,v]) => [k, { state: !!v, lockout: { active:false, seconds_remaining:0 } }])
+    );
+    try { return coerce(await getJSON('/relays/state')); } catch(_){ }
+    try { return coerce(await getJSON('/relay/state')); } catch(_){ }
+    // Last resort: derive from /relays/map by setting all to false
+    try {
+      const m = await getJSON('/relays/map');
+      const flat = {}; Object.keys(m||{}).forEach(k => flat[k]=false);
+      return coerce(flat);
+    } catch(_){ }
+    return {}; // nothing available
+  }
+
+  async function setRelay(key, desiredOn) {
+    // Try modern POST with {name,on}
+    try { return await postJSON('/relay/set', { name:key, on: !!desiredOn }); } catch(_){}
+    // Try GET with ?name=&on=
+    try { return await getJSON(`/relay/set?name=${encodeURIComponent(key)}&on=${desiredOn?1:0}`); } catch(_){}
+    throw new Error('All relay set methods failed');
+  }
+
+  // --- Toast Notifications ---------------------------------------------------
+  function showToast(message, type = 'info') {
+    const container = q('#toast-container') || (() => {
+      const div = el(`<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>`);
+      document.body.appendChild(div);
+      return div;
+    })();
+
+    const colors = {
+      success: 'bg-green-600',
+      error: 'bg-red-600',
+      warning: 'bg-yellow-600',
+      info: 'bg-blue-600'
+    };
+
+    const toast = el(`
+      <div class="${colors[type] || colors.info} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+        <span>${message}</span>
+      </div>
+    `);
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity 0.3s';
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  }
+
+  // --- UI Rendering ----------------------------------------------------------
+  function formatCountdown(seconds) {
+    if (seconds < 60) return `${seconds}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
+  }
+
+  function btnTemplate(key, name, state, lockout){
+    // Compact buttons: half width, color-coded
+    const isOn = state;
+    const isLocked = lockout && lockout.active;
+  const isAutoMode = currentMode === 'auto';
+  const isEstop = state.estop === true;
+    
+      let bgClass = isOn ? 'relay-on' : 'relay-off';
+    let label = (isOn ? '● ' : '○ ') + name;
+    let badges = '';
+
+    // Auto mode: add readonly class and remove hover
+    // Auto mode: keep same background; readonly styling handled by CSS class
+
+      // Add countdown pill when lockout info exists (still allow click in Manual)
+      if (isLocked && !isEstop) {
+        badges += `<span class="countdown-pill" data-countdown="${lockout.seconds_remaining}">${formatCountdown(lockout.seconds_remaining)}</span>`;
+      }
+
+    // Add Auto pill in auto mode
+    if (isAutoMode && !isEstop) { badges += `<span class="lock-pill">Auto</span>`; }
+    if (isEstop) { badges += `<span class="lock-pill" style="border-color: rgba(239,68,68,.65); color:#fecaca;">E‑Stop</span>`; }
+
+    const readonlyClass = (isAutoMode || isEstop) ? 'readonly' : '';
+    const disabledAttr = (isAutoMode || isEstop) ? 'disabled' : '';
+    const ariaDisabled = (isAutoMode || isEstop) ? 'aria-disabled="true"' : '';
+    const title = isEstop
+      ? 'E-Stop engaged: controls disabled until released.'
+      : (isAutoMode
+        ? 'Auto mode: controls disabled. Switch to Manual to operate.'
+        : (isLocked ? `Cooldown active (${formatCountdown(lockout.seconds_remaining)}) — manual override allowed.` : ''));
+
+    const pin = RELAY_PINS[key];
+    const onOff = isOn ? 'ON' : 'OFF';
+    const tooltip = (title ? `${title}\n` : '') + `${name} — BCM ${pin ?? 'N/A'} — ${onOff}`;
+    const ariaPressed = isOn ? 'true' : 'false';
+
+    return el(`
+      <button 
+        data-relay="${key}" 
+  class="relay-btn ${bgClass} ${readonlyClass} text-white rounded-lg py-2 px-3 text-sm font-medium transition-all duration-200 flex items-center justify-between"
+        ${disabledAttr}
+        ${ariaDisabled}
+        role="button" aria-pressed="${ariaPressed}"
+        title="${tooltip}"
+      >
+        <span>${label}</span>
+        ${badges ? `<span class="flex gap-1">${badges}</span>` : ''}
+      </button>
+    `);
+  }
+
+  function renderModeHint() {
+    const el = q('#relays-mode-hint');
+    if (!el) return;
+    
+    if (state.estop) {
+      el.textContent = 'E‑STOP ACTIVE: all relays are forced OFF and controls are disabled until released.';
+      el.className = 'text-xs text-red-400 mt-2';
+    } else if (currentMode === 'auto') {
+      el.textContent = 'Auto: controls disabled. Switch to Manual to operate.';
+      el.className = 'text-xs text-blue-400 mt-2';
+    } else {
+      el.textContent = 'Manual: relays can be switched from the panel.';
+      el.className = 'text-xs text-gray-400 mt-2';
+    }
+  }
+
+  function updateEstopBanner() {
+    const banner = q('#estop-banner');
+    if (!banner) return;
+    banner.classList.toggle('hidden', !state.estop);
+  }
+
+  // Render the 8-button grid consistently
+  function renderRelays(){
+  const grid = q('#relays-grid');
+    if (!grid) return console.warn('#relays-grid missing');
+    grid.innerHTML = '';
+
+    let rendered = 0;
+    for (const key of RELAY_ORDER){
+      const info = state.relays[key];
+      if (!info) continue; // keep order; skip if backend didn't send
+      rendered++;
+      const on = !!info.state;
+      const name = RELAY_LABELS[key] || key;
+      const btn = btnTemplate(
+        key,
+        name,
+        on,
+        info.lockout
+      );
+      // Readonly class in Auto mode
+  if (state.systemMode === 'auto' || state.estop) btn.classList.add('readonly');
+
+      // Handlers (only in Manual)
+      btn.onclick = () => {
+        if (state.systemMode === 'auto' || state.estop) return;
+        requestToggle(key);
+      };
+      btn.onkeydown = (e) => {
+        if (state.systemMode === 'auto' || state.estop) return;
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); requestToggle(key); }
+      };
+
+      grid.appendChild(btn);
+    }
+    if (rendered === 0){
+      grid.innerHTML = '<div class="text-sm text-gray-400">No relays found from API.</div>';
+    }
+    renderModeHint();
+    updateEstopBanner();
+  }
+
+  function wire(){
+    const grid = q('#relays-grid');
+  if (!grid) return;
+    
+    grid.querySelectorAll('.relay-btn').forEach(btn => {
+      // keep wiring minimal; click/keydown set in renderRelays based on mode
+      if (state.systemMode === 'auto' || state.estop) {
+        const msg = state.estop ? 'E-STOP engaged: controls disabled' : 'Controls disabled in Auto mode';
+        btn.addEventListener('click', (e) => { e.preventDefault(); showToast(msg, 'warning'); });
+        btn.addEventListener('keydown', (e) => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); }});
+      }
+    });
+
+    // Wire mode toggle buttons
+  const autoBtn = q('#mode-auto');
+  const manualBtn = q('#mode-manual');
+  const estopBtn = q('#estop-btn');
+    
+    if (autoBtn) {
+      autoBtn.addEventListener('click', () => {
+        if (currentMode !== 'auto') {
+          setSystemMode('auto');
+        }
+      });
+    }
+    
+    if (manualBtn) {
+      manualBtn.addEventListener('click', () => {
+        if (currentMode !== 'manual') {
+          setSystemMode('manual');
+        }
+      });
+    }
+    if (estopBtn) {
+      estopBtn.addEventListener('click', () => {
+        if (!state.estop) {
+          const ok = confirm('Engage E-STOP?\nThis will immediately turn all relays OFF and block ON commands until released.');
+          if (!ok) return;
+        }
+        setEstop(!state.estop);
+      });
+    }
+  }
+
+  // Helpers and periodic refresh
+  function fmtSeconds(sec){
+    const s = Math.max(0, Math.floor(sec));
+    const m = Math.floor(s/60), r = s%60; return m>0? `${m}m ${r}s` : `${r}s`;
+  }
+  function tickCountdowns(){
+    document.querySelectorAll('#relays-grid .countdown-pill').forEach(elm => {
+      const cur = parseInt(elm.getAttribute('data-countdown')||'0',10);
+      const next = Math.max(0, cur-1);
+      elm.setAttribute('data-countdown', String(next));
+      elm.textContent = fmtSeconds(next);
+    });
+  }
+  async function refreshRelays(){
+    try{
+      const map = await getRelayStatusSmart();
+      state.relays = map;
+      renderRelays();
+      tickCountdowns();
+    }catch(e){ console.error('refreshRelays error', e); }
+  }
+  async function refreshSystemMode(){
+    try{
+      const data = await getSystemMode();
+      currentMode = data || 'manual';
+      state.systemMode = currentMode;
+      updateModeButtons();
+      renderModeHint();
+    }catch(_){ }
+  }
+  async function refreshEstop(){
+    try {
+      const active = await getEstop();
+      if (state.estop !== active) {
+        state.estop = active;
+        updateEstopButton();
+        renderRelays();
+      }
+    } catch(_){}
+  }
+
+  // Initialize on load
+  document.addEventListener('DOMContentLoaded', () => {
+    refreshSystemMode();
+    refreshEstop();
+    refreshRelays();
+    wire();
+    setInterval(refreshRelays, 1000);
+    setInterval(refreshEstop, 2000);
+  });
+
+  // Public toggle that honors lockout feedback
+  async function requestToggle(key){
+    try{
+      if (state.estop) { showToast('E-STOP engaged: action blocked', 'warning'); return; }
+      const info = state.relays[key] || {};
+      // micro feedback
+      const btn = document.querySelector(`[data-relay="${key}"]`);
+      if (btn) btn.classList.add('loading');
+      const desired = !info.state;
+      const result = await setRelay(key, desired);
+      if (result && (result.ok===false || result.changed===false)){
+        const reason = result.reason || 'unknown';
+        const cooldown = result.cooldown_remaining || 0;
+        if (reason==='cooldown' || reason==='antiflap'){
+          showToast(`Protected: ready in ${fmtSeconds(cooldown)}`,'warning');
+        } else {
+          showToast(`Action blocked: ${result.message || reason}`,'error');
+        }
+      }
+      // Refresh after toggle
+      setTimeout(refreshRelays, 150);
+      if (btn) setTimeout(() => btn.classList.remove('loading'), 250);
+    }catch(e){
+      console.error('Toggle failed', key, e);
+      showToast(`Failed to toggle ${key}`, 'error');
+    }
+  }
+})();

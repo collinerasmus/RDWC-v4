@@ -4,6 +4,8 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="version" content="20251031i"/><!-- Cache-buster: fast-fallback read -->
+<link rel="stylesheet" href="/static/css/app.css" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
 <style>
@@ -254,6 +256,163 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 .kpi-temp{ 
   box-shadow: inset 0 0 0 2px rgba(214,39,40,.10); 
 }
+
+/* Sensors Card Styles */
+#sensors-card .card-header{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+#sensors-card .card-title{
+  margin: 0;
+}
+#sensors-card .calibration-badges{
+  display: flex;
+  gap: 6px;
+}
+#sensors-card .sensor-row{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+#sensors-card .sensor-row:last-of-type{
+  border-bottom: none;
+}
+#sensors-card .sensor-name{
+  opacity: 0.9;
+  font-weight: 500;
+}
+#sensors-card .sensor-value{
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+#sensors-card .sensor-value .metric{
+  font-weight: 700;
+  font-size: 1.2rem;
+  letter-spacing: 0.3px;
+}
+#sensors-card .sensor-value .unit{
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+#sensors-card .metric.good{ color: #16a34a; }   /* green */
+#sensors-card .metric.warn{ color: #f59e0b; }   /* amber */
+#sensors-card .metric.bad{  color: #ef4444; }   /* red */
+
+/* Temp-comp flag styling */
+.ok   { color: #16a34a; font-weight: bold; }    /* green */
+.warn { color: #f59e0b; font-weight: bold; }    /* amber/orange */
+.muted{ color: #9ca3af; }                        /* gray */
+
+#sensors-card .badge{
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+#sensors-card .status-badge.online{
+  background: rgba(22,163,74,0.15);
+  color: #16a34a;
+}
+#sensors-card .status-badge.offline{
+  background: rgba(239,68,68,0.15);
+  color: #ef4444;
+}
+#sensors-card .calibration-badges .badge.ok{
+  background: rgba(22,163,74,0.15);
+  color: #16a34a;
+}
+#sensors-card .calibration-badges .badge.check{
+  background: rgba(245,158,11,0.15);
+  color: #f59e0b;
+}
+#sensors-card .last-update{
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 12px;
+  opacity: 0.8;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+  /* Relay button styles for Auto/Manual modes */
+  .relay-btn {
+    transition: opacity .12s ease, transform .06s ease;
+  }
+  .relay-btn.readonly {
+    opacity: .55;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  .relay-btn.readonly:focus {
+    outline: none;
+  }
+  .relay-btn .lock-pill {
+    font-size: .70rem;
+    padding: 2px 6px;
+    border-radius: 999px;
+    opacity: .8;
+  }
+
+  /* Relays grid + button color styles */
+  .relays-grid{
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .75rem;
+  }
+  @media (max-width: 720px){ .relays-grid{ grid-template-columns: 1fr; } }
+  .relay-on{ background: rgba(34,197,94,.15); border:1px solid rgba(34,197,94,.45); color:#a7f3d0; }
+  .relay-off{ background: rgba(148,163,184,.08); border:1px solid rgba(148,163,184,.25); color:#cbd5e1; }
+  .lock-pill{ font-size:.70rem; padding:2px 6px; border-radius:999px; margin-left:.5rem; opacity:.85; border:1px solid rgba(148,163,184,.35); }
+  .countdown-pill{ font-size:.70rem; padding:2px 6px; border-radius:999px; margin-left:.5rem; border:1px solid rgba(239,68,68,.45); }
+
+  /* Mode toggle capsule buttons (match relay theme) */
+  .mode-btn{
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-weight: 600;
+    border: 1px solid #334155; /* slate-700 */
+    background: #111827;       /* gray-900 */
+    color: #cbd5e1;            /* slate-300 */
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .06s ease;
+  }
+  .mode-btn:hover{ background:#1f2937; }
+  .mode-btn.active-manual{ background: rgba(34,197,94,.15); border-color: rgba(34,197,94,.45); color:#a7f3d0; }
+  .mode-btn.active-auto{   background: rgba(59,130,246,.15); border-color: rgba(59,130,246,.45); color:#93c5fd; }
+
+  /* E-Stop button styles */
+  .estop-btn{
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-weight: 800;
+    letter-spacing: .6px;
+    border: 1px solid rgba(239,68,68,.5); /* red-500 */
+    background: rgba(239,68,68,.12);
+    color: #fecaca; /* red-200 */
+    cursor: pointer;
+    transition: all .15s ease;
+    text-transform: uppercase;
+  }
+  .estop-btn:hover{ background: rgba(239,68,68,.18); }
+  .estop-btn.active{
+    background: rgba(239,68,68,.85);
+    border-color: rgba(239,68,68,1);
+    color: #111827;
+  }
+  /* Subtle click feedback */
+  .relay-btn.loading{ opacity:.7; }
 </style>
 </head>
 <body>
@@ -279,6 +438,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <button class="btn btn-chip" data-range="7d">7d</button>
         <button class="btn btn-chip" data-range="30d">30d</button>
         <button class="btn btn-chip" data-range="90d">90d</button>
+        <button class="btn btn-chip" data-range="grow">Grow</button>
         <span class="sep" style="opacity:.5;">|</span>
         <input type="datetime-local" id="trendFrom" />
         <input type="datetime-local" id="trendTo" />
@@ -310,24 +470,29 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- Control Cards -->
   <div id="right-column-stack">
-      <div class="card">
-        <h3>Sensors</h3>
-        <div class="row kv">Temp: <b id="temp">—</b> °C</div>
-        <div class="row kv">pH: <b id="ph">—</b></div>
-        <div class="row kv">EC: <b id="ec">—</b> mS/cm</div>
-        <div class="row kv">Temp-comp write last read: <b id="twrite">—</b></div>
-        <div class="muted">/status every 5s, /sensors/read every 10s • age <span id="age">—</span>s</div>
-        <div class="row" id="sensorErrorsRow" style="display:none;align-items:center;gap:6px;">
-          <span title="Sensor errors" id="sensorErrorsDot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444"></span>
-          <span class="muted" id="sensorErrorsText" title=""></span>
+      <!-- Relays Control Panel -->
+      <section id="relays-card" class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <h3 class="card-title" style="margin:0;">Relays</h3>
+          <div class="mode-toggle" style="display:flex;gap:8px;align-items:center;">
+            <button id="mode-manual" class="mode-btn">Manual</button>
+            <button id="mode-auto" class="mode-btn">Auto</button>
+            <span style="opacity:.35;">|</span>
+            <button id="estop-btn" class="estop-btn" title="Emergency Stop: forces all relays OFF and blocks ON until released">E‑STOP</button>
+          </div>
         </div>
-        
-        <hr class="separator">
-        
-        <h3>Relays</h3>
-        <div id="relays" class="relay-grid"></div>
-        <div class="muted">Active map: lights, main_pump, chiller_pump, chiller_power, dosing_grow, dosing_micro, dosing_bloom, dosing_ph_up</div>
-      </div>
+        <div class="card-body">
+          <div id="estop-banner" class="estop-banner hidden">
+            <strong>E-STOP ACTIVE:</strong> All relays are forced OFF. Release E-STOP to resume control.
+          </div>
+          <div id="relays-mode-hint" class="text-xs text-gray-400 mb-3"></div>
+          <!-- ✅ Grid container -->
+          <div id="relays-grid" class="relays-grid"></div>
+          <div id="relays-note" class="muted" style="margin-top:12px;font-size:12px;">
+            <strong>Manual:</strong> relays stay off at boot. <strong>Auto:</strong> critical relays restore last state.
+          </div>
+        </div>
+      </section>
 
       <div class="card">
         <h3>System Settings</h3>
@@ -462,21 +627,10 @@ async function updateCharts(){
   apply(ct,t); apply(ch,p); apply(ce,e);
 }
 
+function fmt(v){ return (v===null||v===undefined)?'—':Number(v).toFixed(3).replace(/\.000$/,''); }
+
 async function refresh(){
-  // sensor status
-  const s = await (await fetch(`/status?${bust()}`, NO_CACHE)).json();
-  document.getElementById('temp').textContent = s.temp_c?.toFixed?.(3) ?? '—';
-  document.getElementById('ph').textContent = s.ph?.toFixed?.(3) ?? '—';
-  document.getElementById('ec').textContent = s.ec_ms_cm?.toFixed?.(1) ?? '—';
-  document.getElementById('age').textContent = s.age_s ?? '—';
-
-  // pump legacy buttons (if present)
-  try {
-    const p = await (await fetch(`/pump/status?${bust()}`, NO_CACHE)).json();
-    setBtn('btn-main', p.main); setBtn('btn-chiller', p.chiller);
-  } catch {}
-
-  // history table
+  // history table only
   const h = await (await fetch(`/history?limit=20&${bust()}`, NO_CACHE)).json();
   const tb = document.querySelector('#hist tbody'); if (tb) { tb.innerHTML = '';
     for (const r of h){
@@ -486,37 +640,9 @@ async function refresh(){
       tb.appendChild(tr);
     }
   }
+}
 
-  // relays
-  await ensureRelayButtons();
-  await refreshStatus();
-}
-let lastSensorsPoll = 0;
-async function pollSensors(){
-  try {
-    const now = Date.now();
-    if (now - lastSensorsPoll < 9500) return; // ~10s
-    lastSensorsPoll = now;
-    const r = await (await fetch(`/sensors/read?${bust()}`, NO_CACHE)).json();
-    // Update t_write indicator
-    const t = document.getElementById('twrite');
-    t.textContent = (r && typeof r.t_write === 'boolean') ? (r.t_write ? 'YES' : 'no') : '—';
-    t.style.color = r.t_write ? '#10b981' : '#9ca3af';
-    // Errors indicator
-    const errs = Array.isArray(r?.errors) ? r.errors.filter(Boolean) : [];
-    const row = document.getElementById('sensorErrorsRow');
-    const txt = document.getElementById('sensorErrorsText');
-    if (errs.length){
-      row.style.display = 'flex';
-      txt.textContent = `${errs.length} error(s)`;
-      txt.title = errs.join('\n');
-    } else {
-      row.style.display = 'none';
-      txt.textContent = '';
-      txt.title = '';
-    }
-  } catch(e){ /* silent */ }
-}
+// Sensors poller removed - Trends is the sole sensor display
 
 async function viewLightsLog(){
   try {
@@ -536,64 +662,7 @@ async function viewLightsLog(){
     document.getElementById('lightsLog').textContent = 'Failed to load lights log';
   }
 }
-const RELAY_NAMES = ["lights","main_pump","chiller_pump","chiller_power","dosing_grow","dosing_micro","dosing_bloom","dosing_ph_up"];
-
-function fmt(v){ return (v===null||v===undefined)?'—':Number(v).toFixed(3).replace(/\.000$/,''); }
-function setBtn(id,on){ const b=document.getElementById(id); if(!b) return; b.className = 'relay ' + (on?'on':'off'); b.textContent = (on?'ON ':'OFF ') + b.dataset.label; }
-
-async function refreshStatus(){
-  const rs = await (await fetch(`/relay/status?${bust()}`, NO_CACHE)).json();
-  
-  // Convert new format {lights: {state: true}} to flat format {lights: true} for compatibility
-  window.latestRelayStatus = {};
-  for(const n of RELAY_NAMES){
-    // Handle both old flat format and new nested format
-    const state = rs[n]?.state !== undefined ? rs[n].state : !!rs[n];
-    window.latestRelayStatus[n] = state;
-    setBtn(`relay-${n}`, state);
-  }
-}
-
-async function toggleRelay(name){
-  const current = window.latestRelayStatus?.[name];
-  const desired = !current;
-  
-  let data;
-  try {
-    const res = await fetch('/relay/set', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name, on: desired})
-    });
-    if (!res.ok) throw new Error(`POST /relay/set failed: ${res.status}`);
-    data = await res.json();
-  } catch(err) {
-    // Fallback to GET for environments where POST JSON might be blocked/cached
-    console.warn('POST /relay/set failed, trying GET fallback', err);
-    const res2 = await fetch(`/relay/set?name=${encodeURIComponent(name)}&on=${desired?1:0}`);
-    data = await res2.json();
-  }
-  console.log('toggleRelay', name, data);
-  
-  await refreshStatus();
-}
-
-async function ensureRelayButtons(){
-  const host = document.getElementById('relays');
-  if(host.dataset.ready) return;
-  host.dataset.ready = "1";
-  for(const n of RELAY_NAMES){
-    const label = n.replace('_',' ').replace('_',' ');
-    const div = document.createElement('button');
-    div.id = `relay-${n}`;
-    div.dataset.name = n;
-    div.dataset.label = label;
-    div.className = 'relay off';
-    div.onclick = () => toggleRelay(n);
-    div.textContent = 'OFF ' + label;
-    host.appendChild(div);
-  }
-}
+// Old relay functions removed - relays.js now handles all relay UI
 function camRefresh(){
   const u = `http://${location.hostname}:8081/?action=stream&ts=${Date.now()}`;
   const cam = document.getElementById('cam');
@@ -793,7 +862,7 @@ loadOverrides().catch(()=>{});
 camRefresh();
 refresh();
 setInterval(() => { refresh().catch(()=>{}); }, 5000); // 5s refresh, ignore transient errors
-setInterval(() => { pollSensors().catch(()=>{}); }, 2000); // schedule poll; internal 10s guard
+// Sensors poller now self-contained (IIFE above) with single-instance guard
 setInterval(() => { loadOverrides().catch(()=>{}); }, 10000); // 10s override refresh
 function exportCsv(hours=24){ window.open(`/export/sensors.csv?hours=${hours}`,'_blank'); }
 
@@ -954,5 +1023,6 @@ async function calibApply(){
 })();
 </script>
 <script src="/static/js/trends.js"></script>
+<script src="/static/js/relays_v2.js?v=2"></script>
 </body>
 </html>

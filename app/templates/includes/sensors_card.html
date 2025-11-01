@@ -1,0 +1,38 @@
+<div id="sensors-card" class="card">
+  <div class="card-header">
+    <h3 class="card-title">Sensors</h3>
+    <div class="calibration-badges">
+      <span id="cal-badge-temp" class="badge">Temp Cal</span>
+      <span id="cal-badge-ec"   class="badge">EC Cal</span>
+      <span id="cal-badge-ph"   class="badge">pH Cal</span>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="sensor-row">
+      <div class="sensor-name">Temperature</div>
+      <div class="sensor-value">
+        <span id="val-temp" class="metric">--</span>
+        <span class="unit">°C</span>
+      </div>
+    </div>
+    <div class="sensor-row">
+      <div class="sensor-name">EC</div>
+      <div class="sensor-value">
+        <span id="val-ec" class="metric">--</span>
+        <span class="unit">mS/cm</span>
+      </div>
+    </div>
+    <div class="sensor-row">
+      <div class="sensor-name">pH</div>
+      <div class="sensor-value">
+        <span id="val-ph" class="metric">--</span>
+        <span class="unit">pH</span>
+      </div>
+    </div>
+    <div class="last-update">
+      <span>Last update:</span>
+      <span id="sensors-updated">--</span>
+      <span id="sensors-online" class="badge status-badge">offline</span>
+    </div>
+  </div>
+</div>

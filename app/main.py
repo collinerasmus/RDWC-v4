@@ -8,13 +8,14 @@ import csv
 import io
 import asyncio
 from contextlib import suppress
-from typing import Optional
+from typing import Optional, Any
 from subprocess import run, PIPE
 from datetime import datetime, timedelta  # Keep global import
 from app.debug import router as debug_router, trace_relay_request
 from app.ezo_i2c_stabilized import read_all
 from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
 from app.diag import router as diag_router
+from app.blueprints.sensors_api import sensors_router
 from app.hardware import PumpController, RelayBank
 from app.logger import log_reading, last_n, fetch_history_since
 from app.scheduler import Scheduler, load_cfg, save_cfg
@@ -27,6 +28,7 @@ DB_PATH = os.path.abspath(DB_PATH)
 app = FastAPI()
 app.include_router(diag_router)
 app.include_router(debug_router, prefix="/debug", tags=["debug"])
+app.include_router(sensors_router)
 
 # Mount static files directory for serving CSS/JS
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -90,9 +92,33 @@ async def sensor_loop():
 @app.on_event("startup")
 async def _start_tasks():
     global sensor_task
-    # Restore relay states from previous session
-    from app.relays_core import _load_state
-    _load_state()
+    # Initialize system mode tables
+    from app.system_mode import _init_tables
+    _init_tables()
+    
+    # E-STOP persisted state: honor before any auto-restore
+    estop_persisted = False
+    try:
+        from app.settings import get_setting_key
+        val = (get_setting_key('estop_active', 'false') or 'false').lower()
+        estop_persisted = (val == 'true')
+    except Exception:
+        estop_persisted = False
+
+    if estop_persisted:
+        try:
+            from app.relays_core import engage_estop
+            engage_estop()
+        except Exception:
+            pass
+        print("E-STOP persisted: ACTIVE")
+    else:
+        print("E-STOP persisted: INACTIVE")
+        # Smart restore relay states based on system_mode (auto/manual)
+        # This replaces the old _load_state() with mode-aware restoration
+        from app.relays_core import smart_restore_critical_relays
+        smart_restore_critical_relays()
+    
     # Start async sensor loop
     sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
     # Also start the old thread as backup
@@ -388,7 +414,7 @@ def api_trends(
     
     print(f"[Trends API] After capping: ph={len(ph_series)}, ec={len(ec_series)}, temp={len(temp_series)}")
     
-    result = {
+    result: dict[str, Any] = {
         "series": {
             "ph": ph_series,
             "ec": ec_series,
@@ -401,6 +427,45 @@ def api_trends(
         result["note"] = "No data in selected range"
     
     return result
+
+@app.get("/api/grow/start")
+def grow_start():
+    """
+    Returns the earliest timestamp available in the database for the "Grow" preset.
+    This allows the trends chart to span from grow start → now.
+    """
+    from datetime import timezone
+    
+    now = datetime.now(timezone.utc)
+    start_iso = now.isoformat().replace('+00:00', 'Z')
+    
+    try:
+        # Fetch the earliest timestamp from the database
+        rows = fetch_history_since(0)  # Fetch from epoch 0 to get earliest
+        
+        if rows and len(rows) > 0:
+            # Get the first row's timestamp
+            earliest_ts = rows[0].get("ts")
+            if earliest_ts:
+                earliest_dt = datetime.fromtimestamp(earliest_ts, tz=timezone.utc)
+                start_iso = earliest_dt.isoformat().replace('+00:00', 'Z')
+                print(f"[Grow API] Earliest timestamp: {start_iso} (ts={earliest_ts})")
+                return {"start": start_iso}
+        
+        # Fallback: 30 days ago if no data
+        fallback_ts = int(time.time()) - (30 * 24 * 3600)
+        fallback_dt = datetime.fromtimestamp(fallback_ts, tz=timezone.utc)
+        start_iso = fallback_dt.isoformat().replace('+00:00', 'Z')
+        print(f"[Grow API] No data found, using 30d fallback: {start_iso}")
+        return {"start": start_iso, "note": "no_data_fallback"}
+        
+    except Exception as e:
+        print(f"[Grow API] Error: {e}")
+        # Fallback: 30 days ago on error
+        fallback_ts = int(time.time()) - (30 * 24 * 3600)
+        fallback_dt = datetime.fromtimestamp(fallback_ts, tz=timezone.utc)
+        start_iso = fallback_dt.isoformat().replace('+00:00', 'Z')
+        return {"start": start_iso, "error": str(e)}
 
 # Alert monitoring endpoints
 @app.get("/monitoring/status")
@@ -490,6 +555,37 @@ def update_settings_api(
         return JSONResponse(
             status_code=500,
             content={"error": f"Failed to update settings: {str(e)}"}
+        )
+
+# System Mode endpoints (Auto/Manual)
+@app.get("/api/system_mode")
+def get_system_mode_api():
+    """Get current system mode (auto or manual)"""
+    from app.system_mode import get_system_mode
+    mode = get_system_mode()
+    return {"mode": mode}
+
+@app.post("/api/system_mode")
+def set_system_mode_api(body: dict = Body(...)):
+    """Set system mode (auto or manual)"""
+    from app.system_mode import set_system_mode, MODE_AUTO, MODE_MANUAL
+    
+    mode = body.get("mode")
+    
+    if mode not in [MODE_AUTO, MODE_MANUAL]:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Invalid mode '{mode}'. Must be 'auto' or 'manual'"}
+        )
+    
+    success = set_system_mode(mode)
+    
+    if success:
+        return {"mode": mode, "success": True}
+    else:
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Failed to set system mode"}
         )
 
 # Override endpoints
@@ -663,13 +759,20 @@ def relay_set_new(body: dict = Body(...)):
         "dosing_ph_up": set_dosing_ph_up,
     }
     
+    # Determine if manual mode should bypass protections
+    try:
+        from app.system_mode import get_system_mode
+        force_flag = (get_system_mode() == 'manual')
+    except Exception:
+        force_flag = False
+
     func = relay_funcs.get(name)
     if func:
-        result = func(bool(on), reason="override", force=False)
+        result = func(bool(on), reason="override", force=force_flag)
     else:
         # Fallback for any other relays
         from app.relays_core import set_relay
-        result = set_relay(name, bool(on), reason="override", force=False)
+        result = set_relay(name, bool(on), reason="override", force=force_flag)
     # Trace via debug module
     try:
         trace_relay_request(name, bool(on), "post", {
@@ -688,6 +791,32 @@ def relay_set_new(body: dict = Body(...)):
         "reason": result.get("reason", "unknown"),
         "cooldown_remaining": result.get("cooldown_remaining", 0)
     }
+
+@app.get("/api/estop")
+def api_estop_status():
+    """Return E-Stop latch status and persisted flag."""
+    from app.relays_core import get_estop_status
+    try:
+        from app.settings import get_setting_key
+        persisted = (get_setting_key('estop_active', 'false') or 'false').lower() == 'true'
+    except Exception:
+        persisted = False
+    return {"active": get_estop_status(), "persisted": persisted}
+
+@app.post("/api/estop")
+def api_estop_set(body: dict = Body(...)):
+    """Engage or release E-Stop latch. When engaged, all relays are forced OFF immediately and persisted."""
+    from app.relays_core import engage_estop, release_estop
+    from app.settings import set_setting_key
+    active = bool(body.get("active", False))
+    result = engage_estop() if active else release_estop()
+    try:
+        set_setting_key('estop_active', 'true' if active else 'false')
+    except Exception:
+        pass
+    # Attach persisted info
+    result["persisted"] = active
+    return result
 
 @app.get("/relay/set")
 def relay_set_query(name: str = Query(...), on: int = Query(...)):
@@ -713,13 +842,20 @@ def relay_set_query(name: str = Query(...), on: int = Query(...)):
         "dosing_ph_up": set_dosing_ph_up,
     }
     
+    # Determine if manual mode should bypass protections
+    try:
+        from app.system_mode import get_system_mode
+        force_flag = (get_system_mode() == 'manual')
+    except Exception:
+        force_flag = False
+
     func = relay_funcs.get(name)
     if func:
-        result = func(desired, reason="override", force=False)
+        result = func(desired, reason="override", force=force_flag)
     else:
         # Fallback for any other relays
         from app.relays_core import set_relay
-        result = set_relay(name, desired, reason="override", force=False)
+        result = set_relay(name, desired, reason="override", force=force_flag)
     try:
         trace_relay_request(name, desired, "get", {
             "changed": result.get("changed", False),
@@ -942,16 +1078,145 @@ def status():
 
 @app.get("/sensors/read")
 def sensors_read():
-    """Get sensor readings with throttled temperature compensation details."""
+    """
+    Get sensor readings with deadline-aware pH-first read.
+    sensors_core.read_all_sensors() enforces its own 2.5s deadline internally.
+    """
     from app.sensors_core import read_all_sensors
+    return read_all_sensors()
+
+@app.get("/sensors/last")
+def sensors_last():
+    """
+    GET /sensors/last
+    Returns the most recent sensor reading from database (stale fallback).
+    Used when live sensors are offline to show last known values.
+    """
+    from app.services.sensors_fallback import get_last_reading
+    data = get_last_reading()
+    return data or {
+        "temperature_c": None,
+        "ec_mscm": None,
+        "ph": None,
+        "ts": None,
+        "stale_seconds": None,
+        "online": False,
+        "temp_comp_applied": False,
+        "temp_comp_reason": "fallback-empty"
+    }
+
+@app.get("/api/sensors")
+def api_sensors():
+    """
+    Compatibility endpoint for static UI expecting /api/sensors.
+    Returns live readings via sensors_core.read_all_sensors(); if offline and all
+    values are null, returns last-known reading from the database.
+    """
+    from app.sensors_core import read_all_sensors
+    from app.services.sensors_fallback import get_last_reading
     try:
-        result = read_all_sensors()
-        return result
+        j = read_all_sensors()
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e), "errors": [str(e)]}
-        )
+        j = {
+            "temperature_c": None,
+            "ec_mscm": None,
+            "ph": None,
+            "online": False,
+            "errors": {"read": str(e)},
+            "ts": None,
+        }
+    t = j.get("temperature_c")
+    ec = j.get("ec_mscm") or j.get("ec")
+    p = j.get("ph")
+    online = bool(j.get("online"))
+    need_fallback = (not online) and (t is None and ec is None and p is None)
+    if need_fallback:
+        last = get_last_reading()
+        if last:
+            # Ensure expected shape for sensors.js
+            return {
+                "temperature_c": last.get("temperature_c"),
+                "ec_mscm": last.get("ec_mscm") or last.get("ec"),
+                "ph": last.get("ph"),
+                "ts": last.get("ts"),
+                "online": False,
+                "temp_comp_applied": False,
+                "temp_comp_reason": "fallback-db",
+            }
+    return j
+
+@app.get("/diag/sensors/once")
+def diag_sensors_once():
+    """
+    Diagnostic endpoint: read each sensor once with timing.
+    Returns raw values and millisecond timing for each step.
+    """
+    import time as _t
+    import datetime as _dt
+    from app import ezo_i2c as _ezo
+    
+    t0 = _t.time()
+    steps = {}
+    
+    def stamp(k):
+        steps[k] = round((_t.time() - t0) * 1000, 1)
+    
+    t, ec, ph = None, None, None
+    
+    # RTD (temperature)
+    try:
+        v = _ezo.read_single(0x66)
+        t = float(v) if v is not None else None
+    except Exception:
+        pass
+    stamp("rtd_done_ms")
+    
+    # EC
+    try:
+        v = _ezo.read_single(0x64)
+        if v is not None:
+            v = float(v)
+            # Heuristic: if value > 10, assume µS/cm
+            ec = v / 1000.0 if v > 10 else v
+    except Exception:
+        pass
+    stamp("ec_done_ms")
+    
+    # pH
+    try:
+        v = _ezo.read_single(0x63)
+        ph = float(v) if v is not None else None
+    except Exception:
+        pass
+    stamp("ph_done_ms")
+    
+    return {
+        "temperature_c": t,
+        "ec_mscm": ec,
+        "ph": ph,
+        "ts": _dt.datetime.utcnow().isoformat() + "Z",
+        "steps": steps
+    }
+
+@app.get("/diag/sensors/leds")
+def diag_sensors_leds(on: int = 1):
+    """
+    Toggle EZO LEDs on/off for RTD(0x66) / EC(0x64) / pH(0x63).
+    /diag/sensors/leds?on=1  -> ON
+    /diag/sensors/leds?on=0  -> OFF
+    """
+    from app import ezo_i2c as _e
+    res = _e.enable_all_leds(bool(on))
+    return {"on": bool(on), "result": res}
+
+@app.get("/diag/sensors/flash")
+def diag_sensors_flash(count: int = 8, period_ms: int = 250):
+    """Flash all EZO LEDs for visual confirmation.
+    Query: count (blinks), period_ms (on/off per half-cycle); leaves LEDs ON at end.
+    """
+    from app import ezo_i2c as _e
+    res = _e.blink_leds(count=max(1, int(count)), period_s=max(0.05, period_ms/1000.0))
+    return {"requested": {"count": int(count), "period_ms": int(period_ms)}, "result": res}
 
 @app.post("/read_now")
 def read_now():

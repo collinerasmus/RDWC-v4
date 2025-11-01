@@ -48,19 +48,19 @@ RELAY_PINS = {
 # Minimum ON/OFF times to prevent short-cycling (seconds)
 # Optimized for responsive manual control with minimal protection
 MIN_ON = {
-    # Production-safe timings per checklist
-    "chiller_power": 300,  # 300 seconds ON minimum
-    "chiller_pump": 120,   # 120 seconds ON minimum
-    "main_pump": 5,        # 5 seconds
+    # Tuned per request: quick manual response; only chiller power needs 60s
+    "chiller_power": 60,   # 60 seconds ON minimum (compressor safety)
+    "chiller_pump": 0,     # match main_pump: no switch-off hold
+    "main_pump": 0,        # allow immediate OFF after ON
     "lights": 10,          # 10 seconds ON minimum
     "dosing_*": 0,         # No restriction
     "ph_*": 0,             # No restriction
 }
 
 MIN_OFF = {
-    # Production-safe timings per checklist
-    "chiller_power": 300,  # 300 seconds OFF minimum
-    "chiller_pump": 5,     # 5 seconds OFF minimum (not specified; conservative)
+    # Tuned per request: only chiller power needs 60s cooldown
+    "chiller_power": 60,   # 60 seconds OFF minimum (compressor anti-short-cycle)
+    "chiller_pump": 5,     # same as main pump
     "main_pump": 5,        # 5 seconds
     "lights": 5,           # 5 seconds OFF minimum
     "dosing_*": 0,         # No restriction
@@ -100,22 +100,29 @@ _antiflap_until: Dict[str, float] = {}
 # Event logging for debugging
 _relay_event_logs: Dict[str, deque] = defaultdict(lambda: deque(maxlen=200))
 _hold_until: Dict[str, float] = {}  # Temporary holds for debugging
+_estop_active: bool = False  # Global emergency stop (latching)
 
 # Persistence
 _STATE_FILE = os.path.expanduser("~/.rdwc/relay_state.json")
 
 def _save_state():
-    """Save relay states to disk for persistence across restarts."""
+    """Save relay states to disk and database for persistence across restarts."""
     try:
+        # Legacy file-based persistence
         os.makedirs(os.path.dirname(_STATE_FILE), exist_ok=True)
         state = {name: _last_state.get(name, False) for name in RELAY_PINS.keys()}
         with open(_STATE_FILE, 'w') as f:
             json.dump(state, f)
+        
+        # Database persistence for system_mode auto-restore
+        from app.system_mode import save_relay_state
+        for name, state_val in state.items():
+            save_relay_state(name, state_val)
     except Exception as e:
         logger.error(f"Failed to save relay state: {e}")
 
 def _load_state():
-    """Load and restore relay states from disk after restart."""
+    """Load and restore relay states from disk after restart (legacy file-based)."""
     try:
         if os.path.exists(_STATE_FILE):
             with open(_STATE_FILE, 'r') as f:
@@ -128,6 +135,56 @@ def _load_state():
             logger.info("Relay state restoration complete")
     except Exception as e:
         logger.error(f"Failed to load relay state: {e}")
+
+def smart_restore_critical_relays():
+    """
+    Smart restoration of critical relays respecting lockouts.
+    Called on boot if system_mode is 'auto'.
+    Only restores critical relays (main_pump, chiller_pump, chiller_power, lights).
+    Respects MIN_OFF timings - if a relay can't be turned on immediately, it stays off.
+    """
+    from app.system_mode import should_auto_restore, get_critical_relay_states
+    
+    if not should_auto_restore():
+        logger.info("System mode is manual - skipping auto-restore")
+        return
+    
+    logger.info("System mode is auto - beginning smart restore of critical relays")
+    
+    saved_states = get_critical_relay_states()
+    
+    for relay_name, (desired_state, saved_ts) in saved_states.items():
+        if not desired_state:
+            # Relay was OFF - keep it OFF
+            logger.debug(f"Relay {relay_name} was OFF - keeping OFF")
+            continue
+        
+        # Relay was ON - try to restore
+        logger.info(f"Attempting to restore {relay_name} to ON (was ON at {saved_ts})")
+        
+        # Try to set with reason="restore" and force=False to respect lockouts
+        result = set_relay(relay_name, True, reason="restore", force=False)
+        
+        if result.get("changed"):
+            logger.info(f"✓ Restored {relay_name} to ON")
+        else:
+            reason = result.get("reason", "unknown")
+            cooldown = result.get("cooldown_remaining", 0)
+            
+            if reason == "cooldown":
+                logger.warning(
+                    f"✗ Cannot restore {relay_name} - min-off protection active "
+                    f"(cooldown: {cooldown}s remaining)"
+                )
+            elif reason == "antiflap":
+                logger.warning(
+                    f"✗ Cannot restore {relay_name} - antiflap protection active "
+                    f"({cooldown}s remaining)"
+                )
+            else:
+                logger.info(f"Relay {relay_name} already in desired state")
+    
+    logger.info("Critical relay restoration complete")
 
 def _get_min_time(relay_name: str, times_dict: Dict[str, int]) -> int:
     """Get minimum time for relay, supporting wildcard matching."""
@@ -237,6 +294,20 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False) -> 
     
     device = _devices[name]
     current_state = _last_state.get(name, False)
+
+    # Emergency stop behavior: latching block for ON; force OFF allowed
+    if _estop_active:
+        if desired_on:
+            _log_relay_event(name, True, current_state, "estop_active", 0, blocked=True)
+            return {
+                "changed": False,
+                "state": current_state,
+                "reason": "estop_active",
+                "cooldown_remaining": 0
+            }
+        else:
+            # Force OFF regardless of cooldown/antiflap
+            force = True
     
     # Idempotent check
     if current_state == desired_on:
@@ -324,7 +395,7 @@ def initialize_all_safe_off():
             set_relay(relay_name, False, "boot_safe_off", force=True)
 
 def get_relay_status() -> Dict[str, Dict[str, Any]]:
-    """Get status of all relays for diagnostics."""
+    """Get status of all relays for diagnostics with lockout information."""
     now = time.monotonic()
     status = {}
     
@@ -333,11 +404,40 @@ def get_relay_status() -> Dict[str, Dict[str, Any]]:
         last_change = _last_change_ts.get(name, 0)
         seconds_since_change = int(now - last_change) if last_change else 0
         
+        # Calculate lockout information
+        lockout_info = {
+            "active": False,
+            "seconds_remaining": 0,
+            "reason": None
+        }
+        
+        # Check antiflap protection
+        if name in _antiflap_until and now < _antiflap_until[name]:
+            lockout_info["active"] = True
+            lockout_info["seconds_remaining"] = int(_antiflap_until[name] - now)
+            lockout_info["reason"] = "antiflap"
+        else:
+            # Check MIN_ON/MIN_OFF cooldowns
+            elapsed = seconds_since_change
+            if state:  # Currently ON, check MIN_ON
+                min_on = _get_min_time(name, MIN_ON)
+                if elapsed < min_on:
+                    lockout_info["active"] = True
+                    lockout_info["seconds_remaining"] = int(min_on - elapsed)
+                    lockout_info["reason"] = "min_on"
+            else:  # Currently OFF, check MIN_OFF
+                min_off = _get_min_time(name, MIN_OFF)
+                if elapsed < min_off:
+                    lockout_info["active"] = True
+                    lockout_info["seconds_remaining"] = int(min_off - elapsed)
+                    lockout_info["reason"] = "min_off"
+        
         status[name] = {
             "state": state,
             "last_reason": _last_reason.get(name, "unknown"),
             "seconds_since_change": seconds_since_change,
-            "antiflap_active": name in _antiflap_until and now < _antiflap_until[name]
+            "antiflap_active": name in _antiflap_until and now < _antiflap_until[name],
+            "lockout": lockout_info
         }
     
     return status
@@ -346,6 +446,39 @@ def get_antiflap_relays() -> list:
     """Get list of relays currently under anti-flap protection."""
     now = time.monotonic()
     return [name for name, until_time in _antiflap_until.items() if now < until_time]
+
+# --- Emergency Stop (latching) ----------------------------------------------
+def engage_estop() -> Dict[str, Any]:
+    """Engage E-Stop: latch active, force all relays OFF immediately."""
+    global _estop_active
+    _estop_active = True
+    results = {}
+    try:
+        # Clear antiflap to avoid residual lockouts post-release
+        _antiflap_until.clear()
+        # Turn everything OFF with force, using lights-specific helper for whitelist
+        for relay_name in RELAY_PINS.keys():
+            if relay_name == "lights":
+                res = set_lights(False, REASON_EMERGENCY, force=True)
+            else:
+                res = set_relay(relay_name, False, REASON_EMERGENCY, force=True)
+            results[relay_name] = {"changed": res.get("changed", False), "state": res.get("state", False)}
+        # Backdate last change timestamps so UI shows no cooldown
+        now = time.monotonic()
+        for relay_name in RELAY_PINS.keys():
+            _last_change_ts[relay_name] = now - 1000
+    except Exception as e:
+        logger.error(f"engage_estop error: {e}")
+    return {"active": True, "results": results}
+
+def release_estop() -> Dict[str, Any]:
+    """Release E-Stop latch: allow normal operation again (does not auto-restore)."""
+    global _estop_active
+    _estop_active = False
+    return {"active": False}
+
+def get_estop_status() -> bool:
+    return bool(_estop_active)
 
 # Convenience functions for specific relays
 def set_lights(on: bool, reason: str, force: bool = False) -> Dict[str, Any]:

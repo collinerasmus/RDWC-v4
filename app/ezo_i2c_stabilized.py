@@ -45,7 +45,8 @@ class EZO:
         return data.strip()
 
     def init_once(self):
-        for c in ("L,0", "C,0"):  # LED off, continuous off
+        # Keep LEDs ON for visual diagnostics; only disable continuous mode
+        for c in ("C,0",):  # Continuous off only
             try:
                 self.cmd(c, read_len=0, settle=0.06)
             except Exception:

@@ -2,6 +2,7 @@
 Centralized sensor reading with RTD-first and throttled temperature compensation.
 Minimizes I²C traffic while maintaining accuracy.
 """
+import os
 import time
 import logging
 from typing import Dict, Any, Optional
@@ -129,76 +130,96 @@ def _read_with_temp_comp_check():
 
 def read_all_sensors() -> Dict[str, Any]:
     """
-    Perform a complete sensor read with throttled temperature compensation.
-    
-    Sequence:
-    1. Read RTD temperature first
-    2. Check throttle conditions for temp compensation
-    3. If throttle passes, send T to pH and EC
-    4. Read pH and EC values
-    
-    Returns:
-        Comprehensive dict with sensor values, throttle info, I²C operation counts,
-        and any errors encountered
+    Deadline-aware best-effort read (pH->Temp->EC).
+    - Returns within RDWC_SENSORS_READ_DEADLINE_S (default 2.5s).
+    - Temp-comp only when BOTH temp & EC exist and time remains.
+    - online=True if ANY value present. All float parsing is tolerant.
     """
-    result = {
-        "temp_c": None,
-        "ph": None,
-        "ec_uS": None,
-        "ec_mS": None,
-        "comp_temp_c": None,
-        "t_write": False,
-        "t_delta": 0.0,
-        "i2c_ops": {
-            "t_writes": 0,
-            "reads": {"rtd": 0, "ph": 0, "ec": 0}
-        },
-        "errors": []
+    import time
+    import math
+    import datetime as dt
+    from app import ezo_i2c
+
+    DEADLINE_S = float(os.getenv("RDWC_SENSORS_READ_DEADLINE_S", "2.5"))
+    t0 = time.time()
+    
+    def left() -> float:
+        return DEADLINE_S - (time.time() - t0)
+
+    def timed_out() -> bool:
+        return left() <= 0.0
+
+    def iso() -> str:
+        return dt.datetime.utcnow().isoformat() + "Z"
+
+    def fnum(x):
+        try:
+            if x is None:
+                return None
+            s = str(x).strip()
+            if s == "" or s.lower() == "nan":
+                return None
+            v = float(s)
+            if math.isnan(v):
+                return None
+            return v
+        except Exception:
+            return None
+
+    out = {
+        "temperature_c": None, "ec_mscm": None, "ph": None,
+        "temp_comp_applied": False, "temp_comp_reason": "",
+        "online": False, "ts": iso(), "errors": {}
     }
-    
-    # Use simulated values for dev environments
-    if not I2C_AVAILABLE:
-        result["temp_c"] = 23.0
-        result["comp_temp_c"] = 23.0
-        result["ph"] = 6.5
-        result["ec_uS"] = 1500
-        result["ec_mS"] = 1.5
-        result["i2c_ops"]["reads"] = {"rtd": 1, "ph": 1, "ec": 1}
-        result["t_write"] = False
-        return result
-    
-    # Read all sensors with throttled T compensation
-    try:
-        should_send_t, comp_results, temp_c, ph_val, ec_val = _read_with_temp_comp_check()
-        
-        # Populate result with values
-        result["temp_c"] = round(temp_c, 2)
-        result["comp_temp_c"] = round(temp_c, 2)
-        result["ph"] = round(ph_val, 2)
-        result["ec_uS"] = round(ec_val, 0)
-        result["ec_mS"] = round(ec_val / 1000.0, 2)
-        
-        # Populate throttle info
-        result["t_write"] = should_send_t
-        result["t_delta"] = round(_last_t_sent_c - temp_c if _last_t_sent_c is not None else 999.0, 2)
-        result["i2c_ops"]["t_writes"] = sum(1 for v in comp_results.values() if v) if should_send_t else 0
-        result["i2c_ops"]["reads"]["rtd"] = 1
-        result["i2c_ops"]["reads"]["ph"] = 1
-        result["i2c_ops"]["reads"]["ec"] = 1
-        
-        # Log T-write if it occurred
-        if should_send_t:
-            probes_updated = [k for k, v in comp_results.items() if v]
-            if probes_updated:
-                logger.info(f"T-comp sent: {temp_c:.2f}°C → {', '.join(probes_updated)} (ΔT={result['t_delta']:.2f}°C)")
-        else:
-            logger.debug(f"T-comp throttled: ΔT={result['t_delta']:.2f}°C")
-        
-    except Exception as e:
-        logger.error(f"Sensor read failed: {e}", exc_info=True)
-        result["errors"].append(f"Sensor read failed: {str(e)}")
-    
-    return result
+
+    def safe_read(addr, label):
+        if timed_out():
+            out["errors"][label] = "deadline"
+            return None, None
+        try:
+            # Our ezo_i2c.read_single returns value only; unit not available
+            v = ezo_i2c.read_single(addr)
+            return v, None
+        except Exception as ex:
+            out["errors"][label] = type(ex).__name__
+            return None, None
+
+    # 1) pH first
+    v,_ = safe_read(0x63, "ph")
+    out["ph"] = fnum(v)
+
+    # 2) Temp (RTD)
+    if not timed_out():
+        v,_ = safe_read(0x66, "temp")
+        out["temperature_c"] = fnum(v)
+
+    # 3) EC with uS->mS normalization
+    if not timed_out():
+        v, u = safe_read(0x64, "ec")
+        vv, uu = fnum(v), (u or "").lower()
+        if vv is not None:
+            if uu.startswith("us"):
+                out["ec_mscm"] = vv / 1000.0
+            elif uu.startswith("ms"):
+                out["ec_mscm"] = vv
+            else:
+                out["ec_mscm"] = vv / 1000.0 if vv > 10 else vv
+
+    # 4) Temp-comp only if BOTH temp & EC exist and time remains
+    if (out["temperature_c"] is not None and out["ec_mscm"] is not None and left()>0.9):
+        try:
+            if ezo_i2c.set_temp_comp(0x64, out["temperature_c"]):
+                time.sleep(min(left(), float(os.getenv("RDWC_I2C_COMP_SETTLE_S","0.90"))))
+            if left() > 0.2 and ezo_i2c.set_temp_comp(0x63, out["temperature_c"]):
+                out["temp_comp_applied"] = True
+                out["temp_comp_reason"] = "ec,ph"
+        except Exception as ex:
+            out["temp_comp_applied"] = False
+            out["temp_comp_reason"] = f"error:{type(ex).__name__}"
+
+    out["online"] = any(out[k] is not None for k in ("ph","temperature_c","ec_mscm"))
+    out["ts"] = iso()
+    return out
 
 
 def get_last_temp_comp_state() -> Dict[str, Any]:
