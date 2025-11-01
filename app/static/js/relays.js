@@ -1,184 +1,127 @@
-/* Relays Control Panel - Clean relay toggles with POST/GET fallback */
 (() => {
-  const q = (s) => document.querySelector(s);
-  const el = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstChild; };
-  
-  const post = async (url, body) => {
-    const r = await fetch(url, { 
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify(body),
-      cache: 'no-store'
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
+  const q  = (s) => document.querySelector(s);
+  const el = (h) => { const d=document.createElement('div'); d.innerHTML=h.trim(); return d.firstChild; };
+
+  async function getJSON(url){
+    const r = await fetch(url, {cache:'no-store'});
+    if (!r.ok) throw new Error('HTTP '+r.status+' for '+url);
     return r.json();
-  };
-  
-  async function getJSON(url) { 
-    const r = await fetch(url, { cache: 'no-store' }); 
-    if (!r.ok) throw new Error('HTTP ' + r.status); 
-    return r.json(); 
+  }
+  async function postJSON(url, body){
+    const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    if (!r.ok) throw new Error('HTTP '+r.status+' for '+url);
+    return r.json().catch(()=> ({}));
   }
 
-  // Relay name to friendly label mapping
-  const RELAY_MAP = {
-    'lights': 'Lights',
-    'main_pump': 'Main Pump',
-    'chiller_pump': 'Chiller Pump',
-    'chiller_power': 'Chiller Power',
-    'dosing_grow': 'Dosing Grow',
-    'dosing_micro': 'Dosing Micro',
-    'dosing_bloom': 'Dosing Bloom',
-    'dosing_ph_up': 'Dosing pH Up'
-  };
-
-  async function fetchState() {
-    try {
-      // Try new format first
-      return await getJSON('/relay/status');
-    } catch (_) {
-      // Fallback to legacy format
-      return await getJSON('/relay/state');
-    }
+  // --- Compatibility helpers -------------------------------------------------
+  async function getRelayMap() {
+    // Prefer plural, then singular. Fall back to reading keys from status.
+    try { return await getJSON('/relays/map'); } catch(_){}
+    try { return await getJSON('/relay/map'); } catch(_){}
+    // No map endpoints; derive names from /relay/status keys
+    const st = await getRelayState();
+    const map = {};
+    Object.keys(st).forEach(k => map[k] = k.replace(/_/g,' '));
+    return map;
   }
 
-  function btnTemplate(key, name, on) {
-    const cls = on 
-      ? 'bg-green-600 hover:bg-green-700 text-white' 
-      : 'bg-red-600 hover:bg-red-700 text-white';
+  async function getRelayState() {
+    // Try plural state
+    try { return await getJSON('/relays/state'); } catch(_){}
+    // Try singular state (if you have it)
+    try { return await getJSON('/relay/state'); } catch(_){}
+    // Fallback: /relay/status (your current server)
+    // Expected shape: { lights:{state:true}, main_pump:{state:false}, ... }
+    const status = await getJSON('/relay/status');
+    const flat = {};
+    Object.entries(status).forEach(([k,v]) => flat[k] = !!(v && v.state));
+    return flat;
+  }
+
+  async function setRelay(key, desiredOn) {
+    // Try modern POST with {name,on}
+    try { return await postJSON('/relay/set', { name:key, on: !!desiredOn }); } catch(_){}
+    // Try POST with {relay,state}
+    try { return await postJSON('/relay/set', { relay:key, state: !!desiredOn }); } catch(_){}
+    // Try GET with ?name=&on=
+    try { return await getJSON(`/relay/set?name=${encodeURIComponent(key)}&on=${desiredOn?1:0}`); } catch(_){}
+    // Try GET with ?relay=&state=
+    return await getJSON(`/relay/set?relay=${encodeURIComponent(key)}&state=${desiredOn?1:0}`);
+  }
+
+  // --- UI --------------------------------------------------------------------
+  function btnTemplate(key, name, on){
+    const cls = on ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700';
     const label = (on ? 'ON ' : 'OFF ') + name;
-    return el(`<button data-relay="${key}" class="relay-btn ${cls} rounded-xl py-3 px-4 font-semibold transition-all duration-200 shadow-sm hover:shadow-md">${label}</button>`);
+    return el(`<button data-relay="${key}" class="relay-btn ${cls} text-white rounded-xl py-2 px-3 w-full">${label}</button>`);
   }
 
   async function paint() {
     const grid = q('#relays-grid');
-    if (!grid) {
-      console.warn('[Relays] Grid element not found');
-      return;
-    }
-    
-    grid.innerHTML = '<div class="text-gray-400 text-sm col-span-2">Loading relays…</div>';
-    
-    try {
-      const state = await fetchState();
-      
-      grid.innerHTML = '';
-      
-      // Paint buttons in order
-      Object.keys(RELAY_MAP).forEach(key => {
-        const name = RELAY_MAP[key];
-        // Handle both flat and nested state formats
-        const on = state[key]?.state !== undefined ? state[key].state : !!state[key];
-        const btn = btnTemplate(key, name, on);
-        grid.appendChild(btn);
-      });
-      
-      wire();
-      
-      const note = q('#relays-note');
-      if (note) {
-        note.textContent = 'Click a button to toggle relay state. Updates within 1-2s.';
-      }
-      
-      console.log('[Relays] Painted', Object.keys(RELAY_MAP).length, 'buttons');
-    } catch (e) {
-      console.error('[Relays] Failed to paint:', e);
-      grid.innerHTML = '<div class="text-red-400 text-sm col-span-2">Failed to load relays. Check console for details.</div>';
-    }
+    if (!grid) return;
+    grid.innerHTML = '<div class="text-gray-400 text-sm">Loading relays…</div>';
+
+    const [map, state] = await Promise.all([getRelayMap(), getRelayState()]);
+    grid.innerHTML = '';
+    Object.keys(map).forEach(key => {
+      const name = map[key] || key;
+      const on = !!state[key];
+      grid.appendChild(btnTemplate(key, name, on));
+    });
+    wire();
+    const note = q('#relays-note');
+    if (note) note.textContent = 'Click to toggle. State refreshes every 5s.';
   }
 
-  function wire() {
+  function wire(){
     const grid = q('#relays-grid');
     if (!grid) return;
-    
     grid.querySelectorAll('.relay-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const key = btn.getAttribute('data-relay');
-        const isOn = btn.textContent.trim().startsWith('ON ');
-        const desired = !isOn;
-        
-        // Optimistic UI update
-        btn.disabled = true;
-        btn.style.opacity = '0.6';
-        
-        try {
-          // Try POST first
-          try {
-            await post('/relay/set', { name: key, on: desired });
-          } catch (postErr) {
-            // Fallback to GET
-            console.warn('[Relays] POST failed, trying GET fallback', postErr);
-            await fetch(`/relay/set?name=${encodeURIComponent(key)}&on=${desired ? 1 : 0}`, { cache: 'no-store' });
-          }
-          
-          // Wait a moment for backend to settle
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          // Refresh just this button
-          const state = await fetchState();
-          const on = state[key]?.state !== undefined ? state[key].state : !!state[key];
-          const name = RELAY_MAP[key];
-          
-          btn.textContent = (on ? 'ON ' : 'OFF ') + name;
-          btn.classList.remove('bg-green-600', 'hover:bg-green-700', 'bg-red-600', 'hover:bg-red-700');
-          if (on) {
-            btn.classList.add('bg-green-600', 'hover:bg-green-700');
-          } else {
-            btn.classList.add('bg-red-600', 'hover:bg-red-700');
-          }
-          
-          console.log('[Relays] Toggled', key, '->', on);
-        } catch (e) {
-          console.error('[Relays] Toggle failed', key, e);
-          alert(`Failed to toggle ${key}: ${e.message}`);
-        } finally {
-          btn.disabled = false;
-          btn.style.opacity = '1';
+        const wasOn = btn.textContent.startsWith('ON ');
+        try{
+          // Optimistic flip
+          flipButton(btn, !wasOn);
+          await setRelay(key, !wasOn);
+          // Confirm with fresh state
+          const st = await getRelayState();
+          flipButton(btn, !!st[key]);
+        }catch(e){
+          console.error('toggle failed', e);
+          // Revert optimistic change on error
+          flipButton(btn, wasOn);
         }
       });
     });
   }
 
-  // Auto-refresh relay states every 5 seconds
-  let refreshTimer = null;
-  
-  async function refreshStates() {
-    try {
-      const state = await fetchState();
-      const grid = q('#relays-grid');
-      if (!grid) return;
-      
-      grid.querySelectorAll('.relay-btn').forEach(btn => {
-        const key = btn.getAttribute('data-relay');
-        const on = state[key]?.state !== undefined ? state[key].state : !!state[key];
-        const name = RELAY_MAP[key];
-        
-        // Only update if state changed to avoid flicker during user interaction
-        const currentOn = btn.textContent.trim().startsWith('ON ');
-        if (currentOn !== on) {
-          btn.textContent = (on ? 'ON ' : 'OFF ') + name;
-          btn.classList.remove('bg-green-600', 'hover:bg-green-700', 'bg-red-600', 'hover:bg-red-700');
-          if (on) {
-            btn.classList.add('bg-green-600', 'hover:bg-green-700');
-          } else {
-            btn.classList.add('bg-red-600', 'hover:bg-red-700');
-          }
-        }
-      });
-    } catch (e) {
-      console.warn('[Relays] Auto-refresh failed', e);
+  function flipButton(btn, on){
+    btn.textContent = (on ? 'ON ' : 'OFF ') + btn.textContent.replace(/^ON |^OFF /,'').trim();
+    btn.classList.remove('bg-green-600','hover:bg-green-700','bg-red-600','hover:bg-red-700');
+    if (on) {
+      btn.classList.add('bg-green-600','hover:bg-green-700');
+    } else {
+      btn.classList.add('bg-red-600','hover:bg-red-700');
     }
   }
 
-  function startAutoRefresh() {
-    if (refreshTimer) clearInterval(refreshTimer);
-    refreshTimer = setInterval(refreshStates, 5000); // Every 5 seconds
+  async function periodicRefresh(){
+    try{
+      const st = await getRelayState();
+      document.querySelectorAll('#relays-grid .relay-btn').forEach(btn => {
+        const key = btn.getAttribute('data-relay');
+        if (key in st) flipButton(btn, !!st[key]);
+      });
+    }catch(e){ console.debug('refresh skipped', e); }
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    console.log('[Relays] Initializing relay control panel');
-    paint().then(() => {
-      startAutoRefresh();
-    }).catch(console.error);
+    paint().catch(err => {
+      const grid = q('#relays-grid');
+      if (grid) grid.innerHTML = `<div class="text-red-400 text-sm">Relays failed to load: ${String(err)}</div>`;
+      console.error(err);
+    });
+    setInterval(periodicRefresh, 5000);
   });
 })();
