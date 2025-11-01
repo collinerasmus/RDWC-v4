@@ -61,8 +61,7 @@
             tooltipFormat: 'yyyy-MM-dd HH:mm', 
             displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'MMM d' } 
           },
-          ticks: { maxRotation: 0, autoSkip: true },
-          bounds: 'ticks'
+          ticks: { maxRotation: 0, autoSkip: true }
         },
         yPh: {
           position: 'left',
@@ -108,9 +107,9 @@
 
   function presetParams(preset){
     // All caps are conservative to keep UI snappy
-    if (preset === '24h') return { gran: 60,   max: 1200 };  // avg per minute, <=1200pts
-    if (preset === '7d')  return { gran: 300,  max: 2000 };  // 5-min buckets
-    if (preset === '30d') return { gran: 900,  max: 2500 };  // 15-min buckets
+    if (preset === '24h') return { gran: 60,   max: 1500 };  // avg per minute, 24h = 1440 mins
+    if (preset === '7d')  return { gran: 300,  max: 2100 };  // 5-min buckets, 7d = 2016 pts
+    if (preset === '30d') return { gran: 900,  max: 3000 };  // 15-min buckets
     if (preset === '90d') return { gran: 3600, max: 2500 };  // hourly buckets
     if (preset === 'grow') return { gran: 3600, max: 3000 }; // hourly, up to 3000 pts
     return { gran: 300, max: 2000 }; // default (custom)
@@ -184,6 +183,14 @@
     const ph    = (data?.series?.ph   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
     const ecRaw = (data?.series?.ec   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
     const temp  = (data?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
+    
+    // Debug: Check actual data time range
+    if (ph.length) {
+      console.log('[Sensors] pH data time range:', {
+        first: new Date(ph[0].x).toISOString(),
+        last: new Date(ph[ph.length-1].x).toISOString()
+      });
+    }
 
     // EC unit autodetect: if median > 20, assume µS/cm and convert to mS/cm
     function median(arr){
@@ -232,8 +239,16 @@
     const aEc   = chooseAxis(PREF.ec,   ec);
     const aTemp = chooseAxis(PREF.temp, temp);
 
-    // Force x-axis to explicit window bounds (epoch ms)
+    // IMPORTANT: Set x-axis bounds FIRST before updating data
     if (state.window.start && state.window.end) {
+      console.log('[Sensors] setting explicit x-axis bounds:', {
+        start: new Date(state.window.start).toISOString(),
+        end: new Date(state.window.end).toISOString(),
+        data_range: {
+          min: Math.min(...ph.map(p=>p.x), ...ec.map(p=>p.x), ...temp.map(p=>p.x)),
+          max: Math.max(...ph.map(p=>p.x), ...ec.map(p=>p.x), ...temp.map(p=>p.x))
+        }
+      });
       trendChart.options.scales.x.min = state.window.start;
       trendChart.options.scales.x.max = state.window.end;
     } else {
@@ -266,7 +281,8 @@
     const hasAny = (ph.length || ec.length || temp.length);
     if (typeof emptyEl !== 'undefined') emptyEl.style.display = hasAny ? 'none' : 'block';
 
-    trendChart.update('none');
+    // Force full chart update with recalculation
+    trendChart.update();
   }
 
   function scheduleAutoRefresh() {
