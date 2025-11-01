@@ -117,17 +117,33 @@
 
   async function loadGrow(){
     let startISO;
-    try {
-      const resp = await fetch('/api/grow/start');
-      if (!resp.ok) throw new Error('Grow start fetch failed');
-      const data = await resp.json();
-      startISO = data.start;
-    } catch(err){
-      console.error('Failed to fetch grow start:', err);
-      const fallback = new Date();
-      fallback.setDate(fallback.getDate() - 30);
-      startISO = fallback.toISOString();
+    // Try to get grow_start_date from settings
+    const growStartDate = window.rdwcSettings?.get('general.grow_start_date');
+    if (growStartDate) {
+      // Use grow start date at 00:00 local time
+      try {
+        const startDate = new Date(growStartDate + 'T00:00:00');
+        startISO = startDate.toISOString();
+      } catch(e) {
+        console.warn('Invalid grow_start_date format, using fallback:', e);
+      }
     }
+    
+    // Fallback to API or 30 days ago
+    if (!startISO) {
+      try {
+        const resp = await fetch('/api/grow/start');
+        if (!resp.ok) throw new Error('Grow start fetch failed');
+        const data = await resp.json();
+        startISO = data.start;
+      } catch(err){
+        console.error('Failed to fetch grow start:', err);
+        const fallback = new Date();
+        fallback.setDate(fallback.getDate() - 30);
+        startISO = fallback.toISOString();
+      }
+    }
+    
     const nowISO = new Date().toISOString();
     const startMs = new Date(startISO).getTime();
     const endMs = new Date(nowISO).getTime();

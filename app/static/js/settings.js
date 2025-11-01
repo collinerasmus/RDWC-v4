@@ -8,7 +8,8 @@
       fields: {
         'general.grow_name': {label:'Grow name', type:'text'},
         'general.timezone': {label:'Timezone', type:'text', placeholder:'Africa/Johannesburg'},
-        'general.reservoir_liters': {label:'Reservoir (L)', type:'number', min:1, max:1000, step:0.1}
+        'general.reservoir_liters': {label:'Reservoir (L)', type:'number', min:1, max:1000, step:0.1},
+        'general.grow_start_date': {label:'Grow start date', type:'date', tooltip:'Used for \'Grow\' quick range and Day N'}
       }
     },
     targets: {
@@ -99,6 +100,11 @@
         if (meta.placeholder) input.placeholder = meta.placeholder;
         input.value = val;
         input.style.cssText = 'margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;';
+        // For date inputs, set max to today
+        if (meta.type === 'date') {
+          const today = new Date().toISOString().split('T')[0];
+          input.max = today;
+        }
       }
       input.id = id;
       input.addEventListener('input', ()=>{
@@ -108,6 +114,10 @@
           current[key] = input.value;
         }
         markDirty();
+        // Update Day N badge if grow_start_date changed
+        if (key === 'general.grow_start_date') {
+          updateDayNBadge();
+        }
       });
       wrap.appendChild(label);
       wrap.appendChild(input);
@@ -118,6 +128,17 @@
         tip.textContent = meta.tooltip;
         wrap.appendChild(tip);
       }
+      
+      // Add Day N badge after grow_start_date input
+      if (key === 'general.grow_start_date') {
+        const badge = document.createElement('span');
+        badge.id = 'grow-day-n-badge';
+        badge.className = 'muted';
+        badge.style.cssText = 'margin-left:8px;padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;';
+        badge.style.display = 'none';
+        wrap.appendChild(badge);
+      }
+      
       panel.appendChild(wrap);
     });
     return panel;
@@ -200,7 +221,59 @@
       if (uiRel) window.APP_POLL.relays = parseInt(uiRel,10)||1000;
       if (uiSen) window.APP_POLL.sensors = parseInt(uiSen,10)||5000;
       window.dispatchEvent(new CustomEvent('settings:ui', {detail:{poll: window.APP_POLL}}));
+      // Update Day N badge and Sensors header if grow_start_date changed
+      if (changes['general.grow_start_date'] !== undefined) {
+        updateDayNBadge();
+        updateSensorsHeaderDayN();
+      }
       markDirty();
+    }
+  }
+  
+  function updateDayNBadge() {
+    const badge = q('#grow-day-n-badge');
+    if (!badge) return;
+    const startDate = current['general.grow_start_date'];
+    if (!startDate) {
+      badge.style.display = 'none';
+      return;
+    }
+    const dayN = calculateDayN(startDate, current['general.timezone']);
+    if (dayN !== null) {
+      badge.textContent = `Day ${dayN}`;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+  
+  function calculateDayN(startDateStr, timezone) {
+    if (!startDateStr) return null;
+    try {
+      const start = new Date(startDateStr + 'T00:00:00');
+      const now = new Date();
+      const diffMs = now - start;
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      return Math.max(1, diffDays + 1);
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  function updateSensorsHeaderDayN() {
+    const startDate = current['general.grow_start_date'];
+    const badge = q('#sensors-grow-day-badge');
+    if (!badge) return;
+    if (!startDate) {
+      badge.style.display = 'none';
+      return;
+    }
+    const dayN = calculateDayN(startDate, current['general.timezone']);
+    if (dayN !== null) {
+      badge.textContent = `Grow Day ${dayN}`;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
     }
   }
 
@@ -245,6 +318,8 @@
       await fetchSettings();
       renderAll();
       bindTabs();
+      updateDayNBadge();
+      updateSensorsHeaderDayN();
       bindActions();
       markDirty();
       // seed APP_POLL from settings
@@ -256,6 +331,12 @@
       console.warn('settings boot failed', e);
     }
   }
+
+  // Expose helper for other modules
+  window.rdwcSettings = {
+    get: (key) => current[key] || '',
+    calculateDayN
+  };
 
   // Auto init once DOM is ready
   if (document.readyState === 'loading'){

@@ -50,6 +50,7 @@ DEFAULTS: Dict[str, str] = {
     "general.grow_name": "RDWC v4",
     "general.timezone": "Africa/Johannesburg",
     "general.reservoir_liters": "25",
+    "general.grow_start_date": "",  # YYYY-MM-DD or empty string
 
     # targets
     "targets.ph_low": "5.8",
@@ -196,6 +197,28 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
         v = f(final["general.reservoir_liters"])
         if v is None or not (1 <= v <= 1000):
             return False, {"field": "general.reservoir_liters", "message": "Must be 1–1000"}
+
+    # Grow start date (YYYY-MM-DD or empty)
+    if "general.grow_start_date" in final:
+        val = str(final["general.grow_start_date"]).strip()
+        if val:
+            # Validate format
+            if not re.match(r'^\d{4}-\d{2}-\d{2}$', val):
+                return False, {"field": "general.grow_start_date", "message": "Must be YYYY-MM-DD or empty"}
+            # Check it's a real date and not in the future
+            try:
+                date_obj = datetime.strptime(val, "%Y-%m-%d").date()
+                # Get timezone from settings
+                tz_str = final.get("general.timezone", "Africa/Johannesburg")
+                try:
+                    tz = pytz.timezone(tz_str)
+                except Exception:
+                    tz = SA_TZ
+                today = datetime.now(tz).date()
+                if date_obj > today:
+                    return False, {"field": "general.grow_start_date", "message": "date_in_future"}
+            except ValueError:
+                return False, {"field": "general.grow_start_date", "message": "Invalid date"}
 
     # Min on/off 0–3600 s
     for k in ("safety.main_pump_min_off_s", "safety.chiller_pump_min_off_s",
