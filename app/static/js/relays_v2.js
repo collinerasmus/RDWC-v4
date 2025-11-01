@@ -13,6 +13,25 @@
 
   let currentMode = 'manual';  // Track current system mode
 
+  // Fixed relay order + display names
+  const RELAY_ORDER = [
+    'ph_up', 'dosing_grow', 'dosing_micro', 'dosing_bloom',
+    'main_pump', 'chiller_pump', 'water_chiller', 'grow_lights'
+  ];
+  const RELAY_LABELS = {
+    ph_up: 'pH Up Pump',
+    dosing_grow: 'Grow Pump',
+    dosing_micro: 'Micro Pump',
+    dosing_bloom: 'Bloom Pump',
+    main_pump: 'Main Pump',
+    chiller_pump: 'Chiller Pump',
+    water_chiller: 'Water Chiller (AC)',
+    grow_lights: 'Grow Lights (AC)'
+  };
+
+  // Global UI state
+  const state = { systemMode: 'manual', relays: {} };
+
   async function getJSON(url){
     const r = await fetch(url, {cache:'no-store'});
     if (!r.ok) throw new Error('HTTP '+r.status+' for '+url);
@@ -40,11 +59,12 @@
     try {
       await postJSON('/api/system_mode', { mode });
       currentMode = mode;
+      state.systemMode = mode;
       updateModeButtons();
       renderModeHint();
       showToast(`System mode set to ${mode.toUpperCase()}`, 'success');
       // Repaint to apply readonly styles
-      await paint();
+      renderRelays();
     } catch(e) {
       console.error('Failed to set system mode:', e);
       showToast('Failed to change system mode', 'error');
@@ -69,11 +89,23 @@
     }
   }
 
-  // --- Relay Status with Lockout Info ---------------------------------------
-  async function getRelayStatus() {
-    // Get full status including lockout information
-    const status = await getJSON('/relay/status');
-    return status;
+  // --- Relay Status with Lockout Info (smart fallback) ----------------------
+  async function getRelayStatusSmart() {
+    // Preferred: /relay/status -> { name: {state, lockout?} }
+    try { return await getJSON('/relay/status'); } catch(_){ }
+    // Fallbacks that return flat maps -> coerce to uniform shape
+    const coerce = (flat) => Object.fromEntries(
+      Object.entries(flat || {}).map(([k,v]) => [k, { state: !!v, lockout: { active:false, seconds_remaining:0 } }])
+    );
+    try { return coerce(await getJSON('/relays/state')); } catch(_){ }
+    try { return coerce(await getJSON('/relay/state')); } catch(_){ }
+    // Last resort: derive from /relays/map by setting all to false
+    try {
+      const m = await getJSON('/relays/map');
+      const flat = {}; Object.keys(m||{}).forEach(k => flat[k]=false);
+      return coerce(flat);
+    } catch(_){ }
+    return {}; // nothing available
   }
 
   async function setRelay(key, desiredOn) {
@@ -181,36 +213,44 @@
     }
   }
 
-  async function paint() {
+  // Render the 8-button grid consistently
+  function renderRelays(){
     const grid = q('#relays-grid');
-    if (!grid) return;
-    
-    grid.innerHTML = '<div class="col-span-2 text-gray-400 text-sm text-center">Loading relays…</div>';
+    if (!grid) return console.warn('#relays-grid missing');
+    grid.innerHTML = '';
 
-    try {
-      const [modeData, status] = await Promise.all([
-        getJSON('/api/system_mode').catch(() => ({mode: 'manual'})),
-        getRelayStatus()
-      ]);
+    let rendered = 0;
+    for (const key of RELAY_ORDER){
+      const info = state.relays[key];
+      if (!info) continue; // keep order; skip if backend didn't send
+      rendered++;
+      const on = !!info.state;
+      const name = RELAY_LABELS[key] || key;
+      const btn = btnTemplate(
+        key,
+        name,
+        on,
+        info.lockout
+      );
+      // Readonly class in Auto mode
+      if (state.systemMode === 'auto') btn.classList.add('readonly');
 
-      currentMode = modeData.mode || 'manual';
-      updateModeButtons();
-      renderModeHint();
+      // Handlers (only in Manual)
+      btn.onclick = () => {
+        if (state.systemMode === 'auto') return;
+        requestToggle(key);
+      };
+      btn.onkeydown = (e) => {
+        if (state.systemMode === 'auto') return;
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); requestToggle(key); }
+      };
 
-      grid.innerHTML = '';
-      
-      Object.keys(status).forEach(key => {
-        const info = status[key];
-        const name = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        const btn = btnTemplate(key, name, info.state, info.lockout);
-        grid.appendChild(btn);
-      });
-      
-      wire();
-    } catch(e) {
-      console.error('Paint failed:', e);
-      grid.innerHTML = '<div class="col-span-2 text-red-400 text-sm text-center">Failed to load relays</div>';
+      grid.appendChild(btn);
     }
+    if (rendered === 0){
+      grid.innerHTML = '<div class="text-sm text-gray-400">No relays found from API.</div>';
+    }
+    renderModeHint();
   }
 
   function wire(){
@@ -218,58 +258,11 @@
     if (!grid) return;
     
     grid.querySelectorAll('.relay-btn').forEach(btn => {
-      // UI-level guard: block all interaction in Auto mode
-      btn.addEventListener('click', async (e) => {
-        if (currentMode === 'auto') {
-          e.preventDefault();
-          showToast('Controls disabled in Auto mode', 'warning');
-          return;
-        }
-        
-        const key = btn.getAttribute('data-relay');
-        const wasOn = btn.textContent.includes('●');
-        
-        try{
-          btn.disabled = true;
-          btn.style.opacity = '0.6';
-          
-          const result = await setRelay(key, !wasOn);
-          
-          // Check if request was blocked
-          if (result.ok === false || result.changed === false) {
-            const reason = result.reason || 'unknown';
-            const cooldown = result.cooldown_remaining || 0;
-            
-            if (reason === 'cooldown' || reason === 'antiflap') {
-              showToast(`Protected: ready in ${formatCountdown(cooldown)}`, 'warning');
-            } else if (reason === 'blocked') {
-              showToast(`Action blocked: ${result.message || 'not allowed'}`, 'error');
-            }
-          }
-          
-          // Refresh to show actual state
-          await paint();
-          
-        }catch(e){
-          console.error('Toggle failed', key, e);
-          showToast(`Failed to toggle ${key}`, 'error');
-        }finally{
-          btn.disabled = false;
-          btn.style.opacity = '1';
-        }
-      });
-
-      // Keyboard guard for accessibility
-      btn.addEventListener('keydown', (e) => {
-        if (currentMode === 'auto') {
-          e.preventDefault();
-          return;
-        }
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          btn.click();
-        }
-      });
+      // keep wiring minimal; click/keydown set in renderRelays based on mode
+      if (state.systemMode === 'auto') {
+        btn.addEventListener('click', (e) => { e.preventDefault(); showToast('Controls disabled in Auto mode', 'warning'); });
+        btn.addEventListener('keydown', (e) => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); }});
+      }
     });
 
     // Wire mode toggle buttons
@@ -293,69 +286,65 @@
     }
   }
 
-  // Fast refresh with debouncing
-  let refreshTimeout = null;
-  async function periodicRefresh(){
+  // Helpers and periodic refresh
+  function fmtSeconds(sec){
+    const s = Math.max(0, Math.floor(sec));
+    const m = Math.floor(s/60), r = s%60; return m>0? `${m}m ${r}s` : `${r}s`;
+  }
+  function tickCountdowns(){
+    document.querySelectorAll('#relays-grid .countdown-pill').forEach(elm => {
+      const cur = parseInt(elm.getAttribute('data-countdown')||'0',10);
+      const next = Math.max(0, cur-1);
+      elm.setAttribute('data-countdown', String(next));
+      elm.textContent = fmtSeconds(next);
+    });
+  }
+  async function refreshRelays(){
     try{
-      const status = await getRelayStatus();
-      
-      document.querySelectorAll('#relays-grid .relay-btn').forEach(btn => {
-        const key = btn.getAttribute('data-relay');
-        if (!(key in status)) return;
-        
-        const info = status[key];
-        const isOn = info.state;
-        const isLocked = info.lockout && info.lockout.active;
-        
-        // Update button appearance
-        const symbol = isOn ? '● ' : '○ ';
-        const name = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        
-        // Update label
-        const labelSpan = btn.querySelector('span');
-        if (labelSpan) labelSpan.textContent = symbol + name;
-        
-        // Update colors
-        btn.classList.remove('bg-green-600', 'hover:bg-green-700', 'bg-gray-600', 'hover:bg-gray-700', 'bg-gray-500', 'cursor-not-allowed');
-        
-        if (isLocked) {
-          btn.classList.add('bg-gray-500', 'cursor-not-allowed');
-          btn.disabled = true;
-          
-          // Update or add countdown badge
-          let badge = btn.querySelector('span:last-child');
-          const countdownText = formatCountdown(info.lockout.seconds_remaining);
-          if (badge && badge.classList.contains('bg-red-500')) {
-            badge.textContent = countdownText;
-          } else {
-            badge = el(`<span class="text-xs ml-2 px-2 py-0.5 bg-red-500 rounded">${countdownText}</span>`);
-            btn.appendChild(badge);
-          }
-        } else {
-          btn.disabled = false;
-          btn.classList.add(isOn ? 'bg-green-600' : 'bg-gray-600');
-          btn.classList.add(isOn ? 'hover:bg-green-700' : 'hover:bg-gray-700');
-          
-          // Remove countdown badge if present
-          const badge = btn.querySelector('span.bg-red-500');
-          if (badge) badge.remove();
-        }
-      });
-      
-    }catch(e){ 
-      console.debug('Refresh skipped', e); 
-    }
+      const map = await getRelayStatusSmart();
+      state.relays = map;
+      renderRelays();
+      tickCountdowns();
+    }catch(e){ console.error('refreshRelays error', e); }
+  }
+  async function refreshSystemMode(){
+    try{
+      const data = await getSystemMode();
+      currentMode = data || 'manual';
+      state.systemMode = currentMode;
+      updateModeButtons();
+      renderModeHint();
+    }catch(_){ }
   }
 
   // Initialize on load
   document.addEventListener('DOMContentLoaded', () => {
-    paint().catch(err => {
-      const grid = q('#relays-grid');
-      if (grid) grid.innerHTML = `<div class="col-span-2 text-red-400 text-sm text-center">Error: ${String(err)}</div>`;
-      console.error(err);
-    });
-    
-    // Fast 1-second refresh
-    setInterval(periodicRefresh, 1000);
+    refreshSystemMode();
+    refreshRelays();
+    wire();
+    setInterval(refreshRelays, 1000);
   });
+
+  // Public toggle that honors lockout feedback
+  async function requestToggle(key){
+    try{
+      const info = state.relays[key] || {};
+      const desired = !info.state;
+      const result = await setRelay(key, desired);
+      if (result && (result.ok===false || result.changed===false)){
+        const reason = result.reason || 'unknown';
+        const cooldown = result.cooldown_remaining || 0;
+        if (reason==='cooldown' || reason==='antiflap'){
+          showToast(`Protected: ready in ${fmtSeconds(cooldown)}`,'warning');
+        } else {
+          showToast(`Action blocked: ${result.message || reason}`,'error');
+        }
+      }
+      // Refresh after toggle
+      setTimeout(refreshRelays, 150);
+    }catch(e){
+      console.error('Toggle failed', key, e);
+      showToast(`Failed to toggle ${key}`, 'error');
+    }
+  }
 })();

@@ -363,6 +363,18 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     border-radius: 999px;
     opacity: .8;
   }
+
+  /* Relays grid + button color styles */
+  .relays-grid{
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .75rem;
+  }
+  @media (max-width: 720px){ .relays-grid{ grid-template-columns: 1fr; } }
+  .relay-on{ background: rgba(34,197,94,.15); border:1px solid rgba(34,197,94,.45); color:#a7f3d0; }
+  .relay-off{ background: rgba(148,163,184,.08); border:1px solid rgba(148,163,184,.25); color:#cbd5e1; }
+  .lock-pill{ font-size:.70rem; padding:2px 6px; border-radius:999px; margin-left:.5rem; opacity:.85; border:1px solid rgba(148,163,184,.35); }
+  .countdown-pill{ font-size:.70rem; padding:2px 6px; border-radius:999px; margin-left:.5rem; border:1px solid rgba(239,68,68,.45); }
 </style>
 </head>
 <body>
@@ -421,17 +433,18 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- Control Cards -->
   <div id="right-column-stack">
       <!-- Relays Control Panel -->
-      <section class="card">
+      <section id="relays-card" class="card">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
           <h3 class="card-title" style="margin:0;">Relays</h3>
-          <div style="display:flex;gap:8px;">
+          <div class="mode-toggle" style="display:flex;gap:8px;">
             <button id="mode-manual" class="px-3 py-1 text-sm rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors">Manual</button>
             <button id="mode-auto" class="px-3 py-1 text-sm rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors">Auto</button>
           </div>
         </div>
         <div class="card-body">
           <div id="relays-mode-hint" class="text-xs text-gray-400 mb-3"></div>
-          <div id="relays-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;"></div>
+          <!-- ✅ Grid container -->
+          <div id="relays-grid" class="relays-grid"></div>
           <div id="relays-note" class="muted" style="margin-top:12px;font-size:12px;">
             <strong>Manual:</strong> relays stay off at boot. <strong>Auto:</strong> critical relays restore last state.
           </div>
