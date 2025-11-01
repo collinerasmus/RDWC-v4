@@ -7,6 +7,11 @@
   let countdownTimer = null;
   let lastPollAt = Date.now();
   let currentRange = { preset: null, start: null, end: null };
+  // Recent autohide state
+  let recentHideTimer = null;
+  let recentCollapsed = false;
+  let lastRecentFirstId = null;
+  let recentHeaderBound = false;
 
   function el(id){ return document.getElementById(id); }
 
@@ -72,6 +77,26 @@
         li.textContent = `${when} • ${r.action} • ${r.volume_ml||''} ml • ${r.result}${r.reason? ' • '+r.reason: ''}`;
         recent.appendChild(li);
       });
+
+      // Bind header click once
+      const hdr = el('ph-recent-header');
+      if (hdr && !recentHeaderBound){
+        recentHeaderBound = true;
+        hdr.addEventListener('click', ()=>{
+          setRecentCollapsed(!recentCollapsed, true);
+        });
+      }
+
+      // Auto-show on new top event, then autohide after a delay
+      const top = (s.recent && s.recent.length) ? (s.recent[0].id || s.recent[0].ts_utc || null) : null;
+      if (top && top !== lastRecentFirstId){
+        lastRecentFirstId = top;
+        setRecentCollapsed(false, false); // expand
+        scheduleRecentAutoHide();
+      } else {
+        // keep current collapsed state; ensure DOM reflects it
+        setRecentCollapsed(recentCollapsed, false);
+      }
     }
     // Determine disabled state; maintenance override bypasses cooldown/daily_cap
     const g = s?.guards || {};
@@ -387,4 +412,19 @@
     
     // Refresh summary alongside
     refreshSummary().catch(()=>{});
+  }
+
+  function scheduleRecentAutoHide(){
+    cancelRecentAutoHide();
+    recentHideTimer = setTimeout(()=> setRecentCollapsed(true, false), 8000);
+  }
+  function cancelRecentAutoHide(){ if(recentHideTimer){ clearTimeout(recentHideTimer); recentHideTimer=null; } }
+  function setRecentCollapsed(collapsed, user){
+    recentCollapsed = !!collapsed;
+    const list = el('ph-recent');
+    const hdr = el('ph-recent-header');
+    if (list){ list.style.display = collapsed ? 'none' : 'block'; }
+    if (hdr){ hdr.textContent = collapsed ? 'Recent ▸' : 'Recent ▾'; }
+    // If user expanded manually, don't re-autohide until next new event
+    if (user && !collapsed){ cancelRecentAutoHide(); }
   }
