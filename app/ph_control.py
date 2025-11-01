@@ -1,0 +1,354 @@
+"""
+pH Control API
+
+Endpoints:
+- GET /api/ph/status
+- POST /api/ph/dose
+- POST /api/ph/auto
+- GET /api/ph/export
+
+Implements manual dosing with guards and a simple log table.
+Automation is a placeholder that currently refuses enabling.
+"""
+from fastapi import APIRouter, Body, Query
+from fastapi.responses import JSONResponse, PlainTextResponse
+from typing import Dict, Any, Optional, Tuple, List
+from datetime import datetime, timedelta, timezone
+import time
+import sqlite3
+import threading
+from pathlib import Path
+
+router = APIRouter()
+
+DB_PATH = Path(__file__).parent.parent / "data" / "rdwc.db"
+
+# --- DB helpers --------------------------------------------------------------
+def _ensure_tables() -> None:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ph_dose_log(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              ts_utc TEXT NOT NULL,
+              action TEXT NOT NULL,
+              volume_ml REAL,
+              duration_ms INTEGER,
+              pre_ph REAL,
+              post_ph REAL,
+              result TEXT NOT NULL,
+              reason TEXT
+            )
+            """
+        )
+        conn.commit()
+
+def _log_row(row: Dict[str, Any]) -> int:
+    _ensure_tables()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO ph_dose_log(ts_utc, action, volume_ml, duration_ms, pre_ph, post_ph, result, reason)
+            VALUES(?,?,?,?,?,?,?,?)
+            """,
+            (
+                row.get("ts_utc"), row.get("action","dose"), row.get("volume_ml"),
+                row.get("duration_ms"), row.get("pre_ph"), row.get("post_ph"),
+                row.get("result","ok"), row.get("reason")
+            )
+        )
+    rowid = cur.lastrowid or 0
+    conn.commit()
+    return int(rowid)
+
+def _update_post_ph(rowid: int, post_ph: Optional[float]) -> None:
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        conn.execute("UPDATE ph_dose_log SET post_ph=? WHERE id=?", (post_ph, rowid))
+        conn.commit()
+
+def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
+    _ensure_tables()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, ts_utc, action, volume_ml, duration_ms, pre_ph, post_ph, result, reason FROM ph_dose_log ORDER BY id DESC LIMIT ?",
+            (int(limit),)
+        )
+        rows = cur.fetchall()
+    out = []
+    for r in rows:
+        out.append({
+            "id": r[0], "ts_utc": r[1], "action": r[2], "volume_ml": r[3],
+            "duration_ms": r[4], "pre_ph": r[5], "post_ph": r[6],
+            "result": r[7], "reason": r[8]
+        })
+    return out
+
+def _today_total_ml(now_dt: datetime) -> float:
+    _ensure_tables()
+    # Use SA timezone if available from settings
+    try:
+        from app.settings import SA_TZ
+    except Exception:
+        SA_TZ = timezone.utc
+    local_now = now_dt.astimezone(SA_TZ)
+    start_local = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_utc = start_local.astimezone(timezone.utc)
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COALESCE(SUM(volume_ml),0) FROM ph_dose_log WHERE result='ok' AND ts_utc >= ?",
+            (start_utc.isoformat(),)
+        )
+        val = cur.fetchone()[0]
+        return float(val or 0.0)
+
+def _last_ok_ts() -> Optional[datetime]:
+    _ensure_tables()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT ts_utc FROM ph_dose_log WHERE result='ok' ORDER BY id DESC LIMIT 1")
+        row = cur.fetchone()
+        if not row:
+            return None
+        try:
+            return datetime.fromisoformat(row[0]).astimezone(timezone.utc)
+        except Exception:
+            return None
+
+# --- Sensors/Settings helpers ------------------------------------------------
+def _get_latest_ph() -> Tuple[Optional[float], Optional[int]]:
+    """Return latest pH and its unix ts from readings table."""
+    from app.logger import DB_PATH as READ_DB
+    try:
+        with sqlite3.connect(READ_DB) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT ts, ph FROM readings WHERE ph IS NOT NULL ORDER BY ts DESC LIMIT 1")
+            row = cur.fetchone()
+            if row:
+                return (float(row[1]) if row[1] is not None else None, int(row[0]))
+    except Exception:
+        pass
+    return (None, None)
+
+def _settings_get(key: str, default: str) -> str:
+    try:
+        from app.settings import get_setting_key
+        v = get_setting_key(key, default)
+        return v if v is not None else default
+    except Exception:
+        return default
+
+def _settings_get_float(key: str, default: float) -> float:
+    try:
+        return float(_settings_get(key, str(default)))
+    except Exception:
+        return default
+
+def _settings_get_int(key: str, default: int) -> int:
+    try:
+        return int(float(_settings_get(key, str(default))))
+    except Exception:
+        return default
+
+# --- Guards ------------------------------------------------------------------
+def _compute_guards(now: float) -> Dict[str, Any]:
+    from app.relays_core import get_estop_status
+    ph, ts = _get_latest_ph()
+    sensor_stale = True
+    if ts:
+        sensor_stale = (now - ts) > 90
+
+    # Min interval guard
+    last_ok = _last_ok_ts()
+    min_interval = _settings_get_int("dosing.ph_min_interval_s", 300)
+    since_last_ok = None
+    interval_guard = False
+    if last_ok:
+        since_last_ok = int(datetime.now(timezone.utc).timestamp() - last_ok.timestamp())
+        interval_guard = since_last_ok < min_interval
+
+    # Daily cap guard
+    today_ml = _today_total_ml(datetime.now(timezone.utc))
+    daily_cap = _settings_get_float("dosing.ph_up_max_ml_per_day", 50.0)
+    daily_guard = today_ml >= daily_cap if daily_cap > 0 else False
+
+    # Reservoir > 0
+    res_liters = _settings_get_float("general.reservoir_liters", 25.0)
+    res_guard = res_liters <= 0
+
+    return {
+        "estop": bool(get_estop_status()),
+        "safe_off": False,  # placeholder - no separate latch beyond E-STOP
+        "sensor_stale": bool(sensor_stale),
+        "interval": bool(interval_guard),
+        "daily_cap": bool(daily_guard),
+        "reservoir": bool(res_guard),
+        "since_last_ok_s": since_last_ok,
+        "today_total_ml": today_ml,
+        "min_interval_s": min_interval,
+        "daily_cap_ml": daily_cap,
+    }
+
+# --- API ---------------------------------------------------------------------
+@router.get("/api/ph/status")
+def ph_status():
+    now = time.time()
+    ph_val, ts = _get_latest_ph()
+    targets = {
+        "low": _settings_get_float("targets.ph_low", 5.8),
+        "high": _settings_get_float("targets.ph_high", 6.2),
+    }
+    guards = _compute_guards(now)
+    recent = _recent_doses(5)
+    return {
+        "ph": ph_val,
+        "ts": ts,
+        "targets": targets,
+        "auto": {"enabled": False, "guard": "automation unsupported: only pH Up available"},
+        "guards": guards,
+        "recent": recent
+    }
+
+
+def _dose_ms_from_ml(ml: float) -> Tuple[int, Optional[str]]:
+    rate = _settings_get_float("dosing.ph_up_ml_per_sec", 25.0)
+    max_single = _settings_get_float("dosing.ph_up_max_single_ml", 5.0)
+    if ml <= 0:
+        return 0, "ml_must_be_positive"
+    if max_single > 0 and ml > max_single:
+        return 0, "exceeds_max_single_ml"
+    ms = int(1000.0 * (ml / max(0.0001, rate)))
+    return max(0, ms), None
+
+
+def _actuate_ph_up(duration_ms: int) -> Dict[str, Any]:
+    from app.relays_core import set_dosing_ph_up
+    # Active-low handled in relays_core
+    on = set_dosing_ph_up(True, reason="ph_dose", force=True)
+    if not on.get("changed") and not on.get("state"):
+        # Could be blocked by estop or cooldown
+        return {"ok": False, "reason": on.get("reason", "blocked")}
+    time.sleep(max(0, duration_ms) / 1000.0)
+    set_dosing_ph_up(False, reason="ph_dose", force=True)
+    return {"ok": True}
+
+
+def _background_observe_and_update(rowid: int, observe_s: int):
+    try:
+        time.sleep(max(0, observe_s))
+        ph_after, _ = _get_latest_ph()
+        _update_post_ph(rowid, ph_after)
+    except Exception:
+        pass
+
+
+@router.post("/api/ph/dose")
+def ph_dose(body: Dict[str, Any] = Body(...)):
+    """Manual dose endpoint.
+    Accepts { ml?: number, ms?: number, reason?: string }
+    """
+    ml = body.get("ml")
+    ms = body.get("ms")
+    reason = str(body.get("reason", "manual"))[:200]
+
+    # Prefer ml if provided
+    if ml is not None:
+        try:
+            ml = float(ml)
+        except Exception:
+            return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_ml"})
+        ms_calc, err = _dose_ms_from_ml(ml)
+        if err:
+            return JSONResponse(status_code=422, content={"ok": False, "error": err})
+        duration_ms = ms_calc
+        volume_ml = ml
+    else:
+        try:
+            duration_ms = int(float(ms or 0))
+        except Exception:
+            return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_ms"})
+        # Infer ml from rate for logging
+        rate = _settings_get_float("dosing.ph_up_ml_per_sec", 25.0)
+        volume_ml = round((duration_ms/1000.0) * rate, 3)
+
+    # Guards
+    g = _compute_guards(time.time())
+    guard_map = {
+        "estop": g["estop"],
+        "safe_off": g["safe_off"],
+        "sensor_stale": g["sensor_stale"],
+        "interval": g["interval"],
+        "daily_cap": g["daily_cap"],
+        "reservoir": g["reservoir"],
+    }
+    blocked_reasons = [k for k,v in guard_map.items() if v]
+    ts_iso = datetime.now(timezone.utc).isoformat()
+
+    pre_ph, _ = _get_latest_ph()
+
+    if blocked_reasons:
+        rowid = _log_row({
+            "ts_utc": ts_iso, "action": "dose", "volume_ml": float(volume_ml),
+            "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
+            "result": "blocked", "reason": ",".join(blocked_reasons)
+        })
+        return JSONResponse(status_code=409, content={"ok": False, "blocked": True, "reasons": blocked_reasons, "rowid": rowid})
+
+    # Actuate pump
+    act = _actuate_ph_up(int(duration_ms))
+    if not act.get("ok"):
+        rowid = _log_row({
+            "ts_utc": ts_iso, "action": "dose", "volume_ml": float(volume_ml),
+            "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
+            "result": "error", "reason": act.get("reason","error")
+        })
+        return JSONResponse(status_code=500, content={"ok": False, "error": act.get("reason","error"), "rowid": rowid})
+
+    rowid = _log_row({
+        "ts_utc": ts_iso, "action": "dose", "volume_ml": float(volume_ml),
+        "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
+        "result": "ok", "reason": reason
+    })
+
+    # Schedule background observe to update post_ph later (avoid request blocking)
+    observe_s = _settings_get_int("dosing.observe_s_after_dose", 60)
+    threading.Thread(target=_background_observe_and_update, args=(rowid, observe_s), daemon=True).start()
+
+    return {"ok": True, "rowid": rowid, "pre_ph": pre_ph, "volume_ml": float(volume_ml), "duration_ms": int(duration_ms)}
+
+
+@router.post("/api/ph/auto")
+def ph_auto(body: Dict[str, Any] = Body(...)):
+    enable = bool(body.get("enable", False))
+    if enable:
+        return JSONResponse(status_code=409, content={
+            "ok": False,
+            "enabled": False,
+            "guard": "automation unsupported: only pH Up available"
+        })
+    return {"ok": True, "enabled": False}
+
+
+@router.get("/api/ph/export")
+def ph_export(hours: int = Query(24)):
+    _ensure_tables()
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, int(hours)))
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT ts_utc, action, volume_ml, duration_ms, pre_ph, post_ph, result, reason FROM ph_dose_log WHERE ts_utc >= ? ORDER BY ts_utc ASC",
+            (cutoff.isoformat(),)
+        )
+        rows = cur.fetchall()
+    # CSV
+    lines = ["ts_utc,action,volume_ml,duration_ms,pre_ph,post_ph,result,reason"]
+    for r in rows:
+        line = ",".join([
+            str(r[0]), str(r[1]), str(r[2] if r[2] is not None else ""), str(r[3] if r[3] is not None else ""),
+            str(r[4] if r[4] is not None else ""), str(r[5] if r[5] is not None else ""), str(r[6]), str(r[7] if r[7] else "")
+        ])
+        lines.append(line)
+    return PlainTextResponse("\n".join(lines), media_type="text/csv")
