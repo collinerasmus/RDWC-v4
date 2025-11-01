@@ -6,7 +6,7 @@
   let lastStatus = null;
   let countdownTimer = null;
   let lastPollAt = Date.now();
-  let chart, chartMode = '24h'; // '24h' | '7d'
+  let chart, chartMode = (localStorage.getItem('ph.chartMode') || '24h'); // '24h' | '7d'
 
   function el(id){ return document.getElementById(id); }
 
@@ -112,12 +112,23 @@
     const cdPill = el('ph-countdown-pill');
     if(!cdPill || !lastStatus?.guards) return;
     const g = lastStatus.guards;
-    if(!g.interval){ cdPill.style.display = 'none'; return; }
+    if(!g.interval){
+      cdPill.style.display = 'inline-block';
+      cdPill.textContent = 'All clear';
+      cdPill.style.borderColor = 'rgba(34,197,94,.45)';
+      return;
+    }
     // Estimate since_last_ok_s locally since last poll
     const elapsed = Math.floor((Date.now() - lastPollAt)/1000);
     const since = (g.since_last_ok_s ?? 0) + Math.max(0, elapsed);
     const need = Math.max(0, (g.min_interval_s ?? 0) - since);
-    cdPill.textContent = `⏱ ${need}s`;
+    if(need <= 0){
+      cdPill.textContent = 'All clear';
+      cdPill.style.borderColor = 'rgba(34,197,94,.45)';
+    } else {
+      cdPill.textContent = `⏱ ${need}s`;
+      cdPill.style.borderColor = 'rgba(239,68,68,.45)';
+    }
   }
 
   async function postDose(body){
@@ -155,12 +166,13 @@
       if(window.showToast){ showToast(j.guard || 'Set', j.guard? 'error':'success'); }
       else { alert(j.guard || 'Set'); }
     });
-    el('btnPhExport24')?.addEventListener('click', ()=>{ window.open('/api/ph/export?hours=24','_blank'); });
+  // Use unified dose_log.csv endpoint for 24h export
+  el('btnPhExport24')?.addEventListener('click', ()=>{ window.open('/api/ph/dose_log.csv?hours=24','_blank'); });
     el('ph-dose-csv')?.addEventListener('click', ()=>{ window.open('/api/ph/dose_log.csv?hours=168','_blank'); });
 
     // Chart range buttons
-    el('ph-chart-24h')?.addEventListener('click', ()=>{ chartMode='24h'; refreshDoseChart(); });
-    el('ph-chart-7d')?.addEventListener('click', ()=>{ chartMode='7d'; refreshDoseChart(); });
+  el('ph-chart-24h')?.addEventListener('click', ()=>{ chartMode='24h'; localStorage.setItem('ph.chartMode', chartMode); refreshDoseChart(); });
+  el('ph-chart-7d')?.addEventListener('click', ()=>{ chartMode='7d'; localStorage.setItem('ph.chartMode', chartMode); refreshDoseChart(); });
 
     // listen for settings UI updates to ui.sensors_poll_ms
     window.addEventListener('settings:ui', (ev)=>{
@@ -181,14 +193,16 @@
     try{
       // Today: sum from 24h log; Week: 7d summary
       const log = await (await fetch('/api/ph/dose_log?hours=24',{cache:'no-store'})).json();
+      const vols = (log||[]).map(e => e.volume_ml);
+      const hasVol = vols.some(v => v!=null);
       const today = (log||[]).reduce((acc,e)=> acc + (e.volume_ml||0), 0);
       const weekRows = await (await fetch('/api/ph/dose_summary?days=7',{cache:'no-store'})).json();
       const week = (weekRows||[]).reduce((acc,r)=> acc + (r.total_ml||0), 0);
-      const tEl = el('ph-total-today'); if (tEl) tEl.textContent = `Today: ${today.toFixed(1)} ml`;
-      const wEl = el('ph-total-week'); if (wEl) wEl.textContent = `Week: ${week.toFixed(1)} ml`;
-      // Calibration banner if any volumes are null/undefined
-      const anyNull = (log||[]).some(e=> e.volume_ml==null);
-      const banner = el('ph-calib-banner'); if (banner) banner.style.display = anyNull ? 'block':'none';
+      const tEl = document.getElementById('ph-total-today'); if (tEl) tEl.textContent = hasVol ? `Today: ${today.toFixed(1)} ml` : `Today: — ml`;
+      const wEl = document.getElementById('ph-total-week'); if (wEl) wEl.textContent = hasVol ? `Week: ${week.toFixed(1)} ml` : `Week: — ml`;
+      // Calibration banner if all volumes are null/undefined in the 24h window
+      const allNull = (log||[]).length>0 && (log||[]).every(e=> e.volume_ml==null);
+      const banner = document.getElementById('ph-calib-banner'); if (banner) banner.style.display = allNull ? 'block':'none';
     }catch(e){ /* ignore */ }
   }
 
@@ -210,9 +224,9 @@
           label:(ctx)=>{
             const d = ctx.raw || {};
             if (d.kind==='dose'){
-              const vol = (d.volume_ml==null)? '—' : `${d.volume_ml} ml`;
+              const vol = (d.volume_ml==null)? `~${d.seconds}s` : `+${d.volume_ml} ml`;
               const ph = (d.ph_before!=null || d.ph_after!=null) ? ` pH: ${d.ph_before??'—'} → ${d.ph_after??'—'}` : '';
-              return ` +${vol} (${d.seconds}s, ${d.reason||'manual'})${ph}`;
+              return `${vol} (${d.reason||'manual'})${ph}`;
             }
             if (d.kind==='daily'){ return ` Total: ${d.y.toFixed(1)} ml`; }
             return '';
@@ -237,7 +251,7 @@
       }
       // Build datasets
       const dosePoints = (doses||[]).map(e=>({
-        x: new Date(e.ts), y: e.volume_ml==null ? 0 : e.volume_ml, kind:'dose',
+        x: new Date(e.ts), y: e.volume_ml==null ? e.seconds : e.volume_ml, kind:'dose',
         volume_ml:e.volume_ml, seconds:e.seconds, reason:e.reason, ph_before:e.ph_before, ph_after:e.ph_after
       }));
       const dailyBars = (daily||[]).map(d=>({ x: new Date(d.day+'T00:00:00'), y: d.total_ml, kind:'daily' }));
@@ -247,8 +261,12 @@
         backgroundColor:'rgba(59,130,246,0.9)', pointRadius:4, pointHoverRadius:6, showLine:false };
       const dailyDs = { type:'bar', label:'Daily total', data: dailyBars, parsing:false,
         backgroundColor:'rgba(34,197,94,0.35)', borderColor:'rgba(34,197,94,0.6)' };
-      chart.data.datasets = (chartMode==='24h') ? [doseDs] : [dailyDs, doseDs];
-      chart.update('none');
+  chart.data.datasets = (chartMode==='24h') ? [doseDs] : [dailyDs, doseDs];
+  // Empty state helper
+  const empty = (!doses || doses.length===0) && (!daily || daily.length===0);
+  const emptyEl = document.getElementById('phDoseEmpty'); if (emptyEl) emptyEl.style.display = empty ? 'block':'none';
+  const canv = document.getElementById('phDoseChart'); if (canv) canv.style.opacity = empty ? 0.5 : 1;
+  chart.update('none');
     }catch(e){ /* ignore */ }
     // Refresh summary alongside
     refreshSummary().catch(()=>{});

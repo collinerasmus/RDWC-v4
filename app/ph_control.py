@@ -18,6 +18,7 @@ import time
 import sqlite3
 import threading
 from pathlib import Path
+import os
 
 router = APIRouter()
 
@@ -58,6 +59,14 @@ def _ensure_tables() -> None:
             )
         except Exception:
             pass
+        # Optional retention purge
+        try:
+            keep_days = int(os.environ.get("PH_DOSE_LOG_RETENTION_DAYS", "0") or "0")
+        except Exception:
+            keep_days = 0
+        if keep_days and keep_days > 0:
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=keep_days)).isoformat()
+            conn.execute("DELETE FROM ph_dose_log WHERE ts_utc < ?", (cutoff,))
         conn.commit()
 
 def _log_row(row: Dict[str, Any]) -> int:
@@ -201,6 +210,17 @@ def _get_latest_ph() -> Tuple[Optional[float], Optional[int]]:
         pass
     return (None, None)
 
+def _volume_ml_from_ms(duration_ms: int) -> Optional[float]:
+    """Compute volume_ml using calibration rate; return None if not configured (>0)."""
+    try:
+        rate = _settings_get_float("dosing.ph_up_ml_per_sec", 25.0)
+        if rate is None or rate <= 0:
+            return None
+        seconds = max(0.0, float(duration_ms or 0) / 1000.0)
+        return round(seconds * rate, 3)
+    except Exception:
+        return None
+
 def _settings_get(key: str, default: str) -> str:
     try:
         from app.settings import get_setting_key
@@ -304,11 +324,23 @@ def _actuate_ph_up(duration_ms: int) -> Dict[str, Any]:
     return {"ok": True}
 
 
-def _background_observe_and_update(rowid: int, observe_s: int):
+def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], max_wait_s: int):
+    """Poll for the next pH sample after dosing completes, up to max_wait_s seconds.
+    Updates post_ph when a newer sample than baseline appears; otherwise leaves as-is.
+    """
     try:
-        time.sleep(max(0, observe_s))
-        ph_after, _ = _get_latest_ph()
-        _update_post_ph(rowid, ph_after)
+        deadline = time.time() + max(0, max_wait_s)
+        last_seen_ts = baseline_ts_unix or 0
+        while time.time() < deadline:
+            ph_after, ts = _get_latest_ph()
+            if ts and ts > last_seen_ts:
+                _update_post_ph(rowid, ph_after)
+                return
+            time.sleep(1.0)
+        # Fallback single read at end (may still be same sample)
+        ph_after, ts = _get_latest_ph()
+        if ts and (baseline_ts_unix is None or ts >= baseline_ts_unix):
+            _update_post_ph(rowid, ph_after)
     except Exception:
         pass
 
@@ -322,7 +354,7 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
     ms = body.get("ms")
     reason = str(body.get("reason", "manual"))[:200]
 
-    # Prefer ml if provided
+    # Prefer ml if provided (convert to ms using calibration), but log-time ml always derived from ms
     if ml is not None:
         try:
             ml = float(ml)
@@ -332,15 +364,13 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
         if err:
             return JSONResponse(status_code=422, content={"ok": False, "error": err})
         duration_ms = ms_calc
-        volume_ml = ml
     else:
         try:
             duration_ms = int(float(ms or 0))
         except Exception:
             return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_ms"})
-        # Infer ml from rate for logging
-        rate = _settings_get_float("dosing.ph_up_ml_per_sec", 25.0)
-        volume_ml = round((duration_ms/1000.0) * rate, 3)
+    # Compute volume at log-time using calibration (nullable if no calibration)
+    volume_ml = _volume_ml_from_ms(duration_ms)
 
     # Guards
     g = _compute_guards(time.time())
@@ -355,11 +385,11 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
     blocked_reasons = [k for k,v in guard_map.items() if v]
     ts_iso = datetime.now(timezone.utc).isoformat()
 
-    pre_ph, _ = _get_latest_ph()
+    pre_ph, pre_ts = _get_latest_ph()
 
     if blocked_reasons:
         rowid = _log_row({
-            "ts_utc": ts_iso, "action": "dose", "volume_ml": float(volume_ml),
+            "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
             "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
             "result": "blocked", "reason": ",".join(blocked_reasons)
         })
@@ -369,23 +399,24 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
     act = _actuate_ph_up(int(duration_ms))
     if not act.get("ok"):
         rowid = _log_row({
-            "ts_utc": ts_iso, "action": "dose", "volume_ml": float(volume_ml),
+            "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
             "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
             "result": "error", "reason": act.get("reason","error")
         })
         return JSONResponse(status_code=500, content={"ok": False, "error": act.get("reason","error"), "rowid": rowid})
 
     rowid = _log_row({
-        "ts_utc": ts_iso, "action": "dose", "volume_ml": float(volume_ml),
+        "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
         "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
         "result": "ok", "reason": reason
     })
 
-    # Schedule background observe to update post_ph later (avoid request blocking)
-    observe_s = _settings_get_int("dosing.observe_s_after_dose", 60)
-    threading.Thread(target=_background_observe_and_update, args=(rowid, observe_s), daemon=True).start()
+    # Schedule background observe to update post_ph with next sample (avoid request blocking)
+    # Hard-limit to 10s to capture next sample quickly
+    observe_s = min(10, _settings_get_int("dosing.observe_s_after_dose", 60))
+    threading.Thread(target=_background_observe_and_update, args=(rowid, pre_ts, observe_s), daemon=True).start()
 
-    return {"ok": True, "rowid": rowid, "pre_ph": pre_ph, "volume_ml": float(volume_ml), "duration_ms": int(duration_ms)}
+    return {"ok": True, "rowid": rowid, "pre_ph": pre_ph, "volume_ml": None if volume_ml is None else float(volume_ml), "duration_ms": int(duration_ms)}
 
 
 @router.post("/api/ph/auto")
