@@ -65,6 +65,12 @@ DEFAULTS: Dict[str, str] = {
     "dosing.max_ml_hour_": "0",
     "dosing.max_ml_day_": "0",
     "dosing.mix_delay_s": "0",
+    # pH Up dosing controls
+    "dosing.ph_up_ml_per_sec": "25",
+    "dosing.ph_up_max_ml_per_day": "50",
+    "dosing.ph_up_max_single_ml": "5",
+    "dosing.ph_min_interval_s": "300",
+    "dosing.observe_s_after_dose": "60",
 
     # safety
     "safety.main_pump_min_off_s": "5",
@@ -198,6 +204,28 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
             v = i(final[k])
             if v is None or not (0 <= v <= 3600):
                 return False, {"field": k, "message": "Must be 0–3600"}
+
+    # Dosing settings validation
+    if "dosing.ph_up_ml_per_sec" in final:
+        v = f(final["dosing.ph_up_ml_per_sec"])
+        if v is None or not (0.1 <= v <= 200.0):
+            return False, {"field": "dosing.ph_up_ml_per_sec", "message": "Must be 0.1–200"}
+    if "dosing.ph_up_max_ml_per_day" in final:
+        v = f(final["dosing.ph_up_max_ml_per_day"])
+        if v is None or not (0.0 <= v <= 500.0):
+            return False, {"field": "dosing.ph_up_max_ml_per_day", "message": "Must be 0–500"}
+    if "dosing.ph_up_max_single_ml" in final:
+        v = f(final["dosing.ph_up_max_single_ml"])
+        if v is None or not (0.1 <= v <= 100.0):
+            return False, {"field": "dosing.ph_up_max_single_ml", "message": "Must be 0.1–100"}
+    if "dosing.ph_min_interval_s" in final:
+        v = i(final["dosing.ph_min_interval_s"])
+        if v is None or not (0 <= v <= 86400):
+            return False, {"field": "dosing.ph_min_interval_s", "message": "Must be 0–86400"}
+    if "dosing.observe_s_after_dose" in final:
+        v = i(final["dosing.observe_s_after_dose"])
+        if v is None or not (0 <= v <= 3600):
+            return False, {"field": "dosing.observe_s_after_dose", "message": "Must be 0–3600"}
 
     # --- Cross-field checks ---
     ph_lo = f(final.get("targets.ph_low"), f(current.get("targets.ph_low", 5.8)))

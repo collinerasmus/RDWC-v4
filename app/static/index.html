@@ -502,6 +502,46 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <div id="settings-note" class="muted" style="margin-top:8px;font-size:12px;">Changes apply immediately unless noted; relays never energize on save.</div>
       </section>
 
+      <!-- pH Control Card -->
+      <section id="ph-card" class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <h3 class="card-title" style="margin:0;">pH Control</h3>
+          <div class="muted" id="ph-band">Targets 5.8 – 6.2</div>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+            <div class="kpi kpi-ph">
+              <div class="kpi-label">pH</div>
+              <div class="kpi-value" id="ph-current">—</div>
+            </div>
+            <div id="ph-guards" class="muted">—</div>
+          </div>
+
+          <div class="tabs" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px 0;">
+            <button class="btn-secondary" onclick="document.getElementById('ph-tab-status').style.display='block';document.getElementById('ph-tab-manual').style.display='none';document.getElementById('ph-tab-auto').style.display='none';">Status</button>
+            <button class="btn-secondary" onclick="document.getElementById('ph-tab-status').style.display='none';document.getElementById('ph-tab-manual').style.display='block';document.getElementById('ph-tab-auto').style.display='none';">Manual</button>
+            <button class="btn-secondary" onclick="document.getElementById('ph-tab-status').style.display='none';document.getElementById('ph-tab-manual').style.display='none';document.getElementById('ph-tab-auto').style.display='block';">Automation</button>
+          </div>
+
+          <div id="ph-tab-status">
+            <div id="ph-recent" class="muted"></div>
+          </div>
+          <div id="ph-tab-manual" style="display:none;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <button id="btnPrime" class="btn-secondary" title="Prime (200 ms)">Prime</button>
+              <button id="btnDose1" class="btn-secondary">+1 ml</button>
+              <button id="btnDose5" class="btn-secondary">+5 ml</button>
+              <input id="phCustomMl" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
+              <button id="btnDoseCustom" class="btn-secondary">Dose</button>
+            </div>
+          </div>
+          <div id="ph-tab-auto" style="display:none;">
+            <div class="muted" style="margin-bottom:8px;">Automation placeholder</div>
+            <button id="btnAutoToggle" class="btn-secondary">Enable automation</button>
+          </div>
+        </div>
+      </section>
+
       <!-- Relays Control Panel -->
       <section id="relays-card" class="card">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
@@ -999,6 +1039,7 @@ async function calibApply(){
 })();
 </script>
 <script src="/static/js/trends.js"></script>
+<script src="/static/js/ph.js"></script>
 <script src="/static/js/settings.js"></script>
 <script src="/static/js/relays_v2.js?v=2"></script>
 </body>
