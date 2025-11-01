@@ -366,7 +366,11 @@
         // Fetch dose log
         const logUrl = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`;
         console.log('[pH] Fetching:', logUrl);
-        doses = await (await fetch(logUrl, {cache:'no-store'})).json();
+        const response = await fetch(logUrl, {cache:'no-store'});
+        console.log('[pH] Response status:', response.status, response.statusText);
+        const text = await response.text();
+        console.log('[pH] Response text:', text);
+        doses = text ? JSON.parse(text) : [];
         console.log('[pH] Got doses:', doses);
         
         // If window > 48h, fetch daily summary
@@ -377,7 +381,11 @@
       } else {
         // Fallback to 24h
         console.log('[pH] Falling back to 24h');
-        doses = await (await fetch('/api/ph/dose_log?hours=24',{cache:'no-store'})).json();
+        const response = await fetch('/api/ph/dose_log?hours=24',{cache:'no-store'});
+        console.log('[pH] Response status:', response.status, response.statusText);
+        const text = await response.text();
+        console.log('[pH] Response text:', text);
+        doses = text ? JSON.parse(text) : [];
         console.log('[pH] Got doses (24h fallback):', doses);
       }
       
