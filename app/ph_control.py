@@ -523,6 +523,8 @@ def ph_dose_log(
                 "ph_after": e["ph_after"],
                 "guard_triggered": e["guard_triggered"],
             })
+        print(f"[DEBUG] Returning {len(out)} events to client")
+        print(f"[DEBUG] First event: {out[0] if out else 'none'}")
         return out
     except ValueError as ve:
         return JSONResponse(status_code=422, content={"ok": False, "error": str(ve)})
