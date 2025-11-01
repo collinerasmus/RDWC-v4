@@ -468,7 +468,6 @@ def ph_dose_log(hours: int = Query(24)):
             "ph_before": e["ph_before"],
             "ph_after": e["ph_after"],
             "guard_triggered": e["guard_triggered"],
-            "result": e["result"],
         })
     return out
 
