@@ -147,7 +147,22 @@
 
   // --- Relay Status with Lockout Info (smart fallback) ----------------------
   async function getRelayStatusSmart() {
-    // Preferred: /relay/status -> { name: {state, lockout?} }
+    // Preferred: new wrapper /api/relays/status -> { mode, estop, relays: { name: {is_on} } }
+    try {
+      const wrap = await getJSON('/api/relays/status');
+      if (wrap && wrap.relays) {
+        // sync system mode/estop from wrapper
+        if (wrap.mode) { currentMode = String(wrap.mode); state.systemMode = currentMode; }
+        if (typeof wrap.estop === 'boolean') { state.estop = wrap.estop; updateEstopButton(); }
+        // Coerce to { key: {state, lockout} }
+        const map = {};
+        Object.entries(wrap.relays).forEach(([k, v]) => {
+          map[k] = { state: !!(v && v.is_on), lockout: { active:false, seconds_remaining:0 } };
+        });
+        return map;
+      }
+    } catch(_){}
+    // Legacy: /relay/status -> { key: {state, lockout?} }
     try { return await getJSON('/relay/status'); } catch(_){ }
     // Fallbacks that return flat maps -> coerce to uniform shape
     const coerce = (flat) => Object.fromEntries(
@@ -165,8 +180,10 @@
   }
 
   async function setRelay(key, desiredOn) {
-    // Try modern POST with {name,on}
-    try { return await postJSON('/relay/set', { name:key, on: !!desiredOn }); } catch(_){}
+    // Prefer new wrapper
+    try { return await postJSON(`/api/relay/${encodeURIComponent(key)}/toggle`, { on: !!desiredOn }); } catch(_){ }
+    // Fall back to modern POST with {name,on}
+    try { return await postJSON('/relay/set', { name:key, on: !!desiredOn }); } catch(_){ }
     // Try GET with ?name=&on=
     try { return await getJSON(`/relay/set?name=${encodeURIComponent(key)}&on=${desiredOn?1:0}`); } catch(_){}
     throw new Error('All relay set methods failed');
@@ -210,12 +227,12 @@
     return `${mins}m ${secs}s`;
   }
 
-  function btnTemplate(key, name, state, lockout){
+  function btnTemplate(key, name, stateOn, lockout){
     // Compact buttons: half width, color-coded
-    const isOn = state;
+    const isOn = stateOn;
     const isLocked = lockout && lockout.active;
-  const isAutoMode = currentMode === 'auto';
-  const isEstop = state.estop === true;
+    const isAutoMode = currentMode === 'auto';
+    const isEstop = state.estop === true;
     
       let bgClass = isOn ? 'relay-on' : 'relay-off';
     let label = (isOn ? '● ' : '○ ') + name;
