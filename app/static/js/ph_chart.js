@@ -139,11 +139,13 @@
     const startISO = toIso(start);
     const endISO = toIso(end);
 
-    console.debug('[pH] Range request', {start, end, startISO, endISO});
+    console.log('[pH Chart] Range request', {start, end, startISO, endISO});
 
     // Build URLs for events and summary
     const uEvents = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`;
     const uSummary = `/api/ph/dose_summary?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
+
+    console.log('[pH Chart] Fetching', {uEvents, uSummary});
 
     let events = [];
     let summary = [];
@@ -152,21 +154,22 @@
         fetch(uEvents, {cache:'no-store'}), 
         fetch(uSummary, {cache:'no-store'})
       ]);
+      console.log('[pH Chart] Response status', {events: eRes.status, summary: sRes.status});
       if (!eRes.ok) throw new Error(`dose_log HTTP ${eRes.status}`);
       if (!sRes.ok) throw new Error(`dose_summary HTTP ${sRes.status}`);
       events = await eRes.json();
       summary = await sRes.json();
     } catch (err) {
-      console.error('[pH] fetch error:', err);
+      console.error('[pH Chart] fetch error:', err);
       phBuildChart([], null, null);
       return;
     }
 
-    wrap('events.len', events.length);
-    wrap('summary.len', summary.length);
+    console.log('[pH Chart] Data received', {events: events.length, summary: summary.length});
 
     // Build datasets
     const hasAnyMl = events.some(r => r && r.volume_ml != null);
+    console.log('[pH Chart] hasAnyMl:', hasAnyMl, 'sample event:', events[0]);
     const pts = events.map(r => ({
       x: r.ts,
       y: hasAnyMl ? (r.volume_ml != null ? r.volume_ml : 0) : (r.seconds ?? 0),
@@ -221,20 +224,21 @@
     }
 
     PH_CHART_STATE = { lastStart: startISO || start || null, lastEnd: endISO || end || null, lastCount: events.length };
-    console.debug('[pH] Render complete', PH_CHART_STATE);
+    console.log('[pH Chart] ✅ Render complete', PH_CHART_STATE);
   }
 
   /**
    * Initialize on DOM ready with default 24h range
    */
   function init() {
-    console.debug('[pH] DOM ready; boot dose chart.');
+    console.log('[pH Chart] 🚀 Init: DOM ready; boot dose chart with default 24h');
     
     // Compute default start/end (24h)
     const now = new Date();
     const start = new Date(now.getTime() - 24*3600*1000).toISOString();
     const end = now.toISOString();
     
+    console.log('[pH Chart] Default range', {start, end});
     phLoadRangeAndRender({start, end});
   }
 

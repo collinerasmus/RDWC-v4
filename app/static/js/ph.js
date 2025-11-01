@@ -330,11 +330,11 @@
 
   // Initialize when DOM is ready (works even if script loads after DOMContentLoaded)
   async function initPH(){
-    await wire();
+    await wire();  // This includes wireRangeControls which sets currentRange
     tick();
     schedule();
     refreshSummary();
-    refreshDoseChart();
+    // Chart will have been rendered by wireRangeControls → loadRange
   }
 
   if (document.readyState === 'loading') {
