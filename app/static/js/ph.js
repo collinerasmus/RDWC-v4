@@ -73,7 +73,14 @@
         recent.appendChild(li);
       });
     }
-    const disabled = guardActive(s?.guards);
+    // Determine disabled state; allow Force (test) to bypass interval/daily_cap only
+    const g = s?.guards || {};
+    const allowForce = (window.rdwcSettings?.get('safety.allow_force')||'false').toLowerCase() === 'true';
+    const forceChecked = !!el('phForce')?.checked;
+    const bypass = allowForce && forceChecked;
+    const blockedCooldown = (g.interval || g.daily_cap) && !bypass;
+    const blockedHard = !!(g.estop || g.safe_off || g.sensor_stale || g.reservoir);
+    const disabled = blockedCooldown || blockedHard;
     ['btnPrime','btnDose1','btnDose5','btnDoseCustom','phCustomMl'].forEach(id=>{
       const e = el(id); if(e){ e.disabled = disabled; e.title = disabled ? 'Blocked by guard(s)' : ''; }
     });
@@ -132,16 +139,31 @@
   }
 
   async function postDose(body){
+    // Add force flag when enabled
+    const allowForce = (window.rdwcSettings?.get('safety.allow_force')||'false').toLowerCase() === 'true';
+    const forceChecked = !!el('phForce')?.checked;
+    const payload = { ...body };
+    if (allowForce && forceChecked) payload.force = true;
     const r = await fetch('/api/ph/dose', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(body)
+      body: JSON.stringify(payload)
     });
     let j = null; try{ j = await r.json(); }catch(e){}
     if(!r.ok){
       const reasons = (j?.reasons && Array.isArray(j.reasons)) ? j.reasons.join(', ') : null;
-      const msg = j?.error || reasons || `HTTP ${r.status}`;
+      const msg = j?.reason === 'cooldown' && j?.remaining_cooldown_s!=null
+        ? `Blocked by min interval (${j.remaining_cooldown_s}s remaining)`
+        : (j?.error || reasons || `HTTP ${r.status}`);
       if(window.showToast){ showToast(`Dose blocked: ${msg}`, 'error'); }
       else { alert('Dose blocked: ' + msg); }
+      // Update countdown immediately if provided
+      if (j?.remaining_cooldown_s!=null) {
+        lastStatus = lastStatus || { guards: {} };
+        if (!lastStatus.guards) lastStatus.guards = {};
+        lastStatus.guards.interval = true;
+        lastStatus.guards.since_last_ok_s = Math.max(0, (lastStatus.guards.min_interval_s||0) - j.remaining_cooldown_s);
+        updateCountdownPill(); startCountdown();
+      }
     } else {
       // immediate refresh of status list, chart, and summary
       if(window.showToast){ 
@@ -183,6 +205,11 @@
       const ms = ev.detail?.['ui.sensors_poll_ms'];
       if(ms){ pollMs = parseInt(ms)||POLL_DEFAULT; schedule(); }
     });
+
+    // Show Force (test) toggle only when allowed
+    const allowForce = (window.rdwcSettings?.get('safety.allow_force')||'false').toLowerCase() === 'true';
+    const wrap = el('phForceWrap');
+    if (allowForce && wrap) { wrap.style.display = 'inline-block'; }
   }
 
   async function wireRangeControls(){

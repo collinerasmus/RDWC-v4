@@ -79,6 +79,8 @@ DEFAULTS: Dict[str, str] = {
     "safety.chiller_min_off_s": "300",
     "safety.chiller_min_on_s": "60",
     "safety.estop_persist": "false",
+    # allow force-bypass of cooldown/daily cap for testing only
+    "safety.allow_force": "false",
 
     # alerts
     "alerts.email_to": "",

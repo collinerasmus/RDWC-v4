@@ -316,6 +316,12 @@ def ph_status():
         "high": _settings_get_float("targets.ph_high", 6.2),
     }
     guards = _compute_guards(now)
+    # Remaining cooldown helper
+    since = guards.get("since_last_ok_s") or 0
+    min_int = guards.get("min_interval_s") or 0
+    remaining = int(max(0, min_int - since))
+    # Last ok ts for reference
+    last_ok = _last_ok_ts()
     recent = _recent_doses(5)
     return {
         "ph": ph_val,
@@ -323,7 +329,9 @@ def ph_status():
         "targets": targets,
         "auto": {"enabled": False, "guard": "automation unsupported: only pH Up available"},
         "guards": guards,
-        "recent": recent
+        "recent": recent,
+        "remaining_cooldown_s": remaining,
+        "last_dose_ts": int(last_ok.timestamp()) if last_ok else None,
     }
 
 
@@ -341,13 +349,21 @@ def _dose_ms_from_ml(ml: float) -> Tuple[int, Optional[str]]:
 def _actuate_ph_up(duration_ms: int) -> Dict[str, Any]:
     from app.relays_core import set_dosing_ph_up
     # Active-low handled in relays_core
-    on = set_dosing_ph_up(True, reason="ph_dose", force=True)
-    if not on.get("changed") and not on.get("state"):
-        # Could be blocked by estop or cooldown
-        return {"ok": False, "reason": on.get("reason", "blocked")}
-    time.sleep(max(0, duration_ms) / 1000.0)
-    set_dosing_ph_up(False, reason="ph_dose", force=True)
-    return {"ok": True}
+    try:
+        print(f"[pH] GPIO LOW (ON) ms={duration_ms} on dosing_ph_up")
+        on = set_dosing_ph_up(True, reason="ph_dose", force=True)
+        if not on.get("changed") and not on.get("state"):
+            # Could be blocked by estop or cooldown
+            return {"ok": False, "reason": on.get("reason", "blocked")}
+        time.sleep(max(0, duration_ms) / 1000.0)
+        return {"ok": True}
+    finally:
+        # Always return HIGH (OFF)
+        try:
+            set_dosing_ph_up(False, reason="ph_dose", force=True)
+            print("[pH] GPIO HIGH (OFF) dosing_ph_up")
+        except Exception:
+            pass
 
 
 def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], max_wait_s: int):
@@ -378,7 +394,9 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
     """
     ml = body.get("ml")
     ms = body.get("ms")
+    seconds = body.get("seconds")
     reason = str(body.get("reason", "manual"))[:200]
+    force_req = bool(body.get("force", False))
 
     # Prefer ml if provided (convert to ms using calibration), but log-time ml always derived from ms
     if ml is not None:
@@ -391,12 +409,22 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
             return JSONResponse(status_code=422, content={"ok": False, "error": err})
         duration_ms = ms_calc
     else:
+        # Accept either ms or seconds
         try:
-            duration_ms = int(float(ms or 0))
+            if ms is not None:
+                duration_ms = int(round(float(ms)))
+            elif seconds is not None:
+                duration_ms = int(round(float(seconds) * 1000.0))
+            else:
+                duration_ms = 0
         except Exception:
-            return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_ms"})
+            return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_duration"})
     # Compute volume at log-time using calibration (nullable if no calibration)
     volume_ml = _volume_ml_from_ms(duration_ms)
+    # Clamp duration
+    MAX_MS = int(_settings_get_int("dosing.ph_up_max_ms", 5000))
+    if duration_ms <= 0 or duration_ms > MAX_MS:
+        return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_duration_ms", "max_ms": MAX_MS})
 
     # Guards
     g = _compute_guards(time.time())
@@ -409,17 +437,34 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
         "reservoir": g["reservoir"],
     }
     blocked_reasons = [k for k,v in guard_map.items() if v]
+    # Force bypass (testing only) for interval/daily_cap guards
+    try:
+        from app.settings import get_setting_key
+        allow_force = (get_setting_key("safety.allow_force", "false") or "false").lower() == "true"
+    except Exception:
+        allow_force = False
+    if force_req and allow_force:
+        blocked_reasons = [r for r in blocked_reasons if r not in ("interval","daily_cap")]
     ts_iso = datetime.now(timezone.utc).isoformat()
 
     pre_ph, pre_ts = _get_latest_ph()
 
     if blocked_reasons:
+        # Provide structured reason and remaining cooldown if applicable
+        remaining = None
+        if guard_map.get("interval"):
+            since = guard_map.get("since_last_ok_s") or 0
+            min_int = guard_map.get("min_interval_s") or 0
+            remaining = int(max(0, min_int - since))
         rowid = _log_row({
             "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
             "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
             "result": "blocked", "reason": ",".join(blocked_reasons)
         })
-        return JSONResponse(status_code=409, content={"ok": False, "blocked": True, "reasons": blocked_reasons, "rowid": rowid})
+        payload = {"ok": False, "blocked": True, "reasons": blocked_reasons, "rowid": rowid}
+        if remaining is not None:
+            payload.update({"reason": "cooldown", "remaining_cooldown_s": remaining})
+        return JSONResponse(status_code=409, content=payload)
 
     # Actuate pump
     act = _actuate_ph_up(int(duration_ms))
@@ -434,7 +479,7 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
     rowid = _log_row({
         "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
         "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
-        "result": "ok", "reason": reason
+        "result": "ok", "reason": ("force_bypass; " + reason) if (force_req and allow_force) else reason
     })
 
     # Schedule background observe to update post_ph with next sample (avoid request blocking)
