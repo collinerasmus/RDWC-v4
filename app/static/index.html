@@ -405,10 +405,16 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       <section class="card">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
           <h3 class="card-title" style="margin:0;">Relays</h3>
+          <div style="display:flex;gap:8px;">
+            <button id="mode-manual" class="px-3 py-1 text-sm rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors">Manual</button>
+            <button id="mode-auto" class="px-3 py-1 text-sm rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors">Auto</button>
+          </div>
         </div>
         <div class="card-body">
           <div id="relays-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;"></div>
-          <div id="relays-note" class="muted" style="margin-top:12px;font-size:12px;"></div>
+          <div id="relays-note" class="muted" style="margin-top:12px;font-size:12px;">
+            <strong>Manual:</strong> relays stay off at boot. <strong>Auto:</strong> critical relays restore last state.
+          </div>
         </div>
       </section>
 
@@ -941,6 +947,6 @@ async function calibApply(){
 })();
 </script>
 <script src="/static/js/trends.js"></script>
-<script src="/static/js/relays.js?v=1"></script>
+<script src="/static/js/relays_v2.js?v=2"></script>
 </body>
 </html>

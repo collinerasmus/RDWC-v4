@@ -92,9 +92,15 @@ async def sensor_loop():
 @app.on_event("startup")
 async def _start_tasks():
     global sensor_task
-    # Restore relay states from previous session
-    from app.relays_core import _load_state
-    _load_state()
+    # Initialize system mode tables
+    from app.system_mode import _init_tables
+    _init_tables()
+    
+    # Smart restore relay states based on system_mode (auto/manual)
+    # This replaces the old _load_state() with mode-aware restoration
+    from app.relays_core import smart_restore_critical_relays
+    smart_restore_critical_relays()
+    
     # Start async sensor loop
     sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
     # Also start the old thread as backup
@@ -531,6 +537,37 @@ def update_settings_api(
         return JSONResponse(
             status_code=500,
             content={"error": f"Failed to update settings: {str(e)}"}
+        )
+
+# System Mode endpoints (Auto/Manual)
+@app.get("/api/system_mode")
+def get_system_mode_api():
+    """Get current system mode (auto or manual)"""
+    from app.system_mode import get_system_mode
+    mode = get_system_mode()
+    return {"mode": mode}
+
+@app.post("/api/system_mode")
+def set_system_mode_api(body: dict = Body(...)):
+    """Set system mode (auto or manual)"""
+    from app.system_mode import set_system_mode, MODE_AUTO, MODE_MANUAL
+    
+    mode = body.get("mode")
+    
+    if mode not in [MODE_AUTO, MODE_MANUAL]:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Invalid mode '{mode}'. Must be 'auto' or 'manual'"}
+        )
+    
+    success = set_system_mode(mode)
+    
+    if success:
+        return {"mode": mode, "success": True}
+    else:
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Failed to set system mode"}
         )
 
 # Override endpoints
