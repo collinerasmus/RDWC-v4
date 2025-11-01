@@ -1,11 +1,15 @@
 """
 RDWC-v4 Settings Management
-Handles persistent settings storage in SQLite with validation and caching
+Handles persistent settings storage in SQLite with validation and caching.
+
+Extended with a namespaced key/value model used by the new System Settings UI.
+Keeps backward compatibility with the legacy Settings dataclass and /settings
+endpoints (system_volume_liters, lights_on_time, lights_duration_hours).
 """
 import sqlite3
 import re
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 from datetime import datetime, timedelta
 from pathlib import Path
 import pytz
@@ -35,6 +39,197 @@ class Settings:
 
 # Cache for settings
 _settings_cache: Optional[Settings] = None
+
+# -----------------------------
+# Namespaced settings extension
+# -----------------------------
+
+# Defaults per spec
+DEFAULTS: Dict[str, str] = {
+    # general
+    "general.grow_name": "RDWC v4",
+    "general.timezone": "Africa/Johannesburg",
+    "general.reservoir_liters": "25",
+
+    # targets
+    "targets.ph_low": "5.8",
+    "targets.ph_high": "6.2",
+    "targets.ec_target": "1.8",
+    "targets.ec_tolerance": "0.2",
+    "targets.temp_target_c": "20",
+
+    # dosing
+    "dosing.pulse_ml_grow": "0",
+    "dosing.pulse_ml_micro": "0",
+    "dosing.pulse_ml_bloom": "0",
+    "dosing.max_ml_hour_": "0",
+    "dosing.max_ml_day_": "0",
+    "dosing.mix_delay_s": "0",
+
+    # safety
+    "safety.main_pump_min_off_s": "5",
+    "safety.chiller_pump_min_off_s": "5",
+    "safety.chiller_min_off_s": "300",
+    "safety.chiller_min_on_s": "60",
+    "safety.estop_persist": "false",
+
+    # alerts
+    "alerts.email_to": "",
+    "alerts.ph_hi_alert": "0",
+    "alerts.ph_lo_alert": "0",
+    "alerts.ec_hi_alert": "0",
+    "alerts.ec_lo_alert": "0",
+    "alerts.temp_hi_alert": "0",
+    "alerts.temp_lo_alert": "0",
+    "alerts.alert_cooldown_s": "600",
+
+    # ui
+    "ui.default_sensor_range": "24h",
+    "ui.relays_poll_ms": "1000",
+    "ui.sensors_poll_ms": "5000",
+}
+
+def _ensure_table_seed_defaults() -> None:
+    """Ensure settings table exists and DEFAULTS are present (without overriding)."""
+    _init_settings_table()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        for key, val in DEFAULTS.items():
+            cur.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (key, val))
+        conn.commit()
+
+def get_all_settings() -> Dict[str, str]:
+    """Return flat dict of all settings (string values)."""
+    _ensure_table_seed_defaults()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT key, value FROM settings")
+        return {k: (v if v is not None else "") for k, v in cur.fetchall()}
+
+def get_settings_grouped() -> Dict[str, Dict[str, Any]]:
+    """Return grouped settings by namespace: {namespace: {key: value}}.
+    Values are strings; UI/backend can cast/validate as needed.
+    """
+    flat = get_all_settings()
+    grouped: Dict[str, Dict[str, Any]] = {}
+    for k, v in flat.items():
+        if "." in k:
+            ns, leaf = k.split(".", 1)
+        else:
+            ns, leaf = "root", k
+        grouped.setdefault(ns, {})[leaf] = v
+    return grouped
+
+def upsert_settings(partial: Dict[str, Any]) -> Dict[str, Any]:
+    """Upsert partial settings dict where keys are fully qualified (e.g. 'ui.relays_poll_ms').
+    Returns dict of actually updated keys.
+    """
+    _ensure_table_seed_defaults()
+    changed: Dict[str, Any] = {}
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        for key, val in partial.items():
+            if not isinstance(key, str):
+                continue
+            sval = str(val)
+            cur.execute("INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)", (key, sval))
+            changed[key] = sval
+        conn.commit()
+    # bust legacy cache only for legacy dataclass keys
+    global _settings_cache
+    _settings_cache = None
+    return changed
+
+def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, str]]]:
+    """Validate incoming partial settings. Returns (ok, error) where error is
+    {"field": key, "message": msg} on failure.
+    Enforces ranges and cross-field checks required by acceptance criteria.
+    """
+    # Helper to get float/int safely
+    def f(x, default=None):
+        try:
+            return float(x)
+        except Exception:
+            return default
+    def i(x, default=None):
+        try:
+            return int(float(x))
+        except Exception:
+            return default
+
+    # Build a view of final values = current DB with partial overrides
+    current = get_all_settings()
+    final = {**current, **{k: str(v) for k, v in partial.items()}}
+
+    # --- Type/limits ---
+    # pH 4.0–7.5
+    if "targets.ph_low" in final:
+        v = f(final["targets.ph_low"])
+        if v is None or not (4.0 <= v <= 7.5):
+            return False, {"field": "targets.ph_low", "message": "Must be in 4.0–7.5"}
+    if "targets.ph_high" in final:
+        v = f(final["targets.ph_high"])
+        if v is None or not (4.0 <= v <= 7.5):
+            return False, {"field": "targets.ph_high", "message": "Must be in 4.0–7.5"}
+
+    # EC 0.0–4.0 mS/cm
+    for k in ("targets.ec_target", "targets.ec_tolerance"):
+        if k in final:
+            v = f(final[k])
+            if v is None or not (0.0 <= v <= 4.0):
+                return False, {"field": k, "message": "Must be in 0.0–4.0"}
+
+    # Temp 15–28 °C
+    if "targets.temp_target_c" in final:
+        v = i(final["targets.temp_target_c"])
+        if v is None or not (15 <= v <= 28):
+            return False, {"field": "targets.temp_target_c", "message": "Must be 15–28"}
+
+    # Volumes 1–1000 L
+    if "general.reservoir_liters" in final:
+        v = f(final["general.reservoir_liters"])
+        if v is None or not (1 <= v <= 1000):
+            return False, {"field": "general.reservoir_liters", "message": "Must be 1–1000"}
+
+    # Min on/off 0–3600 s
+    for k in ("safety.main_pump_min_off_s", "safety.chiller_pump_min_off_s",
+              "safety.chiller_min_off_s", "safety.chiller_min_on_s"):
+        if k in final:
+            v = i(final[k])
+            if v is None or not (0 <= v <= 3600):
+                return False, {"field": k, "message": "Must be 0–3600"}
+
+    # --- Cross-field checks ---
+    ph_lo = f(final.get("targets.ph_low"), f(current.get("targets.ph_low", 5.8)))
+    ph_hi = f(final.get("targets.ph_high"), f(current.get("targets.ph_high", 6.2)))
+    if ph_lo is not None and ph_hi is not None and not (ph_lo < ph_hi):
+        return False, {"field": "targets.ph_low", "message": "Must be < ph_high"}
+
+    ec_tgt = f(final.get("targets.ec_target"), f(current.get("targets.ec_target", 1.8)))
+    ec_tol = f(final.get("targets.ec_tolerance"), f(current.get("targets.ec_tolerance", 0.2)))
+    if ec_tol is not None and ec_tol < 0:
+        return False, {"field": "targets.ec_tolerance", "message": "Must be >= 0"}
+    if ec_tgt is not None and ec_tol is not None:
+        if not (0.0 <= ec_tgt - ec_tol) or not ((ec_tgt + ec_tol) <= 4.0):
+            return False, {"field": "targets.ec_target", "message": "target±tolerance must be within 0–4"}
+
+    # If we get here, validation passed
+    return True, None
+
+def export_all() -> Dict[str, Any]:
+    """Return a JSON-safe export of all settings."""
+    return get_all_settings()
+
+def import_all(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Import settings from JSON-like dict; validate and upsert. Returns summary."""
+    if not isinstance(payload, dict):
+        return {"ok": False, "changed": 0, "warnings": ["invalid_payload"]}
+    ok, err = validate_partial(payload)
+    if not ok:
+        # propagate field/message; the API layer will format status code
+        return err or {"ok": False, "message": "validation_failed"}
+    changed = upsert_settings(payload)
+    return {"ok": True, "changed": len(changed), "warnings": []}
 
 
 def _init_settings_table():

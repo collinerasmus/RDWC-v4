@@ -478,6 +478,30 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- Control Cards -->
   <div id="right-column-stack">
+      <!-- System Settings (new) -->
+      <section id="settings-card" class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <h3 class="card-title" style="margin:0;">System Settings</h3>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <button id="btnExportSettings" class="btn-secondary">Export JSON</button>
+            <label class="btn-secondary" style="cursor:pointer;">
+              Import JSON <input id="importFile" type="file" accept=".json,application/json" style="display:none;"/>
+            </label>
+            <button id="btnSaveSettings" class="btn-secondary" disabled>Save</button>
+          </div>
+        </div>
+        <div id="settings-tabs" style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-chip" data-tab="general">General</button>
+          <button class="btn btn-chip" data-tab="targets">Targets</button>
+          <button class="btn btn-chip" data-tab="dosing">Dosing</button>
+          <button class="btn btn-chip" data-tab="safety">Safety</button>
+          <button class="btn btn-chip" data-tab="alerts">Alerts</button>
+          <button class="btn btn-chip" data-tab="ui">UI</button>
+        </div>
+        <div id="settings-panels" style="margin-top:10px;"></div>
+        <div id="settings-note" class="muted" style="margin-top:8px;font-size:12px;">Changes apply immediately unless noted; relays never energize on save.</div>
+      </section>
+
       <!-- Relays Control Panel -->
       <section id="relays-card" class="card">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
@@ -502,41 +526,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         </div>
       </section>
 
-      <div class="card">
-        <h3>System Settings</h3>
-        <div class="settings-grid">
-          <div>
-            <h4 style="margin:0 0 8px 0;font-size:0.95rem;color:#fafafa;">Scheduler</h4>
-            <div style="display:flex;flex-direction:column;gap:8px;">
-              <div style="display:flex;gap:8px;align-items:center;">
-                <button id="btnSchedToggle" onclick="toggleSched()">Toggle Enable</button>
-                <span id="schedState"></span>
-              </div>
-              <button onclick="applyRecommended()">Apply Recommended (Lights 06–22; Micro/Grow/Bloom pulses)</button>
-            </div>
-          </div>
-          
-          <div>
-            <h4 style="margin:0 0 8px 0;font-size:0.95rem;color:#fafafa;">Settings</h4>
-            <div class="row">
-              <label>System Volume (L):</label>
-              <input type="number" id="systemVolume" min="0.1" step="0.1" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;width:80px">
-            </div>
-            <div class="row">
-              <label>Lights Start Time:</label>
-              <input type="time" id="lightsStart" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3">
-            </div>
-            <div class="row">
-              <label>Lights Duration (hours):</label>
-              <input type="number" id="lightsDuration" min="1" max="24" step="1" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;width:60px">
-            </div>
-            <div class="row">
-              <button onclick="saveSettings()" style="background:#3b82f6;color:#eff6ff;margin-right:8px">Save Settings</button>
-              <span id="lightsWindow" class="muted">Lights: -- → -- (today)</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- Placeholder notes for future scheduler UI locations -->
+      <div style="display:none;" data-placeholder="ph-scheduler">TODO: pH Control card will host pH dosing scheduler</div>
+      <div style="display:none;" data-placeholder="ec-scheduler">TODO: EC Control card will host EC dosing scheduler</div>
 
       <div class="card">
         <h3>Chiller Control</h3>
@@ -682,30 +674,6 @@ function camRefresh(){
   setInterval(()=>{ updateCharts().catch(()=>{}); }, 10000); // 10s
 })();
 
-async function loadSched(){
-  const s = await (await fetch(`/schedule?${Date.now()}`, {cache:'no-store'})).json();
-  document.getElementById('schedState').textContent = `Enabled: ${!!s.enabled}`;
-  return s;
-}
-async function toggleSched(){
-  const s = await loadSched();
-  const r = await (await fetch(`/schedule/enable`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!s.enabled})})).json();
-  document.getElementById('schedState').textContent = `Enabled: ${!!r.enabled}`;
-}
-async function applyRecommended(){
-  const cfg = {
-    "enabled": true,
-    "entries": [
-      {"name":"grow_lights","kind":"span","on_at":"06:00","off_at":"22:00","days":[0,1,2,3,4,5,6]},
-      {"name":"micro_pump","kind":"pulse","at":"09:00","duration_sec":120,"days":[0,1,2,3,4,5,6]},
-      {"name":"grow_pump","kind":"pulse","at":"09:05","duration_sec":120,"days":[0,1,2,3,4,5,6]},
-      {"name":"bloom_pump","kind":"pulse","at":"09:10","duration_sec":120,"days":[0,1,2,3,4,5,6]}
-    ],
-    "daily_caps": {"micro_pump":300,"grow_pump":300,"bloom_pump":300,"ph_up":120,"grow_lights":86400}
-  };
-  await fetch(`/schedule`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
-  await loadSched();
-}
 // Settings management
 async function loadSettings(){
   try {
@@ -863,8 +831,8 @@ async function applyChillerOverride() {
   }
 }
 
-loadSched().catch(()=>{});
-loadSettings().catch(()=>{});
+// Scheduler buttons moved: placeholders only (see settings card)
+// settings.js handles namespaced settings UI
 loadOverrides().catch(()=>{});
 
 camRefresh();
@@ -1031,6 +999,7 @@ async function calibApply(){
 })();
 </script>
 <script src="/static/js/trends.js"></script>
+<script src="/static/js/settings.js"></script>
 <script src="/static/js/relays_v2.js?v=2"></script>
 </body>
 </html>

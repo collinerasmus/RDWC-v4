@@ -292,7 +292,7 @@
       state.refreshTimer = null;
     }
 
-    // If window end is within 5 min of now, auto-refresh every 5s
+    // If window end is within 5 min of now, auto-refresh using configured interval
     const now = Date.now();
     if (state.window.end && Math.abs(state.window.end - now) < 5*60*1000) {
       console.log('[Sensors] Auto-refresh enabled (near real-time)');
@@ -304,7 +304,7 @@
         const data = await fetchTrends(fromISO, toISO, gran, max);
         render(data);
         scheduleAutoRefresh(); // reschedule
-      }, 5000);
+      }, Math.max(1000, parseInt((window.APP_POLL && window.APP_POLL.sensors) || 5000, 10)));
     }
   }
 
