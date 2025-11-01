@@ -41,7 +41,10 @@
       await postJSON('/api/system_mode', { mode });
       currentMode = mode;
       updateModeButtons();
+      renderModeHint();
       showToast(`System mode set to ${mode.toUpperCase()}`, 'success');
+      // Repaint to apply readonly styles
+      await paint();
     } catch(e) {
       console.error('Failed to set system mode:', e);
       showToast('Failed to change system mode', 'error');
@@ -123,26 +126,59 @@
     // Compact buttons: half width, color-coded
     const isOn = state;
     const isLocked = lockout && lockout.active;
+    const isAutoMode = currentMode === 'auto';
     
     let bgClass = isOn ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-600 hover:bg-gray-700';
     let label = (isOn ? '● ' : '○ ') + name;
-    let badge = '';
+    let badges = '';
+
+    // Auto mode: add readonly class and remove hover
+    if (isAutoMode) {
+      bgClass = isOn ? 'bg-green-600' : 'bg-gray-600';  // Remove hover states
+    }
 
     if (isLocked) {
       bgClass = 'bg-gray-500 cursor-not-allowed';
-      badge = `<span class="text-xs ml-2 px-2 py-0.5 bg-red-500 rounded">${formatCountdown(lockout.seconds_remaining)}</span>`;
+      badges += `<span class="text-xs ml-2 px-2 py-0.5 bg-red-500 rounded lock-pill">${formatCountdown(lockout.seconds_remaining)}</span>`;
     }
+
+    // Add Auto pill in auto mode
+    if (isAutoMode) {
+      badges += `<span class="text-xs ml-2 px-2 py-0.5 bg-blue-500 rounded lock-pill">Auto</span>`;
+    }
+
+    const readonlyClass = isAutoMode ? 'readonly' : '';
+    const disabledAttr = (isLocked || isAutoMode) ? 'disabled' : '';
+    const ariaDisabled = isAutoMode ? 'aria-disabled="true"' : '';
+    const title = isAutoMode 
+      ? 'Auto mode: controls disabled. Switch to Manual to operate.' 
+      : (isLocked ? `Locked: ${formatCountdown(lockout.seconds_remaining)} remaining` : '');
 
     return el(`
       <button 
         data-relay="${key}" 
-        class="relay-btn ${bgClass} text-white rounded-lg py-2 px-3 text-sm font-medium transition-colors duration-200 flex items-center justify-between"
-        ${isLocked ? 'disabled' : ''}
+        class="relay-btn ${bgClass} ${readonlyClass} text-white rounded-lg py-2 px-3 text-sm font-medium transition-all duration-200 flex items-center justify-between"
+        ${disabledAttr}
+        ${ariaDisabled}
+        title="${title}"
       >
         <span>${label}</span>
-        ${badge}
+        ${badges ? `<span class="flex gap-1">${badges}</span>` : ''}
       </button>
     `);
+  }
+
+  function renderModeHint() {
+    const el = q('#relays-mode-hint');
+    if (!el) return;
+    
+    if (currentMode === 'auto') {
+      el.textContent = 'Auto: controls disabled. Switch to Manual to operate.';
+      el.className = 'text-xs text-blue-400 mt-2';
+    } else {
+      el.textContent = 'Manual: relays can be switched from the panel.';
+      el.className = 'text-xs text-gray-400 mt-2';
+    }
   }
 
   async function paint() {
@@ -159,6 +195,7 @@
 
       currentMode = modeData.mode || 'manual';
       updateModeButtons();
+      renderModeHint();
 
       grid.innerHTML = '';
       
@@ -181,9 +218,14 @@
     if (!grid) return;
     
     grid.querySelectorAll('.relay-btn').forEach(btn => {
-      if (btn.disabled) return;  // Skip locked buttons
-      
-      btn.addEventListener('click', async () => {
+      // UI-level guard: block all interaction in Auto mode
+      btn.addEventListener('click', async (e) => {
+        if (currentMode === 'auto') {
+          e.preventDefault();
+          showToast('Controls disabled in Auto mode', 'warning');
+          return;
+        }
+        
         const key = btn.getAttribute('data-relay');
         const wasOn = btn.textContent.includes('●');
         
@@ -214,6 +256,18 @@
         }finally{
           btn.disabled = false;
           btn.style.opacity = '1';
+        }
+      });
+
+      // Keyboard guard for accessibility
+      btn.addEventListener('keydown', (e) => {
+        if (currentMode === 'auto') {
+          e.preventDefault();
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          btn.click();
         }
       });
     });

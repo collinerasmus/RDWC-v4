@@ -344,6 +344,25 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   align-items: center;
   flex-wrap: wrap;
 }
+
+  /* Relay button styles for Auto/Manual modes */
+  .relay-btn {
+    transition: opacity .12s ease, transform .06s ease;
+  }
+  .relay-btn.readonly {
+    opacity: .55;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  .relay-btn.readonly:focus {
+    outline: none;
+  }
+  .relay-btn .lock-pill {
+    font-size: .70rem;
+    padding: 2px 6px;
+    border-radius: 999px;
+    opacity: .8;
+  }
 </style>
 </head>
 <body>
@@ -411,6 +430,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           </div>
         </div>
         <div class="card-body">
+          <div id="relays-mode-hint" class="text-xs text-gray-400 mb-3"></div>
           <div id="relays-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;"></div>
           <div id="relays-note" class="muted" style="margin-top:12px;font-size:12px;">
             <strong>Manual:</strong> relays stay off at boot. <strong>Auto:</strong> critical relays restore last state.
