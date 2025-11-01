@@ -457,7 +457,9 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
         allow_force = False
         maint_override = False
     if maint_override or (force_req and allow_force):
-        blocked_reasons = [r for r in blocked_reasons if r not in ("interval","daily_cap")]
+        # Maintenance override bypasses: interval, daily_cap, and sensor_stale (test-only)
+        # Still enforces: estop, safe_off, reservoir (hard safety gates)
+        blocked_reasons = [r for r in blocked_reasons if r not in ("interval","daily_cap","sensor_stale")]
     ts_iso = datetime.now(timezone.utc).isoformat()
 
     pre_ph, pre_ts = _get_latest_ph()
