@@ -160,17 +160,17 @@
     const isLocked = lockout && lockout.active;
     const isAutoMode = currentMode === 'auto';
     
-  let bgClass = isOn ? 'relay-on' : 'relay-off';
+      let bgClass = isOn ? 'relay-on' : 'relay-off';
     let label = (isOn ? '● ' : '○ ') + name;
     let badges = '';
 
     // Auto mode: add readonly class and remove hover
     // Auto mode: keep same background; readonly styling handled by CSS class
 
-    if (isLocked) {
-      bgClass = 'bg-gray-500 cursor-not-allowed';
-  badges += `<span class="countdown-pill" data-countdown="${lockout.seconds_remaining}">${formatCountdown(lockout.seconds_remaining)}</span>`;
-    }
+      // Add countdown pill when lockout info exists (still allow click in Manual)
+      if (isLocked) {
+        badges += `<span class="countdown-pill" data-countdown="${lockout.seconds_remaining}">${formatCountdown(lockout.seconds_remaining)}</span>`;
+      }
 
     // Add Auto pill in auto mode
     if (isAutoMode) {
@@ -178,11 +178,11 @@
     }
 
     const readonlyClass = isAutoMode ? 'readonly' : '';
-    const disabledAttr = (isLocked || isAutoMode) ? 'disabled' : '';
+      const disabledAttr = isAutoMode ? 'disabled' : '';
     const ariaDisabled = isAutoMode ? 'aria-disabled="true"' : '';
-    const title = isAutoMode 
-      ? 'Auto mode: controls disabled. Switch to Manual to operate.' 
-      : (isLocked ? `Locked: ${formatCountdown(lockout.seconds_remaining)} remaining` : '');
+      const title = isAutoMode 
+        ? 'Auto mode: controls disabled. Switch to Manual to operate.' 
+        : (isLocked ? `Cooldown active (${formatCountdown(lockout.seconds_remaining)}) — manual override allowed.` : '');
 
     return el(`
       <button 

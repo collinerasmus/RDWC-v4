@@ -741,13 +741,20 @@ def relay_set_new(body: dict = Body(...)):
         "dosing_ph_up": set_dosing_ph_up,
     }
     
+    # Determine if manual mode should bypass protections
+    try:
+        from app.system_mode import get_system_mode
+        force_flag = (get_system_mode() == 'manual')
+    except Exception:
+        force_flag = False
+
     func = relay_funcs.get(name)
     if func:
-        result = func(bool(on), reason="override", force=False)
+        result = func(bool(on), reason="override", force=force_flag)
     else:
         # Fallback for any other relays
         from app.relays_core import set_relay
-        result = set_relay(name, bool(on), reason="override", force=False)
+        result = set_relay(name, bool(on), reason="override", force=force_flag)
     # Trace via debug module
     try:
         trace_relay_request(name, bool(on), "post", {
@@ -791,13 +798,20 @@ def relay_set_query(name: str = Query(...), on: int = Query(...)):
         "dosing_ph_up": set_dosing_ph_up,
     }
     
+    # Determine if manual mode should bypass protections
+    try:
+        from app.system_mode import get_system_mode
+        force_flag = (get_system_mode() == 'manual')
+    except Exception:
+        force_flag = False
+
     func = relay_funcs.get(name)
     if func:
-        result = func(desired, reason="override", force=False)
+        result = func(desired, reason="override", force=force_flag)
     else:
         # Fallback for any other relays
         from app.relays_core import set_relay
-        result = set_relay(name, desired, reason="override", force=False)
+        result = set_relay(name, desired, reason="override", force=force_flag)
     try:
         trace_relay_request(name, desired, "get", {
             "changed": result.get("changed", False),
