@@ -123,10 +123,15 @@
       
       // Update UI state from backend response
       state.estop = !!(j.active);
-      updateEstopButton();
       
-      // Refresh relays as backend forces OFF on engage
-      setTimeout(refreshRelays, 100);
+      // Immediately update UI before async refresh
+      updateEstopButton();
+      updateEstopBanner();
+      renderModeHint();
+      
+      // Force immediate relay state refresh (backend changed all relays)
+      await refreshRelays();
+      
       showToast(state.estop ? 'E-STOP engaged: all relays OFF' : 'E-STOP released', state.estop ? 'error' : 'success');
     } catch(e) {
       console.error('toggleEstop failed', e);
