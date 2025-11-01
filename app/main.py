@@ -26,6 +26,9 @@ from app.relays_core import initialize_all_safe_off, get_relay_event_log, allowe
 DB_PATH = os.environ.get("RDWC_DB", os.path.join(os.path.dirname(__file__), "..", "data", "rdwc.db"))
 DB_PATH = os.path.abspath(DB_PATH)
 
+# Asset version for cache-busting of static JS/CSS assets
+ASSET_VERSION = os.environ.get("ASSET_VERSION") or datetime.utcnow().date().isoformat()
+
 app = FastAPI()
 app.include_router(diag_router)
 app.include_router(debug_router, prefix="/debug", tags=["debug"])
@@ -197,6 +200,11 @@ def health():
         }
     except Exception as e:
         lights_info = {"error": str(e)}
+
+@app.get("/api/version")
+def asset_version():
+    """Expose a simple asset version token for cache-busting (ASSET_VERSION env or today's date)."""
+    return {"version": ASSET_VERSION}
     
     # Get relay status
     relay_states = {}

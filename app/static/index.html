@@ -1081,10 +1081,27 @@ async function calibApply(){
   setInterval(measureHeights, 2000);
 })();
 </script>
-  <script src="/static/js/range.js?v=999"></script>
-  <script src="/static/js/trends.js?v=999"></script>
-  <script src="/static/js/ph.js?v=999"></script>
-  <script src="/static/js/settings.js?v=999"></script>
-  <script src="/static/js/relays_v2.js?v=999"></script>
+  <script>
+  // Dynamically load JS assets with a cache-busting version from /api/version
+  (function(){
+    function loadScript(src){
+      return new Promise(function(resolve, reject){
+        var s = document.createElement('script');
+        s.src = src; s.async = false; s.onload = resolve; s.onerror = reject;
+        document.body.appendChild(s);
+      });
+    }
+    function chain(files, v){
+      var base = '/static/js/';
+      return files.reduce(function(p, f){
+        return p.then(function(){ return loadScript(base + f + (v? ('?v='+encodeURIComponent(v)) : '')); });
+      }, Promise.resolve());
+    }
+    fetch('/api/version', {cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){ return chain(['range.js','trends.js','ph.js','settings.js','relays_v2.js'], j && j.version); })
+      .catch(function(){ return chain(['range.js','trends.js','ph.js','settings.js','relays_v2.js'], (new Date()).toISOString().slice(0,10)); });
+  })();
+  </script>
 </body>
 </html>
