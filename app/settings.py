@@ -131,7 +131,7 @@ DEFAULTS: Dict[str, str] = {
 def _ensure_table_seed_defaults() -> None:
     """Ensure settings table exists and DEFAULTS are present (without overriding)."""
     _init_settings_table()
-    with sqlite3.connect(str(DB_PATH)) as conn:
+    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
         cur = conn.cursor()
         for key, val in DEFAULTS.items():
             cur.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (key, val))
@@ -140,7 +140,7 @@ def _ensure_table_seed_defaults() -> None:
 def get_all_settings() -> Dict[str, str]:
     """Return flat dict of all settings (string values)."""
     _ensure_table_seed_defaults()
-    with sqlite3.connect(str(DB_PATH)) as conn:
+    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
         cur = conn.cursor()
         cur.execute("SELECT key, value FROM settings")
         return {k: (v if v is not None else "") for k, v in cur.fetchall()}
@@ -165,7 +165,7 @@ def upsert_settings(partial: Dict[str, Any]) -> Dict[str, Any]:
     """
     _ensure_table_seed_defaults()
     changed: Dict[str, Any] = {}
-    with sqlite3.connect(str(DB_PATH)) as conn:
+    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
         cur = conn.cursor()
         for key, val in partial.items():
             if not isinstance(key, str):
@@ -353,7 +353,7 @@ def _init_settings_table():
     """Initialize settings table if it doesn't exist"""
     DB_PATH.parent.mkdir(exist_ok=True)
     
-    with sqlite3.connect(str(DB_PATH)) as conn:
+    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
         cursor = conn.cursor()
         
         # Create settings table
@@ -382,7 +382,7 @@ def _init_settings_table():
 def get_setting_key(key: str, default: Optional[str] = None) -> Optional[str]:
     """Get a raw setting value by key (string), or default if missing."""
     _init_settings_table()
-    with sqlite3.connect(str(DB_PATH)) as conn:
+    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
         cur = conn.cursor()
         cur.execute("SELECT value FROM settings WHERE key = ?", (key,))
         row = cur.fetchone()
@@ -393,7 +393,7 @@ def get_setting_key(key: str, default: Optional[str] = None) -> Optional[str]:
 def set_setting_key(key: str, value: str) -> None:
     """Set a raw setting value by key (string)."""
     _init_settings_table()
-    with sqlite3.connect(str(DB_PATH)) as conn:
+    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
         cur = conn.cursor()
         cur.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
@@ -406,7 +406,7 @@ def _load_settings_from_db() -> Settings:
     """Load settings from database"""
     _init_settings_table()
     
-    with sqlite3.connect(str(DB_PATH)) as conn:
+    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
         cursor = conn.cursor()
         
         cursor.execute("SELECT key, value FROM settings")
@@ -452,7 +452,7 @@ def update_settings(
     # Validation happens in __post_init__
     
     # Save to database
-    with sqlite3.connect(str(DB_PATH)) as conn:
+    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
         cursor = conn.cursor()
         
         updates = {}
