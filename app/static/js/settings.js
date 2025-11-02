@@ -345,16 +345,16 @@
           }
         }catch(e){ setDoseMsg('Prime toggle failed', false); }
       });
-      const btnRun = q('#btnDoseRun'); if (btnRun) btnRun.addEventListener('click', async ()=>{
+      const btnRun = qP('#btnDoseRun'); if (btnRun) btnRun.addEventListener('click', async ()=>{
         try{
-          const pump = doseSel && doseSel.value; const sec = parseFloat((q('#dose-run-sec')||{}).value||'5');
+          const pump = doseSel && doseSel.value; const sec = parseFloat((qP('#dose-run-sec')||{}).value||'5');
           const r = await (await fetch(`/calib/dose/run?pump=${encodeURIComponent(pump)}&seconds=${encodeURIComponent(sec)}`, {method:'POST'})).json();
           setDoseMsg(r && r.ok? `Running ${pump} for ${r.scheduled_s||sec}s` : (r.note||'Run failed'), !!(r&&r.ok));
         }catch(e){ setDoseMsg('Run failed', false); }
       });
-      const btnCommit = q('#btnDoseCommit'); if (btnCommit) btnCommit.addEventListener('click', async ()=>{
+      const btnCommit = qP('#btnDoseCommit'); if (btnCommit) btnCommit.addEventListener('click', async ()=>{
         try{
-          const pump = doseSel && doseSel.value; const sec = parseFloat((q('#dose-run-sec')||{}).value||'5'); const ml = parseFloat((q('#dose-measured-ml')||{}).value||'0');
+          const pump = doseSel && doseSel.value; const sec = parseFloat((qP('#dose-run-sec')||{}).value||'5'); const ml = parseFloat((qP('#dose-measured-ml')||{}).value||'0');
           if (!pump || !isFinite(sec) || !isFinite(ml) || sec<=0 || ml<=0){ setDoseMsg('Enter seconds and measured ml', false); return; }
           const rate = ml/sec; setDoseMsg(`Computed ${rate.toFixed(3)} ml/s; saving...`);
           const r = await (await fetch(`/calib/dose/commit?pump=${encodeURIComponent(pump)}&seconds=${encodeURIComponent(sec)}&measured_ml=${encodeURIComponent(ml)}`, {method:'POST'})).json();
