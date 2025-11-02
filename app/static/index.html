@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251031i"/><!-- Cache-buster: fast-fallback read -->
+<meta name="version" content="20251102b"/><!-- Cache-buster: production automation pass -->
 <link rel="stylesheet" href="/static/css/app.css" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
@@ -543,12 +543,12 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
           <div id="ph-tab-status">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap;">
-              <div id="ph-recent-header" class="muted" style="cursor:pointer;user-select:none;">Recent ▾</div>
+              <div id="ph-recent-header" class="muted" style="cursor:pointer;user-select:none;">Grow Log ▾</div>
               <div>
                 <button id="btnPhExport24" class="btn-secondary" title="Download CSV of recent pH doses (24h)">Export CSV (24h)</button>
               </div>
             </div>
-            <div id="ph-recent" class="muted"></div>
+            <div id="ph-recent" class="muted" style="max-height:140px;overflow-y:auto;padding-right:6px;"></div>
             <div id="ph-calib-banner" class="muted" style="display:none;margin-top:8px;padding:6px 10px;border-radius:8px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.3);color:#cbd5e1;">Set <strong>pH Up ml/s</strong> in Settings → Dosing to enable volume totals.</div>
           </div>
           <div id="ph-tab-manual" style="display:none;">
@@ -562,7 +562,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             </div>
           </div>
           <div id="ph-tab-auto" style="display:none;">
-            <div class="muted" style="margin-bottom:8px;">Automation placeholder</div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+              <span id="phAutoStateBadge" class="countdown-pill" style="display:inline-block;border-color:rgba(148,163,184,.35);">Disabled</span>
+              <span id="phLearnedBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Learned: —</span>
+            </div>
             <button id="btnAutoToggle" class="btn-secondary">Enable automation</button>
           </div>
 

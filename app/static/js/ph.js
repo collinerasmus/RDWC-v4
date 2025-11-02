@@ -12,6 +12,7 @@
   let recentCollapsed = false;
   let lastRecentFirstId = null;
   let recentHeaderBound = false;
+  let recentUserHold = false; // when user expands manually, suppress autohide until next new event
 
   function el(id){ return document.getElementById(id); }
 
@@ -70,6 +71,8 @@
     if(resBanner && s){ resBanner.style.display = s.guards?.reservoir ? 'block' : 'none'; }
     if(recent && s){
       recent.innerHTML = '';
+      // Ensure compact, scrollable log even if HTML wasn't updated
+      try{ recent.style.maxHeight = '140px'; recent.style.overflowY = 'auto'; recent.style.paddingRight = '6px'; }catch(e){}
       (s.recent||[]).forEach(r => {
         const li = document.createElement('div');
         li.className = 'muted';
@@ -91,11 +94,16 @@
       const top = (s.recent && s.recent.length) ? (s.recent[0].id || s.recent[0].ts_utc || null) : null;
       if (top && top !== lastRecentFirstId){
         lastRecentFirstId = top;
+        recentUserHold = false; // new event clears user hold
         setRecentCollapsed(false, false); // expand
         scheduleRecentAutoHide();
       } else {
         // keep current collapsed state; ensure DOM reflects it
         setRecentCollapsed(recentCollapsed, false);
+        // If not collapsed and not in user-hold, ensure one-time auto-hide is scheduled on initial load
+        if (!recentCollapsed && !recentUserHold && (s.recent?.length || 0) > 0 && !recentHideTimer){
+          scheduleRecentAutoHide();
+        }
       }
     }
     // Determine disabled state; maintenance override bypasses cooldown/daily_cap
@@ -125,6 +133,59 @@
     // Maintenance override badge visibility
     const badge = el('phMaintBadge');
     if (badge) badge.style.display = maint ? 'inline-block' : 'none';
+
+    // Update automation toggle button label and badges
+    const autoBtn = el('btnAutoToggle');
+    if (autoBtn) {
+      const enabled = !!(s && s.auto && s.auto.enabled);
+      autoBtn.textContent = enabled ? 'Disable pH Up automation' : 'Enable pH Up automation';
+      autoBtn.title = 'Automatically raises pH when below target band using pH Up';
+    }
+
+    // Automation badges
+    const stateBadge = el('phAutoStateBadge');
+    const learnedBadge = el('phLearnedBadge');
+    if (stateBadge && s) {
+      const enabled = !!(s.auto && s.auto.enabled);
+      if (!enabled) {
+        stateBadge.textContent = 'Disabled';
+        stateBadge.style.borderColor = 'rgba(148,163,184,.35)';
+        stateBadge.style.color = '#cbd5e1';
+        stateBadge.style.background = 'rgba(148,163,184,.08)';
+        stateBadge.title = '';
+      } else {
+        const reason = s.auto?.holding_reason;
+        if (reason) {
+          const displayReason = reason.replace(/_/g,' ');
+          stateBadge.textContent = 'Holding: ' + displayReason;
+          stateBadge.style.borderColor = 'rgba(245,158,11,.45)';
+          stateBadge.style.color = '#f59e0b';
+          stateBadge.style.background = 'rgba(245,158,11,.15)';
+          // EC baseline tooltip
+          if (reason === 'ec_baseline_low') {
+            stateBadge.title = 'EC below baseline; pH readings can be misleading in low ionic strength.';
+          } else {
+            stateBadge.title = '';
+          }
+        } else {
+          stateBadge.textContent = 'Ready';
+          stateBadge.style.borderColor = 'rgba(34,197,94,.45)';
+          stateBadge.style.color = '#16a34a';
+          stateBadge.style.background = 'rgba(34,197,94,.15)';
+          stateBadge.title = '';
+        }
+      }
+    }
+    if (learnedBadge && s) {
+      const learned = s.auto?.learned_ml_per_pH;
+      if (typeof learned === 'number' && isFinite(learned)) {
+        const perPointOne = (learned/10).toFixed(1);
+        learnedBadge.style.display = 'inline-block';
+        learnedBadge.textContent = `Learned: ≈${perPointOne} ml per 0.1 pH`;
+      } else {
+        learnedBadge.style.display = 'none';
+      }
+    }
   }
 
   async function tick(){
@@ -165,6 +226,44 @@
       cdPill.textContent = `⏱ ${need}s`;
       cdPill.style.borderColor = 'rgba(239,68,68,.45)';
     }
+  }
+
+  // --- Recent list collapse/auto-hide helpers (scoped to this module so `el` is available) ---
+  function scheduleRecentAutoHide(){
+    cancelRecentAutoHide();
+    recentHideTimer = setTimeout(()=> setRecentCollapsed(true, false), 8000);
+  }
+  function cancelRecentAutoHide(){ if(recentHideTimer){ clearTimeout(recentHideTimer); recentHideTimer=null; } }
+  function setRecentCollapsed(collapsed, user){
+    recentCollapsed = !!collapsed;
+    const list = el('ph-recent');
+    const hdr = el('ph-recent-header');
+    if (list){ list.style.display = collapsed ? 'none' : 'block'; }
+    if (hdr){ hdr.textContent = collapsed ? 'Grow Log ▸' : 'Grow Log ▾'; }
+    // If user expanded manually, don't re-autohide until next new event
+    if (user){
+      if (!collapsed){ recentUserHold = true; cancelRecentAutoHide(); }
+      else { cancelRecentAutoHide(); }
+    }
+  }
+
+  // --- Chart refresh (scoped here to access currentRange) ---
+  async function refreshDoseChart(){
+    // Delegate to ph_chart.js module
+    if (window.phDoseChart && window.phDoseChart.render) {
+      try {
+        await window.phDoseChart.render({
+          start: currentRange.start,
+          end: currentRange.end
+        });
+      } catch(e) {
+        console.error('[pH] Chart refresh failed:', e);
+      }
+    } else {
+      console.warn('[pH] phDoseChart module not loaded');
+    }
+    // Refresh summary alongside
+    refreshSummary().catch(()=>{});
   }
 
   async function postDose(body){
@@ -217,16 +316,19 @@
       postDose({ml:v, reason:'custom'});
     });
     el('btnAutoToggle')?.addEventListener('click', async ()=>{
-      const r = await fetch('/api/ph/auto', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enable:true})});
-      const j = await r.json();
-      if(window.showToast){ showToast(j.guard || 'Set', j.guard? 'error':'success'); }
-      else { alert(j.guard || 'Set'); }
+      const enable = !(lastStatus?.auto?.enabled);
+      const r = await fetch('/api/ph/auto', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enable})});
+      let j = null; try{ j = await r.json(); }catch(e){}
+      if(window.showToast){ showToast(j?.ok ? (enable ? 'pH Up automation enabled' : 'pH Up automation disabled') : (j?.guard||'Error'), j?.ok ? 'success':'error'); }
+      // Refresh status to update label and state
+      tick();
     });
     // Wire range controls (matching Trends template) - await to ensure range is loaded
     await wireRangeControls();
     
-    // CSV export uses current range
-    el('ph-dose-csv')?.addEventListener('click', ()=>{ exportCSV(); });
+  // CSV export uses current range (support both legacy and new ids)
+  el('ph-dose-csv')?.addEventListener('click', ()=>{ exportCSV(); });
+  el('btnPhExport24')?.addEventListener('click', ()=>{ exportCSV(); });
 
     // listen for settings UI updates to ui.sensors_poll_ms
     window.addEventListener('settings:ui', (ev)=>{
@@ -359,6 +461,20 @@
     tick();
     schedule();
     refreshSummary();
+    // Ensure header text is set even before first status render
+    const _hdr = document.getElementById('ph-recent-header');
+    if (_hdr && !_hdr.textContent.includes('Grow Log')){
+      _hdr.textContent = 'Grow Log ▾';
+    }
+    // Fallback: if we have any items currently visible, schedule a one-time auto-hide
+    setTimeout(()=>{
+      const list = document.getElementById('ph-recent');
+      if (!list) return;
+      const hasItems = list.children && list.children.length > 0;
+      if (hasItems && !recentCollapsed && !recentUserHold && !recentHideTimer){
+        scheduleRecentAutoHide();
+      }
+    }, 250); // run shortly after first render
     // Chart will have been rendered by wireRangeControls → loadRange
   }
 
@@ -395,36 +511,4 @@
 
 
 
-  async function refreshDoseChart(){
-    // Delegate to ph_chart.js module
-    if (window.phDoseChart && window.phDoseChart.render) {
-      try {
-        await window.phDoseChart.render({
-          start: currentRange.start,
-          end: currentRange.end
-        });
-      } catch(e) {
-        console.error('[pH] Chart refresh failed:', e);
-      }
-    } else {
-      console.warn('[pH] phDoseChart module not loaded');
-    }
-    
-    // Refresh summary alongside
-    refreshSummary().catch(()=>{});
-  }
-
-  function scheduleRecentAutoHide(){
-    cancelRecentAutoHide();
-    recentHideTimer = setTimeout(()=> setRecentCollapsed(true, false), 8000);
-  }
-  function cancelRecentAutoHide(){ if(recentHideTimer){ clearTimeout(recentHideTimer); recentHideTimer=null; } }
-  function setRecentCollapsed(collapsed, user){
-    recentCollapsed = !!collapsed;
-    const list = el('ph-recent');
-    const hdr = el('ph-recent-header');
-    if (list){ list.style.display = collapsed ? 'none' : 'block'; }
-    if (hdr){ hdr.textContent = collapsed ? 'Recent ▸' : 'Recent ▾'; }
-    // If user expanded manually, don't re-autohide until next new event
-    if (user && !collapsed){ cancelRecentAutoHide(); }
-  }
+  

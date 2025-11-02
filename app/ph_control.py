@@ -7,8 +7,9 @@ Endpoints:
 - POST /api/ph/auto
 - GET /api/ph/export
 
-Implements manual dosing with guards and a simple log table.
-Automation is a placeholder that currently refuses enabling.
+Manual dosing with guards and a simple log table.
+Automation: background controller (pH Up only) that gently raises pH when it falls below the target band.
+It learns dose effect from prior dose logs and ignores pH when EC is below a baseline threshold.
 """
 from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -23,6 +24,17 @@ import os
 router = APIRouter()
 
 DB_PATH = Path(__file__).parent.parent / "data" / "rdwc.db"
+
+# --- Automation state --------------------------------------------------------
+_auto_thread: Optional[threading.Thread] = None
+_auto_stop_evt: Optional[threading.Event] = None
+_auto_lock = threading.Lock()
+_dose_lock = threading.Lock()
+_auto_last_holding_reason: Optional[str] = None
+_auto_enabled_at: Optional[float] = None
+_auto_last_block: Optional[str] = None
+_auto_last_block_count: int = 0
+_auto_last_decision: Dict[str, Any] = {}  # For debug endpoint
 
 # --- DB helpers --------------------------------------------------------------
 def _ensure_tables() -> None:
@@ -229,17 +241,46 @@ def _last_ok_ts() -> Optional[datetime]:
 # --- Sensors/Settings helpers ------------------------------------------------
 def _get_latest_ph() -> Tuple[Optional[float], Optional[int]]:
     """Return latest pH and its unix ts from readings table."""
-    from app.logger import DB_PATH as READ_DB
     try:
-        with sqlite3.connect(READ_DB) as conn:
+        with sqlite3.connect(str(DB_PATH)) as conn:
             cur = conn.cursor()
-            cur.execute("SELECT ts, ph FROM readings WHERE ph IS NOT NULL ORDER BY ts DESC LIMIT 1")
+            cur.execute("SELECT ts, ph FROM readings ORDER BY ts DESC LIMIT 1")
+            row = cur.fetchone()
+            if row:
+                # Row may have ph NULL; treat as None
+                return (float(row[1]) if row[1] is not None else None, int(row[0]))
+    except Exception:
+        pass
+    return (None, None)
+
+def _get_latest_ec() -> Tuple[Optional[float], Optional[int]]:
+    """Return latest EC and its unix ts from readings table."""
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT ts, ec_ms_cm FROM readings ORDER BY ts DESC LIMIT 1")
             row = cur.fetchone()
             if row:
                 return (float(row[1]) if row[1] is not None else None, int(row[0]))
     except Exception:
         pass
     return (None, None)
+
+def _get_ec_near(ts_unix: int, window_s: int = 600) -> Optional[float]:
+    """Fetch EC nearest to a given timestamp within a window (seconds)."""
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT ts, ec_ms_cm FROM readings WHERE ts BETWEEN ? AND ? ORDER BY ABS(ts-?) ASC LIMIT 1",
+                (int(ts_unix - window_s), int(ts_unix + window_s), int(ts_unix))
+            )
+            row = cur.fetchone()
+            if row:
+                return float(row[1]) if row[1] is not None else None
+    except Exception:
+        pass
+    return None
 
 def _volume_ml_from_ms(duration_ms: int) -> Optional[float]:
     """Compute volume_ml using calibration rate; return None if not configured (>0)."""
@@ -276,9 +317,12 @@ def _settings_get_int(key: str, default: int) -> int:
 def _compute_guards(now: float) -> Dict[str, Any]:
     from app.relays_core import get_estop_status
     ph, ts = _get_latest_ph()
-    sensor_stale = True
-    if ts:
-        sensor_stale = (now - ts) > 90
+    # Stale if no pH value OR no timestamp OR last sample older than 90s
+    sensor_stale = (ph is None) or (not ts) or ((now - ts) > 90)
+    # EC baseline guard
+    ec_val, _ = _get_latest_ec()
+    ec_baseline_min = _settings_get_float("dosing.ec_baseline_min", 0.2)
+    ec_baseline_low = (ec_val is None) or (ec_val < ec_baseline_min)
 
     # Min interval guard
     last_ok = _last_ok_ts()
@@ -305,6 +349,7 @@ def _compute_guards(now: float) -> Dict[str, Any]:
         "interval": bool(interval_guard),
         "daily_cap": bool(daily_guard),
         "reservoir": bool(res_guard),
+        "ec_baseline_low": bool(ec_baseline_low),
         "since_last_ok_s": since_last_ok,
         "today_total_ml": today_ml,
         "min_interval_s": min_interval,
@@ -331,13 +376,24 @@ def ph_status():
     try:
         from app.settings import get_setting_key
         maint_override = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
+        auto_enabled = (get_setting_key("ph.auto_enabled", "false") or "false").lower() == "true"
     except Exception:
         maint_override = False
+        auto_enabled = False
+    # Learned ml per 1.0 pH (may be None)
+    try:
+        learned = _estimate_ml_per_pH(_get_latest_ec()[0])
+    except Exception:
+        learned = None
+    # Holding reason (deterministic by guards + band), allow lock to signal cooldown
+    holding_reason = _derive_holding_reason(ph_val, guards, targets)
+    if _dose_lock.locked() and holding_reason is None:
+        holding_reason = "cooldown"
     return {
         "ph": ph_val,
         "ts": ts,
         "targets": targets,
-        "auto": {"enabled": False, "guard": "automation unsupported: only pH Up available"},
+        "auto": {"enabled": bool(auto_enabled), "guard": None, "holding_reason": holding_reason, "learned_ml_per_pH": learned},
         "guards": guards,
         "recent": recent,
         "remaining_cooldown_s": remaining,
@@ -398,26 +454,28 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
         pass
 
 
-@router.post("/api/ph/dose")
-def ph_dose(body: Dict[str, Any] = Body(...)):
-    """Manual dose endpoint.
-    Accepts { ml?: number, ms?: number, reason?: string }
+def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
+    """Shared dose performer used by endpoint and automation.
+    Accepts { ml?: number, ms?: number, seconds?: number, reason?: string, force?: bool }
+    Returns a JSON-serializable dict.
     """
     ml = body.get("ml")
     ms = body.get("ms")
     seconds = body.get("seconds")
     reason = str(body.get("reason", "manual"))[:200]
     force_req = bool(body.get("force", False))
+    rowid: int = 0
+    nonblocking = bool(body.get("nonblocking", False))
 
     # Prefer ml if provided (convert to ms using calibration), but log-time ml always derived from ms
     if ml is not None:
         try:
             ml = float(ml)
         except Exception:
-            return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_ml"})
+            return {"http_status": 422, "ok": False, "error": "invalid_ml"}
         ms_calc, err = _dose_ms_from_ml(ml)
         if err:
-            return JSONResponse(status_code=422, content={"ok": False, "error": err})
+            return {"http_status": 422, "ok": False, "error": err}
         duration_ms = ms_calc
     else:
         # Accept either ms or seconds
@@ -429,13 +487,13 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
             else:
                 duration_ms = 0
         except Exception:
-            return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_duration"})
+            return {"http_status": 422, "ok": False, "error": "invalid_duration"}
     # Compute volume at log-time using calibration (nullable if no calibration)
     volume_ml = _volume_ml_from_ms(duration_ms)
     # Clamp duration
     MAX_MS = int(_settings_get_int("dosing.ph_up_max_ms", 5000))
     if duration_ms <= 0 or duration_ms > MAX_MS:
-        return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_duration_ms", "max_ms": MAX_MS})
+        return {"http_status": 422, "ok": False, "error": "invalid_duration_ms", "max_ms": MAX_MS}
 
     # Guards
     g = _compute_guards(time.time())
@@ -483,21 +541,45 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
             "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
             "result": "blocked", "reason": ",".join(blocked_reasons)
         })
-        payload = {"ok": False, "blocked": True, "reasons": blocked_reasons, "rowid": rowid}
+        result = {"ok": False, "blocked": True, "reasons": blocked_reasons, "rowid": rowid}
         if remaining is not None:
-            payload.update({"reason": "cooldown", "remaining_cooldown_s": remaining})
-        return JSONResponse(status_code=409, content=payload)
+            result.update({"reason": "cooldown", "remaining_cooldown_s": remaining})
+        return {"http_status": 409, **result}
 
-    # Actuate pump
-    act = _actuate_ph_up(int(duration_ms))
-    if not act.get("ok"):
-        rowid = _log_row({
-            "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
-            "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
-            "result": "error", "reason": act.get("reason","error")
-        })
-        return JSONResponse(status_code=500, content={"ok": False, "error": act.get("reason","error"), "rowid": rowid})
+    # Concurrency control: acquire dosing lock
+    acquired = False
+    if nonblocking:
+        acquired = _dose_lock.acquire(blocking=False)
+        if not acquired:
+            # Busy: log blocked and return cooldown-like response
+            rowid = _log_row({
+                "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
+                "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
+                "result": "blocked", "reason": "busy"
+            })
+            return {"http_status": 409, "ok": False, "blocked": True, "reasons": ["busy"], "reason": "cooldown", "rowid": rowid}
+    else:
+        _dose_lock.acquire()
+        acquired = True
 
+    try:
+        # Actuate pump
+        act = _actuate_ph_up(int(duration_ms))
+        if not act.get("ok"):
+            rowid = _log_row({
+                "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
+                "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
+                "result": "error", "reason": act.get("reason","error")
+            })
+            return {"http_status": 500, "ok": False, "error": act.get("reason","error"), "rowid": rowid}
+    finally:
+        if acquired:
+            try:
+                _dose_lock.release()
+            except Exception:
+                pass
+
+    # Success path: log ok and schedule observation to capture post_ph
     rowid = _log_row({
         "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
         "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
@@ -505,23 +587,298 @@ def ph_dose(body: Dict[str, Any] = Body(...)):
     })
 
     # Schedule background observe to update post_ph with next sample (avoid request blocking)
-    # Hard-limit to 10s to capture next sample quickly
-    observe_s = min(10, _settings_get_int("dosing.observe_s_after_dose", 60))
+    observe_s = max(1, min(1800, _settings_get_int("dosing.observe_s_after_dose", 600)))
     threading.Thread(target=_background_observe_and_update, args=(rowid, pre_ts, observe_s), daemon=True).start()
 
     return {"ok": True, "rowid": rowid, "pre_ph": pre_ph, "volume_ml": None if volume_ml is None else float(volume_ml), "duration_ms": int(duration_ms), "clamped_ms": min(duration_ms, MAX_MS), "override": bool(maint_override or (force_req and allow_force))}
 
 
+@router.post("/api/ph/dose")
+def ph_dose(body: Dict[str, Any] = Body(...)):
+    """Manual dose endpoint.
+    Accepts { ml?: number, ms?: number, reason?: string }
+    """
+    res = _perform_dose(body)
+    if res.get("http_status"):
+        code = int(res.pop("http_status"))
+        return JSONResponse(status_code=code, content=res)
+    return res
+
+
+def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
+    """Estimate ml required to raise 1.0 pH based on recent successful doses.
+    Uses rows where volume_ml, pre_ph and post_ph exist, filters to reasonable deltas, and
+    ignores events where EC near dose time is below baseline.
+    Returns a conservative default if not enough data.
+    """
+    baseline = _settings_get_float("dosing.ec_baseline_min", 0.2)
+    default_ml_per_pH = _settings_get_float("dosing.ph_up_ml_per_pH_default", 50.0)  # 50 ml per 1.0 pH
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT ts_utc, volume_ml, pre_ph, post_ph
+                FROM ph_dose_log
+                WHERE result='ok' AND volume_ml IS NOT NULL AND pre_ph IS NOT NULL AND post_ph IS NOT NULL
+                ORDER BY id DESC LIMIT 50
+                """
+            )
+            rows = cur.fetchall()
+        total_ml = 0.0
+        total_dpH = 0.0
+        for ts_iso, ml, pre, post in rows:
+            try:
+                dpH = float(post) - float(pre)
+                if ml is None:
+                    continue
+                ml = float(ml)
+                # Filter to reasonable positive deltas (avoid noise/overshoot)
+                if dpH <= 0 or dpH > 0.6 or abs(dpH) < 0.01:
+                    continue
+                # Filter by EC near dose time
+                try:
+                    ts = int(datetime.fromisoformat(ts_iso.replace('Z', '+00:00')).timestamp())
+                except Exception:
+                    continue
+                ec_near = _get_ec_near(ts)
+                if ec_near is None or ec_near < baseline:
+                    continue
+                total_ml += ml
+                total_dpH += dpH
+            except Exception:
+                continue
+        if total_dpH > 0.02 and total_ml > 0:
+            est = float(total_ml / total_dpH)  # ml for 1.0 pH
+            # Clamp to [5,100] ml per 1.0 pH (0.5–10 per 0.1 pH)
+            est = max(5.0, min(100.0, est))
+            return est
+    except Exception:
+        pass
+    return default_ml_per_pH
+
+
+def _derive_holding_reason(ph_val: Optional[float], guards: Dict[str, Any], targets: Dict[str, float]) -> Optional[str]:
+    """Priority order: estop → reservoir → safe_off → stale → ec_baseline_low → daily_cap → interval → above_high → None"""
+    g = guards or {}
+    if g.get("estop"):
+        return "estop"
+    if g.get("reservoir"):
+        return "reservoir"
+    if g.get("safe_off"):
+        return "safe_off"
+    if g.get("sensor_stale"):
+        return "stale"
+    if g.get("ec_baseline_low"):
+        return "ec_baseline_low"
+    if g.get("daily_cap"):
+        return "daily_cap"
+    if g.get("interval"):
+        return "cooldown"
+    try:
+        if ph_val is not None and (ph_val > float(targets.get("high", 6.2))):
+            return "above_high"
+    except Exception:
+        pass
+    return None
+
+
+def _set_auto_block(reason: str) -> None:
+    """Track last auto holding reason and simple backoff counters."""
+    global _auto_last_holding_reason, _auto_last_block, _auto_last_block_count
+    try:
+        reason = str(reason)
+    except Exception:
+        reason = "unknown"
+    _auto_last_holding_reason = reason
+    if _auto_last_block == reason:
+        _auto_last_block_count += 1
+    else:
+        _auto_last_block = reason
+        _auto_last_block_count = 1
+    
+    # Backoff: if same non-interval guard repeats 3×, log once then skip one extra poll
+    if _auto_last_block_count == 3 and reason not in ("cooldown", "above_high"):
+        print(f"[AUTO pH] Backoff: {reason} repeated 3× — skipping one extra poll to reduce log spam")
+
+
+def _print_auto_decision(action: str, ph: Optional[float], ec: Optional[float], targets: Dict[str, float], ml: float, guards: Dict[str, Any]) -> None:
+    global _auto_last_decision
+    try:
+        ts = datetime.now(timezone.utc).isoformat()
+        decision = {
+            "timestamp": ts,
+            "action": action,
+            "ph": ph,
+            "ec": ec,
+            "dose_ml": round(ml, 3),
+            "target_band": [targets.get('low'), targets.get('high')],
+            "active_guards": [k for k, v in (guards or {}).items() if v]
+        }
+        _auto_last_decision = decision
+        print(f"[AUTO pH] {ts} action={action} ph={ph} ec={ec} -> dose_ml={round(ml,3)} band=[{targets.get('low')},{targets.get('high')}] guards={ {k:v for k,v in (guards or {}).items() if v} }")
+    except Exception:
+        pass
+
+
+def _auto_loop():
+    global _auto_stop_evt, _auto_enabled_at, _auto_last_holding_reason, _auto_last_block, _auto_last_block_count
+    poll_s = _settings_get_int("dosing.poll_interval_s", 30)
+    margin = _settings_get_float("ph_auto.margin", 0.05)  # aim to stop slightly inside band
+    step_min = _settings_get_float("dosing.ph_up_step_min_ml", 0.5)
+    step_max = _settings_get_float("dosing.ph_up_step_max_ml", 5.0)
+    safety = _settings_get_float("dosing.ph_up_safety_factor", 0.6)  # under-dose fraction
+    warmup_done = False
+    skip_next_poll = False  # For backoff
+    
+    while _auto_stop_evt and not _auto_stop_evt.is_set():
+        try:
+            # Backoff: skip one extra poll if same non-interval guard repeated 3×
+            if skip_next_poll:
+                skip_next_poll = False
+                time.sleep(poll_s)
+                continue
+            
+            now = time.time()
+            ph_val, _ = _get_latest_ph()
+            targets = {
+                "low": _settings_get_float("targets.ph_low", 5.8),
+                "high": _settings_get_float("targets.ph_high", 6.2),
+            }
+            g = _compute_guards(now)
+            if ph_val is None or g.get("sensor_stale"):
+                _set_auto_block("stale")
+                if _auto_last_block_count == 3:
+                    skip_next_poll = True
+                time.sleep(poll_s)
+                continue
+            # Warm-up: wait one poll interval after enabling
+            if not warmup_done and _auto_enabled_at:
+                if (now - _auto_enabled_at) < poll_s:
+                    _set_auto_block("cooldown")
+                    time.sleep(poll_s)
+                    continue
+                warmup_done = True
+            # Only act when below band
+            if ph_val < targets["low"]:
+                # Guarded holds
+                if g.get("estop"):
+                    _set_auto_block("estop")
+                    if _auto_last_block_count == 3:
+                        skip_next_poll = True
+                elif g.get("reservoir"):
+                    _set_auto_block("reservoir")
+                    if _auto_last_block_count == 3:
+                        skip_next_poll = True
+                elif g.get("safe_off"):
+                    _set_auto_block("safe_off")
+                    if _auto_last_block_count == 3:
+                        skip_next_poll = True
+                elif g.get("ec_baseline_low"):
+                    _set_auto_block("ec_baseline_low")
+                    if _auto_last_block_count == 3:
+                        skip_next_poll = True
+                elif g.get("daily_cap"):
+                    _set_auto_block("daily_cap")
+                    if _auto_last_block_count == 3:
+                        skip_next_poll = True
+                elif g.get("interval"):
+                    _set_auto_block("cooldown")
+                else:
+                    # Concurrency: skip if dosing lock is held
+                    if _dose_lock.locked():
+                        _set_auto_block("cooldown")
+                    else:
+                        target = min(targets["low"] + margin, (targets["low"] + targets["high"]) / 2.0)
+                        need_dpH = max(0.0, target - ph_val)
+                        ml_per_pH = _estimate_ml_per_pH(_get_latest_ec()[0]) or 50.0
+                        ml_est = safety * need_dpH * ml_per_pH
+                        ml = max(step_min, min(step_max, ml_est))
+                        _print_auto_decision("dose", ph_val, _get_latest_ec()[0], targets, ml, g)
+                        _perform_dose({"ml": ml, "reason": "auto", "nonblocking": True})
+                        _auto_last_holding_reason = None
+            else:
+                # pH above band: clear holding reason
+                _auto_last_holding_reason = None
+            time.sleep(poll_s)
+        except Exception:
+            time.sleep(poll_s)
+
+
+def _auto_enable(enable: bool) -> bool:
+    """Start/stop automation thread."""
+    global _auto_thread, _auto_stop_evt, _auto_enabled_at
+    with _auto_lock:
+        if enable:
+            if _auto_thread and _auto_thread.is_alive():
+                return True
+            _auto_stop_evt = threading.Event()
+            _auto_thread = threading.Thread(target=_auto_loop, daemon=True)
+            _auto_enabled_at = time.time()
+            _auto_thread.start()
+            return True
+        else:
+            if _auto_stop_evt:
+                _auto_stop_evt.set()
+            _auto_thread = None
+            _auto_enabled_at = None
+            return False
+
+
 @router.post("/api/ph/auto")
 def ph_auto(body: Dict[str, Any] = Body(...)):
     enable = bool(body.get("enable", False))
-    if enable:
-        return JSONResponse(status_code=409, content={
-            "ok": False,
-            "enabled": False,
-            "guard": "automation unsupported: only pH Up available"
-        })
-    return {"ok": True, "enabled": False}
+    # Persist setting
+    try:
+        from app.settings import set_setting_key
+        set_setting_key("ph.auto_enabled", "true" if enable else "false")
+    except Exception:
+        pass
+    # Apply runtime state
+    _auto_enable(enable)
+    return {"ok": True, "enabled": bool(enable)}
+
+
+@router.post("/api/ph/auto/learn/reset")
+def ph_auto_learn_reset():
+    """Clear learned estimator by resetting post_ph for all successful doses.
+    This forces the estimator to return the default until new valid samples accumulate.
+    Safe to call anytime; does not delete dose history.
+    """
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            conn.execute("UPDATE ph_dose_log SET post_ph = NULL WHERE result = 'ok'")
+            conn.commit()
+        return {"ok": True, "message": "Learned estimator reset"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+@router.get("/api/ph/auto/debug")
+def ph_auto_debug():
+    """Compact introspection endpoint for automation state."""
+    try:
+        from app.settings import get_setting_key
+        enabled = (get_setting_key("ph.auto_enabled", "false") or "false").lower() == "true"
+    except Exception:
+        enabled = False
+    
+    poll_s = _settings_get_int("dosing.poll_interval_s", 30)
+    observe_s = _settings_get_int("dosing.observe_s_after_dose", 600)
+    
+    try:
+        learned = _estimate_ml_per_pH(_get_latest_ec()[0])
+    except Exception:
+        learned = None
+    
+    return {
+        "enabled": enabled,
+        "holding_reason": _auto_last_holding_reason,
+        "poll_interval_s": poll_s,
+        "observe_s": observe_s,
+        "learned_ml_per_pH": learned,
+        "last_decision": _auto_last_decision or {}
+    }
 
 
 @router.get("/api/ph/export")
@@ -677,3 +1034,13 @@ def ph_dose_log_csv(
         return PlainTextResponse("\n".join(lines), media_type="text/csv", headers=headers)
     except ValueError as ve:
         return PlainTextResponse(f"Error: {ve}", status_code=422)
+
+# --- Module init: auto-start automation if enabled in settings ---
+try:
+    from app.settings import get_setting_key
+    _enabled = (get_setting_key("ph.auto_enabled", "false") or "false").lower() == "true"
+    if _enabled:
+        _auto_enable(True)
+except Exception:
+    # If settings are not yet available at import time, ignore
+    pass

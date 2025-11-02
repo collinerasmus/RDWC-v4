@@ -71,7 +71,17 @@ DEFAULTS: Dict[str, str] = {
     "dosing.ph_up_max_ml_per_day": "50",
     "dosing.ph_up_max_single_ml": "5",
     "dosing.ph_min_interval_s": "300",
-    "dosing.observe_s_after_dose": "60",
+    # Observe window after dose (extended for automation stability)
+    "dosing.observe_s_after_dose": "600",
+
+    # pH Up automation (production defaults)
+    "ph.auto_enabled": "false",
+    "dosing.poll_interval_s": "30",
+    "dosing.ph_up_step_min_ml": "0.5",
+    "dosing.ph_up_step_max_ml": "5.0",
+    "dosing.ph_up_safety_factor": "0.6",
+    # EC below this baseline holds automation (mS/cm)
+    "dosing.ec_baseline_min": "0.2",
 
     # safety
     "safety.main_pump_min_off_s": "5",
