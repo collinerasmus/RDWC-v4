@@ -6,13 +6,21 @@ import pytest
 import sqlite3
 import time
 from datetime import datetime, timezone, timedelta
-from fastapi.testclient import TestClient
 
-# Import app components
+# Import app components - defer TestClient creation to avoid version issues
 from app.main import app
 from app import ph_control
 
-client = TestClient(app)
+@pytest.fixture(scope="module")
+def client():
+    """Create TestClient with compatibility for different starlette/httpx versions."""
+    try:
+        from fastapi.testclient import TestClient
+        return TestClient(app)
+    except (ImportError, TypeError):
+        # Fallback for older versions
+        from starlette.testclient import TestClient as StarletteTestClient
+        return StarletteTestClient(app)
 
 @pytest.fixture
 def db_path(tmp_path):
