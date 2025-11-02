@@ -469,9 +469,12 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
     <!-- Sensors recent readings (ph-style collapsible) -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap;">
-      <div id="s-recent-header" class="muted" style="cursor:pointer;user-select:none;">Recent Readings ▾</div>
+      <div id="s-recent-header" class="muted" style="cursor:pointer;user-select:none;">Recent Readings ▸</div>
+      <div>
+        <button id="btnSensorsExport24" class="btn-secondary" title="Download CSV of recent sensor readings (24h)" onclick="exportCsv(24)">Export CSV (24h)</button>
+      </div>
     </div>
-    <div id="s-recent" class="muted" style="max-height:140px;overflow-y:auto;padding-right:6px;"></div>
+    <div id="s-recent" class="muted" style="display:none;max-height:140px;overflow-y:auto;padding-right:6px;"></div>
 
     <!-- controls moved into chart header below -->
 
@@ -731,20 +734,14 @@ async function updateCharts(){
 
 function fmt(v){ return (v===null||v===undefined)?'—':Number(v).toFixed(3).replace(/\.000$/,''); }
 
-// Sensors recent readings (ph-style autohide)
-let sRecentCollapsed = false, sRecentHideTimer = null, sRecentUserHold = false, sLastRecentTop = null, sRecentBound = false;
-function sScheduleAutoHide(){ if(sRecentHideTimer){ clearTimeout(sRecentHideTimer);} sRecentHideTimer = setTimeout(()=> sSetCollapsed(true,false), 8000); }
-function sCancelAutoHide(){ if(sRecentHideTimer){ clearTimeout(sRecentHideTimer); sRecentHideTimer=null; } }
-function sSetCollapsed(collapsed, user){
+// Sensors recent readings (manual toggle only, no auto-show/hide)
+let sRecentCollapsed = true, sRecentBound = false;
+function sSetCollapsed(collapsed){
   sRecentCollapsed = !!collapsed;
   const list = document.getElementById('s-recent');
   const hdr  = document.getElementById('s-recent-header');
   if(list) list.style.display = collapsed ? 'none' : 'block';
   if(hdr)  hdr.textContent = collapsed ? 'Recent Readings ▸' : 'Recent Readings ▾';
-  if(user){
-    if(!collapsed){ sRecentUserHold = true; sCancelAutoHide(); }
-    else { sCancelAutoHide(); }
-  }
 }
 
 async function refresh(){
@@ -765,16 +762,12 @@ async function refresh(){
     });
     // One-time bind header toggle
     const hdr = document.getElementById('s-recent-header');
-    if(hdr && !sRecentBound){ sRecentBound=true; hdr.addEventListener('click',()=> sSetCollapsed(!sRecentCollapsed, true)); }
-
-    // Auto-show on new top event, then autohide after delay
-    const top = (h && h.length) ? (h[0].ts || null) : null;
-    if(top && top !== sLastRecentTop){
-      sLastRecentTop = top; sRecentUserHold = false; sSetCollapsed(false,false); sScheduleAutoHide();
-    } else {
-      sSetCollapsed(sRecentCollapsed, false);
-      if(!sRecentCollapsed && !sRecentUserHold && (h?.length||0)>0 && !sRecentHideTimer){ sScheduleAutoHide(); }
+    if(hdr && !sRecentBound){ 
+      sRecentBound=true; 
+      hdr.addEventListener('click',()=> sSetCollapsed(!sRecentCollapsed)); 
     }
+    // Keep current collapsed state (no auto-show)
+    sSetCollapsed(sRecentCollapsed);
   }
 }
 
