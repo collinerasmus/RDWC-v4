@@ -26,6 +26,7 @@ from app.monitor import start_monitoring, stop_monitoring, get_monitoring_status
 from app.relays_core import initialize_all_safe_off, get_relay_event_log, allowed_lights_reasons, set_lights_hold
 from app.relays_core import set as relay_set
 from app.relays_core import get_estop_status
+from app.relays_core import get_relay_status
 
 DB_PATH = os.environ.get("RDWC_DB", os.path.join(os.path.dirname(__file__), "..", "data", "rdwc.db"))
 DB_PATH = os.path.abspath(DB_PATH)
@@ -1696,6 +1697,22 @@ def _pulse_pump(pump_key: str, seconds: float):
     threading.Thread(target=_worker, daemon=True).start()
     return {"ok": True, "scheduled_s": dur}
 
+def _auto_stop_after(name: str, after_s: float):
+    """Safety watchdog: turn pump OFF after after_s unless already off."""
+    def _w():
+        try:
+            time.sleep(max(1.0, float(after_s)))
+        except Exception:
+            return
+        # Best-effort: if still ON, turn OFF
+        try:
+            status = get_relay_status().get(name, {})
+            if status and bool(status.get("state")):
+                relay_set(name, False, reason="calib_prime_timeout", force=True)
+        except Exception:
+            pass
+    threading.Thread(target=_w, daemon=True).start()
+
 @app.post("/calib/dose/prime")
 def calib_dose_prime(pump: str, seconds: float = 0.5):
     seconds = max(0.2, min(2.0, float(seconds)))
@@ -1728,6 +1745,45 @@ def calib_dose_commit(pump: str, seconds: float, measured_ml: float):
         return JSONResponse(status_code=422, content={"ok": False, **(err or {})})
     changed = upsert_settings(payload)
     return {"ok": True, "rate_ml_per_sec": rate, "updated": changed}
+
+@app.get("/calib/dose/status")
+def calib_dose_status():
+    try:
+        st = get_relay_status()
+        out = {}
+        for k, relay_name in _PUMP_MAP.items():
+            out[k] = bool((st.get(relay_name) or {}).get("state", False))
+        return {"ok": True, "states": out}
+    except Exception as ex:
+        return {"ok": False, "note": type(ex).__name__}
+
+@app.post("/calib/dose/start")
+def calib_dose_start(pump: str):
+    if not _calib_enabled():
+        return {"ok": False, "note": "Calibration writes disabled. Set CALIB_ENABLE=1 and restart."}
+    if get_estop_status():
+        return {"ok": False, "note": "estop_active"}
+    name = _PUMP_MAP.get(pump)
+    if not name:
+        return {"ok": False, "note": "invalid_pump"}
+    res = relay_set(name, True, reason="calib_prime", force=True)
+    # Safety watchdog (auto-stop) — default 600s; override via env CALIB_PRIME_MAX_S
+    try:
+        max_s = float(os.environ.get("CALIB_PRIME_MAX_S", "600"))
+        _auto_stop_after(name, max_s)
+    except Exception:
+        _auto_stop_after(name, 600)
+    return {"ok": True, "state": bool(res.get("state"))}
+
+@app.post("/calib/dose/stop")
+def calib_dose_stop(pump: str):
+    if not _calib_enabled():
+        return {"ok": False, "note": "Calibration writes disabled. Set CALIB_ENABLE=1 and restart."}
+    name = _PUMP_MAP.get(pump)
+    if not name:
+        return {"ok": False, "note": "invalid_pump"}
+    res = relay_set(name, False, reason="calib_prime_stop", force=True)
+    return {"ok": True, "state": bool(res.get("state"))}
 
 def _require_enabled():
     if not _calib_enabled():

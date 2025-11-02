@@ -165,9 +165,8 @@
         </div>
         <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;">
           <label>Prime:</label>
-          <input id="dose-prime-sec" type="number" min="0.2" max="2.0" step="0.1" value="0.5" style="width:80px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3"/>
-          <span class="muted">sec</span>
-          <button id="btnDosePrime" class="btn-secondary">Prime</button>
+          <button id="btnDosePrimeToggle" class="btn-secondary">Start Priming</button>
+          <span class="muted">Manual start/stop; auto‑stops after safety timeout.</span>
         </div>
         <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;">
           <label>Run:</label>
@@ -299,12 +298,29 @@
       };
       if (doseSel){ doseSel.addEventListener('change', renderPumps); }
       const btnDoseRefresh = q('#btnDoseRefresh'); if (btnDoseRefresh) btnDoseRefresh.addEventListener('click', renderPumps);
-      const btnPrime = q('#btnDosePrime'); if (btnPrime) btnPrime.addEventListener('click', async ()=>{
+      const btnPrimeT = q('#btnDosePrimeToggle');
+      async function refreshPrimeState(){
         try{
-          const pump = doseSel && doseSel.value; const sec = parseFloat((q('#dose-prime-sec')||{}).value||'0.5');
-          const r = await (await fetch(`/calib/dose/prime?pump=${encodeURIComponent(pump)}&seconds=${encodeURIComponent(sec)}`, {method:'POST'})).json();
-          setDoseMsg(r && r.ok? `Priming ${pump} for ${r.scheduled_s||sec}s` : (r.note||'Prime failed'), !!(r&&r.ok));
-        }catch(e){ setDoseMsg('Prime failed', false); }
+          const r = await (await fetch('/calib/dose/status?t='+Date.now(), {cache:'no-store'})).json();
+          const pump = doseSel && doseSel.value;
+          const on = !!(r && r.ok && r.states && r.states[pump]);
+          if (btnPrimeT) btnPrimeT.textContent = on? 'Stop Priming' : 'Start Priming';
+          return on;
+        }catch(e){ if (btnPrimeT) btnPrimeT.textContent = 'Start Priming'; return false; }
+      }
+      if (btnPrimeT) btnPrimeT.addEventListener('click', async ()=>{
+        try{
+          const pump = doseSel && doseSel.value;
+          const on = await refreshPrimeState();
+          const ep = on? '/calib/dose/stop' : '/calib/dose/start';
+          const r = await (await fetch(`${ep}?pump=${encodeURIComponent(pump)}`, {method:'POST'})).json();
+          if (r && r.ok){
+            const nowOn = await refreshPrimeState();
+            setDoseMsg(nowOn? `Priming ${pump}…` : `Stopped priming ${pump}`);
+          } else {
+            setDoseMsg((r && r.note) || 'Prime toggle failed', false);
+          }
+        }catch(e){ setDoseMsg('Prime toggle failed', false); }
       });
       const btnRun = q('#btnDoseRun'); if (btnRun) btnRun.addEventListener('click', async ()=>{
         try{
@@ -328,7 +344,7 @@
       });
 
       // Prime values on open
-      setMsg(''); caps(); status(); read(); renderPumps();
+      setMsg(''); caps(); status(); read(); renderPumps(); refreshPrimeState();
       return panel;
     }
     const fields = GROUP_DEF[ns].fields;
