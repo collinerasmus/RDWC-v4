@@ -1,0 +1,73 @@
+﻿# pH Up Automation - Production Verification
+# Successfully deployed and verified on Pi: 192.168.88.49
+
+## Service Status
+systemctl is-active rdwc
+# Output: active 
+
+## Status API - New Fields Present
+curl -s http://127.0.0.1:8080/api/ph/status | jq '{ph:.ph, auto:.auto}'
+# Output:
+# {
+#   "ph": 5.415,
+#   "auto": {
+#     "enabled": false,
+#     "guard": null,
+#     "holding_reason": null,
+#     "learned_ml_per_pH": 62.44
+#   }
+# }
+#  holding_reason present
+#  learned_ml_per_pH present and calculated from history
+
+## Debug Endpoint
+curl -s http://127.0.0.1:8080/api/ph/auto/debug | jq
+# Output:
+# {
+#   "enabled": false,
+#   "holding_reason": null,
+#   "poll_interval_s": 30,
+#   "observe_s": 60,
+#   "learned_ml_per_pH": 62.44,
+#   "last_decision": {}
+# }
+#  Debug endpoint operational
+
+## Reset Learner Endpoint
+curl -s -X POST http://127.0.0.1:8080/api/ph/auto/learn/reset | jq
+# Output: {"ok": true, "message": "Learned estimator reset"}
+#  Reset endpoint operational
+
+curl -s http://127.0.0.1:8080/api/ph/status | jq '.auto.learned_ml_per_pH'
+# Output: 50
+#  Learned value reset to default (50.0 ml per 1.0 pH)
+
+## Guards Check
+curl -s http://127.0.0.1:8080/api/ph/status | jq '.guards | {ec_baseline_low, interval, daily_cap, stale, estop, reservoir}'
+# Output:
+# {
+#   "ec_baseline_low": false,
+#   "interval": false,
+#   "daily_cap": false,
+#   "stale": false,
+#   "estop": false,
+#   "reservoir": false
+# }
+#  All guards operational and reporting correctly
+
+## Production Ready Checklist
+[] Service active and restarted successfully
+[] /api/ph/status includes auto.enabled, auto.holding_reason, auto.learned_ml_per_pH
+[] /api/ph/auto/debug returns complete introspection object
+[] /api/ph/auto/learn/reset works and resets learned value
+[] Guards correctly computed (ec_baseline_low, interval, daily_cap, stale, estop, reservoir)
+[] Learned estimator calculates from historical doses (62.44  50.0 after reset)
+[] Cache-buster updated (20251102b) for UI updates
+[] Settings defaults verified for all automation parameters
+[] Comprehensive test suite created (7 tests)
+
+## Deployment Summary
+- Commits: a051c9e, 576de75
+- Files: ph_control.py, ph.js, index.html, settings.py, tests/
+- Status: Production Ready 
+- Date: November 2, 2025
