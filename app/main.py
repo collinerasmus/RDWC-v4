@@ -353,6 +353,74 @@ def api_relays_estop_toggle():
     active = bool(get_estop_status())
     return api_estop_set({"active": (not active)})
 
+# === Intelligent Chiller Control (Hailea HS-52A) ===
+
+@app.get("/api/chiller/status")
+def api_chiller_status():
+    """Get current chiller state, temperature, and automation status."""
+    from app.chiller_control import get_chiller_state, get_current_water_temp
+    state = get_chiller_state()
+    state['current_temp'] = get_current_water_temp()
+    return state
+
+@app.post("/api/chiller/auto/enable")
+def api_chiller_auto_enable():
+    """Enable automatic chiller control based on temperature."""
+    from app.chiller_control import start_auto_control
+    start_auto_control()
+    return {"ok": True, "auto_enabled": True}
+
+@app.post("/api/chiller/auto/disable")
+def api_chiller_auto_disable():
+    """Disable automatic chiller control."""
+    from app.chiller_control import stop_auto_control
+    stop_auto_control()
+    return {"ok": True, "auto_enabled": False}
+
+@app.post("/api/chiller/force")
+def api_chiller_force(req: dict):
+    """
+    Force chiller ON or OFF for specified duration (emergency/maintenance override).
+    Body: {"on": true/false, "duration_minutes": 60} (duration optional)
+    """
+    from app.chiller_control import force_chiller_state
+    desired_on = bool(req.get("on", False))
+    duration = req.get("duration_minutes")  # None = indefinite
+    result = force_chiller_state(desired_on, duration)
+    return result
+
+@app.post("/api/chiller/settings")
+def api_chiller_settings_update(req: dict):
+    """
+    Update chiller settings (target temp, hysteresis, stage, etc.).
+    Body: {"target_temp": 19.0, "hysteresis": 0.5, "stage": "veg"}
+    """
+    from app.settings import upsert_settings, validate_partial
+    
+    # Map incoming keys to settings keys
+    settings_map = {
+        'target_temp': 'chiller.target_temp',
+        'hysteresis': 'chiller.hysteresis',
+        'stage': 'chiller.stage',
+        'min_on_seconds': 'chiller.min_on_seconds',
+        'min_off_seconds': 'chiller.min_off_seconds',
+        'control_interval_s': 'chiller.control_interval_s',
+    }
+    
+    updates = {}
+    for key, setting_key in settings_map.items():
+        if key in req:
+            updates[setting_key] = str(req[key])
+    
+    # Validate
+    ok, error = validate_partial(updates)
+    if not ok:
+        return JSONResponse(status_code=422, content={"ok": False, "error": error})
+    
+    # Apply
+    upsert_settings(updates)
+    return {"ok": True, "updated": updates}
+
 @app.get("/")
 def ui():
     path = os.path.join(os.path.dirname(__file__), "static", "index.html")
