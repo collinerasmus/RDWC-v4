@@ -91,10 +91,6 @@
   const toEl = document.getElementById('trendTo');
   const applyEl = document.getElementById('trendApply');
 
-  function isoLocal(dt){
-    return dt.toISOString().slice(0,16); // yyyy-MM-ddTHH:mm
-  }
-  
   function rangeFromPreset(preset){
     const now = Date.now();
     let start = now;
@@ -113,6 +109,17 @@
     if (preset === '90d') return { gran: 3600, max: 2500 };  // hourly buckets
     if (preset === 'grow') return { gran: 3600, max: 3000 }; // hourly, up to 3000 pts
     return { gran: 300, max: 2000 }; // default (custom)
+  }
+
+  function formatForInput(ts) {
+    // Format timestamp for datetime-local input (YYYY-MM-DDTHH:mm)
+    const d = new Date(ts);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    const hh = String(d.getHours()).padStart(2,'0');
+    const min = String(d.getMinutes()).padStart(2,'0');
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
   }
 
   async function loadGrow(){
@@ -148,8 +155,8 @@
     const startMs = new Date(startISO).getTime();
     const endMs = new Date(nowISO).getTime();
     state.window = { start: startMs, end: endMs };
-    fromEl.value = isoLocal(new Date(startMs));
-    toEl.value = isoLocal(new Date(endMs));
+    fromEl.value = formatForInput(startMs);
+    toEl.value = formatForInput(endMs);
     const { gran, max } = presetParams('grow');
     const data = await fetchTrends(startISO, nowISO, gran, max);
     render(data);
@@ -255,18 +262,14 @@
     const aEc   = chooseAxis(PREF.ec,   ec);
     const aTemp = chooseAxis(PREF.temp, temp);
 
-    // IMPORTANT: Set x-axis bounds FIRST before updating data
+    // IMPORTANT: Set x-axis bounds to requested timeframe (not data-derived)
     if (state.window.start && state.window.end) {
-      console.log('[Sensors] setting explicit x-axis bounds:', {
+      console.log('[Sensors] Chart x-axis spans full requested timeframe:', {
         start: new Date(state.window.start).toISOString(),
-        end: new Date(state.window.end).toISOString(),
-        data_range: {
-          min: Math.min(...ph.map(p=>p.x), ...ec.map(p=>p.x), ...temp.map(p=>p.x)),
-          max: Math.max(...ph.map(p=>p.x), ...ec.map(p=>p.x), ...temp.map(p=>p.x))
-        }
+        end: new Date(state.window.end).toISOString()
       });
-      trendChart.options.scales.x.min = state.window.start;
-      trendChart.options.scales.x.max = state.window.end;
+      trendChart.options.scales.x.min = new Date(state.window.start);
+      trendChart.options.scales.x.max = new Date(state.window.end);
     } else {
       delete trendChart.options.scales.x.min;
       delete trendChart.options.scales.x.max;
@@ -341,8 +344,8 @@
   async function loadPreset(preset){
     const { start, end } = rangeFromPreset(preset);
     state.window = { start, end };
-    fromEl.value = isoLocal(new Date(start));
-    toEl.value   = isoLocal(new Date(end));
+    fromEl.value = formatForInput(start);
+    toEl.value   = formatForInput(end);
     const {gran, max} = presetParams(preset);
     const data = await fetchTrends(new Date(start).toISOString(), new Date(end).toISOString(), gran, max);
     render(data);

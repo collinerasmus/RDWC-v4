@@ -449,14 +449,14 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <span id="sensors-grow-day-badge" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;font-weight:500;"></span>
       </div>
       <div class="trend-controls" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-        <button class="btn btn-chip" data-range="24h">24h</button>
+        <button class="btn btn-chip active" data-range="24h">24h</button>
         <button class="btn btn-chip" data-range="7d">7d</button>
         <button class="btn btn-chip" data-range="30d">30d</button>
         <button class="btn btn-chip" data-range="90d">90d</button>
         <button class="btn btn-chip" data-range="grow">Grow</button>
         <span class="sep" style="opacity:.5;">|</span>
-        <input type="datetime-local" id="trendFrom" />
-        <input type="datetime-local" id="trendTo" />
+        <input type="datetime-local" id="trendFrom">
+        <input type="datetime-local" id="trendTo">
         <button class="btn btn-secondary" id="trendApply">Apply</button>
       </div>
     </div>
