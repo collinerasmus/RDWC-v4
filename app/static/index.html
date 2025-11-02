@@ -467,6 +467,12 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
     </div>
 
+    <!-- Sensors recent readings (ph-style collapsible) -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap;">
+      <div id="s-recent-header" class="muted" style="cursor:pointer;user-select:none;">Recent Readings ▾</div>
+    </div>
+    <div id="s-recent" class="muted" style="max-height:140px;overflow-y:auto;padding-right:6px;"></div>
+
     <!-- controls moved into chart header below -->
 
     <div class="card-body" style="padding-top:12px;">
@@ -674,16 +680,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
   </div>
 
-  <!-- Recent Readings Card -->
-  <section id="recent-readings-card" class="card card-wide collapsed">
-    <h3 onclick="toggleRecentReadings()" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;">
-      <span>Recent Readings</span>
-      <span id="recentToggleIcon" style="font-size:16px;">▼</span>
-    </h3>
-    <div class="table-wrap" id="recentTableWrap" style="display:none;">
-      <table id="hist"><thead><tr><th>Time</th><th>Temp (°C)</th><th>pH</th><th>EC (mS/cm)</th></tr></thead><tbody></tbody></table>
-    </div>
-  </section>
+  <!-- Recent Readings Card (removed; moved into Sensors card) -->
 
   <!-- Layout Debug Overlay -->
   <div id="layoutDebug" style="display:none;position:fixed;top:10px;right:10px;background:rgba(17,24,39,0.95);border:2px solid #10b981;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;z-index:9999;min-width:200px;">
@@ -734,15 +731,49 @@ async function updateCharts(){
 
 function fmt(v){ return (v===null||v===undefined)?'—':Number(v).toFixed(3).replace(/\.000$/,''); }
 
+// Sensors recent readings (ph-style autohide)
+let sRecentCollapsed = false, sRecentHideTimer = null, sRecentUserHold = false, sLastRecentTop = null, sRecentBound = false;
+function sScheduleAutoHide(){ if(sRecentHideTimer){ clearTimeout(sRecentHideTimer);} sRecentHideTimer = setTimeout(()=> sSetCollapsed(true,false), 8000); }
+function sCancelAutoHide(){ if(sRecentHideTimer){ clearTimeout(sRecentHideTimer); sRecentHideTimer=null; } }
+function sSetCollapsed(collapsed, user){
+  sRecentCollapsed = !!collapsed;
+  const list = document.getElementById('s-recent');
+  const hdr  = document.getElementById('s-recent-header');
+  if(list) list.style.display = collapsed ? 'none' : 'block';
+  if(hdr)  hdr.textContent = collapsed ? 'Recent Readings ▸' : 'Recent Readings ▾';
+  if(user){
+    if(!collapsed){ sRecentUserHold = true; sCancelAutoHide(); }
+    else { sCancelAutoHide(); }
+  }
+}
+
 async function refresh(){
-  // history table only
+  // Fetch latest history rows and render list
   const h = await (await fetch(`/history?limit=20&${bust()}`, NO_CACHE)).json();
-  const tb = document.querySelector('#hist tbody'); if (tb) { tb.innerHTML = '';
-    for (const r of h){
-      const tr = document.createElement('tr');
+  const list = document.getElementById('s-recent');
+  if(list){
+    list.innerHTML = '';
+    (h||[]).forEach(r => {
+      const div = document.createElement('div');
+      div.className = 'muted';
       const dt = new Date(r.ts*1000).toLocaleString();
-      tr.innerHTML = `<td>${dt}</td><td>${fmt(r.temp_c)}</td><td>${fmt(r.ph)}</td><td>${fmt(r.ec_ms_cm)}</td>`;
-      tb.appendChild(tr);
+      const p = fmt(r.ph);
+      const e = fmt(r.ec_ms_cm);
+      const t = fmt(r.temp_c);
+      div.textContent = `${dt} • pH ${p} • EC ${e} mS/cm • Temp ${t} °C`;
+      list.appendChild(div);
+    });
+    // One-time bind header toggle
+    const hdr = document.getElementById('s-recent-header');
+    if(hdr && !sRecentBound){ sRecentBound=true; hdr.addEventListener('click',()=> sSetCollapsed(!sRecentCollapsed, true)); }
+
+    // Auto-show on new top event, then autohide after delay
+    const top = (h && h.length) ? (h[0].ts || null) : null;
+    if(top && top !== sLastRecentTop){
+      sLastRecentTop = top; sRecentUserHold = false; sSetCollapsed(false,false); sScheduleAutoHide();
+    } else {
+      sSetCollapsed(sRecentCollapsed, false);
+      if(!sRecentCollapsed && !sRecentUserHold && (h?.length||0)>0 && !sRecentHideTimer){ sScheduleAutoHide(); }
     }
   }
 }
@@ -1074,7 +1105,7 @@ async function calibApply(){
   function measureHeights() {
     const sensorsCard = document.getElementById('sensors-card') || document.getElementById('trends-card');
     const cameraFrame = document.querySelector('#camera-card .camera-frame');
-    const recentWrap = document.querySelector('#recent-readings-card .table-wrap');
+  const recentWrap = document.getElementById('s-recent');
     
     const sensorsH = sensorsCard ? sensorsCard.clientHeight : 0;
     const cameraH = cameraFrame ? cameraFrame.clientHeight : 0;
