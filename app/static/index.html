@@ -1390,11 +1390,21 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <!-- History chart -->
             <hr class="separator" />
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-              <div class="muted">Dose History</div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div class="muted">Dose History</div>
+                <span id="ec-total-today" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;font-size:0.85rem;">Today: — ml</span>
+                <span id="ec-total-week" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;font-size:0.85rem;">Week: — ml</span>
+              </div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
                 <button class="btn btn-chip" data-ec-range="24h">24h</button>
                 <button class="btn btn-chip" data-ec-range="7d">7d</button>
                 <button class="btn btn-chip" data-ec-range="30d">30d</button>
+                <button class="btn btn-chip" data-ec-range="90d">90d</button>
+                <button class="btn btn-chip" data-ec-range="grow" title="From grow start date to now">Grow</button>
+                <span style="opacity:.5;">|</span>
+                <input type="datetime-local" id="ecDoseFrom" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
+                <input type="datetime-local" id="ecDoseTo" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
+                <button class="btn btn-secondary" id="ecDoseApply">Apply</button>
               </div>
             </div>
             <div id="ec-dose-chart-wrap" class="chart-card">

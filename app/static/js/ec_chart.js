@@ -257,40 +257,129 @@
     } catch(e) { /* ignore */ }
   }
 
-  function bindRangeButtons(){
+  let currentRange = { preset: '24h', start: null, end: null };
+
+  async function selectPreset(preset){
+    currentRange.preset = preset;
+    if (window.rdwcRange) {
+      window.rdwcRange.saveLastPreset('rdwc.ec.range', preset);
+    }
+    
+    // Update button states
+    const btns = document.querySelectorAll('[data-ec-range]');
+    btns.forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-ec-range') === preset);
+    });
+    
+    // Load range
+    await loadRange(preset);
+  }
+
+  async function loadRange(preset){
+    if (!window.rdwcRange) {
+      // Fallback to simple time-based ranges
+      const now = new Date();
+      let start;
+      if (preset === '24h') start = new Date(now.getTime() - 24*3600*1000);
+      else if (preset === '7d') start = new Date(now.getTime() - 7*24*3600*1000);
+      else if (preset === '30d') start = new Date(now.getTime() - 30*24*3600*1000);
+      else if (preset === '90d') start = new Date(now.getTime() - 90*24*3600*1000);
+      else start = new Date(now.getTime() - 24*3600*1000);
+      
+      currentRange.start = start.toISOString();
+      currentRange.end = now.toISOString();
+      loadRangeAndRender({ start: currentRange.start, end: currentRange.end });
+      return;
+    }
+    
+    const growDate = window.rdwcSettings?.get('general.grow_start_date');
+    const customRange = window.rdwcRange.getCustomRange('rdwc.ec.range');
+    
+    // Compute start/end
+    const range = await window.rdwcRange.rangeToStartEnd(
+      preset, 
+      customRange.start, 
+      customRange.end, 
+      growDate
+    );
+    
+    if (!range) {
+      console.warn('[EC Chart] Invalid range');
+      return;
+    }
+    
+    currentRange.start = range.start;
+    currentRange.end = range.end;
+    
+    // Auto-populate datetime inputs
+    const fromEl = document.getElementById('ecDoseFrom');
+    const toEl = document.getElementById('ecDoseTo');
+    if (fromEl && toEl && range.start && range.end) {
+      const formatForInput = (ts) => {
+        const d = new Date(ts);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+      };
+      
+      fromEl.value = formatForInput(range.start);
+      toEl.value = formatForInput(range.end);
+    }
+    
+    // Render chart
+    loadRangeAndRender({ start: range.start, end: range.end });
+  }
+
+  async function bindRangeButtons(){
     const buttons = document.querySelectorAll('[data-ec-range]');
     buttons.forEach(btn => {
       if (btn.__bound) return;
       btn.__bound = true;
+      const preset = btn.getAttribute('data-ec-range');
       btn.addEventListener('click', () => {
-        const r = btn.getAttribute('data-ec-range');
-        const now = new Date();
-        let start;
-        if (r === '24h') start = new Date(now.getTime() - 24*3600*1000);
-        else if (r === '7d') start = new Date(now.getTime() - 7*24*3600*1000);
-        else if (r === '30d') start = new Date(now.getTime() - 30*24*3600*1000);
-        else start = new Date(now.getTime() - 24*3600*1000);
-        loadRangeAndRender({ start: start.toISOString(), end: now.toISOString() });
+        if (!btn.disabled) selectPreset(preset);
       });
     });
+    
+    // Wire custom range selector
+    const fromEl = document.getElementById('ecDoseFrom');
+    const toEl = document.getElementById('ecDoseTo');
+    const applyEl = document.getElementById('ecDoseApply');
+    
+    if (applyEl && fromEl && toEl && window.rdwcRange) {
+      applyEl.addEventListener('click', () => {
+        const start = fromEl.value;
+        const end = toEl.value;
+        if (start && end) {
+          window.rdwcRange.saveCustomRange('rdwc.ec.range', start, end);
+          selectPreset('custom');
+        }
+      });
+    }
+    
+    // Load saved preset or default to 24h
+    const savedPreset = window.rdwcRange?.getLastPreset('rdwc.ec.range') || '24h';
+    await loadRange(savedPreset);
   }
 
-  function init(){
-    const now = new Date();
-    const start = new Date(now.getTime() - 24*3600*1000).toISOString();
-    const end = now.toISOString();
+  async function init(){
     bindRangeButtons();
-    loadRangeAndRender({ start, end });
   }
 
   // Export small API for other modules (ec.js calls refresh after dosing)
   window.ecChart = {
     refresh: function(){
-      const now = new Date();
-      const end = EC_STATE.endISO || now.toISOString();
-      let start = EC_STATE.startISO;
-      if (!start) start = new Date(now.getTime() - 24*3600*1000).toISOString();
-      loadRangeAndRender({ start, end });
+      // Re-render with current range to pick up new dose data
+      if (currentRange.start && currentRange.end) {
+        loadRangeAndRender({ start: currentRange.start, end: currentRange.end });
+      } else {
+        const now = new Date();
+        const start = new Date(now.getTime() - 24*3600*1000).toISOString();
+        loadRangeAndRender({ start, end: now.toISOString() });
+      }
     },
     render: loadRangeAndRender,
     init
