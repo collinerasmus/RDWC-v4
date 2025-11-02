@@ -156,7 +156,19 @@
       } else {
         const reason = s.auto?.holding_reason;
         if (reason) {
-          const displayReason = reason.replace(/_/g,' ');
+          // Human-readable labels
+          const reasonLabels = {
+            'ec_baseline_low': 'EC too low to trust pH',
+            'stale': 'Sensor is stale',
+            'interval': 'Cooldown between doses',
+            'daily_cap': 'Daily cap reached',
+            'estop': 'E-STOP active',
+            'reservoir': 'Reservoir empty',
+            'safe_off': 'System in safe-off',
+            'above_high': 'pH above high target (pH Up can\'t lower)',
+            'cooldown': 'Cooldown between doses'
+          };
+          const displayReason = reasonLabels[reason] || reason.replace(/_/g,' ');
           stateBadge.textContent = 'Holding: ' + displayReason;
           stateBadge.style.borderColor = 'rgba(245,158,11,.45)';
           stateBadge.style.color = '#f59e0b';
