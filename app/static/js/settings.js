@@ -106,6 +106,7 @@
           <label>Current pH:</label>
           <span id="ph-current" style="margin-left:8px">—</span>
           <button id="btnPhRead" class="btn-secondary" style="margin-left:8px">Read</button>
+          <button id="btnPhStabilize" class="btn-secondary" style="margin-left:8px" title="Read until stable or timeout">Stabilize</button>
           <button id="btnPhStatus" class="btn-secondary" style="margin-left:8px">Status</button>
         </div>
         <div class="row" style="margin-top:6px;align-items:center;flex-wrap:wrap;gap:6px;">
@@ -122,6 +123,13 @@
         <div class="row" style="margin-top:6px">
           <span id="ph-calib-msg" class="muted"></span>
         </div>
+        <div class="row" style="margin-top:6px;gap:6px;align-items:center;flex-wrap:wrap;">
+          <label>Probe LEDs:</label>
+          <button id="btnLedsOn" class="btn-secondary" title="Turn LEDs on (all probes)">On</button>
+          <button id="btnLedsOff" class="btn-secondary" title="Turn LEDs off (all probes)">Off</button>
+          <button id="btnLedsBlink" class="btn-secondary" title="Blink LEDs to locate probes">Blink</button>
+        </div>
+        <div id="ph-calib-log" class="muted" style="margin-top:8px;max-height:160px;overflow:auto;font-family:ui-monospace, monospace;font-size:12px;border-top:1px dashed #1f2937;padding-top:6px"></div>
       `;
 
       // EC placeholder
@@ -144,9 +152,17 @@
 
       // Wire up pH controls
       const msg = () => q('#ph-calib-msg');
-      const setMsg = (t, ok=true) => { const el = msg(); if (!el) return; el.textContent = t||''; el.style.color = ok? '#9ca3af' : '#fca5a5'; };
+      const setMsg = (t, ok=true) => { const el = msg(); if (!el) return; el.textContent = t||''; el.style.color = ok? '#9ca3af' : '#fca5a5'; log(t); };
       const setCurrent = (v) => { const sp = q('#ph-current'); if (sp) sp.textContent = (v==null? '—' : Number(v).toFixed(2)); };
       const setBanner = (on) => { const b = q('#ph-calib-banner'); if (b) b.style.display = on? 'block':'none'; };
+      const log = (line) => {
+        const box = q('#ph-calib-log'); if (!box) return;
+        const ts = new Date().toLocaleTimeString();
+        const div = document.createElement('div');
+        div.textContent = `[${ts}] ${line}`;
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+      };
 
       // Default buffer value follows selection
       const kindSel = q('#ph-buffer-kind');
@@ -173,6 +189,14 @@
           else { setMsg('Status check failed', false); }
         }catch(e){ setMsg('Status check failed', false); }
       };
+      const stabilize = async ()=>{
+        try{
+          setMsg('Stabilizing...');
+          const r = await (await fetch('/calib/ph/read_stable?t='+Date.now(), {cache:'no-store'})).json();
+          if (r && r.ok){ setCurrent(r.value); setMsg(r.stable? `Stable at ${Number(r.value).toFixed(2)} (n=${r.samples||0}, ${r.duration_s?.toFixed? r.duration_s.toFixed(1):r.duration_s}s)` : `Timeout; last ${Number(r.value).toFixed(2)} (n=${r.samples||0})`, r.stable); }
+          else { setMsg('Stabilize failed', false); }
+        }catch(e){ setMsg('Stabilize failed', false); }
+      };
       const caps = async ()=>{
         try{
           const r = await (await fetch('/calib/ph/caps?t='+Date.now(), {cache:'no-store'})).json();
@@ -185,7 +209,7 @@
           const val  = parseFloat(valInp && valInp.value || '7.00');
           const ep = kind==='low'? 'low' : kind==='high'? 'high' : 'mid';
           const r = await (await fetch(`/calib/ph/${ep}?value=${encodeURIComponent(val.toFixed(2))}`, {method:'POST'})).json();
-          if (r && r.ok){ setMsg(r.note || 'Calibration command sent'); }
+          if (r && r.ok){ setMsg(r.note || 'Calibration command sent'); await status(); }
           else { setMsg((r && r.note) || 'Calibration rejected', false); }
         }catch(e){ setMsg('Calibration failed', false); }
       };
@@ -198,7 +222,11 @@
       };
 
       const bRead = q('#btnPhRead'); if (bRead) bRead.addEventListener('click', read);
-      const bStat = q('#btnPhStatus'); if (bStat) bStat.addEventListener('click', status);
+  const bStat = q('#btnPhStatus'); if (bStat) bStat.addEventListener('click', status);
+  const bStab = q('#btnPhStabilize'); if (bStab) bStab.addEventListener('click', stabilize);
+  const bOn = q('#btnLedsOn'); if (bOn) bOn.addEventListener('click', async ()=>{ try{ const r=await (await fetch('/calib/leds/on',{method:'POST'})).json(); setMsg(r.ok? 'LEDs on' : 'LEDs on failed', !!r.ok);}catch(e){ setMsg('LEDs on failed', false);} });
+  const bOff = q('#btnLedsOff'); if (bOff) bOff.addEventListener('click', async ()=>{ try{ const r=await (await fetch('/calib/leds/off',{method:'POST'})).json(); setMsg(r.ok? 'LEDs off' : 'LEDs off failed', !!r.ok);}catch(e){ setMsg('LEDs off failed', false);} });
+  const bBlink = q('#btnLedsBlink'); if (bBlink) bBlink.addEventListener('click', async ()=>{ try{ const r=await (await fetch('/calib/leds/blink',{method:'POST'})).json(); setMsg(r.ok? `Blink x${r.count||''}` : 'Blink failed', !!r.ok);}catch(e){ setMsg('Blink failed', false);} });
       const bCal  = q('#btnPhCalibrate'); if (bCal) bCal.addEventListener('click', doCal);
       const bClr  = q('#btnPhClear'); if (bClr) bClr.addEventListener('click', clear);
 

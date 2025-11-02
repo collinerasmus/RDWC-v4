@@ -1595,6 +1595,57 @@ def calib_ph_status():
         pass
     return {"ok": ok, "status": note, "flags": flags}
 
+@app.get("/calib/ph/read_stable")
+def calib_ph_read_stable(timeout_s: float = 20.0, delta: float = 0.02, min_samples: int = 3, poll_s: float = 1.0):
+    """Read pH repeatedly until change between last two samples <= delta or timeout.
+    Returns {ok, stable, value, samples, duration_s}.
+    """
+    t0 = time.monotonic()
+    samples = 0
+    prev = None
+    last = None
+    try:
+        while time.monotonic() - t0 < max(1.0, float(timeout_s)):
+            val = _ezo.read_single(_ezo.ADDR_PH)
+            if val is None:
+                # Wait and try again
+                time.sleep(max(0.2, float(poll_s)))
+                continue
+            samples += 1
+            prev, last = last, float(val)
+            if samples >= max(2, int(min_samples)) and prev is not None:
+                if abs(last - prev) <= float(delta):
+                    return {"ok": True, "stable": True, "value": last, "samples": samples, "duration_s": round(time.monotonic() - t0, 3)}
+            time.sleep(max(0.2, float(poll_s)))
+        # Timeout
+        return {"ok": True, "stable": False, "value": last, "samples": samples, "duration_s": round(time.monotonic() - t0, 3)}
+    except Exception as ex:
+        return {"ok": False, "note": type(ex).__name__}
+
+@app.post("/calib/leds/on")
+def calib_leds_on():
+    try:
+        out = _ezo.enable_all_leds(True)
+        return {"ok": True, **out}
+    except Exception as ex:
+        return {"ok": False, "note": type(ex).__name__}
+
+@app.post("/calib/leds/off")
+def calib_leds_off():
+    try:
+        out = _ezo.enable_all_leds(False)
+        return {"ok": True, **out}
+    except Exception as ex:
+        return {"ok": False, "note": type(ex).__name__}
+
+@app.post("/calib/leds/blink")
+def calib_leds_blink(count: int = 8, period_s: float = 0.25):
+    try:
+        out = _ezo.blink_leds(count=count, period_s=period_s)
+        return out
+    except Exception as ex:
+        return {"ok": False, "note": type(ex).__name__}
+
 def _require_enabled():
     if not _calib_enabled():
         return {"ok": False, "note": "Calibration writes disabled. Set CALIB_ENABLE=1 and restart."}
