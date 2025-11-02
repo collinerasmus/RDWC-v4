@@ -467,20 +467,26 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
     </div>
 
-    <!-- Trend range controls (relocated below KPIs, like pH chart) -->
-    <div class="trend-controls" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-bottom:8px;">
-      <button class="btn btn-chip active" data-range="24h">24h</button>
-      <button class="btn btn-chip" data-range="7d">7d</button>
-      <button class="btn btn-chip" data-range="30d">30d</button>
-      <button class="btn btn-chip" data-range="90d">90d</button>
-      <button class="btn btn-chip" data-range="grow">Grow</button>
-      <span class="sep" style="opacity:.5;">|</span>
-      <input type="datetime-local" id="trendFrom">
-      <input type="datetime-local" id="trendTo">
-      <button class="btn btn-secondary" id="trendApply">Apply</button>
-    </div>
+    <!-- controls moved into chart header below -->
 
     <div class="card-body" style="padding-top:12px;">
+      <hr class="separator" />
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="muted">Trends</div>
+        </div>
+        <div class="trend-controls" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-chip active" data-range="24h">24h</button>
+          <button class="btn btn-chip" data-range="7d">7d</button>
+          <button class="btn btn-chip" data-range="30d">30d</button>
+          <button class="btn btn-chip" data-range="90d">90d</button>
+          <button class="btn btn-chip" data-range="grow">Grow</button>
+          <span class="sep" style="opacity:.5;">|</span>
+          <input type="datetime-local" id="trendFrom">
+          <input type="datetime-local" id="trendTo">
+          <button class="btn btn-secondary" id="trendApply">Apply</button>
+        </div>
+      </div>
       <canvas id="trendChart" height="120"></canvas>
       <div id="trendEmpty" style="display:none;margin-top:8px;opacity:.7;">No data for selected period.</div>
     </div>
