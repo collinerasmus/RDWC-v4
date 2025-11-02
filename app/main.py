@@ -16,6 +16,7 @@ from app.ezo_i2c_stabilized import read_all
 from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
 from app import ezo_i2c as _ezo
 from app.infra.i2c_bus import get_bus as _get_bus
+from app.infra.i2c_bus import close_bus as _close_i2c_bus
 from app.diag import router as diag_router
 from app.blueprints.sensors_api import sensors_router
 from app.hardware import PumpController, RelayBank
@@ -82,6 +83,7 @@ _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {}}
 _last_t = 0.0
 START_TS = time.time()
 sensor_task = None
+watchdog_task = None
 
 def _sensor_loop():
     global _last, _last_t
@@ -124,7 +126,7 @@ async def sensor_loop():
 
 @app.on_event("startup")
 async def _start_tasks():
-    global sensor_task
+    global sensor_task, watchdog_task
     # Initialize system mode tables
     from app.system_mode import _init_tables
     _init_tables()
@@ -152,11 +154,33 @@ async def _start_tasks():
         from app.relays_core import smart_restore_critical_relays
         smart_restore_critical_relays()
     
-    # Start async sensor loop
+    # Start async sensor loop (single reader)
     sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
-    # Also start the old thread as backup
-    if not any(t.name == "_sensor_loop" for t in threading.enumerate()):
-        threading.Thread(target=_sensor_loop, name="_sensor_loop", daemon=True).start()
+    
+    # Start sensors watchdog (auto-heal if stale)
+    async def sensors_watchdog():
+        global sensor_task, _last_t
+        STALE_SEC = int(os.environ.get("RDWC_SENSORS_STALE_SEC", "120"))
+        INTERVAL = int(os.environ.get("RDWC_SENSORS_WATCHDOG_INTERVAL", "30"))
+        while True:
+            try:
+                age = time.time() - _last_t
+                if age > STALE_SEC:
+                    # Attempt auto-heal: reset I2C and restart sensor task
+                    try:
+                        _close_i2c_bus()
+                    except Exception:
+                        pass
+                    # Restart sensor task
+                    with suppress(Exception):
+                        if sensor_task:
+                            sensor_task.cancel()
+                    await asyncio.sleep(0.1)
+                    sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
+                await asyncio.sleep(INTERVAL)
+            except Exception:
+                await asyncio.sleep(INTERVAL)
+    watchdog_task = asyncio.create_task(sensors_watchdog(), name="sensors_watchdog")
     _scheduler.start()
     # Start alert monitoring
     start_monitoring()
@@ -169,10 +193,13 @@ async def _start_tasks():
 
 @app.on_event("shutdown")  
 async def _stop_tasks():
-    global sensor_task
+    global sensor_task, watchdog_task
     with suppress(Exception):
         if sensor_task:
             sensor_task.cancel()
+    with suppress(Exception):
+        if watchdog_task:
+            watchdog_task.cancel()
     _scheduler.shutdown()
     # Stop alert monitoring
     stop_monitoring()
@@ -1291,6 +1318,30 @@ def debug_lights_hold(seconds: int = Body(..., embed=True)):
 def status():
     age = time.time() - _last_t
     return {"age_s": round(age, 2), **_last}
+
+@app.get("/api/sensors/health")
+def api_sensors_health():
+    """Sensor health summary for UI badges and monitoring."""
+    age = max(0.0, time.time() - _last_t)
+    fresh = (_last.get("temp_c") is not None) and (age < 60.0)
+    # Get DB last reading age
+    db_age = None
+    db_ts = None
+    try:
+        from app.services.sensors_fallback import get_last_reading
+        last = get_last_reading()
+        if last:
+            db_ts = last.get("ts")
+            db_age = last.get("stale_seconds")
+    except Exception:
+        pass
+    return {
+        "cache_age_s": round(age, 1),
+        "cache_fresh": bool(fresh),
+        "cache_has_data": _last.get("temp_c") is not None,
+        "db_ts": db_ts,
+        "db_age_s": db_age,
+    }
 
 @app.get("/sensors/read")
 def sensors_read():
