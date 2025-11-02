@@ -102,6 +102,11 @@ _relay_event_logs: Dict[str, deque] = defaultdict(lambda: deque(maxlen=200))
 _hold_until: Dict[str, float] = {}  # Temporary holds for debugging
 _estop_active: bool = False  # Global emergency stop (latching)
 
+# Reasons that should NOT persist to storage (do not overwrite last-known-good)
+# - boot_safe_off: safe-off initialization at service start
+# - emergency: E-STOP or emergency shutdown
+_SKIP_PERSIST_REASONS = {"boot_safe_off", REASON_EMERGENCY}
+
 # Persistence
 _STATE_FILE = os.path.expanduser("~/.rdwc/relay_state.json")
 
@@ -391,8 +396,10 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False) -> 
         # Update anti-flap detector
         _update_antiflap_detector(name, desired_on)
         
-        # Save state to disk for persistence across restarts
-        _save_state()
+        # Persist state unless this is a safety transition that shouldn't
+        # overwrite the last-known-good state used for restoration.
+        if reason not in _SKIP_PERSIST_REASONS:
+            _save_state()
         
         logger.info(f"relay {name} -> {'ON' if desired_on else 'OFF'} (reason={reason})")
         
