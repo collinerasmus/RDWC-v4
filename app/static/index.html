@@ -511,9 +511,11 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   /* Subtle click feedback */
   .relay-btn.loading{ opacity:.7; }
 
-  /* pH Dose History chart wrapper */
-  #ph-dose-chart-wrap { min-height: 260px; }
+  /* Dose History chart wrappers: fix height to prevent growth on tab re-open */
+  #ph-dose-chart-wrap { min-height: 260px; height: 260px; position: relative; }
   #phDoseChart { display: block; width: 100%; height: 260px; }
+  #ec-dose-chart-wrap { min-height: 260px; height: 260px; position: relative; }
+  #ecDoseChart { display: block; width: 100%; height: 260px; }
 
   /* BOP (Balance of Plant) styling */
   .bop-relay-card {
