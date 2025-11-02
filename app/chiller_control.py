@@ -36,9 +36,23 @@ def set_setting(key: str, value: str):
     upsert_settings({key: value})
 
 def get_latest_reading():
+    """Get cached sensor reading from main app's background loop."""
     try:
-        from app.sensors_core import read_all_sensors
-        return read_all_sensors()
+        # Import the cached sensor data from main.py
+        from app.main import _last, _last_t
+        import time
+        
+        # Check if cache is reasonably fresh (within 60 seconds)
+        age = time.time() - _last_t
+        if age < 60:
+            return {
+                'temperature_c': _last.get('temp_c'),
+                'ec_mscm': _last.get('ec_ms_cm'),
+                'ph': _last.get('ph'),
+                'online': True,
+                'age_seconds': age
+            }
+        return None
     except ImportError:
         return None
 

@@ -1325,41 +1325,53 @@ def sensors_last():
 def api_sensors():
     """
     Compatibility endpoint for static UI expecting /api/sensors.
-    Returns live readings via sensors_core.read_all_sensors(); if offline and all
-    values are null, returns last-known reading from the database.
+    Returns cached readings from background sensor loop (_last).
+    If cache is stale (>60s), falls back to database reading.
+    Never hits I2C directly to avoid bus contention.
     """
-    from app.sensors_core import read_all_sensors
     from app.services.sensors_fallback import get_last_reading
-    try:
-        j = read_all_sensors()
-    except Exception as e:
+    
+    # Use cached data from background loop
+    age = time.time() - _last_t
+    
+    # If cache is fresh (<60 seconds), use it
+    if age < 60 and _last.get("temp_c") is not None:
         j = {
-            "temperature_c": None,
-            "ec_mscm": None,
-            "ph": None,
-            "online": False,
-            "errors": {"read": str(e)},
-            "ts": None,
+            "temperature_c": _last.get("temp_c"),
+            "ec_mscm": _last.get("ec_ms_cm"),
+            "ph": _last.get("ph"),
+            "online": True,
+            "temp_comp_applied": _last.get("temp_comp_applied", False),
+            "temp_comp_reason": "cached",
+            "ts": datetime.utcnow().isoformat() + "Z",
+            "errors": _last.get("errors", {})
         }
-    t = j.get("temperature_c")
-    ec = j.get("ec_mscm") or j.get("ec")
-    p = j.get("ph")
-    online = bool(j.get("online"))
-    need_fallback = (not online) and (t is None and ec is None and p is None)
-    if need_fallback:
-        last = get_last_reading()
-        if last:
-            # Ensure expected shape for sensors.js
-            return {
-                "temperature_c": last.get("temperature_c"),
-                "ec_mscm": last.get("ec_mscm") or last.get("ec"),
-                "ph": last.get("ph"),
-                "ts": last.get("ts"),
-                "online": False,
-                "temp_comp_applied": False,
-                "temp_comp_reason": "fallback-db",
-            }
-    return j
+        return j
+    
+    # Cache is stale or empty, try database fallback
+    last = get_last_reading()
+    if last:
+        return {
+            "temperature_c": last.get("temperature_c"),
+            "ec_mscm": last.get("ec_mscm") or last.get("ec"),
+            "ph": last.get("ph"),
+            "ts": last.get("ts"),
+            "online": False,
+            "temp_comp_applied": False,
+            "temp_comp_reason": "fallback-db",
+        }
+    
+    # No data available at all
+    return {
+        "temperature_c": None,
+        "ec_mscm": None,
+        "ph": None,
+        "online": False,
+        "temp_comp_applied": False,
+        "temp_comp_reason": "no-data",
+        "ts": datetime.utcnow().isoformat() + "Z",
+        "errors": {}
+    }
 
 @app.get("/diag/sensors/once")
 def diag_sensors_once():
