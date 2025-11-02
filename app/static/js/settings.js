@@ -281,14 +281,28 @@
         try{
           const r = await (await fetch('/calib/dose/pumps?t='+Date.now(), {cache:'no-store'})).json();
           if (!r || !r.ok) throw new Error('load failed');
-          // Build options if empty
-          if (doseSel && doseSel.options.length===0){
-            r.pumps.forEach(p=>{
+          if (!Array.isArray(r.pumps)) r.pumps = [];
+          const prev = doseSel ? doseSel.value : '';
+          if (doseSel){
+            // Rebuild options fresh each time for robustness
+            doseSel.innerHTML = '';
+            if (r.pumps.length === 0){
               const opt = document.createElement('option');
-              opt.value = p.key;
-              opt.textContent = p.label;
+              opt.value = '';
+              opt.textContent = 'No pumps available';
+              opt.disabled = true; opt.selected = true;
               doseSel.appendChild(opt);
-            });
+            } else {
+              r.pumps.forEach(p=>{
+                const opt = document.createElement('option');
+                opt.value = p.key;
+                opt.textContent = p.label;
+                doseSel.appendChild(opt);
+              });
+              // Prefer previous selection if still present; else first
+              const hasPrev = r.pumps.some(p=>p.key===prev);
+              doseSel.value = hasPrev ? prev : r.pumps[0].key;
+            }
           }
           // Update current rate display
           const sel = (doseSel && doseSel.value) || (r.pumps[0] && r.pumps[0].key);
