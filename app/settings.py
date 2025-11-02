@@ -101,6 +101,17 @@ DEFAULTS: Dict[str, str] = {
     # Defaults to OFF for production safety
     "safety.allow_stale_on_override": "false",
 
+    # chiller (Hailea HS-52A intelligent control)
+    "chiller.target_temp": "19.0",           # °C - optimal for cannabis DWC/RDWC
+    "chiller.hysteresis": "0.5",             # °C - deadband (turn on at 19.5, off at 18.5)
+    "chiller.min_on_seconds": "300",         # 5 min minimum runtime (compressor protection)
+    "chiller.min_off_seconds": "600",        # 10 min minimum off time (cooldown)
+    "chiller.auto_enabled": "0",             # Start disabled for safety
+    "chiller.control_interval_s": "30",      # Check temperature every 30s
+    "chiller.max_temp_alarm": "24.0",        # Alert if water exceeds this (°C)
+    "chiller.min_temp_alarm": "16.0",        # Alert if water below this (°C)
+    "chiller.stage": "default",              # veg, flower, or default
+
     # alerts
     "alerts.email_to": "",
     "alerts.ph_hi_alert": "0",
@@ -248,6 +259,35 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
             v = i(final[k])
             if v is None or not (0 <= v <= 3600):
                 return False, {"field": k, "message": "Must be 0–3600"}
+    
+    # Chiller temperature control (14–26°C safe range for cannabis)
+    if "chiller.target_temp" in final:
+        v = f(final["chiller.target_temp"])
+        if v is None or not (14.0 <= v <= 26.0):
+            return False, {"field": "chiller.target_temp", "message": "Must be 14.0–26.0°C"}
+    
+    if "chiller.hysteresis" in final:
+        v = f(final["chiller.hysteresis"])
+        if v is None or not (0.1 <= v <= 3.0):
+            return False, {"field": "chiller.hysteresis", "message": "Must be 0.1–3.0°C"}
+    
+    # Chiller timing (0-3600s)
+    for k in ("chiller.min_on_seconds", "chiller.min_off_seconds", "chiller.control_interval_s"):
+        if k in final:
+            v = i(final[k])
+            if v is None or not (0 <= v <= 3600):
+                return False, {"field": k, "message": "Must be 0–3600 seconds"}
+    
+    # Chiller alarm temps
+    if "chiller.max_temp_alarm" in final:
+        v = f(final["chiller.max_temp_alarm"])
+        if v is None or not (20.0 <= v <= 30.0):
+            return False, {"field": "chiller.max_temp_alarm", "message": "Must be 20.0–30.0°C"}
+    
+    if "chiller.min_temp_alarm" in final:
+        v = f(final["chiller.min_temp_alarm"])
+        if v is None or not (10.0 <= v <= 18.0):
+            return False, {"field": "chiller.min_temp_alarm", "message": "Must be 10.0–18.0°C"}
 
     # Dosing settings validation
     if "dosing.ph_up_ml_per_sec" in final:
