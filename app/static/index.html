@@ -512,11 +512,20 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   /* Subtle click feedback */
   .relay-btn.loading{ opacity:.7; }
 
-  /* Dose History chart wrappers: match sensors graph height */
-  #ph-dose-chart-wrap { min-height: var(--h-trends); height: var(--h-trends); position: relative; }
-  #phDoseChart { display: block; width: 100%; height: var(--h-trends); }
-  #ec-dose-chart-wrap { min-height: var(--h-trends); height: var(--h-trends); position: relative; }
-  #ecDoseChart { display: block; width: 100%; height: var(--h-trends); }
+  /* Dose History chart wrappers: match sensors graph height with strict containment */
+  #ph-dose-chart-wrap, #ec-dose-chart-wrap {
+    position: relative;
+    height: var(--h-trends);
+    min-height: var(--h-trends);
+    max-height: var(--h-trends);
+    overflow: hidden;
+    contain: layout size;
+  }
+  #phDoseChart, #ecDoseChart {
+    display: block;
+    width: 100%;
+    height: var(--h-trends);
+  }
 
   /* BOP (Balance of Plant) styling */
   .bop-relay-card {
@@ -1214,7 +1223,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             </div>
           </div>
           <div id="ph-dose-chart-wrap" class="chart-card">
-            <canvas id="phDoseChart" width="1200" height="260"></canvas>
+            <canvas id="phDoseChart"></canvas>
             <div id="ph-dose-empty" class="muted small" style="display:none;padding:8px 0;">
               No doses recorded in this period.
             </div>
@@ -1389,7 +1398,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               </div>
             </div>
             <div id="ec-dose-chart-wrap" class="chart-card">
-              <canvas id="ecDoseChart" width="1200" height="260"></canvas>
+              <canvas id="ecDoseChart"></canvas>
               <div id="ec-dose-empty" class="muted small" style="display:none;padding:8px 0;">
                 No doses recorded in this period.
               </div>
