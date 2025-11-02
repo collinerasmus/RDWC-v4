@@ -14,6 +14,8 @@ from datetime import datetime, timedelta  # Keep global import
 from app.debug import router as debug_router, trace_relay_request
 from app.ezo_i2c_stabilized import read_all
 from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
+from app import ezo_i2c as _ezo
+from app.infra.i2c_bus import get_bus as _get_bus
 from app.diag import router as diag_router
 from app.blueprints.sensors_api import sensors_router
 from app.hardware import PumpController, RelayBank
@@ -1547,21 +1549,83 @@ def export_sensors_csv(hours: float = Query(24.0)):
 
     return StreamingResponse(_iter(), media_type="text/csv")
 
-# --- Calibration stubs ---
-@app.post("/calib/ph/start")
-def calib_ph_start():
-    steps = [
-        "Rinse probe",
-        "Place in 7.00 buffer",
-        "Place in 4.00 buffer",
-        "Confirm and (optionally) apply"
-    ]
-    return {"ok": True, "mode": "ph", "steps": steps, "note": "Writes are disabled by default."}
+# --- Calibration (pH) endpoints ---
+ 
 
-@app.post("/calib/ph/apply")
-def calib_ph_apply():
-    enabled = os.environ.get("CALIB_ENABLE", "0") == "1"
-    if not enabled:
-        return {"ok": False, "applied": False, "note": "Calibration writes disabled. Set CALIB_ENABLE=1 to enable."}
-    # TODO: perform actual calibration commands to the probe when enabled
-    return {"ok": True, "applied": False, "note": "Stub only - implement calibration logic when enabled."}
+def _calib_enabled() -> bool:
+    return os.environ.get("CALIB_ENABLE", "0") == "1"
+
+def _ph_cmd(cmd: str, settle: float = 0.35):
+    try:
+        bus = _get_bus()
+        _ezo._send_cmd(bus, _ezo.ADDR_PH, cmd)
+        time.sleep(settle)
+        status, payload = _ezo._poll_until_ready(bus, _ezo.ADDR_PH)
+        return status, (payload or "")
+    except Exception as ex:
+        return 0, f"error:{type(ex).__name__}"
+
+@app.get("/calib/ph/caps")
+def calib_ph_caps():
+    return {"enabled": _calib_enabled()}
+
+@app.get("/calib/ph/read")
+def calib_ph_read():
+    try:
+        val = _ezo.read_single(_ezo.ADDR_PH)
+        return {"ok": True, "value": val}
+    except Exception as ex:
+        return {"ok": False, "note": type(ex).__name__}
+
+@app.get("/calib/ph/status")
+def calib_ph_status():
+    st, payload = _ph_cmd("Cal,?")
+    ok = (st == _ezo.EZO_STATUS_SUCCESS)
+    flags = []
+    note = payload
+    # Typical payloads include text like "?,mid,low" when points are set
+    try:
+        if payload:
+            parts = [p.strip() for p in payload.split(",") if p.strip()]
+            # Remove leading '?' if present
+            if parts and parts[0] == '?':
+                parts = parts[1:]
+            flags = parts
+    except Exception:
+        pass
+    return {"ok": ok, "status": note, "flags": flags}
+
+def _require_enabled():
+    if not _calib_enabled():
+        return {"ok": False, "note": "Calibration writes disabled. Set CALIB_ENABLE=1 and restart."}
+    return None
+
+@app.post("/calib/ph/clear")
+def calib_ph_clear():
+    chk = _require_enabled()
+    if chk:
+        return chk
+    st, payload = _ph_cmd("Cal,clear")
+    ok = (st == _ezo.EZO_STATUS_SUCCESS)
+    return {"ok": ok, "note": payload or ("Cleared" if ok else "Failed")}
+
+def _apply_point(kind: str, value: float):
+    chk = _require_enabled()
+    if chk:
+        return chk
+    v = max(0.0, min(14.0, float(value)))
+    st, payload = _ph_cmd(f"Cal,{kind},{v:.2f}")
+    ok = (st == _ezo.EZO_STATUS_SUCCESS)
+    return {"ok": ok, "note": payload or (f"Applied {kind} {v:.2f}" if ok else "Failed")}
+
+@app.post("/calib/ph/mid")
+def calib_ph_mid(value: float = 7.00):
+    return _apply_point("mid", value)
+
+@app.post("/calib/ph/low")
+def calib_ph_low(value: float = 4.00):
+    return _apply_point("low", value)
+
+@app.post("/calib/ph/high")
+def calib_ph_high(value: float = 10.00):
+    return _apply_point("high", value)

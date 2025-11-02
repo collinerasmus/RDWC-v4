@@ -93,18 +93,38 @@
       title.className = 'muted';
       title.style.margin = '0 0 8px 0';
 
+      // pH calibration card
       const phWrap = document.createElement('div');
       phWrap.className = 'card';
       phWrap.style.padding = '12px';
       phWrap.innerHTML = `
         <h3 style="margin-top:0;">pH Calibration</h3>
+        <div id="ph-calib-banner" class="row" style="margin-bottom:6px;display:none">
+          <span class="muted">Writes are disabled. Set CALIB_ENABLE=1 and restart service to enable calibration commands.</span>
+        </div>
         <div class="row">
-          <button onclick="calibStart()" class="btn-secondary">Start</button>
-          <button onclick="calibApply()" class="btn-secondary" style="margin-left:8px">Apply</button>
-          <span id="calibMsg" class="muted" style="margin-left:10px"></span>
+          <label>Current pH:</label>
+          <span id="ph-current" style="margin-left:8px">—</span>
+          <button id="btnPhRead" class="btn-secondary" style="margin-left:8px">Read</button>
+          <button id="btnPhStatus" class="btn-secondary" style="margin-left:8px">Status</button>
+        </div>
+        <div class="row" style="margin-top:6px;align-items:center;flex-wrap:wrap;gap:6px;">
+          <label>Buffer:</label>
+          <select id="ph-buffer-kind" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3">
+            <option value="mid" data-default="7.00">Mid (7.00)</option>
+            <option value="low" data-default="4.00">Low (4.00)</option>
+            <option value="high" data-default="10.00">High (10.00)</option>
+          </select>
+          <input id="ph-buffer-val" type="number" step="0.01" min="0" max="14" value="7.00" style="width:90px;margin-left:4px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3"/>
+          <button id="btnPhCalibrate" class="btn-secondary">Calibrate</button>
+          <button id="btnPhClear" class="btn-secondary" style="margin-left:8px">Clear</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <span id="ph-calib-msg" class="muted"></span>
         </div>
       `;
 
+      // EC placeholder
       const ecWrap = document.createElement('div');
       ecWrap.className = 'card';
       ecWrap.style.padding = '12px';
@@ -121,6 +141,69 @@
       panel.appendChild(title);
       panel.appendChild(phWrap);
       panel.appendChild(ecWrap);
+
+      // Wire up pH controls
+      const msg = () => q('#ph-calib-msg');
+      const setMsg = (t, ok=true) => { const el = msg(); if (!el) return; el.textContent = t||''; el.style.color = ok? '#9ca3af' : '#fca5a5'; };
+      const setCurrent = (v) => { const sp = q('#ph-current'); if (sp) sp.textContent = (v==null? '—' : Number(v).toFixed(2)); };
+      const setBanner = (on) => { const b = q('#ph-calib-banner'); if (b) b.style.display = on? 'block':'none'; };
+
+      // Default buffer value follows selection
+      const kindSel = q('#ph-buffer-kind');
+      const valInp = q('#ph-buffer-val');
+      if (kindSel && valInp){
+        kindSel.addEventListener('change', ()=>{
+          const opt = kindSel.options[kindSel.selectedIndex];
+          const def = opt ? (opt.getAttribute('data-default')||'') : '';
+          if (def) valInp.value = def;
+        });
+      }
+
+      const read = async ()=>{
+        try{
+          const r = await (await fetch('/calib/ph/read?t='+Date.now(), {cache:'no-store'})).json();
+          if (r && r.ok){ setCurrent(r.value); setMsg('Read OK'); }
+          else { setMsg(r && r.note ? r.note : 'Read failed', false); }
+        }catch(e){ setMsg('Read failed', false); }
+      };
+      const status = async ()=>{
+        try{
+          const r = await (await fetch('/calib/ph/status?t='+Date.now(), {cache:'no-store'})).json();
+          if (r && r.ok){ setMsg('Status: ' + (r.status||'unknown') + (r.flags? ' • '+r.flags.join(', '):'')); }
+          else { setMsg('Status check failed', false); }
+        }catch(e){ setMsg('Status check failed', false); }
+      };
+      const caps = async ()=>{
+        try{
+          const r = await (await fetch('/calib/ph/caps?t='+Date.now(), {cache:'no-store'})).json();
+          setBanner(!(r && r.enabled));
+        }catch(e){ /* noop */ }
+      };
+      const doCal = async ()=>{
+        try{
+          const kind = (kindSel && kindSel.value) || 'mid';
+          const val  = parseFloat(valInp && valInp.value || '7.00');
+          const ep = kind==='low'? 'low' : kind==='high'? 'high' : 'mid';
+          const r = await (await fetch(`/calib/ph/${ep}?value=${encodeURIComponent(val.toFixed(2))}`, {method:'POST'})).json();
+          if (r && r.ok){ setMsg(r.note || 'Calibration command sent'); }
+          else { setMsg((r && r.note) || 'Calibration rejected', false); }
+        }catch(e){ setMsg('Calibration failed', false); }
+      };
+      const clear = async ()=>{
+        try{
+          const r = await (await fetch('/calib/ph/clear', {method:'POST'})).json();
+          if (r && r.ok){ setMsg(r.note || 'Calibration cleared'); }
+          else { setMsg((r && r.note) || 'Clear rejected', false); }
+        }catch(e){ setMsg('Clear failed', false); }
+      };
+
+      const bRead = q('#btnPhRead'); if (bRead) bRead.addEventListener('click', read);
+      const bStat = q('#btnPhStatus'); if (bStat) bStat.addEventListener('click', status);
+      const bCal  = q('#btnPhCalibrate'); if (bCal) bCal.addEventListener('click', doCal);
+      const bClr  = q('#btnPhClear'); if (bClr) bClr.addEventListener('click', clear);
+
+      // Prime values on open
+      setMsg(''); caps(); status(); read();
       return panel;
     }
     const fields = GROUP_DEF[ns].fields;

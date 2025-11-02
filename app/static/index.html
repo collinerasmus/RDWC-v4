@@ -1060,18 +1060,7 @@ function toggleRecentReadings(){
   // Expose for external control if needed
   window.cameraControl = { startStream, stopStream, refreshStatus };
 })();
-async function calibStart(){
-  try{
-    const r = await (await fetch('/calib/ph/start',{method:'POST'})).json();
-    document.getElementById('calibMsg').textContent = (r.note||'') + ' Steps: ' + (r.steps||[]).join(' → ');
-  }catch(e){ document.getElementById('calibMsg').textContent = 'Failed to start calibration'; }
-}
-async function calibApply(){
-  try{
-    const r = await (await fetch('/calib/ph/apply',{method:'POST'})).json();
-    document.getElementById('calibMsg').textContent = r.note || (r.applied? 'Calibration applied':'Not applied');
-  }catch(e){ document.getElementById('calibMsg').textContent = 'Failed to apply calibration'; }
-}
+// Calibration functions moved into Settings > Calibration panel (settings.js)
 
 // Layout Debug Overlay
 (function() {
