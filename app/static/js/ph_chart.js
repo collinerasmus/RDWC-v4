@@ -272,10 +272,11 @@
 
     // Render chart
     const axisTitle = hasAnyMl ? 'Dose (ml)' : 'Dose (s)';
-    // Use Date objects for axis bounds too
-    const tmin = events.length ? new Date(events[0].ts) : (summary[0]?.day ? new Date(summary[0].day) : null);
-    const tmax = events.length ? new Date(events[events.length-1].ts) : (summary[summary.length-1]?.day ? new Date(summary[summary.length-1].day) : null);
-    console.log('[pH Chart] Axis bounds', {tmin, tmax});
+    // Use the REQUESTED timeframe for axis bounds (not data bounds)
+    // This ensures the full timeframe is visible even with sparse data
+    const tmin = startISO ? new Date(startISO) : null;
+    const tmax = endISO ? new Date(endISO) : null;
+    console.log('[pH Chart] Axis bounds (from request)', {tmin, tmax, startISO, endISO});
     phBuildChart(datasets, tmin, tmax, axisTitle);
 
     // Update "In range" pill

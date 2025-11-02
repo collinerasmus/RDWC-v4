@@ -440,6 +440,24 @@
     currentRange.start = range.start;
     currentRange.end = range.end;
     
+    // Auto-populate datetime inputs with current range so user knows what they're viewing
+    const fromEl = el('phDoseFrom');
+    const toEl = el('phDoseTo');
+    if (fromEl && toEl && range.start && range.end) {
+      // Convert timestamps to datetime-local format (YYYY-MM-DDTHH:mm)
+      const formatForInput = (ts) => {
+        const d = new Date(ts);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+      };
+      fromEl.value = formatForInput(range.start);
+      toEl.value = formatForInput(range.end);
+    }
+    
     // Refresh chart and summary
     await refreshDoseChart();
     await refreshSummary();
