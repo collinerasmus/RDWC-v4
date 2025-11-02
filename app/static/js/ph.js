@@ -7,12 +7,9 @@
   let countdownTimer = null;
   let lastPollAt = Date.now();
   let currentRange = { preset: null, start: null, end: null };
-  // Recent autohide state
-  let recentHideTimer = null;
-  let recentCollapsed = false;
-  let lastRecentFirstId = null;
+  // Recent collapse state (manual only, no auto-hide)
+  let recentCollapsed = true;
   let recentHeaderBound = false;
-  let recentUserHold = false; // when user expands manually, suppress autohide until next new event
 
   function el(id){ return document.getElementById(id); }
 
@@ -86,25 +83,12 @@
       if (hdr && !recentHeaderBound){
         recentHeaderBound = true;
         hdr.addEventListener('click', ()=>{
-          setRecentCollapsed(!recentCollapsed, true);
+          setRecentCollapsed(!recentCollapsed);
         });
       }
 
-      // Auto-show on new top event, then autohide after a delay
-      const top = (s.recent && s.recent.length) ? (s.recent[0].id || s.recent[0].ts_utc || null) : null;
-      if (top && top !== lastRecentFirstId){
-        lastRecentFirstId = top;
-        recentUserHold = false; // new event clears user hold
-        setRecentCollapsed(false, false); // expand
-        scheduleRecentAutoHide();
-      } else {
-        // keep current collapsed state; ensure DOM reflects it
-        setRecentCollapsed(recentCollapsed, false);
-        // If not collapsed and not in user-hold, ensure one-time auto-hide is scheduled on initial load
-        if (!recentCollapsed && !recentUserHold && (s.recent?.length || 0) > 0 && !recentHideTimer){
-          scheduleRecentAutoHide();
-        }
-      }
+      // Keep current collapsed state (no auto-show on new events)
+      setRecentCollapsed(recentCollapsed);
     }
     // Determine disabled state; maintenance override bypasses cooldown/daily_cap
     const g = s?.guards || {};
@@ -240,23 +224,13 @@
     }
   }
 
-  // --- Recent list collapse/auto-hide helpers (scoped to this module so `el` is available) ---
-  function scheduleRecentAutoHide(){
-    cancelRecentAutoHide();
-    recentHideTimer = setTimeout(()=> setRecentCollapsed(true, false), 8000);
-  }
-  function cancelRecentAutoHide(){ if(recentHideTimer){ clearTimeout(recentHideTimer); recentHideTimer=null; } }
-  function setRecentCollapsed(collapsed, user){
+  // --- Recent list collapse helper (manual toggle only, no auto-hide) ---
+  function setRecentCollapsed(collapsed){
     recentCollapsed = !!collapsed;
     const list = el('ph-recent');
     const hdr = el('ph-recent-header');
     if (list){ list.style.display = collapsed ? 'none' : 'block'; }
     if (hdr){ hdr.textContent = collapsed ? 'Grow Log ▸' : 'Grow Log ▾'; }
-    // If user expanded manually, don't re-autohide until next new event
-    if (user){
-      if (!collapsed){ recentUserHold = true; cancelRecentAutoHide(); }
-      else { cancelRecentAutoHide(); }
-    }
   }
 
   // --- Chart refresh (scoped here to access currentRange) ---
