@@ -75,8 +75,8 @@ DEFAULTS: Dict[str, str] = {
     "dosing.ph_up_max_ml_per_day": "50",
     "dosing.ph_up_max_single_ml": "5",
     "dosing.ph_min_interval_s": "300",
-    # Observe window after dose (extended for automation stability)
-    "dosing.observe_s_after_dose": "600",
+    # Observe window after dose (7 hours based on real-world stabilization data)
+    "dosing.observe_s_after_dose": "25200",
 
     # pH Up automation (production defaults)
     "ph.auto_enabled": "false",
@@ -273,8 +273,8 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
             return False, {"field": "dosing.ph_min_interval_s", "message": "Must be 0–86400"}
     if "dosing.observe_s_after_dose" in final:
         v = i(final["dosing.observe_s_after_dose"])
-        if v is None or not (0 <= v <= 3600):
-            return False, {"field": "dosing.observe_s_after_dose", "message": "Must be 0–3600"}
+        if v is None or not (0 <= v <= 86400):
+            return False, {"field": "dosing.observe_s_after_dose", "message": "Must be 0–86400"}
 
     # --- Cross-field checks ---
     ph_lo = f(final.get("targets.ph_low"), f(current.get("targets.ph_low", 5.8)))
