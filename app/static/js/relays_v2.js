@@ -160,7 +160,7 @@
       const wrap = await getJSON('/api/relays/status');
       if (wrap && wrap.relays) {
         // sync system mode/estop from wrapper
-        if (wrap.mode) { currentMode = String(wrap.mode); state.systemMode = currentMode; }
+        if (wrap.mode) { currentMode = String(wrap.mode); state.systemMode = currentMode; updateModeButtons(); renderModeHint(); }
         if (typeof wrap.estop === 'boolean') { state.estop = wrap.estop; updateEstopButton(); }
         if (typeof wrap.restored === 'boolean') { state.restoredBoot = !!wrap.restored; }
         // Coerce to { key: {state, lockout} }
@@ -482,6 +482,8 @@
         const cooldown = result.cooldown_remaining || 0;
         if (reason==='cooldown' || reason==='antiflap'){
           showToast(`Protected: ready in ${fmtSeconds(cooldown)}`,'warning');
+        } else if (reason==='blocked' && key==='lights') {
+          showToast('Lights changes are limited: use schedule, override, emergency, apply settings, or restore.', 'warning');
         } else {
           showToast(`Action blocked: ${result.message || reason}`,'error');
         }
