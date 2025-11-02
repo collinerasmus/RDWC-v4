@@ -113,6 +113,8 @@
   document.addEventListener("DOMContentLoaded", ()=>{
     console.log("[Sensors] Initializing real-time updates");
     tick(); // Initial fetch
-    setInterval(tick, 2000); // Update every 2s
+    // Respect configurable poll interval (default 5000ms)
+    const poll = (window.APP_POLL && window.APP_POLL.sensors) ? (parseInt(window.APP_POLL.sensors,10)||5000) : 5000;
+    setInterval(tick, Math.max(1500, poll));
   });
 })();

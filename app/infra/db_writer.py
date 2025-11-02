@@ -47,6 +47,14 @@ class DatabaseWriter:
                 isolation_level=None,  # Autocommit mode
                 check_same_thread=False
             )
+            try:
+                # Harden SQLite for durability and concurrency
+                self.connection.execute("PRAGMA journal_mode=WAL;")
+                self.connection.execute("PRAGMA synchronous=NORMAL;")
+                self.connection.execute("PRAGMA busy_timeout=30000;")
+                self.connection.execute("PRAGMA foreign_keys=ON;")
+            except Exception:
+                pass
             self._ensure_tables()
         return self.connection
     
@@ -109,11 +117,12 @@ class DatabaseWriter:
             self._process_batch(batch)
     
     def _process_batch(self, batch):
-        """Process a batch of database operations"""
+        """Process a batch of database operations with retries; never drop silently."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            
+            # Use an explicit transaction for atomicity
+            cursor.execute("BEGIN IMMEDIATE")
             for item in batch:
                 if item['type'] == 'reading':
                     cursor.execute(
@@ -125,11 +134,38 @@ class DatabaseWriter:
                         "INSERT INTO events (ts, event) VALUES (?, ?)",
                         (item['ts'], item['event'])
                     )
-            
-            cursor.close()  # Always close cursor
-            
+            cursor.execute("COMMIT")
         except Exception as e:
-            print(f"Database batch processing error: {e}")
+            try:
+                cursor.execute("ROLLBACK")
+            except Exception:
+                pass
+            print(f"Database batch processing error (will retry individually): {e}")
+            # Retry item-by-item so partial success is possible
+            for item in batch:
+                for attempt in range(3):
+                    try:
+                        if item['type'] == 'reading':
+                            cursor.execute(
+                                "INSERT INTO readings (ts, temp_c, ph, ec_ms_cm) VALUES (?, ?, ?, ?)",
+                                (item['ts'], item['temp_c'], item['ph'], item['ec_ms_cm'])
+                            )
+                        elif item['type'] == 'event':
+                            cursor.execute(
+                                "INSERT INTO events (ts, event) VALUES (?, ?)",
+                                (item['ts'], item['event'])
+                            )
+                        break
+                    except Exception as ee:
+                        if attempt == 2:
+                            print(f"Database write permanently failed for item {item}: {ee}")
+                        else:
+                            time.sleep(0.2 * (attempt + 1))
+        finally:
+            try:
+                cursor.close()
+            except Exception:
+                pass
     
     def log_reading(self, temp_c: float, ph: float, ec_ms_cm: float):
         """Queue a sensor reading for database storage"""
