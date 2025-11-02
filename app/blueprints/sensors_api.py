@@ -23,62 +23,83 @@ _provider = SensorsProvider(use_mock=USE_MOCK)
 logger.info(f"[SensorsAPI] Initialized with mock={USE_MOCK}")
 
 def _get_sensors_data():
-    """Common function to get sensor data"""
+    """
+    Return sensor data without touching I2C directly.
+    Priority:
+    1) Cached reading from background loop in app.main (fresh < 60s)
+    2) Database fallback via services.sensors_fallback.get_last_reading()
+    3) Final safe empty payload
+
+    This guarantees a single place performs I2C reads (the background loop),
+    eliminating contention and flakiness when multiple controllers request data.
+    """
     try:
-        return _provider.read_all()
+        from app.main import _last, _last_t
+        age = (datetime.datetime.utcnow().timestamp() - _last_t)
+        if age < 60 and _last.get("temp_c") is not None:
+            return {
+                "temperature_c": _last.get("temp_c"),
+                "ec_mscm": _last.get("ec_ms_cm"),
+                "ph": _last.get("ph"),
+                "online": True,
+                "ts": datetime.datetime.utcnow().isoformat() + "Z",
+                "temp_comp_applied": False,
+                "temp_comp_reason": "cached",
+                "cal": {
+                    "temp": {"is_calibrated": False, "detail": "cached"},
+                    "ec": {"is_calibrated": False, "detail": "cached"},
+                    "ph": {"is_calibrated": False, "detail": "cached"}
+                }
+            }
     except Exception as e:
-        logger.error(f"[SensorsAPI] Unexpected error: {e}")
-        # Return safe fallback
-        return {
-            "temperature_c": None,
-            "ec_mscm": None,
-            "ph": None,
-            "cal": {
-                "temp": {"is_calibrated": False, "detail": "error"},
-                "ec": {"is_calibrated": False, "detail": "error"},
-                "ph": {"is_calibrated": False, "detail": "error"}
-            },
-            "online": False,
-            "ts": None
+        logger.warning(f"[SensorsAPI] Cache access failed, will try DB fallback: {e}")
+
+    # DB fallback
+    try:
+        last = get_last_reading()
+        if last:
+            return {
+                "temperature_c": last.get("temperature_c"),
+                "ec_mscm": last.get("ec_mscm"),
+                "ph": last.get("ph"),
+                "online": False,
+                "ts": last.get("ts"),
+                "temp_comp_applied": False,
+                "temp_comp_reason": "fallback-db",
+                "cal": {
+                    "temp": {"is_calibrated": False, "detail": "fallback"},
+                    "ec": {"is_calibrated": False, "detail": "fallback"},
+                    "ph": {"is_calibrated": False, "detail": "fallback"}
+                }
+            }
+    except Exception as e:
+        logger.error(f"[SensorsAPI] DB fallback failed: {e}")
+
+    # Final safe payload
+    return {
+        "temperature_c": None,
+        "ec_mscm": None,
+        "ph": None,
+        "online": False,
+        "ts": datetime.datetime.utcnow().isoformat() + "Z",
+        "temp_comp_applied": False,
+        "temp_comp_reason": "no-data",
+        "cal": {
+            "temp": {"is_calibrated": False, "detail": "none"},
+            "ec": {"is_calibrated": False, "detail": "none"},
+            "ph": {"is_calibrated": False, "detail": "none"}
         }
+    }
 
 @sensors_router.get('/sensors')
 async def get_sensors():
     """
     GET /api/sensors
-    Returns current sensor readings with calibration status
-    Always returns 200 OK (even if hardware offline)
-    
-    Hard timeout enforced at API level to prevent UI freeze.
+    Return cached background-loop readings or DB fallback.
+    This endpoint is now guaranteed fast and never talks to I2C.
     """
-    timeout_s = float(os.getenv("RDWC_SENSORS_API_TIMEOUT_S", "2.8"))
-    
-    try:
-        # Wrap blocking call in asyncio.to_thread with timeout
-        data = await asyncio.wait_for(
-            asyncio.to_thread(_get_sensors_data),
-            timeout=timeout_s
-        )
-        return JSONResponse(content=data, status_code=200)
-    
-    except asyncio.TimeoutError:
-        logger.warning(f"[SensorsAPI] Timeout after {timeout_s}s - returning safe fallback")
-        # Return safe fallback (always 200 OK)
-        data = {
-            "temperature_c": None,
-            "ec_mscm": None,
-            "ph": None,
-            "temp_comp_applied": False,
-            "temp_comp_reason": "api-timeout",
-            "online": False,
-            "ts": datetime.datetime.utcnow().isoformat() + "Z",
-            "cal": {
-                "temp": {"is_calibrated": False, "detail": "timeout"},
-                "ec": {"is_calibrated": False, "detail": "timeout"},
-                "ph": {"is_calibrated": False, "detail": "timeout"}
-            }
-        }
-        return JSONResponse(content=data, status_code=200)
+    data = _get_sensors_data()
+    return JSONResponse(content=data, status_code=200)
 
 @sensors_router.get('/sensors/last')
 async def api_sensors_last():
