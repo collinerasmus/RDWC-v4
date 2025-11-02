@@ -37,41 +37,71 @@ class SensorsProvider:
     
     def read_all(self) -> Dict[str, Any]:
         """
-        Read all sensor values using sensors_core as single source of truth
-        Adds calibration status for UI display
+        Read sensors in a contention-free way:
+        - Prefer cached reading from app.main background loop (fresh <60s)
+        - Otherwise fall back to last DB reading
+        - Never touches I2C directly here
         """
-        from app.sensors_core import read_all_sensors as core_read
-        
         try:
-            # Get data from core (includes temp_comp_applied, ts, etc)
-            data = core_read()
-            
-            # Add calibration status for UI (stub for now - can enhance later)
-            if "cal" not in data:
-                data["cal"] = {
-                    "temp": {"is_calibrated": False, "detail": "unknown"},
-                    "ec": {"is_calibrated": False, "detail": "unknown"},
-                    "ph": {"is_calibrated": False, "detail": "unknown"}
+            # Try cached background reading
+            from app.main import _last, _last_t
+            import time
+            age = time.time() - _last_t
+            if age < 60 and _last.get("temp_c") is not None:
+                return {
+                    "temperature_c": _last.get("temp_c"),
+                    "ec_mscm": _last.get("ec_ms_cm"),
+                    "ph": _last.get("ph"),
+                    "temp_comp_applied": False,
+                    "temp_comp_reason": "cached",
+                    "ts": datetime.utcnow().isoformat() + "Z",
+                    "online": True,
+                    "cal": {
+                        "temp": {"is_calibrated": False, "detail": "cached"},
+                        "ec": {"is_calibrated": False, "detail": "cached"},
+                        "ph": {"is_calibrated": False, "detail": "cached"}
+                    }
                 }
-            
-            return data
-            
         except Exception as e:
-            logger.error(f"[SensorsProvider] Read failed: {e}")
-            return {
-                "temperature_c": None,
-                "ec_mscm": None,
-                "ph": None,
-                "temp_comp_applied": False,
-                "ts": datetime.utcnow().isoformat() + "Z",
-                "online": False,
-                "cal": {
-                    "temp": {"is_calibrated": False, "detail": "unknown"},
-                    "ec": {"is_calibrated": False, "detail": "unknown"},
-                    "ph": {"is_calibrated": False, "detail": "unknown"}
-                },
-                "errors": {"provider_error": str(e)}
+            logger.warning(f"[SensorsProvider] Cache read failed: {e}")
+
+        # DB fallback
+        try:
+            from app.services.sensors_fallback import get_last_reading
+            last = get_last_reading()
+            if last:
+                return {
+                    "temperature_c": last.get("temperature_c"),
+                    "ec_mscm": last.get("ec_mscm"),
+                    "ph": last.get("ph"),
+                    "temp_comp_applied": False,
+                    "temp_comp_reason": "fallback-db",
+                    "ts": last.get("ts"),
+                    "online": False,
+                    "cal": {
+                        "temp": {"is_calibrated": False, "detail": "fallback"},
+                        "ec": {"is_calibrated": False, "detail": "fallback"},
+                        "ph": {"is_calibrated": False, "detail": "fallback"}
+                    }
+                }
+        except Exception as e:
+            logger.error(f"[SensorsProvider] DB fallback failed: {e}")
+
+        # Final safe payload
+        return {
+            "temperature_c": None,
+            "ec_mscm": None,
+            "ph": None,
+            "temp_comp_applied": False,
+            "temp_comp_reason": "no-data",
+            "ts": datetime.utcnow().isoformat() + "Z",
+            "online": False,
+            "cal": {
+                "temp": {"is_calibrated": False, "detail": "none"},
+                "ec": {"is_calibrated": False, "detail": "none"},
+                "ph": {"is_calibrated": False, "detail": "none"}
             }
+        }
     
     def mock_read_all(self) -> Dict[str, Any]:
         """Return stable mock data for development"""
