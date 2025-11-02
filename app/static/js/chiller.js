@@ -279,11 +279,9 @@
 
   // Initialize
   function initChillerControl() {
-    const bopCard = q('#bop-card');
-    if (!bopCard) {
-      console.warn('BOP card not found, skipping chiller control init');
-      return;
-    }
+    // Initialize only if chiller elements exist (works in Temperature tab)
+    const currentTempEl = q('#chiller-current-temp');
+    if (!currentTempEl) return;
     
     // Wire controls
     wireChillerControls();

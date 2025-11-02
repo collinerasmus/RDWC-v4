@@ -12,35 +12,9 @@
         'general.grow_start_date': {label:'Grow start date', type:'date', tooltip:'Used for \'Grow\' quick range and Day N'}
       }
     },
-    targets: {
-      title: 'Targets',
-      fields: {
-        'targets.ph_low': {label:'pH Low', type:'number', min:4.0, max:7.5, step:0.01},
-        'targets.ph_high': {label:'pH High', type:'number', min:4.0, max:7.5, step:0.01},
-        'targets.ec_target': {label:'EC Target (mS/cm)', type:'number', min:0.0, max:4.0, step:0.01},
-        'targets.ec_tolerance': {label:'EC Tolerance (±)', type:'number', min:0.0, max:4.0, step:0.01},
-        'targets.temp_target_c': {label:'Temp Target (°C)', type:'number', min:15, max:28, step:1}
-      }
-    },
-    dosing: {
-      title: 'Dosing',
-      fields: {
-        'dosing.pulse_ml_grow': {label:'Grow pulse (ml)', type:'number', min:0, max:1000, step:1},
-        'dosing.pulse_ml_micro': {label:'Micro pulse (ml)', type:'number', min:0, max:1000, step:1},
-        'dosing.pulse_ml_bloom': {label:'Bloom pulse (ml)', type:'number', min:0, max:1000, step:1},
-        'dosing.max_ml_hour_': {label:'Max per hour (ml)', type:'number', min:0, max:5000, step:1},
-        'dosing.max_ml_day_': {label:'Max per day (ml)', type:'number', min:0, max:20000, step:1},
-        'dosing.mix_delay_s': {label:'Mix delay (s)', type:'number', min:0, max:3600, step:1},
-        'dosing.ph_up_ml_per_sec': {label:'pH Up calibration (ml/s)', type:'number', min:0.1, max:200, step:0.1, tooltip:'Used to convert seconds to ml for totals'}
-      }
-    },
     safety: {
       title: 'Safety',
       fields: {
-        'safety.main_pump_min_off_s': {label:'Main pump min OFF (s)', type:'number', min:0, max:3600, step:1, tooltip:'Minimum OFF time to prevent short cycling'},
-        'safety.chiller_pump_min_off_s': {label:'Chiller pump min OFF (s)', type:'number', min:0, max:3600, step:1},
-        'safety.chiller_min_off_s': {label:'Chiller AC min OFF (s)', type:'number', min:0, max:3600, step:1, tooltip:'Compressor protection — recommended ≥ 300s'},
-        'safety.chiller_min_on_s': {label:'Chiller AC min ON (s)', type:'number', min:0, max:3600, step:1},
         'safety.estop_persist': {label:'E‑STOP persists across reboot', type:'checkbox'},
         'safety.allow_force': {label:'Allow Force (test)', type:'checkbox', tooltip:'Temporarily allow bypassing cooldown and daily cap for testing only'},
         'safety.maintenance_override': {label:'Maintenance override (test only)', type:'checkbox', tooltip:'Bypasses cooldown/daily cap; clamps single dose; E-STOP/empty reservoir still enforced'},
@@ -51,13 +25,7 @@
       title: 'Alerts',
       fields: {
         'alerts.email_to': {label:'Alert email to', type:'text', placeholder:'user@example.com'},
-        'alerts.ph_hi_alert': {label:'pH high threshold', type:'number', min:4.0, max:7.5, step:0.01},
-        'alerts.ph_lo_alert': {label:'pH low threshold', type:'number', min:4.0, max:7.5, step:0.01},
-        'alerts.ec_hi_alert': {label:'EC high (mS/cm)', type:'number', min:0, max:4, step:0.01},
-        'alerts.ec_lo_alert': {label:'EC low (mS/cm)', type:'number', min:0, max:4, step:0.01},
-        'alerts.temp_hi_alert': {label:'Temp high (°C)', type:'number', min:15, max:40, step:1},
-        'alerts.temp_lo_alert': {label:'Temp low (°C)', type:'number', min:0, max:28, step:1},
-        'alerts.alert_cooldown_s': {label:'Alert cooldown (s)', type:'number', min:0, max:86400, step:1}
+        'alerts.alert_cooldown_s': {label:'Alert cooldown (s)', type:'number', min:0, max:86400, step:1, tooltip:'Cooldown between alerts to prevent spam'}
       }
     },
     ui: {

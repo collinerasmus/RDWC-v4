@@ -13,9 +13,9 @@ Automation: background controller that raises EC when it falls below the target 
 It learns dose effect from prior dose logs (ml per 1.0 mS/cm) and respects all guards.
 """
 from fastapi import APIRouter, Body
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from typing import Dict, Any, Optional, Tuple, List
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import time
 import sqlite3
 import threading
@@ -103,6 +103,77 @@ def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
             "result": r[8], "reason": r[9]
         })
     return out
+
+def _dose_events_range(start: Optional[str] = None, end: Optional[str] = None, hours: Optional[int] = None, limit: int = 2000) -> List[Dict[str, Any]]:
+    """Return dose events within a time range ordered ascending by ts_utc.
+    Each row: {ts, seconds, volume_ml, detail, ec_before, ec_after, guard_triggered}
+    """
+    _ensure_tables()
+    # Determine time window
+    start_iso = None
+    end_iso = None
+    if start and end:
+        start_iso = start
+        end_iso = end
+    elif hours:
+        end_iso = datetime.now(timezone.utc).isoformat()
+        start_iso = (datetime.now(timezone.utc) - timedelta(hours=int(hours))).isoformat()
+    else:
+        # Default last 24h
+        end_iso = datetime.now(timezone.utc).isoformat()
+        start_iso = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT ts_utc, action, volume_ml, duration_ms, pre_ec, post_ec, result, reason
+            FROM ec_dose_log
+            WHERE ts_utc BETWEEN ? AND ?
+            ORDER BY ts_utc ASC
+            LIMIT ?
+            """,
+            (start_iso, end_iso, int(limit))
+        )
+        rows = cur.fetchall()
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        ts_s = r[0]
+        out.append({
+            "ts": ts_s,
+            "seconds": (float(r[3]) / 1000.0) if r[3] is not None else None,
+            "volume_ml": float(r[2]) if r[2] is not None else None,
+            "detail": r[7] or r[1],
+            "ec_before": float(r[4]) if r[4] is not None else None,
+            "ec_after": float(r[5]) if r[5] is not None else None,
+            "guard_triggered": (r[6] or '').startswith('error')
+        })
+    return out
+
+def _dose_daily_range(start: Optional[str] = None, end: Optional[str] = None, days: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Return daily aggregates of volume_ml for result='ok'."""
+    _ensure_tables()
+    # Range
+    if start and end:
+        start_iso = start
+        end_iso = end
+    else:
+        d = int(days) if days else 30
+        end_iso = datetime.now(timezone.utc).isoformat()
+        start_iso = (datetime.now(timezone.utc) - timedelta(days=d)).isoformat()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT substr(ts_utc,1,10) AS day, COALESCE(SUM(volume_ml),0)
+            FROM ec_dose_log
+            WHERE result='ok' AND ts_utc BETWEEN ? AND ?
+            GROUP BY day
+            ORDER BY day ASC
+            """,
+            (start_iso, end_iso)
+        )
+        rows = cur.fetchall()
+    return [{"day": r[0], "total_ml": float(r[1] or 0.0)} for r in rows]
 
 def _today_total_ml(now_dt: datetime) -> float:
     _ensure_tables()
@@ -413,6 +484,114 @@ def get_ec_status():
         "today_ml": today_ml,
         "recent": recent
     }
+
+# --- Dose log/summary endpoints --------------------------------------------
+@router.get("/api/ec/dose_log")
+def ec_dose_log(
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    hours: Optional[int] = None,
+    grow: Optional[bool] = False,
+    limit: int = 2000
+):
+    try:
+        # Grow preset: from grow_start_date to now
+        if grow:
+            from app.settings import get_all_settings, SA_TZ
+            s = get_all_settings()
+            grow_date_str = s.get("general.grow_start_date", "")
+            if grow_date_str:
+                naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                try:
+                    local_dt = SA_TZ.localize(naive_dt)
+                except Exception:
+                    local_dt = naive_dt.replace(tzinfo=timezone.utc)
+                start = local_dt.astimezone(timezone.utc).isoformat()
+                end = datetime.now(timezone.utc).isoformat()
+        return _dose_events_range(start=start, end=end, hours=hours, limit=limit)
+    except ValueError as ve:
+        return JSONResponse(status_code=422, content={"ok": False, "error": str(ve)})
+
+
+@router.get("/api/ec/dose_summary")
+def ec_dose_summary(
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    days: Optional[int] = None,
+    grow: Optional[bool] = False
+):
+    try:
+        if grow:
+            from app.settings import get_all_settings, SA_TZ
+            s = get_all_settings()
+            grow_date_str = s.get("general.grow_start_date", "")
+            if grow_date_str:
+                naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                try:
+                    local_dt = SA_TZ.localize(naive_dt)
+                except Exception:
+                    local_dt = naive_dt.replace(tzinfo=timezone.utc)
+                start = local_dt.astimezone(timezone.utc).isoformat()
+                end = datetime.now(timezone.utc).isoformat()
+        return _dose_daily_range(start=start, end=end, days=days)
+    except ValueError as ve:
+        return JSONResponse(status_code=422, content={"ok": False, "error": str(ve)})
+
+
+@router.get("/api/ec/dose_log.csv")
+def ec_dose_log_csv(
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    hours: Optional[int] = None,
+    grow: Optional[bool] = False,
+    limit: int = 2000
+):
+    try:
+        start_for_filename = start
+        end_for_filename = end
+        if grow:
+            from app.settings import get_all_settings, SA_TZ
+            s = get_all_settings()
+            grow_date_str = s.get("general.grow_start_date", "")
+            if grow_date_str:
+                naive_dt = datetime.strptime(grow_date_str, "%Y-%m-%d")
+                try:
+                    local_dt = SA_TZ.localize(naive_dt)
+                except Exception:
+                    local_dt = naive_dt.replace(tzinfo=timezone.utc)
+                start = local_dt.astimezone(timezone.utc).isoformat()
+                end = datetime.now(timezone.utc).isoformat()
+                start_for_filename = start
+                end_for_filename = end
+        events = _dose_events_range(start=start, end=end, hours=hours, limit=limit)
+        # CSV content
+        lines = ["ts,seconds,volume_ml,reason,ec_before,ec_after,guard_triggered"]
+        for e in events:
+            line = ",".join([
+                str(e["ts"]),
+                "" if e.get("seconds") is None else str(e.get("seconds")),
+                "" if e.get("volume_ml") is None else str(e.get("volume_ml")),
+                str(e.get("detail") or "manual"),
+                "" if e.get("ec_before") is None else str(e.get("ec_before")),
+                "" if e.get("ec_after") is None else str(e.get("ec_after")),
+                "" if not e.get("guard_triggered") else str(e.get("guard_triggered"))
+            ])
+            lines.append(line)
+        # Filename
+        filename = "ec_dose_log.csv"
+        if start_for_filename and end_for_filename:
+            try:
+                start_date = datetime.fromisoformat(start_for_filename.replace('Z','+00:00')).strftime("%Y%m%d")
+                end_date = datetime.fromisoformat(end_for_filename.replace('Z','+00:00')).strftime("%Y%m%d")
+                filename = f"ec_dose_log_{start_date}_{end_date}.csv"
+            except Exception:
+                filename = "ec_dose_log.csv"
+        elif hours:
+            filename = f"ec_dose_log_{int(hours)}h.csv"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return PlainTextResponse("\n".join(lines), media_type="text/csv", headers=headers)
+    except ValueError as ve:
+        return PlainTextResponse(f"Error: {ve}", status_code=422)
 
 # --- Automation control ------------------------------------------------------
 @router.post("/api/ec/auto")

@@ -1937,8 +1937,8 @@ window.CircControl = (function(){
     }
     fetch('/api/version', {cache:'no-store'})
       .then(function(r){ return r.json(); })
-      .then(function(j){ return chain(['range.js','trends.js','ph_chart.js','ph.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], j && j.version); })
-      .catch(function(){ return chain(['range.js','trends.js','ph_chart.js','ph.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], (new Date()).toISOString().slice(0,10)); });
+  .then(function(j){ return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], j && j.version); })
+  .catch(function(){ return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], (new Date()).toISOString().slice(0,10)); });
   })();
   </script>
 </body>
