@@ -37,8 +37,8 @@ def set_setting(key: str, value: str):
 
 def get_latest_reading():
     try:
-        from app.sensors_core import get_latest_reading as _get_latest_reading
-        return _get_latest_reading()
+        from app.sensors_core import read_all_sensors
+        return read_all_sensors()
     except ImportError:
         return None
 
@@ -195,8 +195,8 @@ def get_current_water_temp() -> Optional[float]:
     """Get current water temperature from sensors."""
     try:
         reading = get_latest_reading()
-        if reading and reading.get('temp') is not None:
-            return float(reading['temp'])
+        if reading and reading.get('temperature_c') is not None:
+            return float(reading['temperature_c'])
     except Exception as e:
         log.error(f'[CHILLER] Failed to get water temp: {e}')
     return None
