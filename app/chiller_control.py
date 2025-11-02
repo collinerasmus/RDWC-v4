@@ -192,13 +192,26 @@ def set_chiller_relay(desired_on: bool, reason: str = '') -> bool:
 
 
 def get_current_water_temp() -> Optional[float]:
-    """Get current water temperature from sensors."""
+    """Get current water temperature from sensors, with database fallback."""
     try:
+        # Try live sensor reading first
         reading = get_latest_reading()
         if reading and reading.get('temperature_c') is not None:
             return float(reading['temperature_c'])
     except Exception as e:
-        log.error(f'[CHILLER] Failed to get water temp: {e}')
+        log.warning(f'[CHILLER] Live sensor read failed: {e}')
+    
+    # Fallback to last database reading (within 5 minutes)
+    try:
+        from app.services.sensors_fallback import get_last_reading
+        import time
+        db_reading = get_last_reading(max_age_seconds=300)  # 5 minute max age
+        if db_reading and db_reading.get('temperature_c') is not None:
+            log.info(f'[CHILLER] Using database temp (age: {db_reading.get("age_seconds", "unknown")}s)')
+            return float(db_reading['temperature_c'])
+    except Exception as e:
+        log.error(f'[CHILLER] Database fallback failed: {e}')
+    
     return None
 
 
