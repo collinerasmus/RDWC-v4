@@ -274,7 +274,7 @@
   // Dosing wiring (scoped to this panel to work before attach)
   const qP = (sel) => panel.querySelector(sel);
   const doseMsgEl = qP('#dose-calib-msg');
-      const doseLog = (line)=>{ const box = q('#dose-calib-log'); if (!box) return; const ts=new Date().toLocaleTimeString(); const div=document.createElement('div'); div.textContent = `[${ts}] ${line}`; box.appendChild(div); box.scrollTop = box.scrollHeight; };
+  const doseLog = (line)=>{ const box = qP('#dose-calib-log'); if (!box) return; const ts=new Date().toLocaleTimeString(); const div=document.createElement('div'); div.textContent = `[${ts}] ${line}`; box.appendChild(div); box.scrollTop = box.scrollHeight; };
       const setDoseMsg = (t, ok=true)=>{ if (doseMsgEl){ doseMsgEl.textContent = t||''; doseMsgEl.style.color = ok? '#9ca3af' : '#fca5a5'; } doseLog(t); };
   const doseSel = qP('#dose-pump');
   const doseCur = qP('#dose-current');
@@ -319,11 +319,11 @@
           const r = await (await fetch('/calib/dose/status?t='+Date.now(), {cache:'no-store'})).json();
           const pump = doseSel && doseSel.value;
           const on = !!(r && r.ok && r.states && r.states[pump]);
-          if (btnPrimeT) btnPrimeT.textContent = on? 'Stop Priming' : 'Start Priming';
+          if (btnPrime) btnPrime.textContent = on? 'Stop Priming' : 'Start Priming';
           return on;
-        }catch(e){ if (btnPrimeT) btnPrimeT.textContent = 'Start Priming'; return false; }
+        }catch(e){ if (btnPrime) btnPrime.textContent = 'Start Priming'; return false; }
       }
-      if (btnPrimeT) btnPrimeT.addEventListener('click', async ()=>{
+      if (btnPrime) btnPrime.addEventListener('click', async ()=>{
         try{
           const pump = doseSel && doseSel.value;
           const on = await refreshPrimeState();
