@@ -1690,10 +1690,8 @@ def _pulse_pump(pump_key: str, seconds: float):
     dur = max(0.2, min(10.0, float(seconds)))
     def _worker():
         try:
-            print(f"[CALIB] Pulsing {name} ON for {dur}s")
             relay_set(name, True, reason="calib_dose", force=True)
             time.sleep(dur)
-            print(f"[CALIB] Pulsing {name} OFF after {dur}s")
         finally:
             relay_set(name, False, reason="calib_dose", force=True)
     threading.Thread(target=_worker, daemon=True).start()
