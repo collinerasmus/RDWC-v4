@@ -225,6 +225,61 @@ def health():
         }
     except Exception as e:
         lights_info = {"error": str(e)}
+    
+    # Get relay status
+    relay_states = {}
+    antiflap_active = []
+    try:
+        from app.relays_core import get_relay_status, get_antiflap_relays
+        relay_status = get_relay_status()
+        relay_states = {
+            name: {
+                "state": info.get("state", False),
+                "last_reason": info.get("last_reason", "unknown"),
+                "seconds_since_change": info.get("seconds_since_change", 0)
+            }
+            for name, info in relay_status.items()
+        }
+        antiflap_active = get_antiflap_relays()
+    except Exception as e:
+        relay_states = {"error": str(e)}
+
+    # Get sensors heartbeat (shallow check, no actual read)
+    sensors_heartbeat = {"ready": False}
+    try:
+        from app.sensors_core import get_last_temp_comp_state
+        comp_state = get_last_temp_comp_state()
+        time_since = comp_state.get("time_since_last")
+        sensors_heartbeat = {
+            "ready": time_since is not None,
+            "last_read_age_s": round(time_since, 1) if time_since is not None else None
+        }
+    except Exception as e:
+        sensors_heartbeat = {"ready": False, "error": str(e)}
+
+    # Build response
+    response_data = {
+        "ok": db_ready and i2c_ready,
+        "uptime_s": age,
+        "db": db_ready,
+        "i2c": i2c_ready,
+        "camera": camera_status,
+        "lights_window": lights_info,
+        "relay_states": relay_states,
+        "antiflap_active": antiflap_active,
+        "sensors": sensors_heartbeat
+    }
+    
+    # Only fail on camera if explicitly required
+    if require_camera and not camera_status["ready"]:
+        response_data["ok"] = False
+        return JSONResponse(status_code=503, content=response_data)
+    
+    # Return 503 only if core systems (DB/I2C) aren't ready
+    if not (db_ready and i2c_ready):
+        return JSONResponse(status_code=503, content=response_data)
+    
+    return response_data
 
 @app.get("/api/version")
 def asset_version():
@@ -294,61 +349,6 @@ def api_relays_estop_toggle():
     from app.relays_core import get_estop_status
     active = bool(get_estop_status())
     return api_estop_set({"active": (not active)})
-    
-    # Get relay status
-    relay_states = {}
-    antiflap_active = []
-    try:
-        from app.relays_core import get_relay_status, get_antiflap_relays
-        relay_status = get_relay_status()
-        relay_states = {
-            name: {
-                "state": info.get("state", False),
-                "last_reason": info.get("last_reason", "unknown"),
-                "seconds_since_change": info.get("seconds_since_change", 0)
-            }
-            for name, info in relay_status.items()
-        }
-        antiflap_active = get_antiflap_relays()
-    except Exception as e:
-        relay_states = {"error": str(e)}
-
-    # Get sensors heartbeat (shallow check, no actual read)
-    sensors_heartbeat = {"ready": False}
-    try:
-        from app.sensors_core import get_last_temp_comp_state
-        comp_state = get_last_temp_comp_state()
-        time_since = comp_state.get("time_since_last")
-        sensors_heartbeat = {
-            "ready": time_since is not None,
-            "last_read_age_s": round(time_since, 1) if time_since is not None else None
-        }
-    except Exception as e:
-        sensors_heartbeat = {"ready": False, "error": str(e)}
-
-    # Build response
-    response_data = {
-        "ok": db_ready and i2c_ready,
-        "uptime_s": age,
-        "db": db_ready,
-        "i2c": i2c_ready,
-        "camera": camera_status,
-        "lights_window": lights_info,
-        "relay_states": relay_states,
-        "antiflap_active": antiflap_active,
-        "sensors": sensors_heartbeat
-    }
-    
-    # Only fail on camera if explicitly required
-    if require_camera and not camera_status["ready"]:
-        response_data["ok"] = False
-        return JSONResponse(status_code=503, content=response_data)
-    
-    # Return 503 only if core systems (DB/I2C) aren't ready
-    if not (db_ready and i2c_ready):
-        return JSONResponse(status_code=503, content=response_data)
-    
-    return response_data
 
 @app.get("/")
 def ui():
