@@ -41,7 +41,7 @@
   };
 
   // Global UI state
-  const state = { systemMode: 'manual', relays: {}, estop: false };
+  const state = { systemMode: 'manual', relays: {}, estop: false, restoredBoot: false };
 
   async function getJSON(url){
     const r = await fetch(url, {cache:'no-store'});
@@ -162,6 +162,7 @@
         // sync system mode/estop from wrapper
         if (wrap.mode) { currentMode = String(wrap.mode); state.systemMode = currentMode; }
         if (typeof wrap.estop === 'boolean') { state.estop = wrap.estop; updateEstopButton(); }
+        if (typeof wrap.restored === 'boolean') { state.restoredBoot = !!wrap.restored; }
         // Coerce to { key: {state, lockout} }
         const map = {};
         Object.entries(wrap.relays).forEach(([k, v]) => {
@@ -295,7 +296,9 @@
       el.textContent = 'E‑STOP ACTIVE: all relays are forced OFF and controls are disabled until released.';
       el.className = 'text-xs text-red-400 mt-2';
     } else if (currentMode === 'auto') {
-      el.textContent = 'Auto: controls disabled. Switch to Manual to operate.';
+      const base = 'Auto: controls disabled. Switch to Manual to operate.';
+      const extra = state.restoredBoot ? ' \u2022 Restored critical relays from last state.' : '';
+      el.textContent = base + extra;
       el.className = 'text-xs text-blue-400 mt-2';
     } else {
       el.textContent = 'Manual: relays can be switched from the panel.';

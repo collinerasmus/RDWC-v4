@@ -234,7 +234,7 @@ def api_relays_status():
     """Wrapper endpoint for UI/verify tools: returns mode, estop, and relay map.
     Shape: {"mode":"manual|auto","estop":bool,"relays":{ name: {pin_bcm, active_low, is_on, label} }}
     """
-    from app.relays_core import get_relay_status, RELAY_PINS, get_estop_status
+    from app.relays_core import get_relay_status, RELAY_PINS, get_estop_status, get_last_restore_event
     from app.system_mode import get_system_mode
     status = get_relay_status()
     mode = get_system_mode() or 'manual'
@@ -259,7 +259,8 @@ def api_relays_status():
             "is_on": bool(info.get("state", False)),
             "label": LABELS.get(name, name)
         }
-    return {"mode": mode, "estop": estop, "relays": rel}
+    restore = get_last_restore_event() if mode == 'auto' else {"restored": False}
+    return {"mode": mode, "estop": estop, "restored": bool(restore.get("restored", False)), "relays": rel}
 
 @app.post("/api/relay/{key}/toggle")
 def api_relay_toggle(key: str):

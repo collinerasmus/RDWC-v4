@@ -107,6 +107,14 @@ _estop_active: bool = False  # Global emergency stop (latching)
 # - emergency: E-STOP or emergency shutdown
 _SKIP_PERSIST_REASONS = {"boot_safe_off", REASON_EMERGENCY}
 
+# Last restore event snapshot for UI/debug
+_last_restore_event: Dict[str, Any] = {
+    "restored": False,
+    "count": 0,
+    "relays": [],
+    "ts": None,
+}
+
 # Persistence
 _STATE_FILE = os.path.expanduser("~/.rdwc/relay_state.json")
 
@@ -183,6 +191,7 @@ def smart_restore_critical_relays():
     logger.info("System mode is auto - beginning smart restore of critical relays")
     
     saved_states = get_critical_relay_states()
+    restored_list = []
     
     for relay_name, (desired_state, saved_ts) in saved_states.items():
         if not desired_state:
@@ -198,6 +207,7 @@ def smart_restore_critical_relays():
         
         if result.get("changed"):
             logger.info(f"✓ Restored {relay_name} to ON")
+            restored_list.append(relay_name)
         else:
             reason = result.get("reason", "unknown")
             cooldown = result.get("cooldown_remaining", 0)
@@ -215,7 +225,22 @@ def smart_restore_critical_relays():
             else:
                 logger.info(f"Relay {relay_name} already in desired state")
     
+    # Snapshot restore event for UI/debug
+    try:
+        _last_restore_event.update({
+            "restored": len(restored_list) > 0,
+            "count": len(restored_list),
+            "relays": list(restored_list),
+            "ts": datetime.now().isoformat(),
+        })
+    except Exception:
+        _last_restore_event.update({"restored": len(restored_list) > 0, "count": len(restored_list)})
+
     logger.info("Critical relay restoration complete")
+
+def get_last_restore_event() -> Dict[str, Any]:
+    """Return the last restore event snapshot for UI/diagnostics."""
+    return dict(_last_restore_event)
 
 def _get_min_time(relay_name: str, times_dict: Dict[str, int]) -> int:
     """Get minimum time for relay, supporting wildcard matching."""
