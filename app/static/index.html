@@ -17,6 +17,14 @@
   --h-trends: 420px;          /* fixed visual height for chart area */
   --h-camera: 420px;          /* camera area height cap (crop safely) */
   --h-recent: 260px;          /* recent readings viewport */
+  /* Global form control vars */
+  --control-h: 36px;
+  --control-pad-v: 6px;
+  --control-pad-h: 10px;
+  --control-bg: #1f2937;      /* gray-800 */
+  --control-bd: #374151;      /* gray-700 */
+  --control-fg: #e0e0e0;      /* gray-200 */
+  --control-radius: 6px;
 }
 body{
   background:#0b0f14;
@@ -24,6 +32,9 @@ body{
   font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   margin:0;
 }
+
+/* Ensure predictable box model everywhere */
+*, *::before, *::after{ box-sizing: border-box; }
 .container{
   margin: 0 auto;
   padding: var(--gap);
@@ -35,6 +46,16 @@ h2, h3{
   font-size:1.1rem;
   font-weight:600;
   margin:0 0 12px 0;
+}
+.card-header{
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(148,163,184,0.1);
+}
+.card-title{
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #f0f9ff;
 }
 .card{
   background:#111827;
@@ -51,6 +72,74 @@ h2, h3{
 }
 .card + .card{ margin-top: var(--gap); }
 .card-wide{ width: 100%; box-sizing: border-box; }
+
+/* Buttons: chip-style tabs and secondary actions */
+.btn-chip{
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #334155; /* slate-700 */
+  background: #0f172a;       /* slate-900 */
+  color: #cbd5e1;            /* slate-300 */
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: all 0.2s ease;
+  position: relative;
+}
+.btn-chip:hover{
+  background: rgba(59,130,246,.08);
+  border-color: rgba(59,130,246,.3);
+  transform: translateY(-1px);
+}
+.btn-chip.active{
+  background: rgba(59,130,246,.18); /* blue-500/20 */
+  border-color: rgba(59,130,246,.5);
+  color: #93c5fd;
+  box-shadow: 0 0 8px rgba(59,130,246,0.15);
+}
+.btn-chip.active::before{
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 2px;
+  background: #3b82f6;
+  border-radius: 2px;
+}
+.btn-secondary{
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #374151; /* gray-700 */
+  background: #1f2937;       /* gray-800 */
+  color: #e5e7eb;            /* gray-200 */
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+.btn-secondary:hover{
+  background: #374151;
+  border-color: #4b5563;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.btn-secondary:active{
+  transform: translateY(0);
+}
+.btn-secondary:disabled{
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+.btn-secondary:disabled:hover{
+  background: #1f2937;
+  border-color: #374151;
+  box-shadow: none;
+}
 
 /* Single column layout - everything stacked vertically at same width */
 #camera-card,
@@ -183,7 +272,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 }
 
 /* Sensors/Trends Chart Controls */
-.btn-chip{
+.trend-controls .btn-chip, #ph-card .btn.btn-chip, #settings-tabs .btn.btn-chip{
   padding: 4px 10px; 
   border: 1px solid #1f2937; 
   border-radius: 999px; 
@@ -192,10 +281,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   cursor: pointer;
   color: #e0e0e0;
 }
-.btn-chip:hover{
+.trend-controls .btn-chip:hover, #ph-card .btn.btn-chip:hover, #settings-tabs .btn.btn-chip:hover{
   background: #1f2937;
 }
-.btn-chip.active{ 
+.trend-controls .btn-chip.active, #ph-card .btn.btn-chip.active, #settings-tabs .btn.btn-chip.active{ 
   outline: 2px solid #3b82f6; 
   background: #1f2937;
 }
@@ -456,185 +545,458 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     border: 1px solid rgba(148,163,184,0.3);
     color: #cbd5e1;
   }
+
+  /* Collapsible details styling */
+  details {
+    transition: all 0.3s ease;
+    border: 1px solid rgba(148,163,184,0.15);
+    border-radius: 10px;
+    background: rgba(15,23,42,0.5);
+    padding: 4px;
+  }
+  details summary {
+    cursor: pointer;
+    user-select: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+  }
+  details summary::-webkit-details-marker {
+    display: none;
+  }
+  details summary::before {
+    content: '▸';
+    display: inline-block;
+    font-size: 0.9rem;
+    transition: transform 0.2s ease;
+    color: #94a3b8;
+  }
+  details[open] summary::before {
+    transform: rotate(90deg);
+    color: #3b82f6;
+  }
+  details summary:hover {
+    background: rgba(148,163,184,0.08);
+  }
+  details[open] summary {
+    background: rgba(59,130,246,0.08);
+    color: #93c5fd;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(59,130,246,0.2);
+  }
+  details[open] {
+    border-color: rgba(59,130,246,0.3);
+    background: rgba(15,23,42,0.8);
+  }
+  
+  /* Success feedback animation */
+  @keyframes successPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+    50% { box-shadow: 0 0 0 4px rgba(34,197,94,0.2); }
+  }
+  .success-feedback {
+    animation: successPulse 0.6s ease-in-out;
+    border-color: rgba(34,197,94,0.5) !important;
+  }
+  
+  /* Loading state for buttons */
+  .btn-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.7;
+  }
+  .btn-loading::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    top: 50%;
+    left: 50%;
+    margin: -6px 0 0 -6px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  /* Improved form input styling */
+  input[type="number"],
+  input[type="text"],
+  input[type="date"],
+  input[type="time"],
+  select {
+    transition: all 0.2s ease;
+  }
+  input[type="number"]:focus,
+  input[type="text"]:focus,
+  input[type="date"]:focus,
+  input[type="time"]:focus,
+  select:focus {
+    outline: none;
+    border-color: rgba(59,130,246,0.5);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+  }
+  input[type="number"]:invalid,
+  input[type="text"]:invalid {
+    border-color: rgba(239,68,68,0.5);
+  }
+  
+  /* Tooltip styling */
+  [data-tooltip] {
+    position: relative;
+    cursor: help;
+  }
+  [data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    padding: 6px 10px;
+    background: rgba(17,24,39,0.98);
+    border: 1px solid rgba(148,163,184,0.3);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 1000;
+  }
+  [data-tooltip]:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-8px);
+  }
+
+  /* Global form control sizing + reset (fix overlapping/too-small inputs) */
+  input[type="text"],
+  input[type="number"],
+  input[type="time"],
+  input[type="date"],
+  input[type="datetime-local"],
+  select,
+  textarea{
+    width: 100%;
+    min-height: var(--control-h);
+    padding: var(--control-pad-v) var(--control-pad-h);
+    background: var(--control-bg);
+    border: 1px solid var(--control-bd);
+    color: var(--control-fg);
+    border-radius: var(--control-radius);
+    line-height: 1.2;
+    display: block;
+  }
+  textarea{ min-height: calc(var(--control-h) * 2); resize: vertical; }
+  /* Remove number spinners */
+  input[type="number"]{ -moz-appearance: textfield; appearance: textfield; }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button{ -webkit-appearance: none; margin: 0; }
+  /* Inputs placed inside summary headers should be compact and not full-width */
+  details > summary input,
+  details > summary select{
+    width: auto;
+    min-width: 120px;
+    display: inline-flex;
+    align-items: center;
+  }
+  /* Uniform label spacing */
+  label{ display:block; font-size:0.85rem; margin-bottom:6px; font-weight:500; }
+  /* Generic responsive form row helper */
+  .form-row{ display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap: var(--gap); }
+  .form-row > div{ min-width:0; }
 </style>
 </head>
 <body>
 <main id="rdwc-root" class="container">
   <h1>RDWC v4 — Dashboard</h1>
-  
-  <!-- 1. Camera Card (Full Width, Top) -->
-  <section id="camera-card" class="card card-wide">
-    <h3>Camera <span id="camera-status-pill" class="muted" style="font-size:0.85rem;font-weight:400;margin-left:8px;"></span></h3>
-    <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;">
-      <img id="camera-stream" alt="Camera stream" style="width:100%;height:100%;object-fit:cover;"/>
-      <div id="camera-overlay" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">Connecting...</div>
+
+  <!-- Top-level Tabs Navigation -->
+  <nav id="tabs-nav" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px 0;padding-bottom:4px;">
+    <button class="btn-chip" data-tab="overview">📊 Overview</button>
+    <button class="btn-chip" data-tab="sensors">🔬 Sensors</button>
+    <button class="btn-chip" data-tab="ph">🧪 pH</button>
+    <button class="btn-chip" data-tab="ec">⚡ EC</button>
+    <button class="btn-chip" data-tab="temp">❄️ Temperature</button>
+    <button class="btn-chip" data-tab="lights">💡 Lights</button>
+    <button class="btn-chip" data-tab="circulation">🔄 Circulation</button>
+    <button class="btn-chip" data-tab="relays">🔌 Relays</button>
+    <button class="btn-chip" data-tab="schedule">📅 Schedule</button>
+    <button class="btn-chip" data-tab="settings">⚙️ Settings</button>
+  </nav>
+
+
+
+  <!-- Schedule Tab -->
+  <section id="schedule-card" class="card card-wide tab-section" data-tab="schedule" style="display:none;">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <h3 class="card-title" style="margin:0;">Schedule</h3>
+      <div class="muted" id="lightsWindow">—</div>
+    </div>
+    <div class="card-body">
+        <div class="muted" style="margin-bottom:16px;padding:10px 14px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);font-size:0.85rem;">
+          💡 Configure your light schedule for optimal plant growth. Changes take effect immediately.
+        </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+        <div>
+            <label style="display:block;font-size:0.85rem;margin-bottom:6px;font-weight:500;">Lights ON time (HH:MM)</label>
+          <input type="time" id="lightsStart" value="18:00" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+        </div>
+        <div>
+            <label style="display:block;font-size:0.85rem;margin-bottom:6px;font-weight:500;">Lights duration (hours)</label>
+          <input type="number" id="lightsDuration" min="1" max="24" value="18" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+        </div>
+      </div>
+        <div class="muted" style="margin-top:12px;padding:8px 10px;border-radius:6px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);font-size:0.8rem;">
+          📚 <strong>Guidance:</strong> Vegetative 18/6 (18h on, 6h off) • Flowering 12/12 (12h on, 12h off)
+        </div>
+      <button id="btnScheduleSave" class="btn-secondary" style="margin-top:12px;">Save Schedule</button>
     </div>
   </section>
 
-  <!-- 2. BOP (Balance of Plant) -->
-  <section id="bop-card" class="card card-wide">
+  <!-- Overview Tab (includes Camera) -->
+  <section id="overview-card" class="card card-wide tab-section" data-tab="overview">
+    <!-- Camera -->
+    <div style="margin-bottom:16px;">
+      <h3>Camera <span id="camera-status-pill" class="muted" style="font-size:0.85rem;font-weight:400;margin-left:8px;"></span></h3>
+      <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;">
+        <img id="camera-stream" alt="Camera stream" style="width:100%;height:100%;object-fit:cover;"/>
+        <div id="camera-overlay" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">Connecting...</div>
+      </div>
+    </div>
+    
+    <!-- System Overview -->
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-      <h3 class="card-title" style="margin:0;">Balance of Plant</h3>
-      <div class="muted" style="font-size:0.85rem;">RDWC System Coordination</div>
+      <h3 class="card-title" style="margin:0;">System Overview</h3>
+      <div class="muted" style="font-size:0.85rem;">Status at a glance</div>
     </div>
     <div class="card-body">
       <div class="muted" style="margin-bottom:12px;padding:8px 12px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;">
-        <strong>RDWC Note:</strong> Main Pump must run for accurate sensor readings. Chiller combo (Chiller + Chiller Pump) automatically enables when Main Pump is ON.
+        RDWC circulation required for cooling and sensors. E-STOP overrides all controls.
       </div>
-      
-      <!-- BOP Controls Grid -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px;">
-        <!-- Lights (Grow Operations) -->
-        <div class="bop-relay-card" data-relay="lights">
+        <div class="bop-relay-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <div style="font-weight:600;font-size:0.95rem;">💡 Lights</div>
-            <span class="bop-status-badge" id="bop-lights-status">—</span>
+            <span class="bop-status-badge" id="ov-lights">—</span>
           </div>
-          <button class="relay-btn" data-relay="lights" style="width:100%;">
-            <span class="relay-label">Lights</span>
-          </button>
-          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Part of grow cycle</div>
+          <div class="muted" style="font-size:0.75rem;">Grow cycle controlled</div>
         </div>
-
-        <!-- Main Pump (Critical) -->
-        <div class="bop-relay-card" data-relay="main_pump">
+        <div class="bop-relay-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <div style="font-weight:600;font-size:0.95rem;">🔄 Main Pump</div>
-            <span class="bop-status-badge" id="bop-main-pump-status">—</span>
+            <span class="bop-status-badge" id="ov-main-pump">—</span>
           </div>
-          <button class="relay-btn" data-relay="main_pump" style="width:100%;">
-            <span class="relay-label">Main Pump</span>
-          </button>
-          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Required for sensors</div>
+          <div class="muted" style="font-size:0.75rem;">Critical circulation</div>
         </div>
-
-        <!-- Chiller Pump (Coordinated) -->
-        <div class="bop-relay-card" data-relay="chiller_pump">
+        <div class="bop-relay-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <div style="font-weight:600;font-size:0.95rem;">🌊 Chiller Pump</div>
-            <span class="bop-status-badge" id="bop-chiller-pump-status">—</span>
+            <span class="bop-status-badge" id="ov-chiller-pump">—</span>
           </div>
-          <button class="relay-btn" data-relay="chiller_pump" style="width:100%;">
-            <span class="relay-label">Chiller Pump</span>
-          </button>
-          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Pairs with chiller</div>
+          <div class="muted" style="font-size:0.75rem;">Pairs with chiller</div>
         </div>
-
-        <!-- Chiller (Coordinated) -->
-        <div class="bop-relay-card" data-relay="chiller_power">
+        <div class="bop-relay-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <div style="font-weight:600;font-size:0.95rem;">❄️ Chiller</div>
-            <span class="bop-status-badge" id="bop-chiller-power-status">—</span>
+            <span class="bop-status-badge" id="ov-chiller">—</span>
           </div>
-          <button class="relay-btn" data-relay="chiller_power" style="width:100%;">
-            <span class="relay-label">Chiller</span>
-          </button>
-          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Requires pumps ON</div>
+          <div class="muted" style="font-size:0.75rem;">Compressor-protected</div>
         </div>
       </div>
-
-      <!-- Coordination Rules -->
-      <div id="bop-coordination-banner" class="muted" style="display:none;padding:8px 12px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#fecaca;font-size:0.85rem;margin-top:8px;">
-        <strong>⚠️ Coordination Block:</strong> <span id="bop-coordination-message">—</span>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+        <span id="ov-mode" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);">Mode: —</span>
+        <span id="ov-estop" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);">E-STOP: —</span>
+        <span id="ov-lights-window" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);">Lights Window: —</span>
       </div>
+    </div>
+  </section>
 
-      <hr class="separator" style="margin:16px 0;" />
+  <!-- Temperature Control Tab -->
+  <section id="temp-card" class="card card-wide tab-section" data-tab="temp" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-weight:600;">❄️ Intelligent Chiller Control</div>
+      <span id="chiller-auto-badge" class="muted" style="padding:3px 10px;border-radius:6px;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.3);color:#cbd5e1;font-size:0.85rem;">Manual</span>
+    </div>
 
-      <!-- Intelligent Chiller Control -->
-      <div style="margin-top:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-          <div style="font-weight:600;">❄️ Intelligent Chiller Control</div>
-          <span id="chiller-auto-badge" class="muted" style="padding:3px 10px;border-radius:6px;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.3);color:#cbd5e1;font-size:0.85rem;">Manual</span>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px;">
+      <div style="padding:10px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);">
+        <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Water Temp</div>
+        <div style="font-weight:600;font-size:1.1rem;color:#93c5fd;" id="chiller-current-temp">—°C</div>
+      </div>
+      <div style="padding:10px;border-radius:8px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);">
+        <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Target Temp</div>
+        <div style="font-weight:600;font-size:1.1rem;color:#a7f3d0;" id="chiller-target-temp">19.0°C</div>
+      </div>
+      <div style="padding:10px;border-radius:8px;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.3);">
+        <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Stage</div>
+        <div style="font-weight:600;font-size:1.1rem;color:#d8b4fe;" id="chiller-stage">Default</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+      <button id="btnChillerAutoEnable" class="btn-secondary">Enable Auto Control</button>
+      <button id="btnChillerAutoDisable" class="btn-secondary" style="display:none;">Disable Auto Control</button>
+      <span id="chiller-status-message" class="muted" style="font-size:0.85rem;"></span>
+    </div>
+
+    <details style="margin-top:8px;">
+      <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Temperature & Chiller Settings</summary>
+      <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+        <div class="muted" style="font-size:0.75rem;margin-bottom:16px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+          Configure temperature targets, alert thresholds, and chiller compressor protection timings.
         </div>
-
-        <!-- Current Status -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px;">
-          <div style="padding:10px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);">
-            <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Water Temp</div>
-            <div style="font-weight:600;font-size:1.1rem;color:#93c5fd;" id="chiller-current-temp">—°C</div>
-          </div>
-          <div style="padding:10px;border-radius:8px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);">
-            <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Target Temp</div>
-            <div style="font-weight:600;font-size:1.1rem;color:#a7f3d0;" id="chiller-target-temp">19.0°C</div>
-          </div>
-          <div style="padding:10px;border-radius:8px;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.3);">
-            <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Stage</div>
-            <div style="font-weight:600;font-size:1.1rem;color:#d8b4fe;" id="chiller-stage">Default</div>
-          </div>
-        </div>
-
-        <!-- Automation Controls -->
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-          <button id="btnChillerAutoEnable" class="btn-secondary">Enable Auto Control</button>
-          <button id="btnChillerAutoDisable" class="btn-secondary" style="display:none;">Disable Auto Control</button>
-          <span id="chiller-status-message" class="muted" style="font-size:0.85rem;"></span>
-        </div>
-
-        <!-- Settings Collapsible -->
-        <details style="margin-top:8px;">
-          <summary class="muted" style="cursor:pointer;font-size:0.85rem;padding:6px 0;">⚙️ Chiller Settings & Manual Override</summary>
-          <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-            <!-- Settings -->
-            <div style="margin-bottom:16px;">
-              <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Temperature Settings</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                <div>
-                  <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Target (°C)</label>
-                  <input type="number" id="chillerTargetTemp" step="0.1" min="14" max="26" value="19.0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
-                </div>
-                <div>
-                  <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Hysteresis (°C)</label>
-                  <input type="number" id="chillerHysteresis" step="0.1" min="0.1" max="3.0" value="0.5" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
-                </div>
-              </div>
-              <div style="margin-top:8px;">
-                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Growth Stage</label>
-                <select id="chillerStage" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;">
-                  <option value="default">Default (18-20°C optimal)</option>
-                  <option value="veg">Vegetative (18-20°C)</option>
-                  <option value="flower">Flowering (18-20°C)</option>
-                </select>
-              </div>
-              <button id="btnChillerSaveSettings" class="btn-secondary" style="margin-top:8px;width:100%;">Save Settings</button>
+        <div style="margin-bottom:16px;">
+          <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Temperature Settings</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div>
+              <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Target (°C)</label>
+              <input type="number" id="tempTarget" step="0.1" min="14" max="26" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
             </div>
-
-            <!-- Manual Override -->
-            <div style="border-top:1px solid rgba(148,163,184,0.2);padding-top:12px;">
-              <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Manual Override (Emergency)</div>
-              <div class="muted" style="font-size:0.75rem;margin-bottom:8px;">Force chiller ON/OFF for specified duration (bypasses automation)</div>
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <button id="btnChillerForceOn" class="btn-secondary">Force ON</button>
-                <button id="btnChillerForceOff" class="btn-secondary">Force OFF</button>
-                <select id="chillerForceDuration" style="padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;">
-                  <option value="30">30 minutes</option>
-                  <option value="60">1 hour</option>
-                  <option value="240">4 hours</option>
-                  <option value="">Indefinite</option>
-                </select>
-              </div>
+            <div>
+              <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Hysteresis (°C)</label>
+              <input type="number" id="chillerHysteresis" step="0.1" min="0.1" max="3.0" value="0.5" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
             </div>
           </div>
-        </details>
-
-        <!-- Info Panel -->
-        <div class="muted" style="font-size:0.75rem;margin-top:12px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
-          <strong>Hailea HS-52A:</strong> Compressor-protected (5min min ON, 10min min OFF) • Cannabis-optimized temps (16-24°C safe, 18-20°C optimal) • RDWC circulation required
+          <div style="margin-top:8px;">
+            <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Growth Stage</label>
+            <select id="chillerStage" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;">
+              <option value="default">Default (18-20°C optimal)</option>
+              <option value="veg">Vegetative (18-20°C)</option>
+              <option value="flower">Flowering (18-20°C)</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:16px;padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
+          <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Alert Thresholds</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div>
+              <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Low Alert (°C)</label>
+              <input type="number" id="tempAlertLow" step="0.1" min="10" max="30" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+            </div>
+            <div>
+              <label style="display:block;font-size:0.85rem;margin-bottom:4px;">High Alert (°C)</label>
+              <input type="number" id="tempAlertHigh" step="0.1" min="10" max="30" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+            </div>
+          </div>
+        </div>
+        <div style="margin-bottom:16px;padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
+          <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Chiller Safety</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div>
+              <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Min OFF time (s)</label>
+              <input type="number" id="chillerMinOff" step="1" min="60" max="1800" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+            </div>
+            <div>
+              <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Min ON time (s)</label>
+              <input type="number" id="chillerMinOn" step="1" min="60" max="1800" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+            </div>
+          </div>
+        </div>
+        <button id="btnSaveTempSettings" class="btn-secondary" style="width:100%;margin-bottom:12px;">Save Temperature Settings</button>
+        <div style="border-top:1px solid rgba(148,163,184,0.2);padding-top:12px;">
+          <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Manual Override (Emergency)</div>
+          <div class="muted" style="font-size:0.75rem;margin-bottom:8px;">Force chiller ON/OFF for specified duration (bypasses automation)</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button id="btnChillerForceOn" class="btn-secondary">Force ON</button>
+            <button id="btnChillerForceOff" class="btn-secondary">Force OFF</button>
+            <select id="chillerForceDuration" style="padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;">
+              <option value="30">30 minutes</option>
+              <option value="60">1 hour</option>
+              <option value="240">4 hours</option>
+              <option value="">Indefinite</option>
+            </select>
+          </div>
         </div>
       </div>
+    </details>
 
-      <!-- Lights Log (debug) -->
-      <details style="margin-top:8px;">
-        <summary class="muted" style="cursor:pointer;font-size:0.85rem;padding:6px 0;">Lights Log (debug)</summary>
-        <div style="margin-top:8px;">
-          <button onclick="viewLightsLog()" style="background:#374151;color:#e5e7eb;padding:6px 12px;border-radius:6px;border:1px solid #4b5563;cursor:pointer;">View Lights Log (last 50)</button>
-          <div id="lightsLog" class="muted" style="margin-top:8px;max-height:220px;overflow:auto;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;font-size:12px;"></div>
+    <div class="muted" style="font-size:0.75rem;margin-top:12px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+      <strong>Hailea HS-52A:</strong> Compressor-protected (5min min ON, 10min min OFF) • Cannabis-optimized temps (16-24°C safe, 18-20°C optimal) • RDWC circulation required
+    </div>
+  </section>
+
+  <!-- Light Control Tab -->
+  <section id="lights-card" class="card card-wide tab-section" data-tab="lights" style="display:none;">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <h3 class="card-title" style="margin:0;">Light Control</h3>
+      <div class="muted" id="lights-window-preview">—</div>
+    </div>
+    <div class="card-body">
+      <div class="bop-relay-card" style="max-width:360px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div style="font-weight:600;font-size:0.95rem;">💡 Lights</div>
+          <span class="bop-status-badge" id="lights-status">—</span>
+        </div>
+        <button class="relay-btn" id="btnLightsToggle" style="width:100%;">
+          <span class="relay-label" id="lights-label">Lights</span>
+        </button>
+        <div class="muted" style="font-size:0.75rem;margin-top:4px;">Honors cooldowns and mode</div>
+      </div>
+      <div class="muted" style="margin-top:12px;">Use Schedule tab to adjust on/off window.</div>
+    </div>
+  </section>
+
+  <!-- Circulation Controller Tab -->
+  <section id="circ-card" class="card card-wide tab-section" data-tab="circulation" style="display:none;">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <h3 class="card-title" style="margin:0;">Circulation Controller</h3>
+      <div class="muted" id="circ-mode-pill">—</div>
+    </div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+        <div class="bop-relay-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-weight:600;font-size:0.95rem;">🔄 Main Pump</div>
+            <span class="bop-status-badge" id="circ-main-pump">—</span>
+          </div>
+          <button class="relay-btn" id="btnMainPump" style="width:100%;"><span class="relay-label">Toggle Main Pump</span></button>
+        </div>
+        <div class="bop-relay-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-weight:600;font-size:0.95rem;">🌊 Chiller Pump</div>
+            <span class="bop-status-badge" id="circ-chiller-pump">—</span>
+          </div>
+          <button class="relay-btn" id="btnChillerPump" style="width:100%;"><span class="relay-label">Toggle Chiller Pump</span></button>
+        </div>
+      </div>
+      <div class="muted" style="margin-top:8px;">Honors Auto/Manual mode and E‑STOP protections</div>
+
+      <!-- Circulation Settings -->
+      <details style="margin-top:12px;">
+        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Pump Safety Settings</summary>
+        <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+          <div class="muted" style="font-size:0.75rem;margin-bottom:16px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+            Configure minimum off times to prevent rapid cycling and extend pump lifespan.
+          </div>
+          <div style="margin-bottom:16px;">
+            <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Pump Minimum Off Times</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Main Pump Min OFF (s)</label>
+                <input type="number" id="mainPumpMinOff" step="1" min="0" max="3600" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+              </div>
+              <div>
+                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Chiller Pump Min OFF (s)</label>
+                <input type="number" id="chillerPumpMinOff" step="1" min="0" max="3600" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+              </div>
+            </div>
+          </div>
+          <button id="btnSaveCircSettings" class="btn-secondary" style="width:100%;">Save Circulation Settings</button>
         </div>
       </details>
     </div>
   </section>
 
   <!-- 3. Sensors Card with Chart.js -->
-  <section id="sensors-card" class="card card-wide">
+  <section id="sensors-card" class="card card-wide tab-section" data-tab="sensors" style="display:none;">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:8px;">
         <div style="font-weight:600;">Sensors</div>
@@ -695,7 +1057,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   </section>
 
   <!-- 4. pH Control Card -->
-  <section id="ph-card" class="card card-wide">
+  <section id="ph-card" class="card card-wide tab-section" data-tab="ph" style="display:none;">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
           <h3 class="card-title" style="margin:0;">pH Control</h3>
           <div class="muted" id="ph-band">Targets 5.8 – 6.2</div>
@@ -754,6 +1116,81 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <button id="btnAutoToggle" class="btn-secondary">Enable automation</button>
           </div>
 
+          <!-- pH-Specific Settings -->
+          <details style="margin-top:12px;">
+            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ pH Settings</summary>
+            <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+              <div class="muted" style="font-size:0.75rem;margin-bottom:16px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+                Configure pH targets, dosing parameters, and alert thresholds specific to this controller.
+              </div>
+              <div style="margin-bottom:16px;">
+                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Target Range</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Low pH</label>
+                    <input type="number" id="phTargetLow" step="0.1" min="4.0" max="8.0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;">High pH</label>
+                    <input type="number" id="phTargetHigh" step="0.1" min="4.0" max="8.0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+                  </div>
+                </div>
+              </div>
+              <div style="margin-bottom:16px;">
+                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Dosing Parameters</div>
+                <div class="muted" style="font-size:0.75rem;margin-bottom:8px;">Configure pH Up dosing amounts and safety limits</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:8px;">
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;" data-tooltip="Dose amount for grow phase">Grow (ml)</label>
+                    <input type="number" id="phPulseGrow" step="0.1" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0.0" />
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;" data-tooltip="Dose amount for micro phase">Micro (ml)</label>
+                    <input type="number" id="phPulseMicro" step="0.1" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0.0" />
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;" data-tooltip="Dose amount for bloom phase">Bloom (ml)</label>
+                    <input type="number" id="phPulseBloom" step="0.1" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0.0" />
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;" data-tooltip="Maximum ml of pH Up per hour">Max ml/hour</label>
+                    <input type="number" id="phMaxMlHour" step="1" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0" />
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;" data-tooltip="Maximum ml of pH Up per day">Max ml/day</label>
+                    <input type="number" id="phMaxMlDay" step="1" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0" />
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;" data-tooltip="Wait time after dosing for mixing">Mix delay (s)</label>
+                    <input type="number" id="phMixDelay" step="1" min="0" max="3600" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0" />
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;" data-tooltip="Calibration: ml of pH Up per second">pH Up ml/s</label>
+                    <input type="number" id="phUpMlPerSec" step="0.01" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0.83" />
+                  </div>
+                </div>
+              </div>
+              <div style="margin-bottom:16px;">
+                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Alert Thresholds</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Low Alert pH</label>
+                    <input type="number" id="phAlertLow" step="0.1" min="3.0" max="8.0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;">High Alert pH</label>
+                    <input type="number" id="phAlertHigh" step="0.1" min="3.0" max="8.0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+                  </div>
+                </div>
+              </div>
+              <button id="btnSavePhSettings" class="btn-secondary" style="width:100%;">Save pH Settings</button>
+            </div>
+          </details>
+
           <!-- History chart -->
           <hr class="separator" />
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
@@ -782,11 +1219,14 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         </div>
   </section>
 
+  <!-- Sensors Health Popover (hidden by default; positioned via JS) -->
+  <div id="sensors-health-popover" style="display:none;position:absolute;z-index:9999;min-width:260px;max-width:360px;padding:10px 12px;border-radius:8px;background:#0b0f1a;border:1px solid #334155;box-shadow:0 8px 24px rgba(0,0,0,0.4);color:#e5e7eb;font-size:0.9rem;line-height:1.35;"></div>
+
   <!-- 5. EC Control Card (Placeholder) -->
-  <section id="ec-card" class="card card-wide">
+  <section id="ec-card" class="card card-wide tab-section" data-tab="ec" style="display:none;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
       <h3 class="card-title" style="margin:0;">EC Control</h3>
-      <div class="muted" id="ec-band">Target: TBD ppm</div>
+      <div class="muted" id="ec-band">Target: 1.8 ±0.2 mS/cm</div>
     </div>
     <div class="card-body">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
@@ -798,11 +1238,48 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           EC dosing automation coming soon
         </div>
       </div>
+
+      <!-- EC-Specific Settings -->
+      <details style="margin-top:12px;">
+        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ EC Settings</summary>
+        <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+          <div class="muted" style="font-size:0.75rem;margin-bottom:16px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+            Configure EC (Electrical Conductivity) targets and alert thresholds. Values in ppm (parts per million).
+          </div>
+          <div style="margin-bottom:16px;">
+            <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Target Range</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Target EC (ppm)</label>
+                <input type="number" id="ecTarget" step="10" min="100" max="3000" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+              </div>
+              <div>
+                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Tolerance (ppm)</label>
+                <input type="number" id="ecTolerance" step="10" min="10" max="500" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+              </div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px;">
+            <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Alert Thresholds</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Low Alert EC (ppm)</label>
+                <input type="number" id="ecAlertLow" step="10" min="0" max="3000" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+              </div>
+              <div>
+                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">High Alert EC (ppm)</label>
+                <input type="number" id="ecAlertHigh" step="10" min="0" max="3000" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+              </div>
+            </div>
+          </div>
+          <button id="btnSaveEcSettings" class="btn-secondary" style="width:100%;">Save EC Settings</button>
+        </div>
+      </details>
     </div>
   </section>
 
   <!-- 6. Relays Control Panel -->
-  <section id="relays-card" class="card card-wide">
+  <section id="relays-card" class="card card-wide tab-section" data-tab="relays" style="display:none;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
       <h3 class="card-title" style="margin:0;">Relays</h3>
       <div class="mode-toggle" style="display:flex;gap:8px;align-items:center;">
@@ -827,7 +1304,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   </section>
 
   <!-- 7. System Settings -->
-  <section id="settings-card" class="card card-wide">
+  <section id="settings-card" class="card card-wide tab-section" data-tab="settings" style="display:none;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
       <h3 class="card-title" style="margin:0;">System Settings</h3>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -838,10 +1315,11 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <button id="btnSaveSettings" class="btn-secondary" disabled>Save</button>
       </div>
     </div>
+      <div class="muted" style="margin:12px 0;padding:10px 14px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);font-size:0.85rem;">
+        ℹ️ Controller-specific settings (pH targets, EC targets, dosing, pump timings) have moved to their respective controller tabs.
+      </div>
     <div id="settings-tabs" style="display:flex;gap:6px;flex-wrap:wrap;">
       <button class="btn btn-chip" data-tab="general">General</button>
-      <button class="btn btn-chip" data-tab="targets">Targets</button>
-      <button class="btn btn-chip" data-tab="dosing">Dosing</button>
       <button class="btn btn-chip" data-tab="safety">Safety</button>
       <button class="btn btn-chip" data-tab="alerts">Alerts</button>
       <button class="btn btn-chip" data-tab="ui">UI</button>
@@ -1284,6 +1762,47 @@ function toggleRecentReadings(){
   setInterval(measureHeights, 2000);
 })();
 </script>
+<script>
+// Simple circulation controller wiring, uses /api/relays endpoints
+window.CircControl = (function(){
+  const btnMain = ()=>document.getElementById('btnMainPump');
+  const btnChil = ()=>document.getElementById('btnChillerPump');
+  async function status(){
+    const res = await fetch('/api/relays/status?'+Date.now(), {cache:'no-store'});
+    return await res.json();
+  }
+  function badge(el, isOn){
+    if (!el) return;
+    el.textContent = isOn? 'ON' : 'OFF';
+    el.classList.toggle('on', !!isOn);
+    el.classList.toggle('off', !isOn);
+  }
+  async function refresh(){
+    try{
+      const s = await status();
+      document.getElementById('circ-mode-pill').textContent = `Mode: ${s.mode} · E-STOP: ${s.estop? 'ACTIVE':'off'}`;
+      const mp = s.relays && s.relays.main_pump ? !!s.relays.main_pump.is_on : false;
+      const cp = s.relays && s.relays.chiller_pump ? !!s.relays.chiller_pump.is_on : false;
+      badge(document.getElementById('circ-main-pump'), mp);
+      badge(document.getElementById('circ-chiller-pump'), cp);
+    }catch(e){ /* ignore */ }
+  }
+  async function toggle(key){
+    try{
+      await fetch(`/api/relay/${key}/toggle`, {method:'POST'});
+      setTimeout(refresh, 200);
+    }catch(e){ /* ignore */ }
+  }
+  function bind(){
+    const b1 = btnMain(); const b2 = btnChil();
+    if (b1 && !b1.__bound){ b1.addEventListener('click', ()=>toggle('main_pump')); b1.__bound=true; }
+    if (b2 && !b2.__bound){ b2.addEventListener('click', ()=>toggle('chiller_pump')); b2.__bound=true; }
+  }
+  // auto-bind once DOM is ready
+  if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', bind); else bind();
+  return { refresh };
+})();
+</script>
   <script>
   // Dynamically load JS assets with a cache-busting version from /api/version
   (function(){
@@ -1302,8 +1821,8 @@ function toggleRecentReadings(){
     }
     fetch('/api/version', {cache:'no-store'})
       .then(function(r){ return r.json(); })
-      .then(function(j){ return chain(['range.js','trends.js','ph_chart.js','ph.js','settings.js','relays_v2.js','bop.js','chiller.js'], j && j.version); })
-      .catch(function(){ return chain(['range.js','trends.js','ph_chart.js','ph.js','settings.js','relays_v2.js','bop.js','chiller.js'], (new Date()).toISOString().slice(0,10)); });
+    .then(function(j){ return chain(['range.js','trends.js','ph_chart.js','ph.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], j && j.version); })
+    .catch(function(){ return chain(['range.js','trends.js','ph_chart.js','ph.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], (new Date()).toISOString().slice(0,10)); });
   })();
   </script>
 </body>
