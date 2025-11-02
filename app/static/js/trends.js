@@ -268,8 +268,8 @@
         start: new Date(state.window.start).toISOString(),
         end: new Date(state.window.end).toISOString()
       });
-      trendChart.options.scales.x.min = new Date(state.window.start);
-      trendChart.options.scales.x.max = new Date(state.window.end);
+        trendChart.options.scales.x.min = state.window.start;
+        trendChart.options.scales.x.max = state.window.end;
     } else {
       delete trendChart.options.scales.x.min;
       delete trendChart.options.scales.x.max;
