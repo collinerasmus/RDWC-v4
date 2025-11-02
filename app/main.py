@@ -98,9 +98,8 @@ def _sensor_loop():
                 "errors": {}
             }
             _last_t = time.time()
-            # log only if we have numbers
-            if all(v is not None for v in (_last["temp_c"], _last["ph"], _last["ec_ms_cm"])):
-                log_reading(_last["temp_c"], _last["ph"], _last["ec_ms_cm"])
+            # Always log to preserve history; NULLs allowed when some sensors are offline
+            log_reading(_last["temp_c"], _last["ph"], _last["ec_ms_cm"])
         except Exception as e:
             _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {"loop": str(e)}}
         time.sleep(10)
@@ -118,8 +117,8 @@ async def sensor_loop():
                 "errors": {}
             }
             _last_t = time.time()
-            if all(v is not None for v in (_last["temp_c"], _last["ph"], _last["ec_ms_cm"])):
-                log_reading(_last["temp_c"], _last["ph"], _last["ec_ms_cm"])
+            # Always log to preserve history; NULLs allowed when some sensors are offline
+            log_reading(_last["temp_c"], _last["ph"], _last["ec_ms_cm"])
         except Exception as e:
             _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {"loop": str(e)}}
         await asyncio.sleep(10)
