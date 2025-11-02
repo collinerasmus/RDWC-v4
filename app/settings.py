@@ -55,6 +55,8 @@ DEFAULTS: Dict[str, str] = {
     # targets
     "targets.ph_low": "5.8",
     "targets.ph_high": "6.2",
+    "targets.ec_low": "0.8",
+    "targets.ec_high": "1.2",
     "targets.ec_target": "1.8",
     "targets.ec_tolerance": "0.2",
     "targets.temp_target_c": "20",
@@ -219,7 +221,12 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
         if v is None or not (4.0 <= v <= 7.5):
             return False, {"field": "targets.ph_high", "message": "Must be in 4.0–7.5"}
 
-    # EC 0.0–4.0 mS/cm
+    # EC 0.0–4.0 mS/cm (support both low/high and target/tolerance models)
+    for k in ("targets.ec_low", "targets.ec_high"):
+        if k in final:
+            v = f(final[k])
+            if v is None or not (0.0 <= v <= 4.0):
+                return False, {"field": k, "message": "Must be in 0.0–4.0"}
     for k in ("targets.ec_target", "targets.ec_tolerance"):
         if k in final:
             v = f(final[k])
@@ -330,13 +337,23 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
     if ph_lo is not None and ph_hi is not None and not (ph_lo < ph_hi):
         return False, {"field": "targets.ph_low", "message": "Must be < ph_high"}
 
-    ec_tgt = f(final.get("targets.ec_target"), f(current.get("targets.ec_target", 1.8)))
-    ec_tol = f(final.get("targets.ec_tolerance"), f(current.get("targets.ec_tolerance", 0.2)))
-    if ec_tol is not None and ec_tol < 0:
-        return False, {"field": "targets.ec_tolerance", "message": "Must be >= 0"}
-    if ec_tgt is not None and ec_tol is not None:
-        if not (0.0 <= ec_tgt - ec_tol) or not ((ec_tgt + ec_tol) <= 4.0):
-            return False, {"field": "targets.ec_target", "message": "target±tolerance must be within 0–4"}
+    # Prefer low/high model when provided
+    ec_lo = f(final.get("targets.ec_low"), f(current.get("targets.ec_low", 0.8)))
+    ec_hi = f(final.get("targets.ec_high"), f(current.get("targets.ec_high", 1.2)))
+    if ec_lo is not None and ec_hi is not None:
+        if not (ec_lo < ec_hi):
+            return False, {"field": "targets.ec_low", "message": "Must be < ec_high"}
+        if not (0.0 <= ec_lo) or not (ec_hi <= 4.0):
+            return False, {"field": "targets.ec_low", "message": "Range must be within 0–4"}
+    else:
+        # Fallback: target±tolerance model
+        ec_tgt = f(final.get("targets.ec_target"), f(current.get("targets.ec_target", 1.8)))
+        ec_tol = f(final.get("targets.ec_tolerance"), f(current.get("targets.ec_tolerance", 0.2)))
+        if ec_tol is not None and ec_tol < 0:
+            return False, {"field": "targets.ec_tolerance", "message": "Must be >= 0"}
+        if ec_tgt is not None and ec_tol is not None:
+            if not (0.0 <= ec_tgt - ec_tol) or not ((ec_tgt + ec_tol) <= 4.0):
+                return False, {"field": "targets.ec_target", "message": "target±tolerance must be within 0–4"}
 
     # If we get here, validation passed
     return True, None

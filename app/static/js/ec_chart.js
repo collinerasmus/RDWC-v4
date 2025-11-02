@@ -141,7 +141,7 @@
       return;
     }
 
-    const hasAnyMl = events.some(r => r && r.volume_ml != null);
+  const hasAnyMl = events.some(r => r && r.volume_ml != null);
     const pts = events.map(r => ({
       x: new Date(r.ts),
       y: hasAnyMl ? (r.volume_ml != null ? r.volume_ml : 0) : (r.seconds ?? 0),
@@ -202,6 +202,21 @@
     buildChart(datasets, tmin, tmax, axisTitle);
 
     EC_STATE = { startISO, endISO, lastCount: events.length };
+
+    // Update summary badges if present
+    try {
+      const todayEl = document.getElementById('ec-total-today');
+      const weekEl = document.getElementById('ec-total-week');
+      if (todayEl && hasAnyMl) {
+        const todayStr = new Date().toISOString().slice(0,10);
+        const todayTotal = (summary.find(d => d.day === todayStr)?.total_ml) ?? 0;
+        todayEl.textContent = `Today: ${Number(todayTotal).toFixed(1)} ml`;
+      }
+      if (weekEl && hasAnyMl) {
+        const sum7 = summary.slice(-7).reduce((a, d) => a + (d.total_ml || 0), 0);
+        weekEl.textContent = `Week: ${Number(sum7).toFixed(1)} ml`;
+      }
+    } catch(e) { /* ignore */ }
   }
 
   function bindRangeButtons(){
