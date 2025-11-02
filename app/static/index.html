@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/static/css/app.css" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
 <style>
 :root{
   --maxw: 1280px;
@@ -511,11 +512,11 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   /* Subtle click feedback */
   .relay-btn.loading{ opacity:.7; }
 
-  /* Dose History chart wrappers: fix height to prevent growth on tab re-open */
-  #ph-dose-chart-wrap { min-height: 260px; height: 260px; position: relative; }
-  #phDoseChart { display: block; width: 100%; height: 260px; }
-  #ec-dose-chart-wrap { min-height: 260px; height: 260px; position: relative; }
-  #ecDoseChart { display: block; width: 100%; height: 260px; }
+  /* Dose History chart wrappers: match sensors graph height */
+  #ph-dose-chart-wrap { min-height: var(--h-trends); height: var(--h-trends); position: relative; }
+  #phDoseChart { display: block; width: 100%; height: var(--h-trends); }
+  #ec-dose-chart-wrap { min-height: var(--h-trends); height: var(--h-trends); position: relative; }
+  #ecDoseChart { display: block; width: 100%; height: var(--h-trends); }
 
   /* BOP (Balance of Plant) styling */
   .bop-relay-card {

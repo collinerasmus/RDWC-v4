@@ -24,6 +24,12 @@
         Chart.plugins.Legend,
         Chart.plugins.Title
       );
+      // Register annotation plugin if available
+      if (window.chartjs && window.chartjs.Annotation) {
+        Chart.register(window.chartjs.Annotation);
+      } else if (window.ChartAnnotation) {
+        Chart.register(window.ChartAnnotation);
+      }
     } catch(e) {
       // Already registered or UMD handled it
       console.debug('[pH] Chart.js controllers already registered');
@@ -36,8 +42,10 @@
    * @param {Array} datasets - Chart.js datasets
    * @param {string|null} timeMin - ISO timestamp or null
    * @param {string|null} timeMax - ISO timestamp or null
+   * @param {string|null} axisTitle - Y-axis label
+   * @param {number|null} currentPH - Current live pH reading
    */
-  function phBuildChart(datasets, timeMin, timeMax, axisTitle) {
+  function phBuildChart(datasets, timeMin, timeMax, axisTitle, currentPH) {
     const el = document.getElementById('phDoseChart');
     const empty = document.getElementById('ph-dose-empty');
 
@@ -71,6 +79,29 @@
 
     // Check if we have a cumulative dataset that needs a second Y-axis
     const hasCumulative = dsUse.some(ds => ds.yAxisID === 'y2');
+
+    // Build annotation plugin config for pH reference line
+    const annotations = {};
+    if (currentPH != null && !isNaN(currentPH)) {
+      annotations.phLine = {
+        type: 'line',
+        yMin: currentPH,
+        yMax: currentPH,
+        yScaleID: 'y',
+        borderColor: 'rgba(251, 191, 36, 0.8)',  // amber-400
+        borderWidth: 2,
+        borderDash: [6, 4],
+        label: {
+          display: true,
+          content: `Current pH: ${currentPH.toFixed(2)}`,
+          position: 'start',
+          backgroundColor: 'rgba(251, 191, 36, 0.9)',
+          color: '#000',
+          font: { size: 11, weight: 'bold' },
+          padding: 4
+        }
+      };
+    }
 
     PH_CHART = new Chart(ctx, {
       type: 'scatter', // will mix with bars and lines
@@ -136,12 +167,15 @@
                 return `${ml}${ph}`;
               }
             }
+          },
+          annotation: {
+            annotations: annotations
           }
         }
       }
     });
 
-    console.debug('[pH] Chart created/rebuilt', { hasData, datasetCount: dsUse.length });
+    console.debug('[pH] Chart created/rebuilt', { hasData, datasetCount: dsUse.length, currentPH });
   }
 
   /**
@@ -175,27 +209,34 @@
 
     console.log('[pH Chart] Range request', {start, end, startISO, endISO});
 
-    // Build URLs for events and summary
+    // Build URLs for events, summary, and live pH
     const uEvents = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`;
     const uSummary = `/api/ph/dose_summary?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
+    const uStatus = `/api/ph/status`;
 
-    console.log('[pH Chart] Fetching', {uEvents, uSummary});
+    console.log('[pH Chart] Fetching', {uEvents, uSummary, uStatus});
 
     let events = [];
     let summary = [];
+    let currentPH = null;
     try {
-      const [eRes, sRes] = await Promise.all([
+      const [eRes, sRes, stRes] = await Promise.all([
         fetch(uEvents, {cache:'no-store'}), 
-        fetch(uSummary, {cache:'no-store'})
+        fetch(uSummary, {cache:'no-store'}),
+        fetch(uStatus, {cache:'no-store'})
       ]);
-      console.log('[pH Chart] Response status', {events: eRes.status, summary: sRes.status});
+      console.log('[pH Chart] Response status', {events: eRes.status, summary: sRes.status, status: stRes.status});
       if (!eRes.ok) throw new Error(`dose_log HTTP ${eRes.status}`);
       if (!sRes.ok) throw new Error(`dose_summary HTTP ${sRes.status}`);
       events = await eRes.json();
       summary = await sRes.json();
+      if (stRes.ok) {
+        const statusData = await stRes.json();
+        currentPH = statusData?.ph ?? null;
+      }
     } catch (err) {
       console.error('[pH Chart] fetch error:', err);
-      phBuildChart([], null, null);
+      phBuildChart([], null, null, null);
       return;
     }
 
@@ -276,8 +317,8 @@
     // This ensures the full timeframe is visible even with sparse data
     const tmin = startISO ? new Date(startISO) : null;
     const tmax = endISO ? new Date(endISO) : null;
-    console.log('[pH Chart] Axis bounds (from request)', {tmin, tmax, startISO, endISO});
-    phBuildChart(datasets, tmin, tmax, axisTitle);
+    console.log('[pH Chart] Axis bounds (from request)', {tmin, tmax, startISO, endISO, currentPH});
+    phBuildChart(datasets, tmin, tmax, axisTitle, currentPH);
 
     // Update "In range" pill
     const pill = document.getElementById('ph-in-range');

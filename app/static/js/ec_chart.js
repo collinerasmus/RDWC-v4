@@ -21,13 +21,19 @@
         Chart.plugins.Legend,
         Chart.plugins.Title
       );
+      // Register annotation plugin if available
+      if (window.chartjs && window.chartjs.Annotation) {
+        Chart.register(window.chartjs.Annotation);
+      } else if (window.ChartAnnotation) {
+        Chart.register(window.ChartAnnotation);
+      }
     } catch (e) {
       // ignore
     }
     window.RDWC_CHART_REG_EC = true;
   }
 
-  function buildChart(datasets, tmin, tmax, axisTitle) {
+  function buildChart(datasets, tmin, tmax, axisTitle, currentEC) {
     const el = document.getElementById('ecDoseChart');
     const empty = document.getElementById('ec-dose-empty');
     if (!el) return;
@@ -50,6 +56,29 @@
     }];
 
     const hasCumulative = dsUse.some(ds => ds.yAxisID === 'y2');
+
+    // Build annotation plugin config for EC reference line
+    const annotations = {};
+    if (currentEC != null && !isNaN(currentEC)) {
+      annotations.ecLine = {
+        type: 'line',
+        yMin: currentEC,
+        yMax: currentEC,
+        yScaleID: 'y',
+        borderColor: 'rgba(99, 102, 241, 0.8)',  // indigo-500
+        borderWidth: 2,
+        borderDash: [6, 4],
+        label: {
+          display: true,
+          content: `Current EC: ${currentEC.toFixed(2)} mS/cm`,
+          position: 'start',
+          backgroundColor: 'rgba(99, 102, 241, 0.9)',
+          color: '#fff',
+          font: { size: 11, weight: 'bold' },
+          padding: 4
+        }
+      };
+    }
 
     EC_CHART = new Chart(ctx, {
       type: 'scatter',
@@ -101,6 +130,9 @@
                 return `${ml}${ec}`;
               }
             }
+          },
+          annotation: {
+            annotations: annotations
           }
         }
       }
@@ -126,18 +158,24 @@
 
     let events = [];
     let summary = [];
+    let currentEC = null;
     try{
-      const [eRes, sRes] = await Promise.all([
+      const [eRes, sRes, stRes] = await Promise.all([
         fetch(`/api/ec/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`, {cache:'no-store'}),
-        fetch(`/api/ec/dose_summary?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`, {cache:'no-store'})
+        fetch(`/api/ec/dose_summary?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`, {cache:'no-store'}),
+        fetch(`/api/ec/status`, {cache:'no-store'})
       ]);
       if (!eRes.ok) throw new Error(`dose_log HTTP ${eRes.status}`);
       if (!sRes.ok) throw new Error(`dose_summary HTTP ${sRes.status}`);
       events = await eRes.json();
       summary = await sRes.json();
+      if (stRes.ok) {
+        const statusData = await stRes.json();
+        currentEC = statusData?.ec ?? null;
+      }
     } catch(err){
       console.error('[EC Chart] fetch error:', err);
-      buildChart([], null, null, 'Dose (ml)');
+      buildChart([], null, null, 'Dose (ml)', null);
       return;
     }
 
@@ -199,7 +237,7 @@
     const axisTitle = hasAnyMl ? 'Dose (ml)' : 'Dose (s)';
     const tmin = startISO ? new Date(startISO) : null;
     const tmax = endISO ? new Date(endISO) : null;
-    buildChart(datasets, tmin, tmax, axisTitle);
+    buildChart(datasets, tmin, tmax, axisTitle, currentEC);
 
     EC_STATE = { startISO, endISO, lastCount: events.length };
 
