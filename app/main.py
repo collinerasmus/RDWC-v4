@@ -24,6 +24,8 @@ from app.logger import log_reading, last_n, fetch_history_since
 from app.scheduler import Scheduler, load_cfg, save_cfg
 from app.monitor import start_monitoring, stop_monitoring, get_monitoring_status
 from app.relays_core import initialize_all_safe_off, get_relay_event_log, allowed_lights_reasons, set_lights_hold
+from app.relays_core import set as relay_set
+from app.relays_core import get_estop_status
 
 DB_PATH = os.environ.get("RDWC_DB", os.path.join(os.path.dirname(__file__), "..", "data", "rdwc.db"))
 DB_PATH = os.path.abspath(DB_PATH)
@@ -1645,6 +1647,87 @@ def calib_leds_blink(count: int = 8, period_s: float = 0.25):
         return out
     except Exception as ex:
         return {"ok": False, "note": type(ex).__name__}
+
+# ---------------- Dosing Calibration ------------------------------
+_PUMP_MAP = {
+    "ph_up": "dosing_ph_up",
+    "grow": "dosing_grow",
+    "micro": "dosing_micro",
+    "bloom": "dosing_bloom",
+}
+
+_RATE_KEY = {
+    "ph_up": "dosing.ph_up_ml_per_sec",
+    "grow": "dosing.grow_ml_per_sec",
+    "micro": "dosing.micro_ml_per_sec",
+    "bloom": "dosing.bloom_ml_per_sec",
+}
+
+def _pump_label(k: str) -> str:
+    return {
+        "ph_up": "pH Up Pump",
+        "grow": "Grow",
+        "micro": "Micro",
+        "bloom": "Bloom",
+    }.get(k, k)
+
+@app.get("/calib/dose/pumps")
+def calib_dose_pumps():
+    from app.settings import get_all_settings
+    s = get_all_settings()
+    rates = {k: float(s.get(_RATE_KEY[k], "0") or 0) for k in _PUMP_MAP.keys()}
+    return {"ok": True, "pumps": [{"key": k, "relay": _PUMP_MAP[k], "label": _pump_label(k), "ml_per_sec": rates.get(k, 0.0)} for k in _PUMP_MAP.keys()]}
+
+def _pulse_pump(pump_key: str, seconds: float):
+    name = _PUMP_MAP.get(pump_key)
+    if not name:
+        return {"ok": False, "note": "invalid_pump"}
+    if not _calib_enabled():
+        return {"ok": False, "note": "Calibration writes disabled. Set CALIB_ENABLE=1 and restart."}
+    if get_estop_status():
+        return {"ok": False, "note": "estop_active"}
+    dur = max(0.2, min(10.0, float(seconds)))
+    def _worker():
+        try:
+            relay_set(name, True, reason="calib_dose", force=True)
+            time.sleep(dur)
+        finally:
+            relay_set(name, False, reason="calib_dose", force=True)
+    threading.Thread(target=_worker, daemon=True).start()
+    return {"ok": True, "scheduled_s": dur}
+
+@app.post("/calib/dose/prime")
+def calib_dose_prime(pump: str, seconds: float = 0.5):
+    seconds = max(0.2, min(2.0, float(seconds)))
+    return _pulse_pump(pump, seconds)
+
+@app.post("/calib/dose/run")
+def calib_dose_run(pump: str, seconds: float = 5.0):
+    seconds = max(0.2, min(10.0, float(seconds)))
+    return _pulse_pump(pump, seconds)
+
+@app.post("/calib/dose/commit")
+def calib_dose_commit(pump: str, seconds: float, measured_ml: float):
+    chk = _require_enabled()
+    if chk:
+        return chk
+    try:
+        sec = max(0.1, float(seconds))
+        ml = max(0.1, float(measured_ml))
+        rate = ml / sec
+    except Exception:
+        return {"ok": False, "note": "invalid_inputs"}
+    key = _RATE_KEY.get(pump)
+    if not key:
+        return {"ok": False, "note": "invalid_pump"}
+    # Persist via settings API
+    from app.settings import validate_partial, upsert_settings
+    payload = {key: f"{rate:.3f}"}
+    ok, err = validate_partial(payload)
+    if not ok:
+        return JSONResponse(status_code=422, content={"ok": False, **(err or {})})
+    changed = upsert_settings(payload)
+    return {"ok": True, "rate_ml_per_sec": rate, "updated": changed}
 
 def _require_enabled():
     if not _calib_enabled():

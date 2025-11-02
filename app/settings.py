@@ -68,6 +68,10 @@ DEFAULTS: Dict[str, str] = {
     "dosing.mix_delay_s": "0",
     # pH Up dosing controls
     "dosing.ph_up_ml_per_sec": "25",
+    # Nutrient pump calibration (ml/s)
+    "dosing.grow_ml_per_sec": "20",
+    "dosing.micro_ml_per_sec": "20",
+    "dosing.bloom_ml_per_sec": "20",
     "dosing.ph_up_max_ml_per_day": "50",
     "dosing.ph_up_max_single_ml": "5",
     "dosing.ph_min_interval_s": "300",
@@ -250,6 +254,11 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
         v = f(final["dosing.ph_up_ml_per_sec"])
         if v is None or not (0.1 <= v <= 200.0):
             return False, {"field": "dosing.ph_up_ml_per_sec", "message": "Must be 0.1–200"}
+    for k in ("dosing.grow_ml_per_sec","dosing.micro_ml_per_sec","dosing.bloom_ml_per_sec"):
+        if k in final:
+            v = f(final[k])
+            if v is None or not (0.1 <= v <= 200.0):
+                return False, {"field": k, "message": "Must be 0.1–200"}
     if "dosing.ph_up_max_ml_per_day" in final:
         v = f(final["dosing.ph_up_max_ml_per_day"])
         if v is None or not (0.0 <= v <= 500.0):

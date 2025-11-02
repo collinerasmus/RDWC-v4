@@ -146,15 +146,57 @@
         </div>
       `;
 
+      // Dosing calibration
+      const doseWrap = document.createElement('div');
+      doseWrap.className = 'card';
+      doseWrap.style.padding = '12px';
+      doseWrap.style.marginTop = '12px';
+      doseWrap.innerHTML = `
+        <h3 style="margin-top:0;">Dosing Calibration</h3>
+        <div id="dose-calib-banner" class="row" style="margin-bottom:6px;display:none">
+          <span class="muted">Writes are disabled. Set CALIB_ENABLE=1 and restart service to enable calibration commands.</span>
+        </div>
+        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;">
+          <label for="dose-pump">Pump:</label>
+          <select id="dose-pump" style="padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3"></select>
+          <span class="muted">Current rate:</span>
+          <span id="dose-current">—</span>
+          <button id="btnDoseRefresh" class="btn-secondary">Refresh</button>
+        </div>
+        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;">
+          <label>Prime:</label>
+          <input id="dose-prime-sec" type="number" min="0.2" max="2.0" step="0.1" value="0.5" style="width:80px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3"/>
+          <span class="muted">sec</span>
+          <button id="btnDosePrime" class="btn-secondary">Prime</button>
+        </div>
+        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;">
+          <label>Run:</label>
+          <input id="dose-run-sec" type="number" min="0.2" max="10.0" step="0.1" value="5.0" style="width:80px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3"/>
+          <span class="muted">sec</span>
+          <button id="btnDoseRun" class="btn-secondary">Run</button>
+        </div>
+        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;">
+          <label>Measured:</label>
+          <input id="dose-measured-ml" type="number" min="0.1" step="0.1" value="50.0" style="width:100px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3"/>
+          <span class="muted">ml</span>
+          <button id="btnDoseCommit" class="btn-secondary" title="Compute ml/s and save">Compute & Save</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <span id="dose-calib-msg" class="muted"></span>
+        </div>
+        <div id="dose-calib-log" class="muted" style="margin-top:8px;max-height:160px;overflow:auto;font-family:ui-monospace, monospace;font-size:12px;border-top:1px dashed #1f2937;padding-top:6px"></div>
+      `;
+
       panel.appendChild(title);
       panel.appendChild(phWrap);
+      panel.appendChild(doseWrap);
       panel.appendChild(ecWrap);
 
       // Wire up pH controls
       const msg = () => q('#ph-calib-msg');
       const setMsg = (t, ok=true) => { const el = msg(); if (!el) return; el.textContent = t||''; el.style.color = ok? '#9ca3af' : '#fca5a5'; log(t); };
       const setCurrent = (v) => { const sp = q('#ph-current'); if (sp) sp.textContent = (v==null? '—' : Number(v).toFixed(2)); };
-      const setBanner = (on) => { const b = q('#ph-calib-banner'); if (b) b.style.display = on? 'block':'none'; };
+      const setBanner = (on) => { const b = q('#ph-calib-banner'); if (b) b.style.display = on? 'block':'none'; const d = q('#dose-calib-banner'); if (d) d.style.display = on? 'block':'none'; };
       const log = (line) => {
         const box = q('#ph-calib-log'); if (!box) return;
         const ts = new Date().toLocaleTimeString();
@@ -230,8 +272,63 @@
       const bCal  = q('#btnPhCalibrate'); if (bCal) bCal.addEventListener('click', doCal);
       const bClr  = q('#btnPhClear'); if (bClr) bClr.addEventListener('click', clear);
 
+      // Dosing wiring
+      const doseMsgEl = q('#dose-calib-msg');
+      const doseLog = (line)=>{ const box = q('#dose-calib-log'); if (!box) return; const ts=new Date().toLocaleTimeString(); const div=document.createElement('div'); div.textContent = `[${ts}] ${line}`; box.appendChild(div); box.scrollTop = box.scrollHeight; };
+      const setDoseMsg = (t, ok=true)=>{ if (doseMsgEl){ doseMsgEl.textContent = t||''; doseMsgEl.style.color = ok? '#9ca3af' : '#fca5a5'; } doseLog(t); };
+      const doseSel = q('#dose-pump');
+      const doseCur = q('#dose-current');
+      const renderPumps = async ()=>{
+        try{
+          const r = await (await fetch('/calib/dose/pumps?t='+Date.now(), {cache:'no-store'})).json();
+          if (!r || !r.ok) throw new Error('load failed');
+          // Build options if empty
+          if (doseSel && doseSel.options.length===0){
+            r.pumps.forEach(p=>{
+              const opt = document.createElement('option');
+              opt.value = p.key;
+              opt.textContent = p.label;
+              doseSel.appendChild(opt);
+            });
+          }
+          // Update current rate display
+          const sel = (doseSel && doseSel.value) || (r.pumps[0] && r.pumps[0].key);
+          const found = (r.pumps||[]).find(p=>p.key===sel);
+          if (doseCur) doseCur.textContent = found? `${Number(found.ml_per_sec||0).toFixed(3)} ml/s` : '—';
+        }catch(e){ if (doseCur) doseCur.textContent = '—'; }
+      };
+      if (doseSel){ doseSel.addEventListener('change', renderPumps); }
+      const btnDoseRefresh = q('#btnDoseRefresh'); if (btnDoseRefresh) btnDoseRefresh.addEventListener('click', renderPumps);
+      const btnPrime = q('#btnDosePrime'); if (btnPrime) btnPrime.addEventListener('click', async ()=>{
+        try{
+          const pump = doseSel && doseSel.value; const sec = parseFloat((q('#dose-prime-sec')||{}).value||'0.5');
+          const r = await (await fetch(`/calib/dose/prime?pump=${encodeURIComponent(pump)}&seconds=${encodeURIComponent(sec)}`, {method:'POST'})).json();
+          setDoseMsg(r && r.ok? `Priming ${pump} for ${r.scheduled_s||sec}s` : (r.note||'Prime failed'), !!(r&&r.ok));
+        }catch(e){ setDoseMsg('Prime failed', false); }
+      });
+      const btnRun = q('#btnDoseRun'); if (btnRun) btnRun.addEventListener('click', async ()=>{
+        try{
+          const pump = doseSel && doseSel.value; const sec = parseFloat((q('#dose-run-sec')||{}).value||'5');
+          const r = await (await fetch(`/calib/dose/run?pump=${encodeURIComponent(pump)}&seconds=${encodeURIComponent(sec)}`, {method:'POST'})).json();
+          setDoseMsg(r && r.ok? `Running ${pump} for ${r.scheduled_s||sec}s` : (r.note||'Run failed'), !!(r&&r.ok));
+        }catch(e){ setDoseMsg('Run failed', false); }
+      });
+      const btnCommit = q('#btnDoseCommit'); if (btnCommit) btnCommit.addEventListener('click', async ()=>{
+        try{
+          const pump = doseSel && doseSel.value; const sec = parseFloat((q('#dose-run-sec')||{}).value||'5'); const ml = parseFloat((q('#dose-measured-ml')||{}).value||'0');
+          if (!pump || !isFinite(sec) || !isFinite(ml) || sec<=0 || ml<=0){ setDoseMsg('Enter seconds and measured ml', false); return; }
+          const rate = ml/sec; setDoseMsg(`Computed ${rate.toFixed(3)} ml/s; saving...`);
+          const r = await (await fetch(`/calib/dose/commit?pump=${encodeURIComponent(pump)}&seconds=${encodeURIComponent(sec)}&measured_ml=${encodeURIComponent(ml)}`, {method:'POST'})).json();
+          if (r && r.ok){ setDoseMsg(`Saved ${Number(r.rate_ml_per_sec||rate).toFixed(3)} ml/s to ${pump}`); await renderPumps(); }
+          else {
+            if (r && r.field){ setDoseMsg(`${r.field}: ${r.message||'Invalid'}`, false); }
+            else setDoseMsg((r && r.note) || 'Save failed', false);
+          }
+        }catch(e){ setDoseMsg('Save failed', false); }
+      });
+
       // Prime values on open
-      setMsg(''); caps(); status(); read();
+      setMsg(''); caps(); status(); read(); renderPumps();
       return panel;
     }
     const fields = GROUP_DEF[ns].fields;
