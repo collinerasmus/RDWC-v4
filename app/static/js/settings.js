@@ -271,12 +271,13 @@
       const bCal  = q('#btnPhCalibrate'); if (bCal) bCal.addEventListener('click', doCal);
       const bClr  = q('#btnPhClear'); if (bClr) bClr.addEventListener('click', clear);
 
-      // Dosing wiring
-      const doseMsgEl = q('#dose-calib-msg');
+  // Dosing wiring (scoped to this panel to work before attach)
+  const qP = (sel) => panel.querySelector(sel);
+  const doseMsgEl = qP('#dose-calib-msg');
       const doseLog = (line)=>{ const box = q('#dose-calib-log'); if (!box) return; const ts=new Date().toLocaleTimeString(); const div=document.createElement('div'); div.textContent = `[${ts}] ${line}`; box.appendChild(div); box.scrollTop = box.scrollHeight; };
       const setDoseMsg = (t, ok=true)=>{ if (doseMsgEl){ doseMsgEl.textContent = t||''; doseMsgEl.style.color = ok? '#9ca3af' : '#fca5a5'; } doseLog(t); };
-      const doseSel = q('#dose-pump');
-      const doseCur = q('#dose-current');
+  const doseSel = qP('#dose-pump');
+  const doseCur = qP('#dose-current');
       const renderPumps = async ()=>{
         try{
           const r = await (await fetch('/calib/dose/pumps?t='+Date.now(), {cache:'no-store'})).json();
@@ -310,9 +311,9 @@
           if (doseCur) doseCur.textContent = found? `${Number(found.ml_per_sec||0).toFixed(3)} ml/s` : '—';
         }catch(e){ if (doseCur) doseCur.textContent = '—'; }
       };
-      if (doseSel){ doseSel.addEventListener('change', renderPumps); }
-      const btnDoseRefresh = q('#btnDoseRefresh'); if (btnDoseRefresh) btnDoseRefresh.addEventListener('click', renderPumps);
-      const btnPrimeT = q('#btnDosePrimeToggle');
+  if (doseSel){ doseSel.addEventListener('change', renderPumps); }
+  const btnDoseRefresh = qP('#btnDoseRefresh'); if (btnDoseRefresh) btnDoseRefresh.addEventListener('click', renderPumps);
+  const btnPrime = qP('#btnDosePrimeToggle');
       async function refreshPrimeState(){
         try{
           const r = await (await fetch('/calib/dose/status?t='+Date.now(), {cache:'no-store'})).json();
