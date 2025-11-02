@@ -204,11 +204,14 @@ def get_current_water_temp() -> Optional[float]:
     # Fallback to last database reading (within 5 minutes)
     try:
         from app.services.sensors_fallback import get_last_reading
-        import time
-        db_reading = get_last_reading(max_age_seconds=300)  # 5 minute max age
+        db_reading = get_last_reading()
         if db_reading and db_reading.get('temperature_c') is not None:
-            log.info(f'[CHILLER] Using database temp (age: {db_reading.get("age_seconds", "unknown")}s)')
-            return float(db_reading['temperature_c'])
+            stale_seconds = db_reading.get('stale_seconds', 999999)
+            if stale_seconds is not None and stale_seconds < 300:  # Max 5 minutes old
+                log.info(f'[CHILLER] Using database temp (age: {stale_seconds}s)')
+                return float(db_reading['temperature_c'])
+            else:
+                log.warning(f'[CHILLER] Database temp too stale ({stale_seconds}s)')
     except Exception as e:
         log.error(f'[CHILLER] Database fallback failed: {e}')
     
