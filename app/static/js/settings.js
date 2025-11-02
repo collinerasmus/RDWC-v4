@@ -314,12 +314,20 @@
   if (doseSel){ doseSel.addEventListener('change', renderPumps); }
   const btnDoseRefresh = qP('#btnDoseRefresh'); if (btnDoseRefresh) btnDoseRefresh.addEventListener('click', renderPumps);
   const btnPrime = qP('#btnDosePrimeToggle');
+      let primeMonitorInterval = null;
       async function refreshPrimeState(){
         try{
           const r = await (await fetch('/calib/dose/status?t='+Date.now(), {cache:'no-store'})).json();
           const pump = doseSel && doseSel.value;
           const on = !!(r && r.ok && r.states && r.states[pump]);
           if (btnPrime) btnPrime.textContent = on? 'Stop Priming' : 'Start Priming';
+          // Start/stop monitoring based on state
+          if (on && !primeMonitorInterval){
+            primeMonitorInterval = setInterval(refreshPrimeState, 2000);
+          } else if (!on && primeMonitorInterval){
+            clearInterval(primeMonitorInterval);
+            primeMonitorInterval = null;
+          }
           return on;
         }catch(e){ if (btnPrime) btnPrime.textContent = 'Start Priming'; return false; }
       }
