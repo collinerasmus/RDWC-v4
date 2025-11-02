@@ -19,7 +19,8 @@ def get_relays():
 
 
 def dose_ec(amount_ml: float, mode: str = "schedule"):
-    r = requests.post(f"{API}/api/ec/dose", json={"volume_ml": amount_ml, "mix_mode": mode}, timeout=30)
+    # Matches backend contract: { ml, mix_ratio, custom? }
+    r = requests.post(f"{API}/api/ec/dose", json={"ml": amount_ml, "mix_ratio": mode}, timeout=30)
     return r.status_code, (r.json() if r.headers.get("content-type","" ).startswith("application/json") else r.text)
 
 
