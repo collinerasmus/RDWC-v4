@@ -471,7 +471,110 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
   </section>
 
-  <!-- 2. Relays Control Panel -->
+  <!-- 2. BOP (Balance of Plant) -->
+  <section id="bop-card" class="card card-wide">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <h3 class="card-title" style="margin:0;">Balance of Plant</h3>
+      <div class="muted" style="font-size:0.85rem;">RDWC System Coordination</div>
+    </div>
+    <div class="card-body">
+      <div class="muted" style="margin-bottom:12px;padding:8px 12px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;">
+        <strong>RDWC Note:</strong> Main Pump must run for accurate sensor readings. Chiller combo (Chiller + Chiller Pump) automatically enables when Main Pump is ON.
+      </div>
+      
+      <!-- BOP Controls Grid -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px;">
+        <!-- Lights (Grow Operations) -->
+        <div class="bop-relay-card" data-relay="lights">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-weight:600;font-size:0.95rem;">💡 Lights</div>
+            <span class="bop-status-badge" id="bop-lights-status">—</span>
+          </div>
+          <button class="relay-btn" data-relay="lights" style="width:100%;">
+            <span class="relay-label">Lights</span>
+          </button>
+          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Part of grow cycle</div>
+        </div>
+
+        <!-- Main Pump (Critical) -->
+        <div class="bop-relay-card" data-relay="main_pump">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-weight:600;font-size:0.95rem;">🔄 Main Pump</div>
+            <span class="bop-status-badge" id="bop-main-pump-status">—</span>
+          </div>
+          <button class="relay-btn" data-relay="main_pump" style="width:100%;">
+            <span class="relay-label">Main Pump</span>
+          </button>
+          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Required for sensors</div>
+        </div>
+
+        <!-- Chiller Pump (Coordinated) -->
+        <div class="bop-relay-card" data-relay="chiller_pump">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-weight:600;font-size:0.95rem;">🌊 Chiller Pump</div>
+            <span class="bop-status-badge" id="bop-chiller-pump-status">—</span>
+          </div>
+          <button class="relay-btn" data-relay="chiller_pump" style="width:100%;">
+            <span class="relay-label">Chiller Pump</span>
+          </button>
+          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Pairs with chiller</div>
+        </div>
+
+        <!-- Chiller (Coordinated) -->
+        <div class="bop-relay-card" data-relay="chiller_power">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-weight:600;font-size:0.95rem;">❄️ Chiller</div>
+            <span class="bop-status-badge" id="bop-chiller-power-status">—</span>
+          </div>
+          <button class="relay-btn" data-relay="chiller_power" style="width:100%;">
+            <span class="relay-label">Chiller</span>
+          </button>
+          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Requires pumps ON</div>
+        </div>
+      </div>
+
+      <!-- Coordination Rules -->
+      <div id="bop-coordination-banner" class="muted" style="display:none;padding:8px 12px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#fecaca;font-size:0.85rem;margin-top:8px;">
+        <strong>⚠️ Coordination Block:</strong> <span id="bop-coordination-message">—</span>
+      </div>
+
+      <!-- Legacy Chiller Controls (kept for override functionality) -->
+      <details style="margin-top:16px;">
+        <summary class="muted" style="cursor:pointer;font-size:0.85rem;padding:6px 0;">Advanced Chiller Override</summary>
+        <div style="margin-top:8px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+          <div class="row" style="margin-bottom:8px;">
+            <label><input type="radio" name="chillerMode" value="auto" onchange="updateChillerMode()"> Auto</label>
+            <label style="margin-left:12px"><input type="radio" name="chillerMode" value="force_on" onchange="updateChillerMode()"> Force ON</label>
+            <label style="margin-left:12px"><input type="radio" name="chillerMode" value="force_off" onchange="updateChillerMode()"> Force OFF</label>
+          </div>
+          <div class="row" id="durationRow" style="display:none">
+            <label>Duration:</label>
+            <select id="chillerDuration" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3">
+              <option value="30">30 minutes</option>
+              <option value="60">1 hour</option>
+              <option value="240">4 hours</option>
+              <option value="midnight">Until midnight</option>
+            </select>
+            <button onclick="applyChillerOverride()" style="background:#10b981;color:#062314;margin-left:8px">Apply</button>
+          </div>
+          <div class="row">
+            <span id="chillerStatus" class="muted">Status: Auto</span>
+          </div>
+        </div>
+      </details>
+
+      <!-- Lights Log (debug) -->
+      <details style="margin-top:8px;">
+        <summary class="muted" style="cursor:pointer;font-size:0.85rem;padding:6px 0;">Lights Log (debug)</summary>
+        <div style="margin-top:8px;">
+          <button onclick="viewLightsLog()" style="background:#374151;color:#e5e7eb;padding:6px 12px;border-radius:6px;border:1px solid #4b5563;cursor:pointer;">View Lights Log (last 50)</button>
+          <div id="lightsLog" class="muted" style="margin-top:8px;max-height:220px;overflow:auto;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;font-size:12px;"></div>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- 3. Relays Control Panel -->
   <section id="relays-card" class="card card-wide">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
       <h3 class="card-title" style="margin:0;">Relays</h3>
@@ -496,7 +599,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
   </section>
 
-  <!-- 3. Sensors Card with Chart.js -->
+  <!-- 4. Sensors Card with Chart.js -->
   <section id="sensors-card" class="card card-wide">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:8px;">
@@ -556,7 +659,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
   </section>
 
-  <!-- 4. pH Control Card -->
+  <!-- 5. pH Control Card -->
   <section id="ph-card" class="card card-wide">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
           <h3 class="card-title" style="margin:0;">pH Control</h3>
@@ -663,110 +766,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
   </section>
 
-  <!-- 6. BOP (Balance of Plant) -->
-  <section id="bop-card" class="card card-wide">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-      <h3 class="card-title" style="margin:0;">Balance of Plant</h3>
-      <div class="muted" style="font-size:0.85rem;">RDWC System Coordination</div>
-    </div>
-    <div class="card-body">
-      <div class="muted" style="margin-bottom:12px;padding:8px 12px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;">
-        <strong>RDWC Note:</strong> Main Pump must run for accurate sensor readings. Chiller combo (Chiller + Chiller Pump) automatically enables when Main Pump is ON.
-      </div>
-      
-      <!-- BOP Controls Grid -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px;">
-        <!-- Lights (Grow Operations) -->
-        <div class="bop-relay-card" data-relay="lights">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:0.95rem;">💡 Lights</div>
-            <span class="bop-status-badge" id="bop-lights-status">—</span>
-          </div>
-          <button class="relay-btn" data-relay="lights" style="width:100%;">
-            <span class="relay-label">Lights</span>
-          </button>
-          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Part of grow cycle</div>
-        </div>
-
-        <!-- Main Pump (Critical) -->
-        <div class="bop-relay-card" data-relay="main_pump">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:0.95rem;">🔄 Main Pump</div>
-            <span class="bop-status-badge" id="bop-main-pump-status">—</span>
-          </div>
-          <button class="relay-btn" data-relay="main_pump" style="width:100%;">
-            <span class="relay-label">Main Pump</span>
-          </button>
-          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Required for sensors</div>
-        </div>
-
-        <!-- Chiller Pump (Coordinated) -->
-        <div class="bop-relay-card" data-relay="chiller_pump">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:0.95rem;">🌊 Chiller Pump</div>
-            <span class="bop-status-badge" id="bop-chiller-pump-status">—</span>
-          </div>
-          <button class="relay-btn" data-relay="chiller_pump" style="width:100%;">
-            <span class="relay-label">Chiller Pump</span>
-          </button>
-          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Pairs with chiller</div>
-        </div>
-
-        <!-- Chiller (Coordinated) -->
-        <div class="bop-relay-card" data-relay="chiller_power">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:0.95rem;">❄️ Chiller</div>
-            <span class="bop-status-badge" id="bop-chiller-power-status">—</span>
-          </div>
-          <button class="relay-btn" data-relay="chiller_power" style="width:100%;">
-            <span class="relay-label">Chiller</span>
-          </button>
-          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Requires pumps ON</div>
-        </div>
-      </div>
-
-      <!-- Coordination Rules -->
-      <div id="bop-coordination-banner" class="muted" style="display:none;padding:8px 12px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#fecaca;font-size:0.85rem;margin-top:8px;">
-        <strong>⚠️ Coordination Block:</strong> <span id="bop-coordination-message">—</span>
-      </div>
-
-      <!-- Legacy Chiller Controls (kept for override functionality) -->
-      <details style="margin-top:16px;">
-        <summary class="muted" style="cursor:pointer;font-size:0.85rem;padding:6px 0;">Advanced Chiller Override</summary>
-        <div style="margin-top:8px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-          <div class="row" style="margin-bottom:8px;">
-            <label><input type="radio" name="chillerMode" value="auto" onchange="updateChillerMode()"> Auto</label>
-            <label style="margin-left:12px"><input type="radio" name="chillerMode" value="force_on" onchange="updateChillerMode()"> Force ON</label>
-            <label style="margin-left:12px"><input type="radio" name="chillerMode" value="force_off" onchange="updateChillerMode()"> Force OFF</label>
-          </div>
-          <div class="row" id="durationRow" style="display:none">
-            <label>Duration:</label>
-            <select id="chillerDuration" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3">
-              <option value="30">30 minutes</option>
-              <option value="60">1 hour</option>
-              <option value="240">4 hours</option>
-              <option value="midnight">Until midnight</option>
-            </select>
-            <button onclick="applyChillerOverride()" style="background:#10b981;color:#062314;margin-left:8px">Apply</button>
-          </div>
-          <div class="row">
-            <span id="chillerStatus" class="muted">Status: Auto</span>
-          </div>
-        </div>
-      </details>
-
-      <!-- Lights Log (debug) -->
-      <details style="margin-top:8px;">
-        <summary class="muted" style="cursor:pointer;font-size:0.85rem;padding:6px 0;">Lights Log (debug)</summary>
-        <div style="margin-top:8px;">
-          <button onclick="viewLightsLog()" style="background:#374151;color:#e5e7eb;padding:6px 12px;border-radius:6px;border:1px solid #4b5563;cursor:pointer;">View Lights Log (last 50)</button>
-          <div id="lightsLog" class="muted" style="margin-top:8px;max-height:220px;overflow:auto;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;font-size:12px;"></div>
-        </div>
-      </details>
-    </div>
-  </section>
-
-  <!-- System Settings (moved to bottom) -->
+  <!-- 6. System Settings (moved to bottom) -->
   <section id="settings-card" class="card card-wide">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
       <h3 class="card-title" style="margin:0;">System Settings</h3>
