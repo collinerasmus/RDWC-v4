@@ -574,32 +574,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
   </section>
 
-  <!-- 3. Relays Control Panel -->
-  <section id="relays-card" class="card card-wide">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-      <h3 class="card-title" style="margin:0;">Relays</h3>
-      <div class="mode-toggle" style="display:flex;gap:8px;align-items:center;">
-        <button id="mode-manual" class="mode-btn">Manual</button>
-        <button id="mode-auto" class="mode-btn">Auto</button>
-        <span style="opacity:.35;">|</span>
-        <button id="estop-btn" class="estop-btn" title="Emergency Stop: forces all relays OFF and blocks ON until released">E‑STOP</button>
-      </div>
-    </div>
-    <div class="card-body">
-      <div id="estop-banner" class="estop-banner hidden">
-        <strong>E-STOP ACTIVE:</strong> All relays are forced OFF. Release E-STOP to resume control.
-      </div>
-      <div id="relays-mode-hint" class="text-xs text-gray-400 mb-3"></div>
-      <!-- ✅ Grid container -->
-      <div id="relays-grid" class="relays-grid"></div>
-      <div id="relays-note" class="muted" style="margin-top:12px;font-size:12px;">
-        <strong>Manual:</strong> relays stay OFF at boot. <strong>Auto:</strong> critical relays restore last state. 
-        <span style="opacity:.8">Active-low; OFF = HIGH. Safe-off on boot.</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- 4. Sensors Card with Chart.js -->
+  <!-- 3. Sensors Card with Chart.js -->
   <section id="sensors-card" class="card card-wide">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:8px;">
@@ -659,7 +634,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
   </section>
 
-  <!-- 5. pH Control Card -->
+  <!-- 4. pH Control Card -->
   <section id="ph-card" class="card card-wide">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
           <h3 class="card-title" style="margin:0;">pH Control</h3>
@@ -766,7 +741,32 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
   </section>
 
-  <!-- 6. System Settings (moved to bottom) -->
+  <!-- 6. Relays Control Panel -->
+  <section id="relays-card" class="card card-wide">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <h3 class="card-title" style="margin:0;">Relays</h3>
+      <div class="mode-toggle" style="display:flex;gap:8px;align-items:center;">
+        <button id="mode-manual" class="mode-btn">Manual</button>
+        <button id="mode-auto" class="mode-btn">Auto</button>
+        <span style="opacity:.35;">|</span>
+        <button id="estop-btn" class="estop-btn" title="Emergency Stop: forces all relays OFF and blocks ON until released">E‑STOP</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div id="estop-banner" class="estop-banner hidden">
+        <strong>E-STOP ACTIVE:</strong> All relays are forced OFF. Release E-STOP to resume control.
+      </div>
+      <div id="relays-mode-hint" class="text-xs text-gray-400 mb-3"></div>
+      <!-- ✅ Grid container -->
+      <div id="relays-grid" class="relays-grid"></div>
+      <div id="relays-note" class="muted" style="margin-top:12px;font-size:12px;">
+        <strong>Manual:</strong> relays stay OFF at boot. <strong>Auto:</strong> critical relays restore last state. 
+        <span style="opacity:.8">Active-low; OFF = HIGH. Safe-off on boot.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. System Settings -->
   <section id="settings-card" class="card card-wide">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
       <h3 class="card-title" style="margin:0;">System Settings</h3>
