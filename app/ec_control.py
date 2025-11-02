@@ -1,0 +1,575 @@
+"""
+EC Control API
+
+Endpoints:
+- GET /api/ec/status
+- POST /api/ec/dose
+- POST /api/ec/auto
+- POST /api/ec/auto/learn/reset
+- GET /api/ec/auto/debug
+
+Manual dosing with guards (G/M/B pumps in sequential mix) and dose log table.
+Automation: background controller that raises EC when it falls below the target band.
+It learns dose effect from prior dose logs (ml per 1.0 mS/cm) and respects all guards.
+"""
+from fastapi import APIRouter, Body
+from fastapi.responses import JSONResponse
+from typing import Dict, Any, Optional, Tuple, List
+from datetime import datetime, timezone
+import time
+import sqlite3
+import threading
+from pathlib import Path
+
+router = APIRouter()
+
+DB_PATH = Path(__file__).parent.parent / "data" / "rdwc.db"
+
+# --- Automation state --------------------------------------------------------
+_auto_thread: Optional[threading.Thread] = None
+_auto_stop_evt: Optional[threading.Event] = None
+_auto_lock = threading.Lock()
+_dose_lock = threading.Lock()
+_auto_last_holding_reason: Optional[str] = None
+_auto_enabled_at: Optional[float] = None
+_auto_last_block: Optional[str] = None
+_auto_last_block_count: int = 0
+_auto_last_decision: Dict[str, Any] = {}  # For debug endpoint
+
+# Learning estimator (ml per 1.0 mS/cm)
+_learned_ml_per_mScm: Optional[float] = None
+
+# --- DB helpers --------------------------------------------------------------
+def _ensure_tables() -> None:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ec_dose_log(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              ts_utc TEXT NOT NULL,
+              action TEXT NOT NULL,
+              volume_ml REAL,
+              mix_ratio TEXT,
+              duration_ms INTEGER,
+              pre_ec REAL,
+              post_ec REAL,
+              result TEXT NOT NULL,
+              reason TEXT
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ec_dose_log_ts ON ec_dose_log(ts_utc)")
+        conn.commit()
+
+def _log_row(row: Dict[str, Any]) -> int:
+    _ensure_tables()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO ec_dose_log(ts_utc, action, volume_ml, mix_ratio, duration_ms, pre_ec, post_ec, result, reason)
+            VALUES(?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                row.get("ts_utc"), row.get("action","dose"), row.get("volume_ml"),
+                row.get("mix_ratio",""), row.get("duration_ms"), row.get("pre_ec"), row.get("post_ec"),
+                row.get("result","ok"), row.get("reason")
+            )
+        )
+        rowid = cur.lastrowid or 0
+        conn.commit()
+        return int(rowid)
+
+def _update_post_ec(rowid: int, post_ec: Optional[float]) -> None:
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        conn.execute("UPDATE ec_dose_log SET post_ec=? WHERE id=?", (post_ec, rowid))
+        conn.commit()
+
+def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
+    _ensure_tables()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, ts_utc, action, volume_ml, mix_ratio, duration_ms, pre_ec, post_ec, result, reason FROM ec_dose_log ORDER BY id DESC LIMIT ?",
+            (int(limit),)
+        )
+        rows = cur.fetchall()
+    out = []
+    for r in rows:
+        out.append({
+            "id": r[0], "ts_utc": r[1], "action": r[2], "volume_ml": r[3],
+            "mix_ratio": r[4], "duration_ms": r[5], "pre_ec": r[6], "post_ec": r[7],
+            "result": r[8], "reason": r[9]
+        })
+    return out
+
+def _today_total_ml(now_dt: datetime) -> float:
+    _ensure_tables()
+    try:
+        from app.settings import SA_TZ
+    except Exception:
+        SA_TZ = timezone.utc
+    local_now = now_dt.astimezone(SA_TZ)
+    start_local = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_utc = start_local.astimezone(timezone.utc)
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COALESCE(SUM(volume_ml),0) FROM ec_dose_log WHERE result='ok' AND ts_utc >= ?",
+            (start_utc.isoformat(),)
+        )
+        val = cur.fetchone()[0]
+        return float(val or 0.0)
+
+def _last_ok_ts() -> Optional[datetime]:
+    _ensure_tables()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT ts_utc FROM ec_dose_log WHERE result='ok' ORDER BY id DESC LIMIT 1")
+        row = cur.fetchone()
+        if not row:
+            return None
+        try:
+            return datetime.fromisoformat(row[0]).astimezone(timezone.utc)
+        except Exception:
+            return None
+
+# --- Sensors/Settings helpers ------------------------------------------------
+def _get_latest_ec() -> Tuple[Optional[float], Optional[int]]:
+    """Return latest EC (mS/cm) and its unix ts from readings table."""
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT ts, ec_ms_cm FROM readings ORDER BY ts DESC LIMIT 1")
+            row = cur.fetchone()
+            if row and row[1] is not None:
+                return (float(row[1]), int(row[0]))
+    except Exception:
+        pass
+    return (None, None)
+
+def _get_settings_dict() -> Dict[str, str]:
+    """Get all settings as string dict."""
+    try:
+        from app.settings import get_all_settings
+        return get_all_settings()
+    except Exception:
+        return {}
+
+def _s(key: str, default: str = "") -> str:
+    """Helper to get setting value or default."""
+    sett = _get_settings_dict()
+    return sett.get(key, default)
+
+def _f(key: str, default: float = 0.0) -> float:
+    """Helper to get setting as float."""
+    try:
+        return float(_s(key, str(default)))
+    except Exception:
+        return default
+
+def _i(key: str, default: int = 0) -> int:
+    """Helper to get setting as int."""
+    try:
+        return int(float(_s(key, str(default))))
+    except Exception:
+        return default
+
+def _b(key: str, default: bool = False) -> bool:
+    """Helper to get setting as bool."""
+    val = _s(key, "false" if not default else "true").strip().lower()
+    return val in ("true", "1", "yes", "on")
+
+# --- GPIO helpers ------------------------------------------------------------
+def _actuate_mix(grow_ml: float, micro_ml: float, bloom_ml: float) -> Tuple[str, int]:
+    """Actuate G→M→B in sequence with delay. Returns (result, duration_ms)."""
+    from app.relays_core import set_dosing_grow, set_dosing_micro, set_dosing_bloom
+    
+    # Get pump rates
+    grow_rate = _f("dosing.grow_ml_per_sec", 25.0)
+    micro_rate = _f("dosing.micro_ml_per_sec", 25.0)
+    bloom_rate = _f("dosing.bloom_ml_per_sec", 25.0)
+    mix_delay = _f("dosing.mix_delay_s", 2.0)
+    
+    total_ms = 0
+    
+    try:
+        # Grow
+        if grow_ml > 0:
+            grow_ms = int(1000.0 * (grow_ml / max(0.0001, grow_rate)))
+            set_dosing_grow(True, reason="ec_dose", force=True)
+            time.sleep(grow_ms / 1000.0)
+            set_dosing_grow(False, reason="ec_dose", force=True)
+            total_ms += grow_ms
+        
+        # Delay
+        if micro_ml > 0 or bloom_ml > 0:
+            time.sleep(mix_delay)
+            total_ms += int(mix_delay * 1000)
+        
+        # Micro
+        if micro_ml > 0:
+            micro_ms = int(1000.0 * (micro_ml / max(0.0001, micro_rate)))
+            set_dosing_micro(True, reason="ec_dose", force=True)
+            time.sleep(micro_ms / 1000.0)
+            set_dosing_micro(False, reason="ec_dose", force=True)
+            total_ms += micro_ms
+        
+        # Delay
+        if bloom_ml > 0:
+            time.sleep(mix_delay)
+            total_ms += int(mix_delay * 1000)
+        
+        # Bloom
+        if bloom_ml > 0:
+            bloom_ms = int(1000.0 * (bloom_ml / max(0.0001, bloom_rate)))
+            set_dosing_bloom(True, reason="ec_dose", force=True)
+            time.sleep(bloom_ms / 1000.0)
+            set_dosing_bloom(False, reason="ec_dose", force=True)
+            total_ms += bloom_ms
+        
+        return ("ok", total_ms)
+    except Exception as e:
+        # Ensure all pumps are off
+        try:
+            set_dosing_grow(False, reason="ec_dose_error", force=True)
+            set_dosing_micro(False, reason="ec_dose_error", force=True)
+            set_dosing_bloom(False, reason="ec_dose_error", force=True)
+        except Exception:
+            pass
+        return (f"error: {e}", total_ms)
+
+# --- Guards ------------------------------------------------------------------
+def _check_guards() -> Tuple[bool, Optional[str]]:
+    """Return (ok, reason). If not ok, reason is the blocking guard."""
+    # E-STOP (check settings for emergency stop)
+    if _b("safety.estop", False):
+        return (False, "estop")
+    
+    # Reservoir
+    res_l = _f("general.reservoir_liters", 25.0)
+    if res_l <= 0:
+        return (False, "reservoir")
+    
+    # Stale EC sensor
+    ec_val, ec_ts = _get_latest_ec()
+    if ec_val is None or ec_ts is None:
+        return (False, "sensor_stale")
+    now_ts = int(time.time())
+    if (now_ts - ec_ts) > 300:  # 5 min stale
+        return (False, "sensor_stale")
+    
+    # Dose lock (if pH or EC is mid-dose)
+    if _dose_lock.locked():
+        return (False, "mix_lock")
+    
+    return (True, None)
+
+def _check_interval_guard(now_dt: datetime) -> Tuple[bool, Optional[str]]:
+    """Check min interval since last dose. Returns (ok, reason)."""
+    min_int = _i("dosing.ec_min_interval_s", 300)
+    last_ts = _last_ok_ts()
+    if last_ts:
+        elapsed = (now_dt - last_ts).total_seconds()
+        if elapsed < min_int:
+            return (False, f"interval ({int(min_int - elapsed)}s)")
+    return (True, None)
+
+def _check_daily_cap(now_dt: datetime) -> Tuple[bool, Optional[str]]:
+    """Check daily cap. Returns (ok, reason)."""
+    cap = _f("dosing.ec_max_ml_day", 0)
+    if cap <= 0:
+        return (True, None)
+    used = _today_total_ml(now_dt)
+    if used >= cap:
+        return (False, f"daily_cap ({used:.1f}/{cap:.1f}ml)")
+    return (True, None)
+
+# --- Manual dose endpoint ----------------------------------------------------
+@router.post("/api/ec/dose")
+def dose_ec(body: dict = Body(...)):
+    """Manual EC dose with G/M/B mix."""
+    ml = body.get("ml", 0)
+    mix_ratio = body.get("mix_ratio", "schedule")  # schedule | custom
+    custom = body.get("custom", {})
+    reason = body.get("reason", "manual")
+    
+    # Validate
+    if ml <= 0 or ml > 500:
+        return JSONResponse(status_code=400, content={"error": "ml must be 0.1–500"})
+    
+    # Guards
+    ok, guard = _check_guards()
+    if not ok:
+        return JSONResponse(status_code=409, content={"error": f"blocked by {guard}"})
+    
+    ok, guard = _check_interval_guard(datetime.now(timezone.utc))
+    if not ok:
+        # Maintenance override bypasses interval
+        if not _b("safety.maintenance_override", False):
+            return JSONResponse(status_code=409, content={"error": f"blocked by {guard}"})
+    
+    ok, guard = _check_daily_cap(datetime.now(timezone.utc))
+    if not ok:
+        if not _b("safety.maintenance_override", False):
+            return JSONResponse(status_code=409, content={"error": f"blocked by {guard}"})
+    
+    # Split by ratio
+    if mix_ratio == "custom":
+        g = float(custom.get("grow", 0))
+        m = float(custom.get("micro", 0))
+        b = float(custom.get("bloom", 0))
+        total_ratio = g + m + b
+        if total_ratio == 0:
+            return JSONResponse(status_code=400, content={"error": "custom ratio sums to zero"})
+        grow_ml = ml * (g / total_ratio)
+        micro_ml = ml * (m / total_ratio)
+        bloom_ml = ml * (b / total_ratio)
+    else:
+        # Schedule ratio from active week (placeholder: equal split for now)
+        grow_ml = ml / 3.0
+        micro_ml = ml / 3.0
+        bloom_ml = ml / 3.0
+    
+    # Pre-read
+    ec_before, _ = _get_latest_ec()
+    
+    # Dose with lock
+    with _dose_lock:
+        result, duration_ms = _actuate_mix(grow_ml, micro_ml, bloom_ml)
+    
+    # Post-read (wait 5s)
+    time.sleep(5)
+    ec_after, _ = _get_latest_ec()
+    
+    # Log
+    rowid = _log_row({
+        "ts_utc": datetime.now(timezone.utc).isoformat(),
+        "action": "dose",
+        "volume_ml": ml,
+        "mix_ratio": f"{mix_ratio}:G{grow_ml:.1f}M{micro_ml:.1f}B{bloom_ml:.1f}",
+        "duration_ms": duration_ms,
+        "pre_ec": ec_before,
+        "post_ec": ec_after,
+        "result": result,
+        "reason": reason
+    })
+    
+    return {
+        "ok": True,
+        "rowid": rowid,
+        "ml": ml,
+        "mix": {"grow": grow_ml, "micro": micro_ml, "bloom": bloom_ml},
+        "ec_before": ec_before,
+        "ec_after": ec_after,
+        "result": result
+    }
+
+# --- Status endpoint ---------------------------------------------------------
+@router.get("/api/ec/status")
+def get_ec_status():
+    """Return EC status including auto state, guards, recent, totals."""
+    ec_val, ec_ts = _get_latest_ec()
+    now_dt = datetime.now(timezone.utc)
+    
+    # Guards
+    ok, guard = _check_guards()
+    guards = {"estop": False, "sensor_stale": False, "mix_lock": False, "reservoir": False}
+    if not ok and guard:
+        guards[guard] = True
+    
+    ok_int, int_reason = _check_interval_guard(now_dt)
+    guards["interval"] = not ok_int
+    
+    ok_cap, cap_reason = _check_daily_cap(now_dt)
+    guards["daily_cap"] = not ok_cap
+    
+    # Auto state
+    auto_enabled = _b("ec.auto_enabled", False)
+    with _auto_lock:
+        holding_reason = _auto_last_holding_reason
+    
+    # Targets
+    ec_low = _f("targets.ec_low", 0.8)
+    ec_high = _f("targets.ec_high", 1.2)
+    
+    # Totals
+    today_ml = _today_total_ml(now_dt)
+    
+    # Recent
+    recent = _recent_doses(5)
+    
+    return {
+        "ec_ms_cm": ec_val,
+        "ec_ts": ec_ts,
+        "targets": {"low": ec_low, "high": ec_high},
+        "auto": {
+            "enabled": auto_enabled,
+            "holding_reason": holding_reason,
+            "learned_ml_per_mScm": _learned_ml_per_mScm
+        },
+        "guards": guards,
+        "today_ml": today_ml,
+        "recent": recent
+    }
+
+# --- Automation control ------------------------------------------------------
+@router.post("/api/ec/auto")
+def set_ec_auto(body: dict = Body(...)):
+    """Enable or disable EC automation."""
+    enable = body.get("enable", False)
+    
+    # Update setting
+    try:
+        from app.settings import upsert_settings
+        upsert_settings({"ec.auto_enabled": "true" if enable else "false"})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+    
+    global _auto_enabled_at
+    if enable:
+        _auto_enabled_at = time.time()
+        _start_auto_worker()
+    else:
+        _stop_auto_worker()
+        _auto_enabled_at = None
+    
+    return {"ok": True, "enabled": enable}
+
+# --- Learning reset ----------------------------------------------------------
+@router.post("/api/ec/auto/learn/reset")
+def reset_ec_learner():
+    """Reset learned ml per mS/cm."""
+    global _learned_ml_per_mScm
+    _learned_ml_per_mScm = None
+    return {"ok": True, "learned_ml_per_mScm": None}
+
+# --- Debug endpoint ----------------------------------------------------------
+@router.get("/api/ec/auto/debug")
+def get_ec_auto_debug():
+    """Return internal automation state for debugging."""
+    with _auto_lock:
+        return {
+            "enabled": _b("ec.auto_enabled", False),
+            "enabled_at": _auto_enabled_at,
+            "last_holding_reason": _auto_last_holding_reason,
+            "last_block": _auto_last_block,
+            "last_block_count": _auto_last_block_count,
+            "last_decision": _auto_last_decision,
+            "learned_ml_per_mScm": _learned_ml_per_mScm
+        }
+
+# --- Automation worker -------------------------------------------------------
+def _auto_worker():
+    """Background thread: polls EC and doses when below target."""
+    global _auto_last_holding_reason, _auto_last_block, _auto_last_block_count, _auto_last_decision
+    poll_interval = 30
+    warm_up_polls = 1
+    poll_count = 0
+    
+    while not (_auto_stop_evt and _auto_stop_evt.is_set()):
+        time.sleep(poll_interval)
+        poll_count += 1
+        
+        if not _b("ec.auto_enabled", False):
+            with _auto_lock:
+                _auto_last_holding_reason = "disabled"
+            continue
+        
+        # Warm-up
+        if poll_count <= warm_up_polls:
+            with _auto_lock:
+                _auto_last_holding_reason = f"warm_up ({poll_count}/{warm_up_polls})"
+            continue
+        
+        # Guards
+        ok, guard = _check_guards()
+        if not ok:
+            with _auto_lock:
+                _auto_last_holding_reason = guard
+                if _auto_last_block == guard:
+                    _auto_last_block_count += 1
+                else:
+                    _auto_last_block = guard
+                    _auto_last_block_count = 1
+            continue
+        
+        ok_int, int_reason = _check_interval_guard(datetime.now(timezone.utc))
+        if not ok_int:
+            with _auto_lock:
+                _auto_last_holding_reason = int_reason
+            continue
+        
+        ok_cap, cap_reason = _check_daily_cap(datetime.now(timezone.utc))
+        if not ok_cap:
+            with _auto_lock:
+                _auto_last_holding_reason = cap_reason
+            continue
+        
+        # Read EC
+        ec_val, _ = _get_latest_ec()
+        if ec_val is None:
+            with _auto_lock:
+                _auto_last_holding_reason = "sensor_null"
+            continue
+        
+        # Check if below target
+        ec_low = _f("targets.ec_low", 0.8)
+        ec_high = _f("targets.ec_high", 1.2)
+        target_mid = (ec_low + ec_high) / 2.0
+        
+        if ec_val >= ec_low:
+            with _auto_lock:
+                _auto_last_holding_reason = "in_range"
+            continue
+        
+        # Compute dose
+        needed_mScm = target_mid - ec_val
+        safety_factor = _f("dosing.ec_safety_factor", 0.6)
+        
+        if _learned_ml_per_mScm:
+            planned_ml = needed_mScm * _learned_ml_per_mScm * safety_factor
+        else:
+            # Default: 30ml per 0.1 mS/cm
+            planned_ml = needed_mScm * 300 * safety_factor
+        
+        # Clamp
+        min_ml = _f("dosing.ec_step_ml_min", 10)
+        max_ml = _f("dosing.ec_step_ml_max", 120)
+        planned_ml = max(min_ml, min(planned_ml, max_ml))
+        
+        # Dose (schedule ratio for auto)
+        try:
+            dose_ec({"ml": planned_ml, "mix_ratio": "schedule", "reason": "auto"})
+            with _auto_lock:
+                _auto_last_holding_reason = None
+                _auto_last_decision = {
+                    "ec_before": ec_val,
+                    "needed_mScm": needed_mScm,
+                    "planned_ml": planned_ml,
+                    "ts": datetime.now(timezone.utc).isoformat()
+                }
+        except Exception as e:
+            with _auto_lock:
+                _auto_last_holding_reason = f"dose_error: {e}"
+
+def _start_auto_worker():
+    """Start the automation worker thread if not already running."""
+    global _auto_thread, _auto_stop_evt
+    with _auto_lock:
+        if _auto_thread and _auto_thread.is_alive():
+            return
+        _auto_stop_evt = threading.Event()
+        _auto_thread = threading.Thread(target=_auto_worker, daemon=True, name="EC-Auto")
+        _auto_thread.start()
+
+def _stop_auto_worker():
+    """Stop the automation worker thread."""
+    global _auto_thread, _auto_stop_evt
+    with _auto_lock:
+        if _auto_stop_evt:
+            _auto_stop_evt.set()
+        if _auto_thread:
+            _auto_thread.join(timeout=2)
+            _auto_thread = None

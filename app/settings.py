@@ -87,6 +87,14 @@ DEFAULTS: Dict[str, str] = {
     # EC below this baseline holds automation (mS/cm)
     "dosing.ec_baseline_min": "0.2",
 
+        # EC automation
+        "ec.auto_enabled": "false",
+        "dosing.ec_step_ml_min": "10",
+        "dosing.ec_step_ml_max": "120",
+        "dosing.ec_safety_factor": "0.6",
+        "dosing.ec_min_interval_s": "300",
+        "dosing.ec_max_ml_day": "0",
+
     # safety
     "safety.main_pump_min_off_s": "5",
     "safety.chiller_pump_min_off_s": "5",

@@ -1222,60 +1222,176 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- Sensors Health Popover (hidden by default; positioned via JS) -->
   <div id="sensors-health-popover" style="display:none;position:absolute;z-index:9999;min-width:260px;max-width:360px;padding:10px 12px;border-radius:8px;background:#0b0f1a;border:1px solid #334155;box-shadow:0 8px 24px rgba(0,0,0,0.4);color:#e5e7eb;font-size:0.9rem;line-height:1.35;"></div>
 
-  <!-- 5. EC Control Card (Placeholder) -->
+    <!-- 5. EC Control Card -->
   <section id="ec-card" class="card card-wide tab-section" data-tab="ec" style="display:none;">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-      <h3 class="card-title" style="margin:0;">EC Control</h3>
-      <div class="muted" id="ec-band">Target: 1.8 ±0.2 mS/cm</div>
-    </div>
-    <div class="card-body">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
-        <div class="kpi kpi-ec">
-          <div class="kpi-label">EC</div>
-          <div class="kpi-value" id="ec-current">—</div>
-        </div>
-        <div class="muted" style="padding:8px 12px;border-radius:8px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.3);color:#cbd5e1;">
-          EC dosing automation coming soon
-        </div>
-      </div>
+          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+            <h3 class="card-title" style="margin:0;">EC Control</h3>
+            <div class="muted" id="ec-band">Targets 0.8 – 1.2 mS/cm</div>
+          </div>
+          <div class="card-body">
+            <div id="ec-reservoir-banner" class="muted" style="display:none;margin-bottom:8px;padding:6px 10px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#fecaca;">
+              Reservoir set to 0 L — dosing disabled
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+              <div class="kpi kpi-ec">
+                <div class="kpi-label">EC</div>
+                <div class="kpi-value" id="ec-current">—</div>
+              </div>
+              <div class="kpi kpi-ppm">
+                <div class="kpi-label">PPM</div>
+                <div class="kpi-value" id="ec-ppm">—</div>
+              </div>
+              <div id="ec-guards" class="muted" title="">—</div>
+              <span id="ec-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
+            </div>
 
-      <!-- EC-Specific Settings -->
-      <details style="margin-top:12px;">
-        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ EC Settings</summary>
-        <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-          <div class="muted" style="font-size:0.75rem;margin-bottom:16px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
-            Configure EC (Electrical Conductivity) targets and alert thresholds. Values in ppm (parts per million).
-          </div>
-          <div style="margin-bottom:16px;">
-            <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Target Range</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-              <div>
-                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Target EC (ppm)</label>
-                <input type="number" id="ecTarget" step="10" min="100" max="3000" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+            <!-- Summary pills -->
+            <div id="ec-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px 0;">
+              <span id="ec-total-today" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#a7f3d0;">Today: — ml</span>
+              <span id="ec-total-week" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Week: — ml</span>
+            </div>
+
+            <div class="tabs" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px 0;">
+              <button class="btn-secondary" onclick="document.getElementById('ec-tab-status').style.display='block';document.getElementById('ec-tab-manual').style.display='none';document.getElementById('ec-tab-auto').style.display='none';">Status</button>
+              <button class="btn-secondary" onclick="document.getElementById('ec-tab-status').style.display='none';document.getElementById('ec-tab-manual').style.display='block';document.getElementById('ec-tab-auto').style.display='none';">Manual</button>
+              <button class="btn-secondary" onclick="document.getElementById('ec-tab-status').style.display='none';document.getElementById('ec-tab-manual').style.display='none';document.getElementById('ec-tab-auto').style.display='block';">Automation</button>
+            </div>
+
+            <div id="ec-tab-status">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap;">
+                <div id="ec-recent-header" class="muted" style="cursor:pointer;user-select:none;">Recent Doses ▸</div>
               </div>
-              <div>
-                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Tolerance (ppm)</label>
-                <input type="number" id="ecTolerance" step="10" min="10" max="500" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+              <div id="ec-recent" class="muted" style="display:none;max-height:140px;overflow-y:auto;padding-right:6px;"></div>
+            </div>
+            <div id="ec-tab-manual" style="display:none;">
+              <div style="margin-bottom:12px;">
+                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Mix Ratio</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                  <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+                    <input type="radio" name="ecMixRatio" value="schedule" checked style="accent-color:#3b82f6;" />
+                    <span class="muted" style="font-size:0.9rem;">Schedule (Grow/Micro/Bloom)</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+                    <input type="radio" name="ecMixRatio" value="custom" style="accent-color:#3b82f6;" />
+                    <span class="muted" style="font-size:0.9rem;">Custom</span>
+                  </label>
+                </div>
+              </div>
+              <div id="ec-custom-ratio" style="display:none;margin-bottom:12px;padding:10px;border-radius:6px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Grow</label>
+                    <input id="ecCustomGrow" type="number" min="0" step="0.1" placeholder="0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Micro</label>
+                    <input id="ecCustomMicro" type="number" min="0" step="0.1" placeholder="0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Bloom</label>
+                    <input id="ecCustomBloom" type="number" min="0" step="0.1" placeholder="0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <button id="btnEcDose10" class="btn-secondary">+10 ml</button>
+                <button id="btnEcDose50" class="btn-secondary">+50 ml</button>
+                <button id="btnEcDose100" class="btn-secondary">+100 ml</button>
+                <input id="ecCustomMl" type="number" min="0.1" step="1" placeholder="Custom ml" style="width:110px;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
+                <button id="btnEcDoseCustom" class="btn-secondary">Dose</button>
+                <span id="ecMaintBadge" class="muted" style="display:none;margin-left:6px;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.85rem;" title="Bypasses cooldown/daily cap; E-STOP/empty reservoir still enforced.">Maintenance override active</span>
+              </div>
+            </div>
+            <div id="ec-tab-auto" style="display:none;">
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+                <span id="ecAutoStateBadge" class="countdown-pill" style="display:inline-block;border-color:rgba(148,163,184,.35);">Disabled</span>
+                <span id="ecLearnedBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Learned: —</span>
+              </div>
+              <button id="btnEcAutoToggle" class="btn-secondary">Enable automation</button>
+            </div>
+
+            <!-- EC-Specific Settings -->
+            <details style="margin-top:12px;">
+              <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ EC Settings</summary>
+              <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+                <div class="muted" style="font-size:0.75rem;margin-bottom:16px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+                  Configure EC targets, dosing parameters, and alert thresholds specific to this controller.
+                </div>
+                <div style="margin-bottom:16px;">
+                  <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Target Range</div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div>
+                      <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Low EC (mS/cm)</label>
+                      <input type="number" id="ecTargetLow" step="0.1" min="0.0" max="4.0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+                    </div>
+                    <div>
+                      <label style="display:block;font-size:0.85rem;margin-bottom:4px;">High EC (mS/cm)</label>
+                      <input type="number" id="ecTargetHigh" step="0.1" min="0.0" max="4.0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+                    </div>
+                  </div>
+                </div>
+                <div style="margin-bottom:16px;">
+                  <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Dosing Parameters</div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:8px;">
+                    <div>
+                      <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Grow ml/s</label>
+                      <input type="number" id="ecGrowMlPerSec" step="0.1" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="25" />
+                    </div>
+                    <div>
+                      <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Micro ml/s</label>
+                      <input type="number" id="ecMicroMlPerSec" step="0.1" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="25" />
+                    </div>
+                    <div>
+                      <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Bloom ml/s</label>
+                      <input type="number" id="ecBloomMlPerSec" step="0.1" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="25" />
+                    </div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">
+                    <div>
+                      <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Step Min (ml)</label>
+                      <input type="number" id="ecStepMinMl" step="1" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="10" />
+                    </div>
+                    <div>
+                      <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Step Max (ml)</label>
+                      <input type="number" id="ecStepMaxMl" step="1" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="120" />
+                    </div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                    <div>
+                      <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Safety Factor</label>
+                      <input type="number" id="ecSafetyFactor" step="0.1" min="0" max="1" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0.6" />
+                    </div>
+                    <div>
+                      <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Min Interval (s)</label>
+                      <input type="number" id="ecMinInterval" step="1" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="300" />
+                    </div>
+                    <div>
+                      <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Max ml/day</label>
+                      <input type="number" id="ecMaxMlDay" step="1" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0" />
+                    </div>
+                  </div>
+                </div>
+                <button id="btnSaveEcSettings" class="btn-secondary" style="width:100%;">Save EC Settings</button>
+              </div>
+            </details>
+
+            <!-- History chart -->
+            <hr class="separator" />
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+              <div class="muted">Dose History</div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                <button class="btn btn-chip" data-ec-range="24h">24h</button>
+                <button class="btn btn-chip" data-ec-range="7d">7d</button>
+                <button class="btn btn-chip" data-ec-range="30d">30d</button>
+              </div>
+            </div>
+            <div id="ec-dose-chart-wrap" class="chart-card">
+              <canvas id="ecDoseChart" width="1200" height="260"></canvas>
+              <div id="ec-dose-empty" class="muted small" style="display:none;padding:8px 0;">
+                No doses recorded in this period.
               </div>
             </div>
           </div>
-          <div style="margin-bottom:16px;">
-            <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Alert Thresholds</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-              <div>
-                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Low Alert EC (ppm)</label>
-                <input type="number" id="ecAlertLow" step="10" min="0" max="3000" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
-              </div>
-              <div>
-                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">High Alert EC (ppm)</label>
-                <input type="number" id="ecAlertHigh" step="10" min="0" max="3000" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
-              </div>
-            </div>
-          </div>
-          <button id="btnSaveEcSettings" class="btn-secondary" style="width:100%;">Save EC Settings</button>
-        </div>
-      </details>
-    </div>
   </section>
 
   <!-- 6. Relays Control Panel -->
@@ -1821,8 +1937,8 @@ window.CircControl = (function(){
     }
     fetch('/api/version', {cache:'no-store'})
       .then(function(r){ return r.json(); })
-    .then(function(j){ return chain(['range.js','trends.js','ph_chart.js','ph.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], j && j.version); })
-    .catch(function(){ return chain(['range.js','trends.js','ph_chart.js','ph.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], (new Date()).toISOString().slice(0,10)); });
+      .then(function(j){ return chain(['range.js','trends.js','ph_chart.js','ph.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], j && j.version); })
+      .catch(function(){ return chain(['range.js','trends.js','ph_chart.js','ph.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], (new Date()).toISOString().slice(0,10)); });
   })();
   </script>
 </body>
