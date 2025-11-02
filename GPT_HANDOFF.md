@@ -1,125 +1,156 @@
-# AI handoff: Dashboard UI + Settings Reorg (2025-11-02)
+# RDWC-v4 — Handover Brief (2025-11-02)
 
-This document briefs the next AI/engineer on the current state of the RDWC v4 dashboard, how controller settings are wired, and what to watch out for when making changes.
+## Project rules (read first)
 
-## TL;DR
-- Tabs fixed (single active view); final order: Overview, Sensors, pH, EC, Temperature, Lights, Circulation, Relays, Schedule, Settings.
-- Camera merged into Overview.
-- Controller settings moved out of System Settings into each controller tab under collapsible sections.
-- Saving now uses PUT /api/settings with dotted keys and server-side validation; errors surface in UI toasts.
-- Global CSS added so inputs/selects are consistent height and never overlap.
-- EC UI shows ppm; backend stores mS/cm with conversion in JS.
+* **VS-first, GitHub is source of truth.** Pi only pulls & runs.
+* **Do not break working features.** If unsure, branch and PR.
+* **Relays are active-low.** Always return HIGH (OFF) in `finally`.
+* **Safety first:** E-STOP & empty reservoir are hard stops.
+  Maintenance Override bypasses **interval & daily-cap only** (stale/estop/reservoir still block). Test-only "allow stale on override" exists and is **OFF** by default.
+* **Settings API uses dotted keys**; values are strings; server validates.
 
-## Frontend map
-- `app/static/index.html`
-  - Global CSS variables for controls and consistent sizing.
-  - Collapsible controller settings sections in pH/EC/Temperature/Circulation.
-  - Schedule inputs (time + duration) still use legacy `/settings` API for lights window.
-  - Dynamic script loader: `controller_settings.js` is included in the chain.
-- `app/static/js/controller_settings.js`
-  - Loads from GET `/api/settings` (grouped namespaces).
-  - Saves to PUT `/api/settings` with dotted keys.
-  - pH: updates band text after save; validates low < high.
-  - EC: UI in ppm ↔ converts to mS/cm for save; updates band.
-  - Temperature: updates the target display after save.
-  - Circulation: saves min off times for main/chiller pumps.
-- `app/static/js/settings.js`
-  - System Settings now focuses on General, Safety flags, Alerts (email/cooldown), UI, Calibration; controller-specific targets/dosing removed from here.
+## Environment
 
-## Backend map
-- `app/main.py`
-  - GET `/api/settings` → grouped namespaces; values are strings.
-  - PUT `/api/settings` → partial updates; returns `{ok, updated, requires_restart}` or 422 `{field, message}` on validation failure.
-  - PUT `/settings` (legacy) → system volume + lights schedule; returns preview window for the day.
-- `app/settings.py`
-  - DEFAULTS expanded with namespaced keys.
-  - `validate_partial(partial)` enforces ranges/types and cross-field checks.
-  - `upsert_settings(partial)` writes dotted keys to SQLite key/value store and busts legacy cache.
+* **Pi:** `pi@192.168.88.49`
+* **GPIO (BCM):** pH Up=5, Grow=6, Micro=13, Bloom=19, Main Pump=26, Chiller Pump=16, Water Chiller=20, Grow Lights=21
+* **I²C sensors:** pH 0x63, EC 0x64, RTD 0x66
+* **Service:** `rdwc.service` (FastAPI + Uvicorn)
+* **Web:** `http://192.168.88.49:8080`
 
-## Validation highlights (from `validate_partial`)
-- pH targets: `targets.ph_low` and `targets.ph_high` in 4.0–7.5 and `ph_low < ph_high`.
-- EC targets: 0.0–4.0 mS/cm; `target±tolerance` must remain within 0–4.
-- Temp target: `targets.temp_target_c` 15–28°C.
-- Pump/chiller min on/off: 0–3600s.
-- Dosing calibration and safety ranges enforced (see file for details).
-- General: `general.reservoir_liters` 1–1000, `general.grow_start_date` YYYY-MM-DD and not in future.
+## Current status (golden)
 
-## Example payloads to PUT /api/settings
-pH controller:
-```json
-{
-  "targets.ph_low": 5.8,
-  "targets.ph_high": 6.2,
-  "dosing.pulse_ml_grow": 1.0,
-  "dosing.pulse_ml_micro": 0.5,
-  "dosing.pulse_ml_bloom": 1.5,
-  "dosing.max_ml_hour_": 20,
-  "dosing.max_ml_day_": 80,
-  "dosing.mix_delay_s": 600,
-  "dosing.ph_up_ml_per_sec": 25,
-  "alerts.ph_lo_alert": 5.5,
-  "alerts.ph_hi_alert": 6.8
-}
+* **pH Up Automation v1.0 – COMPLETE & TAGGED** (`ph-auto-v1.0`)
+  * Auto worker with warm-up, dose lock, backoff.
+  * Learning estimator (ml per 1.0 pH) with reset endpoint.
+  * UI badges: Disabled / Holding:reason / Ready + learned effect.
+  * Endpoints:
+    * `GET  /api/ph/status`
+    * `POST /api/ph/dose`
+    * `POST /api/ph/auto` `{ "enable": true|false }`
+    * `POST /api/ph/auto/learn/reset`
+    * `GET  /api/ph/auto/debug`
+* **Dashboard/UI**
+  * Tabs stable; camera in Overview.
+  * Controller settings live under each controller tab.
+  * `PUT /api/settings` with dotted keys; validation errors surfaced in toasts.
+  * Static cache-buster meta is present (update when changing JS/CSS).
+
+## Key files to touch
+
+* Backend: `app/ph_control.py`, `app/settings.py`, `app/main.py`
+* UI: `app/static/index.html`, `app/static/js/ph.js`, `app/static/js/controller_settings.js`
+* Tests: `tests/*` (pytest)
+* Tools: `tools/accept_ph_auto.sh`, `tools/ensure_safe_defaults.py`
+
+## Deploy & verify snippets
+
+```bash
+# Pull & restart
+ssh pi@192.168.88.49 "cd ~/RDWC-v4 && git pull && sudo systemctl restart rdwc && sleep 2"
+
+# pH status (shows auto + guards)
+ssh pi@192.168.88.49 "curl -s http://127.0.0.1:8080/api/ph/status | jq"
+
+# Reset learner
+ssh pi@192.168.88.49 "curl -s -X POST http://127.0.0.1:8080/api/ph/auto/learn/reset | jq"
 ```
 
-EC controller (ppm shown in UI → mS/cm here):
-```json
-{
-  "targets.ec_target": 1.8,
-  "targets.ec_tolerance": 0.2,
-  "alerts.ec_lo_alert": 1.2,
-  "alerts.ec_hi_alert": 2.2
-}
+## Acceptance checklist (10 min)
+
+1. `GET /api/ph/status` shows `auto.enabled`, `holding_reason`, `learned_ml_per_pH`.
+2. Manual **Prime** dose toggles BCM5 LOW→HIGH in `journalctl`.
+3. With override **OFF**, cooldown blocks rapid repeat.
+4. With override **ON**, only interval/daily-cap are bypassed (E-STOP/reservoir still block).
+5. UI shows **Holding** reason when a guard is active.
+6. `PUT /api/settings` with bad values returns 422 and UI toast displays the field.
+
+---
+
+## Next feature: **EC Control v1.0 (Manual + Automation, G/M/B mix dosing)**
+
+**Goal:** Feature-parity with pH; automate raising EC using Grow/Micro/Bloom pumps in **sequential mix** (G → M → B) with configurable delay and learning of **ml per 1.0 mS/cm**. Respect all guards & existing dose lock.
+
+**Create branch:** `feat/ec-control-v1`
+
+### Backend (`app/ec_control.py`)
+
+* Endpoints (mirror pH):
+  * `GET  /api/ec/status` → `ec`, `targets:{low,high}`, `auto:{enabled,holding_reason,learned_ml_per_mScm}`, guards, recent, totals.
+  * `POST /api/ec/dose` body:
+    ```json
+    { "ml": 30, "mix_ratio":"schedule|custom",
+      "custom":{"grow":x,"micro":y,"bloom":z}, "reason":"manual" }
+    ```
+    Splits ml by ratio, actuates G→M→B with `dosing.mix_delay_s`.
+  * `POST /api/ec/auto` `{ "enable": true|false }`
+  * `POST /api/ec/auto/learn/reset`
+  * `GET  /api/ec/auto/debug`
+* **Guards:** `estop`, `safe_off`, `sensor_stale`(EC), `interval`, `daily_cap`, `reservoir`, plus `mix_lock` when the dose lock is held.
+* **Learning:** estimate ml per 1.0 mS/cm from valid doses (observed pre/post EC), clamp [20, 400].
+* **Planner:** aim midpoint of band, safety factor (0.6), clamp per-step to `[ec_step_ml_min, ec_step_ml_max]`.
+* **Lock & warm-up:** reuse pH `_dose_lock`; one poll warm-up after enable.
+
+### Settings (add to `app/settings.py`)
+
+```python
+"ec.auto_enabled": "false",
+"targets.ec_low":  "0.8",
+"targets.ec_high": "1.2",
+
+"dosing.ec_step_ml_min": "10",
+"dosing.ec_step_ml_max": "120",
+"dosing.ec_safety_factor": "0.6",
+"dosing.mix_delay_s": "2",
+
+# Optional calib (0 = unknown)
+"dosing.grow_ml_per_sec":  "0",
+"dosing.micro_ml_per_sec": "0",
+"dosing.bloom_ml_per_sec": "0",
 ```
 
-Temperature & chiller:
-```json
-{
-  "targets.temp_target_c": 19,
-  "alerts.temp_lo_alert": 16,
-  "alerts.temp_hi_alert": 24,
-  "safety.chiller_min_off_s": 600,
-  "safety.chiller_min_on_s": 300
-}
+### UI
+
+* New **EC Control** card (Status / Manual / Automation).
+* Manual: `+ step ml`, Custom ml, **Mix source** selector: Schedule ratio (from `nutrient_schedule` active week) or Custom (G/M/B).
+* Automation: toggle + **State badge** & learned badge `≈ X ml per 0.1 mS/cm`.
+* Chart: blue points (tooltip shows split G/M/B + pre/post EC), purple cumulative, green daily.
+* Settings tab adds EC dosing fields + pump calibrations. Update cache-buster.
+
+### Tests (pytest)
+
+* `test_ec_status_fields_present`
+* `test_ec_manual_mix_split_custom`
+* `test_ec_automation_holds_on_interval_and_mix_lock`
+* `test_ec_learner_applies_and_clamps`
+* `test_ec_reset_endpoint`
+
+### Safety wiring
+
+* Pumps (BCM): Grow=6, Micro=13, Bloom=19 (active-low).
+* Always `finally: HIGH (OFF)` per pump; total dose honored even if one component is zero.
+* Respect E-STOP & reservoir guards everywhere.
+
+### Deploy quick-check
+
+```bash
+ssh pi@192.168.88.49 '
+cd ~/RDWC-v4 && git pull && sudo systemctl restart rdwc && sleep 2;
+curl -s http://127.0.0.1:8080/api/ec/status | jq ".auto, .guards";
+curl -s -X POST http://127.0.0.1:8080/api/ec/dose \
+ -H "Content-Type: application/json" \
+ -d "{\"ml\":30,\"mix_ratio\":\"schedule\",\"reason\":\"manual-test\"}" | jq;
+sleep 35; curl -s http://127.0.0.1:8080/api/ec/status | jq ".auto";
+'
 ```
 
-Circulation (pump safety):
-```json
-{
-  "safety.main_pump_min_off_s": 5,
-  "safety.chiller_pump_min_off_s": 5
-}
-```
+---
 
-## Global CSS notes
-Inputs/selects/textarea are normalized via variables in `index.html`:
-- `--control-h: 36px`, padding `6px 10px`, bg `#1f2937`, border `#374151`, fg `#e0e0e0`, radius `6px`.
-- `*, *::before, *::after { box-sizing: border-box }` avoids overflow.
-- `details > summary input/select` are compact and not full-width to prevent collisions in headers.
+## Known gotchas
 
-## Deployment
-- Static assets: copy changed files to `/home/pi/RDWC-v4/app/static/...`.
-- No backend restart required for static changes.
-- Service name: `rdwc.service`; check with `systemctl status rdwc.service` if needed.
-- Dashboard default port: 8080; camera stream via `/camera/stream`.
-
-## Known constraints and UX notes
-- EC UI uses ppm but backend persists in mS/cm; conversions handled in `controller_settings.js`.
-- Schedule tab still uses legacy `/settings` for lights window; immediate preview is returned.
-- Save buttons show spinner, then success pulse; on error, a toast displays `{field} {message}` from server.
-
-## Quick acceptance checks
-- Saving controller settings returns 200 with `{ok:true}` and updates bands/displays.
-- Invalid inputs (e.g., `ph_low >= ph_high`) return 422; UI shows which field failed.
-- Inputs look consistent height across all tabs, including inside collapsibles.
-
-## Next steps (suggested)
-1. Mobile polish: confirm layout at < 480px, adjust grid min widths if needed.
-2. Consolidate duplicate `.btn-secondary` declarations in `index.html` (two variants exist) into one source of truth.
-3. Add smoke tests for `/api/settings` validations (Python unit tests) and a tiny front-end harness for save flows.
-4. Consider migrating Schedule to namespaced settings for consistency, or leave legacy as-is with clear comments.
-5. Document EC ppm↔mS/cm conversions in the Settings UI tooltip for clarity.
+* **JSON quoting over SSH from PowerShell** can mangle payloads; prefer running the provided shell scripts directly **on the Pi** or use single-quoted heredocs.
+* **Cache busting:** update `<meta name="version" content="...">` in `index.html` when changing JS/CSS.
+* **EC units:** UI may show ppm, backend stores **mS/cm**; conversions live in JS.
 
 ---
 Last verified: 2025-11-02
-Commit hint: `index.html` contains `<meta name="version" content="20251102c"/>` for cache busting.
+Ready for: EC Control v1.0 (branch `feat/ec-control-v1`)
