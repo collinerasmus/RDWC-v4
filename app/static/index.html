@@ -522,6 +522,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <button class="btn btn-chip" data-tab="safety">Safety</button>
           <button class="btn btn-chip" data-tab="alerts">Alerts</button>
           <button class="btn btn-chip" data-tab="ui">UI</button>
+          <button class="btn btn-chip" data-tab="calibration">Calibration</button>
         </div>
         <div id="settings-panels" style="margin-top:10px;"></div>
         <div id="settings-note" class="muted" style="margin-top:8px;font-size:12px;">Changes apply immediately unless noted; relays never energize on save.</div>
@@ -673,14 +674,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <div id="lightsLog" class="muted" style="margin-top:8px;max-height:220px;overflow:auto;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;font-size:12px;"></div>
       </div>
 
-      <div class="card">
-        <h3>Calibration (pH) — stub</h3>
-        <div class="row">
-          <button onclick="calibStart()" style="background:#374151;color:#e5e7eb">Start</button>
-          <button onclick="calibApply()" style="background:#374151;color:#e5e7eb;margin-left:8px">Apply</button>
-          <span id="calibMsg" class="muted" style="margin-left:10px"></span>
-        </div>
-      </div>
+      <!-- Calibration moved to Settings > Calibration tab -->
   </div>
 
   <!-- Recent Readings Card (removed; moved into Sensors card) -->

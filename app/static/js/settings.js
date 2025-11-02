@@ -67,6 +67,10 @@
         'ui.relays_poll_ms': {label:'Relays poll (ms)', type:'number', min:250, max:10000, step:50},
         'ui.sensors_poll_ms': {label:'Sensors poll (ms)', type:'number', min:1000, max:60000, step:250}
       }
+    },
+    calibration: {
+      title: 'Calibration',
+      fields: { /* custom-rendered below */ }
     }
   };
 
@@ -82,6 +86,43 @@
   function renderGroup(ns){
     const panel = document.createElement('div');
     panel.dataset.ns = ns;
+    // Custom panel for Calibration
+    if (ns === 'calibration'){
+      const title = document.createElement('h3');
+      title.textContent = 'Calibration';
+      title.className = 'muted';
+      title.style.margin = '0 0 8px 0';
+
+      const phWrap = document.createElement('div');
+      phWrap.className = 'card';
+      phWrap.style.padding = '12px';
+      phWrap.innerHTML = `
+        <h3 style="margin-top:0;">pH Calibration</h3>
+        <div class="row">
+          <button onclick="calibStart()" class="btn-secondary">Start</button>
+          <button onclick="calibApply()" class="btn-secondary" style="margin-left:8px">Apply</button>
+          <span id="calibMsg" class="muted" style="margin-left:10px"></span>
+        </div>
+      `;
+
+      const ecWrap = document.createElement('div');
+      ecWrap.className = 'card';
+      ecWrap.style.padding = '12px';
+      ecWrap.style.marginTop = '12px';
+      ecWrap.innerHTML = `
+        <h3 style="margin-top:0;">EC Calibration (coming soon)</h3>
+        <div class="row">
+          <button class="btn-secondary" disabled title="Planned">Start</button>
+          <button class="btn-secondary" style="margin-left:8px" disabled title="Planned">Apply</button>
+          <span class="muted" style="margin-left:10px">Planned – will match pH flow</span>
+        </div>
+      `;
+
+      panel.appendChild(title);
+      panel.appendChild(phWrap);
+      panel.appendChild(ecWrap);
+      return panel;
+    }
     const fields = GROUP_DEF[ns].fields;
     Object.entries(fields).forEach(([key, meta]) => {
       const val = current[key] ?? '';
