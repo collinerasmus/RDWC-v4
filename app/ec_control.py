@@ -220,6 +220,32 @@ def _get_latest_ec() -> Tuple[Optional[float], Optional[int]]:
         pass
     return (None, None)
 
+    def _get_latest_ph() -> Tuple[Optional[float], Optional[int]]:
+        """Return latest pH and its unix ts from readings table."""
+        try:
+            with sqlite3.connect(str(DB_PATH)) as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT ts, ph FROM readings ORDER BY ts DESC LIMIT 1")
+                row = cur.fetchone()
+                if row and row[1] is not None:
+                    return (float(row[1]), int(row[0]))
+        except Exception:
+            pass
+        return (None, None)
+
+    def _get_latest_temp() -> Tuple[Optional[float], Optional[int]]:
+        """Return latest temp_c and its unix ts from readings table."""
+        try:
+            with sqlite3.connect(str(DB_PATH)) as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT ts, temp_c FROM readings ORDER BY ts DESC LIMIT 1")
+                row = cur.fetchone()
+                if row and row[1] is not None:
+                    return (float(row[1]), int(row[0]))
+        except Exception:
+            pass
+        return (None, None)
+
 def _get_settings_dict() -> Dict[str, str]:
     """Get all settings as string dict."""
     try:
@@ -335,6 +361,18 @@ def _check_guards() -> Tuple[bool, Optional[str]]:
     if _dose_lock.locked():
         return (False, "mix_lock")
     
+        # Temperature range gate (16-26°C as specified)
+        temp_val, temp_ts = _get_latest_temp()
+        if temp_val is not None:
+            if temp_val < 16.0 or temp_val > 26.0:
+                return (False, f"temp_range ({temp_val:.1f}°C)")
+    
+        # pH range gate (5.5-6.5 as specified)
+        ph_val, ph_ts = _get_latest_ph()
+        if ph_val is not None:
+            if ph_val < 5.5 or ph_val > 6.5:
+                return (False, f"ph_range ({ph_val:.2f})")
+    
     return (True, None)
 
 def _check_interval_guard(now_dt: datetime) -> Tuple[bool, Optional[str]]:
@@ -360,7 +398,115 @@ def _check_daily_cap(now_dt: datetime) -> Tuple[bool, Optional[str]]:
 # --- Manual dose endpoint ----------------------------------------------------
 @router.post("/api/ec/dose")
 def dose_ec(body: dict = Body(...)):
-    """Manual EC dose with G/M/B mix."""
+    """Manual EC dose - supports both pump+seconds and ml+mix_ratio modes."""
+    # New spec: pump+seconds mode
+    if "pump" in body and "seconds" in body:
+        pump = body.get("pump", "").lower()
+        seconds = float(body.get("seconds", 0))
+        reason = body.get("reason", "manual")
+        
+        # Validate pump
+        if pump not in ["grow", "micro", "bloom"]:
+            return JSONResponse(status_code=400, content={"error": "pump must be grow|micro|bloom"})
+        
+        # Check enabled or override
+        enabled = _b("ec.enabled", False)
+        override = _b("ec.maintenance_override", False)
+        if not enabled and not override:
+            return JSONResponse(status_code=409, content={"error": "EC control disabled (enable ec.enabled or ec.maintenance_override)"})
+        
+        # Clamp seconds
+        max_sec = 10.0 if override else 5.0
+        if seconds < 0.1 or seconds > max_sec:
+            return JSONResponse(status_code=400, content={"error": f"seconds must be 0.1–{max_sec}"})
+        
+        # Check interval guard (per-pump)
+        min_interval = _i("ec.min_interval_sec", 300)
+        if not override and min_interval > 0:
+            last_ts = _last_ok_ts()
+            if last_ts:
+                elapsed = (datetime.now(timezone.utc) - last_ts).total_seconds()
+                if elapsed < min_interval:
+                    return JSONResponse(status_code=409, content={"error": f"min interval not met ({int(min_interval - elapsed)}s remaining)"})
+        
+        # Check daily cap
+        if not override:
+            cap = _f("ec.max_ml_day", 0)
+            if cap > 0:
+                used = _today_total_ml(datetime.now(timezone.utc))
+                if used >= cap:
+                    return JSONResponse(status_code=409, content={"error": f"daily cap reached ({used:.1f}/{cap:.1f}ml)"})
+        
+        # Never allow >1 nutrient pump ON
+        if _dose_lock.locked():
+            return JSONResponse(status_code=409, content={"error": "another pump is active"})
+        
+        # Get rate for this pump
+        rate_key = f"dosing.{pump}_ml_per_sec"
+        rate = _f(rate_key, 25.0)
+        rate = max(5.0, min(50.0, rate))  # Clamp to safe range
+        ml = seconds * rate
+        
+        # Pre-read EC
+        ec_before, _ = _get_latest_ec()
+        
+        # Actuate with lock and try/finally
+        from app.relays_core import set_dosing_grow, set_dosing_micro, set_dosing_bloom
+        
+        result = "ok"
+        duration_ms = int(seconds * 1000)
+        
+        try:
+            with _dose_lock:
+                if pump == "grow":
+                    set_dosing_grow(True, reason=f"ec_dose_{reason}", force=True)
+                    time.sleep(seconds)
+                    set_dosing_grow(False, reason=f"ec_dose_{reason}", force=True)
+                elif pump == "micro":
+                    set_dosing_micro(True, reason=f"ec_dose_{reason}", force=True)
+                    time.sleep(seconds)
+                    set_dosing_micro(False, reason=f"ec_dose_{reason}", force=True)
+                elif pump == "bloom":
+                    set_dosing_bloom(True, reason=f"ec_dose_{reason}", force=True)
+                    time.sleep(seconds)
+                    set_dosing_bloom(False, reason=f"ec_dose_{reason}", force=True)
+        except Exception as e:
+            result = f"error: {e}"
+            # Ensure OFF
+            try:
+                set_dosing_grow(False, reason="ec_dose_error", force=True)
+                set_dosing_micro(False, reason="ec_dose_error", force=True)
+                set_dosing_bloom(False, reason="ec_dose_error", force=True)
+            except Exception:
+                pass
+        
+        # Post-read EC (wait 5s for mixing)
+        time.sleep(5)
+        ec_after, _ = _get_latest_ec()
+        
+        # Log to ec_dose_log
+        rowid = _log_row({
+            "ts_utc": datetime.now(timezone.utc).isoformat(),
+            "action": "dose",
+            "volume_ml": ml,
+            "mix_ratio": f"{pump}:{seconds}s",
+            "duration_ms": duration_ms,
+            "pre_ec": ec_before,
+            "post_ec": ec_after,
+            "result": result,
+            "reason": reason
+        })
+        
+        return {
+            "ok": True,
+            "pump": pump,
+            "seconds": seconds,
+            "ec_before": ec_before,
+            "ec_after": ec_after,
+            "ts": datetime.now(timezone.utc).isoformat()
+        }
+    
+    # Legacy mode: ml+mix_ratio
     ml = body.get("ml", 0)
     mix_ratio = body.get("mix_ratio", "schedule")  # schedule | custom
     custom = body.get("custom", {})
@@ -436,6 +582,127 @@ def dose_ec(body: dict = Body(...)):
         "ec_after": ec_after,
         "result": result
     }
+
+# --- Live endpoint -----------------------------------------------------------
+@router.get("/api/ec/live")
+def get_ec_live():
+    """Return live EC reading with temp, PPM, and stale flag."""
+    import requests
+    
+    ec_val, ec_ts = _get_latest_ec()
+    
+    # Get temp from latest reading
+    temp_c = None
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT temp_c FROM readings ORDER BY ts DESC LIMIT 1")
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                temp_c = float(row[0])
+    except Exception:
+        pass
+    
+    # Check if stale via /health/db
+    stale = False
+    try:
+        r = requests.get("http://localhost:8080/health/db", timeout=2)
+        if r.status_code == 200:
+            data = r.json()
+            stale = data.get("is_stale", False) or data.get("age_seconds", 0) > 180
+        else:
+            stale = True
+    except Exception:
+        stale = True
+    
+    # Calculate PPM
+    ppm_factor = _i("ec.ppm_factor", 500)
+    ppm = int(ec_val * ppm_factor) if ec_val else None
+    
+    return {
+        "ec_ms": ec_val,
+        "ppm": ppm,
+        "temp_c": temp_c,
+        "ts": ec_ts,
+        "stale": stale
+    }
+
+# --- Settings endpoint -------------------------------------------------------
+@router.put("/api/ec/settings")
+def update_ec_settings(body: dict = Body(...)):
+    """Update EC settings with validation."""
+    from app.settings import upsert_settings
+    
+    updates = {}
+    errors = []
+    
+    # Validate and collect updates
+    if "ec.target" in body:
+        val = float(body["ec.target"])
+        if not (0.6 <= val <= 2.4):
+            errors.append("ec.target must be 0.6–2.4")
+        else:
+            updates["ec.target"] = str(val)
+    
+    if "ec.enabled" in body:
+        updates["ec.enabled"] = "true" if body["ec.enabled"] else "false"
+    
+    if "ec.maintenance_override" in body:
+        updates["ec.maintenance_override"] = "true" if body["ec.maintenance_override"] else "false"
+    
+    if "ec.ppm_factor" in body:
+        val = int(body["ec.ppm_factor"])
+        if val not in [448, 500, 640, 700]:
+            errors.append("ec.ppm_factor must be one of [448,500,640,700]")
+        else:
+            updates["ec.ppm_factor"] = str(val)
+    
+    if "ec.step_min_ml" in body:
+        val = float(body["ec.step_min_ml"])
+        if val < 0:
+            errors.append("ec.step_min_ml must be >= 0")
+        else:
+            updates["ec.step_min_ml"] = str(val)
+    
+    if "ec.step_max_ml" in body:
+        val = float(body["ec.step_max_ml"])
+        if val < 0:
+            errors.append("ec.step_max_ml must be >= 0")
+        else:
+            updates["ec.step_max_ml"] = str(val)
+    
+    if "ec.safety_factor" in body:
+        val = float(body["ec.safety_factor"])
+        if not (0.1 <= val <= 1.0):
+            errors.append("ec.safety_factor must be 0.1–1.0")
+        else:
+            updates["ec.safety_factor"] = str(val)
+    
+    if "ec.min_interval_sec" in body:
+        val = int(body["ec.min_interval_sec"])
+        if val < 0:
+            errors.append("ec.min_interval_sec must be >= 0")
+        else:
+            updates["ec.min_interval_sec"] = str(val)
+    
+    if "ec.max_ml_day" in body:
+        val = float(body["ec.max_ml_day"])
+        if val < 0:
+            errors.append("ec.max_ml_day must be >= 0")
+        else:
+            updates["ec.max_ml_day"] = str(val)
+    
+    if errors:
+        return JSONResponse(status_code=400, content={"ok": False, "errors": errors})
+    
+    if updates:
+        try:
+            upsert_settings(updates)
+            return {"ok": True, "updated": list(updates.keys())}
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+    
+    return {"ok": True, "updated": []}
 
 # --- Status endpoint ---------------------------------------------------------
 @router.get("/api/ec/status")
