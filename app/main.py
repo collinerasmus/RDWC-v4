@@ -21,6 +21,7 @@ from app.diag import router as diag_router
 from app.blueprints.sensors_api import sensors_router
 from app.hardware import PumpController, RelayBank
 from app.ph_control import router as ph_router
+from app.ec_control import router as ec_router
 from app.logger import log_reading, last_n, fetch_history_since
 from app.scheduler import Scheduler, load_cfg, save_cfg
 from app.monitor import start_monitoring, stop_monitoring, get_monitoring_status
@@ -63,6 +64,7 @@ app.include_router(diag_router)
 app.include_router(debug_router, prefix="/debug", tags=["debug"])
 app.include_router(sensors_router)
 app.include_router(ph_router)
+app.include_router(ec_router)
 
 # Mount static files directory for serving CSS/JS
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -81,6 +83,13 @@ _scheduler = Scheduler(_relays)
 
 _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {}}
 _last_t = 0.0
+# Sensor diagnostics for UI popover and troubleshooting
+_sensor_diag = {
+    "restarts": 0,              # watchdog-triggered restarts
+    "last_watchdog_ts": None,   # epoch seconds when watchdog restarted loop
+    "last_error": None,         # last exception string from sensor_loop
+    "last_error_ts": None       # epoch seconds for last error
+}
 START_TS = time.time()
 sensor_task = None
 watchdog_task = None
@@ -106,7 +115,7 @@ def _sensor_loop():
 
 async def sensor_loop():
     """Async version of sensor loop for proper startup management"""
-    global _last, _last_t
+    global _last, _last_t, _sensor_diag
     while True:
         try:
             vals = read_all()
@@ -121,6 +130,12 @@ async def sensor_loop():
             log_reading(_last["temp_c"], _last["ph"], _last["ec_ms_cm"])
         except Exception as e:
             _last = {"temp_c": None, "ph": None, "ec_ms_cm": None, "errors": {"loop": str(e)}}
+            # Record diagnostics for UI popover
+            try:
+                _sensor_diag["last_error"] = str(e)
+                _sensor_diag["last_error_ts"] = time.time()
+            except Exception:
+                pass
         await asyncio.sleep(10)
 
 @app.on_event("startup")
@@ -158,7 +173,7 @@ async def _start_tasks():
     
     # Start sensors watchdog (auto-heal if stale)
     async def sensors_watchdog():
-        global sensor_task, _last_t
+        global sensor_task, _last_t, _sensor_diag
         STALE_SEC = int(os.environ.get("RDWC_SENSORS_STALE_SEC", "120"))
         INTERVAL = int(os.environ.get("RDWC_SENSORS_WATCHDOG_INTERVAL", "30"))
         while True:
@@ -176,6 +191,12 @@ async def _start_tasks():
                             sensor_task.cancel()
                     await asyncio.sleep(0.1)
                     sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
+                    # Update diagnostics
+                    try:
+                        _sensor_diag["restarts"] = int(_sensor_diag.get("restarts", 0)) + 1
+                        _sensor_diag["last_watchdog_ts"] = time.time()
+                    except Exception:
+                        pass
                 await asyncio.sleep(INTERVAL)
             except Exception:
                 await asyncio.sleep(INTERVAL)
@@ -188,6 +209,24 @@ async def _start_tasks():
         from app.camera import CameraManager
         CameraManager.init()
     except Exception:
+        pass
+
+    # Finalize and activate chiller automatic control with safe defaults
+    try:
+        from app.settings import upsert_settings
+        # Ensure compressor safety and a slightly wider deadband to reduce cycling
+        upsert_settings({
+            'chiller.target_temp': '19.0',
+            'chiller.hysteresis': '0.7',
+            'chiller.min_on_seconds': '300',
+            'chiller.min_off_seconds': '600',
+            'chiller.control_interval_s': '30',
+            'chiller.auto_enabled': '1'
+        })
+        from app.chiller_control import start_auto_control
+        start_auto_control()
+    except Exception:
+        # Non-fatal: UI can still enable manually
         pass
 
 @app.on_event("shutdown")  
@@ -1334,12 +1373,21 @@ def api_sensors_health():
             db_age = last.get("stale_seconds")
     except Exception:
         pass
+    # Build diagnostics
+    diag = {
+        "restarts": _sensor_diag.get("restarts", 0),
+        "last_watchdog_ts": _sensor_diag.get("last_watchdog_ts"),
+        "last_error": _sensor_diag.get("last_error"),
+        "last_error_ts": _sensor_diag.get("last_error_ts"),
+        "last_cache_ts": _last_t,
+    }
     return {
         "cache_age_s": round(age, 1),
         "cache_fresh": bool(fresh),
         "cache_has_data": _last.get("temp_c") is not None,
         "db_ts": db_ts,
         "db_age_s": db_age,
+        "diag": diag,
     }
 
 @app.get("/sensors/read")

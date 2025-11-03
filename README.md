@@ -1,10 +1,54 @@
 # RDWC v4.0.0 — simple & reliable
 
-Single FastAPI service with one control loop for RDWC.
-- Sensors: Atlas EZO on I²C (pH=0x63, EC=0x64, RTD=0x66)
-- Relays (BCM): 5,6,13,19,26,16,20,21 per your wiring
-- Target pH ~5.8–6.2; weekly res maintenance
-See `.env.example` for configuration. Start minimal, expand in tiny phases.
+Automated RDWC (Recirculating Deep Water Culture) hydroponic controller with pH/EC dosing, temperature control, and grow cycle management.
+
+**Hardware**: Raspberry Pi 4 + Atlas Scientific EZO sensors + Peristaltic pumps + Active-low relays  
+**Software**: FastAPI + SQLite + Python 3.9+  
+**Safety-First**: Active-low relays (HIGH=OFF), safe-off on boot, guard rails, alerts
+
+## Quick Start
+
+1. **Hardware Setup**: Connect sensors and relays per hardware map below
+2. **Install**: `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
+3. **Configure**: Copy `.env.example` to `.env`, set Pi IP, sensor addresses
+4. **Deploy**: `./deploy_pi.sh` (from dev machine) or `systemctl start rdwc.service` (on Pi)
+5. **Access**: http://192.168.88.49:8080
+
+## Hardware Map
+
+### I²C Sensors (Atlas Scientific EZO)
+- **pH**: 0x63 (EZO-pH circuit)
+- **EC**: 0x64 (EZO-EC circuit)
+- **RTD**: 0x66 (PT-1000 temperature probe)
+
+### Relays (BCM GPIO, Active-Low: HIGH=OFF)
+- **pH Up Pump**: BCM 5
+- **Grow Pump**: BCM 6
+- **Micro Pump**: BCM 13
+- **Bloom Pump**: BCM 19
+- **Main Circulation**: BCM 26
+- **Chiller Pump**: BCM 16
+- **Chiller**: BCM 20
+- **Grow Lights**: BCM 21
+
+### Power & Safety
+- All relays default HIGH (OFF) at boot
+- E-STOP via `safety.estop` setting
+- Watchdog timer monitors sensor loop
+
+## Dashboard Tabs
+
+Web UI organized by function (http://192.168.88.49:8080):
+
+1. **Overview**: System at-a-glance, health indicators, grow day counter
+2. **pH Control**: Manual dosing, automation, dose history, settings
+3. **EC Control**: G/M/B nutrient dosing, mix ratios, auto-raise, CSV export
+4. **Temperature**: Chiller control, min ON/OFF protections
+5. **Lights**: Schedule (start time, duration), manual override
+6. **Sensors**: Live readings, export, calibration status
+7. **Trends**: Multi-day charts (pH, EC, temp) with date pickers
+8. **Relays**: Manual relay control, state viewer, cooldown timers
+9. **Settings**: General (reservoir size, grow start), Alerts (email/Telegram), Calibration
 
 > Version: `v4.0.0` — see CHANGELOG.md
 

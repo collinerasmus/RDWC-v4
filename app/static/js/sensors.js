@@ -116,5 +116,79 @@
     // Respect configurable poll interval (default 5000ms)
     const poll = (window.APP_POLL && window.APP_POLL.sensors) ? (parseInt(window.APP_POLL.sensors,10)||5000) : 5000;
     setInterval(tick, Math.max(1500, poll));
+    // Sensors health popover interactions
+    const badge = $("sensors-health-badge");
+    const pop = $("sensors-health-popover");
+    if (badge && pop) {
+      const fmtAgo = (ts)=>{
+        if (!ts) return "n/a";
+        const now = Date.now()/1000;
+        const age = Math.max(0, Math.round(now - ts));
+        if (age < 60) return `${age}s ago`;
+        const m = Math.floor(age/60);
+        if (m < 60) return `${m}m ago`;
+        const h = Math.floor(m/60);
+        return `${h}h ${m%60}m ago`;
+      };
+      const buildHtml = (h)=>{
+        const d = h?.diag || {};
+        const cacheAge = (h?.cache_age_s!=null)? `${Math.round(h.cache_age_s)}s` : 'n/a';
+        const dbAge = (h?.db_age_s!=null)? `${Math.round(h.db_age_s)}s` : 'n/a';
+        const dbTsAgo = (h?.db_ts!=null)? fmtAgo(h.db_ts) : 'n/a';
+        const lwAgo = d?.last_watchdog_ts ? fmtAgo(d.last_watchdog_ts) : 'never';
+        const leAgo = d?.last_error_ts ? fmtAgo(d.last_error_ts) : 'n/a';
+        const lastErr = (d?.last_error || '').toString().slice(0,160);
+        const fresh = h?.cache_fresh ? 'yes' : 'no';
+        return `
+          <div style="font-weight:600;margin-bottom:6px;">Sensors Health</div>
+          <div style="display:grid;grid-template-columns: 140px 1fr;gap:6px 10px;align-items:center;">
+            <div class="muted">Cache Fresh</div><div>${fresh}</div>
+            <div class="muted">Cache Age</div><div>${cacheAge}</div>
+            <div class="muted">DB Age</div><div>${dbAge}</div>
+            <div class="muted">DB Last</div><div>${dbTsAgo}</div>
+            <div class="muted">Watchdog Restarts</div><div>${d?.restarts ?? 0}</div>
+            <div class="muted">Last Watchdog</div><div>${lwAgo}</div>
+            <div class="muted">Last Error</div><div style="max-width:260px;white-space:pre-wrap;word-break:break-word;">${lastErr || '—'}</div>
+            <div class="muted">Last Error Time</div><div>${leAgo}</div>
+          </div>
+        `;
+      };
+      const place = (anchor)=>{
+        const r = anchor.getBoundingClientRect();
+        const top = window.scrollY + r.bottom + 8;
+        const left = window.scrollX + Math.min(r.left, window.innerWidth - 320);
+        pop.style.top = `${top}px`;
+        pop.style.left = `${left}px`;
+      };
+      const hide = ()=>{ pop.style.display = 'none'; };
+      const show = ()=>{ pop.style.display = 'block'; };
+      let open = false;
+      badge.addEventListener('click', async (ev)=>{
+        ev.stopPropagation();
+        try{
+          const r = await fetch('/api/sensors/health', {cache:'no-store'});
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const h = await r.json();
+          pop.innerHTML = buildHtml(h);
+          place(badge);
+          show();
+          open = true;
+        }catch(e){
+          console.warn('[Sensors] popover fetch failed', e);
+        }
+      });
+      document.addEventListener('click', (ev)=>{
+        if (!open) return;
+        if (ev.target === badge || pop.contains(ev.target)) return;
+        hide();
+        open = false;
+      });
+      document.addEventListener('keydown', (ev)=>{
+        if (!open) return;
+        if (ev.key === 'Escape') { hide(); open = false; }
+      });
+      window.addEventListener('resize', ()=>{ if (open) place(badge); });
+      window.addEventListener('scroll', ()=>{ if (open) place(badge); }, {passive:true});
+    }
   });
 })();
