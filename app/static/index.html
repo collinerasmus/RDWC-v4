@@ -1237,7 +1237,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     <!-- 5. EC Control Card -->
   <section id="ec-card" class="card card-wide tab-section" data-tab="ec" style="display:none;">
           <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-            <h3 class="card-title" style="margin:0;">EC Control</h3>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <h3 class="card-title" style="margin:0;">EC Control</h3>
+              <span id="ecOverrideBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.85rem;" title="OVERRIDE ON">OVERRIDE ON</span>
+            </div>
             <div class="muted" id="ec-band">Targets 0.8 – 1.2 mS/cm</div>
           </div>
           <div class="card-body">
@@ -1253,6 +1256,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <div class="kpi-label">PPM</div>
                 <div class="kpi-value" id="ec-ppm">—</div>
               </div>
+              <span id="ecFreshnessDot" title="Data freshness" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6b7280;"></span>
               <div id="ec-guards" class="muted" title="">—</div>
               <span id="ec-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
             </div>
@@ -1261,6 +1265,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <div id="ec-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px 0;">
               <span id="ec-total-today" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#a7f3d0;">Today: — ml</span>
               <span id="ec-total-week" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Week: — ml</span>
+              <button id="btnEcExport24" class="btn-secondary" title="Download CSV of recent EC doses (24h)">Export CSV (24h)</button>
             </div>
 
             <div class="tabs" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px 0;">

@@ -20,6 +20,14 @@
     }catch(e){ return null; }
   }
 
+  async function fetchHealthDB(){
+    try{
+      const r = await fetch('/health/db', {cache: 'no-store'});
+      if(!r.ok) return null;
+      return await r.json();
+    }catch(e){ return null; }
+  }
+
   function guardActive(g){
     if(!g) return false;
     return g.estop || g.sensor_stale || g.interval || g.daily_cap || g.reservoir || g.mix_lock;
@@ -55,7 +63,7 @@
     if(list){ list.style.display = recentCollapsed ? 'none' : 'block'; }
   }
 
-  function renderStatus(s){
+  async function renderStatus(s){
     lastStatus = s;
     lastPollAt = Date.now();
     const ecVal = el('ec-current');
@@ -79,6 +87,31 @@
       guards.title = list.length ? guardHints(s.guards) : '';
     }
     if(resBanner && s){ resBanner.style.display = s.guards?.reservoir ? 'block' : 'none'; }
+
+    // Freshness indicator
+    const health = await fetchHealthDB();
+    const dot = el('ecFreshnessDot');
+    if(dot && health){
+      const age = health.age_seconds || 0;
+      const rows = health.row_count || 0;
+      if(age < 180){
+        dot.style.background = '#22c55e'; // green
+        dot.title = `Fresh (${Math.round(age)}s, ${rows} rows)`;
+      }else if(age < 600){
+        dot.style.background = '#f59e0b'; // amber
+        dot.title = `Stale (${Math.round(age)}s, ${rows} rows)`;
+      }else{
+        dot.style.background = '#ef4444'; // red
+        dot.title = `Very stale (${Math.round(age)}s, ${rows} rows)`;
+      }
+    }
+
+    // Override badge in header
+    const overrideBadge = el('ecOverrideBadge');
+    if(overrideBadge){
+      const override = (window.rdwcSettings?.get('ec.maintenance_override')||'false').toLowerCase() === 'true';
+      overrideBadge.style.display = override ? 'inline-block' : 'none';
+    }
     if(recent && s){
       recent.innerHTML = '';
       (s.recent||[]).forEach(r => {
@@ -116,7 +149,7 @@
       const e = el(id); if(e){ e.disabled = disabled; e.title = disabled ? 'Blocked by guard(s)' : ''; }
     });
 
-    // Maintenance override badge
+    // Maintenance override badge in manual tab
     const badge = el('ecMaintBadge');
     if (badge) badge.style.display = maint ? 'inline-block' : 'none';
 
@@ -237,6 +270,10 @@
     else console.log(`[EC] ${type}: ${msg}`);
   }
 
+  function exportCSV24h(){
+    window.open('/api/ec/dose_log.csv?hours=24', '_blank');
+  }
+
   // Custom ratio toggle
   function setupMixRatioToggle(){
     const radios = document.querySelectorAll('input[name="ecMixRatio"]');
@@ -264,6 +301,7 @@
       if(ml > 0) doseEC(ml);
     });
     el('btnEcAutoToggle')?.addEventListener('click', toggleAuto);
+    el('btnEcExport24')?.addEventListener('click', exportCSV24h);
 
     // Settings save
     el('btnSaveEcSettings')?.addEventListener('click', async ()=>{
