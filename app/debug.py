@@ -31,6 +31,7 @@ def relay_requests() -> Dict[str, Any]:
 def readings_hourly(hours: int = 48) -> Dict[str, Any]:
     """Get hourly reading counts for gap detection"""
     import sqlite3
+    import time
     from pathlib import Path
     
     try:
@@ -40,15 +41,17 @@ def readings_hourly(hours: int = 48) -> Dict[str, Any]:
         
         with sqlite3.connect(str(db_path)) as conn:
             cursor = conn.cursor()
+            # ts is Unix timestamp integer, calculate cutoff
+            cutoff_ts = int(time.time()) - (hours * 3600)
             cursor.execute("""
                 SELECT 
-                    strftime('%Y-%m-%d %H:00:00', ts) as hour_iso,
+                    strftime('%Y-%m-%d %H:00:00', datetime(ts, 'unixepoch')) as hour_iso,
                     COUNT(*) as rows
                 FROM readings
-                WHERE ts >= datetime('now', ? || ' hours')
+                WHERE ts >= ?
                 GROUP BY hour_iso
                 ORDER BY hour_iso DESC
-            """, (f'-{hours}',))
+            """, (cutoff_ts,))
             
             results = [{"hour_iso": row[0], "rows": row[1]} for row in cursor.fetchall()]
             return {"hours_back": hours, "data": results}
@@ -60,7 +63,9 @@ def readings_hourly(hours: int = 48) -> Dict[str, Any]:
 def readings_gaps(hours: int = 72, min_gap_sec: int = 180) -> Dict[str, Any]:
     """Find telemetry gaps larger than threshold"""
     import sqlite3
+    import time
     from pathlib import Path
+    from datetime import datetime, timezone
     
     try:
         db_path = Path("data/rdwc.db")
@@ -69,29 +74,37 @@ def readings_gaps(hours: int = 72, min_gap_sec: int = 180) -> Dict[str, Any]:
         
         with sqlite3.connect(str(db_path)) as conn:
             cursor = conn.cursor()
+            # ts is Unix timestamp integer
+            cutoff_ts = int(time.time()) - (hours * 3600)
             cursor.execute("""
                 WITH gaps AS (
                     SELECT 
                         ts as gap_end,
                         LAG(ts) OVER (ORDER BY ts) as gap_start,
-                        CAST((julianday(ts) - julianday(LAG(ts) OVER (ORDER BY ts))) * 86400 AS INTEGER) as gap_sec
+                        (ts - LAG(ts) OVER (ORDER BY ts)) as gap_sec
                     FROM readings
-                    WHERE ts >= datetime('now', ? || ' hours')
+                    WHERE ts >= ?
                 )
                 SELECT gap_start, gap_end, gap_sec
                 FROM gaps
                 WHERE gap_sec > ?
                 ORDER BY gap_sec DESC
-            """, (f'-{hours}', min_gap_sec))
+            """, (cutoff_ts, min_gap_sec))
             
-            results = [
-                {
-                    "gap_start_iso": row[0],
-                    "gap_end_iso": row[1],
-                    "gap_sec": row[2]
-                }
-                for row in cursor.fetchall()
-            ]
+            results = []
+            for row in cursor.fetchall():
+                gap_start_ts = row[0]
+                gap_end_ts = row[1]
+                gap_sec = row[2]
+                # Convert Unix timestamps to ISO
+                gap_start_iso = datetime.fromtimestamp(gap_start_ts, tz=timezone.utc).isoformat() if gap_start_ts else None
+                gap_end_iso = datetime.fromtimestamp(gap_end_ts, tz=timezone.utc).isoformat() if gap_end_ts else None
+                results.append({
+                    "gap_start_iso": gap_start_iso,
+                    "gap_end_iso": gap_end_iso,
+                    "gap_sec": gap_sec
+                })
+            
             return {
                 "hours_back": hours,
                 "min_gap_sec": min_gap_sec,

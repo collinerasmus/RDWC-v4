@@ -373,25 +373,29 @@ def health_db():
         with sqlite3.connect(str(db_path)) as conn:
             cursor = conn.cursor()
             
-            # Get latest timestamp
+            # Get latest timestamp (stored as Unix timestamp integer)
             cursor.execute("SELECT MAX(ts) as max_ts FROM readings")
             row = cursor.fetchone()
-            max_ts_str = row[0] if row else None
+            max_ts = row[0] if row else None
             
-            # Get recent row count (last 5 minutes)
+            # Get recent row count (last 5 minutes = 300 seconds)
+            now_unix = int(time.time())
             cursor.execute("""
                 SELECT COUNT(*) FROM readings 
-                WHERE ts >= datetime('now', '-300 seconds')
-            """)
+                WHERE ts >= ?
+            """, (now_unix - 300,))
             recent_rows = cursor.fetchone()[0]
             
-            # Calculate age
+            # Calculate age and convert to ISO
             age_seconds = None
-            if max_ts_str:
+            latest_ts_iso = None
+            if max_ts:
                 try:
-                    max_dt = datetime.fromisoformat(max_ts_str.replace('Z', '+00:00'))
-                    now_dt = datetime.now(timezone.utc)
-                    age_seconds = (now_dt - max_dt).total_seconds()
+                    # ts is Unix timestamp integer
+                    now_unix = int(time.time())
+                    age_seconds = now_unix - max_ts
+                    # Convert to ISO for display
+                    latest_ts_iso = datetime.fromtimestamp(max_ts, tz=timezone.utc).isoformat()
                 except Exception:
                     # Timestamp parsing failed, age_seconds will remain None
                     pass
@@ -403,7 +407,7 @@ def health_db():
                 "ok": ok,
                 "age_seconds": round(age_seconds, 1) if age_seconds is not None else None,
                 "recent_rows_5min": recent_rows,
-                "latest_ts_iso": max_ts_str
+                "latest_ts_iso": latest_ts_iso
             }
             
             if ok:
