@@ -49,6 +49,14 @@
     el.classList.remove("online","offline");
     el.classList.add(ok ? "online" : "offline");
   };
+
+  async function fetchHealthDB(){
+    try{
+      const r = await fetch('/health/db', {cache:'no-store'});
+      if(!r.ok) return null;
+      return await r.json();
+    }catch(e){ return null; }
+  }
   
   function renderHealthBadge(h){
     const el = $("sensors-health-badge");
@@ -99,11 +107,26 @@
           updated.textContent = new Date().toLocaleTimeString();
         }
       }
-      // Fetch health in parallel (non-blocking update next tick)
+      // Fetch sensor cache health and DB health in parallel (non-blocking)
       fetch('/api/sensors/health', {cache:'no-store'})
         .then(r=>r.ok?r.json():null)
         .then(h=>h && renderHealthBadge(h))
         .catch(()=>{});
+
+      fetchHealthDB().then(health=>{
+        const dot = $("sensorsFreshnessDot");
+        const rateEl = $("samplesRate");
+        if (health && dot){
+          const age = Number(health.age_seconds||0);
+          const rows5 = Number(health.recent_rows_5min||0);
+          const rate = rows5/5;
+          if (age < 180){ dot.style.background = '#22c55e'; }
+          else if (age < 600){ dot.style.background = '#f59e0b'; }
+          else { dot.style.background = '#ef4444'; }
+          dot.title = `DB age: ${Math.round(age)}s, last 5m rows: ${rows5}`;
+          if (rateEl){ rateEl.textContent = `${rate.toFixed(1)} samples/min`; rateEl.title = `${rows5} rows in last 5 minutes`; }
+        }
+      }).catch(()=>{});
     }catch(err){
       console.error("[Sensors] Fetch error:", err);
       setOnline(false);
