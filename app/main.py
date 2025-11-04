@@ -349,6 +349,80 @@ def health():
     
     return response_data
 
+@app.get("/health/db")
+def health_db():
+    """Database health check with freshness validation"""
+    import sqlite3
+    from datetime import datetime, timezone
+    from pathlib import Path
+    
+    try:
+        db_path = Path("data/rdwc.db")
+        if not db_path.exists():
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "ok": False,
+                    "error": "Database file not found",
+                    "age_seconds": None,
+                    "recent_rows_5min": 0,
+                    "latest_ts_iso": None
+                }
+            )
+        
+        with sqlite3.connect(str(db_path)) as conn:
+            cursor = conn.cursor()
+            
+            # Get latest timestamp
+            cursor.execute("SELECT MAX(ts) as max_ts FROM readings")
+            row = cursor.fetchone()
+            max_ts_str = row[0] if row else None
+            
+            # Get recent row count (last 5 minutes)
+            cursor.execute("""
+                SELECT COUNT(*) FROM readings 
+                WHERE ts >= datetime('now', '-300 seconds')
+            """)
+            recent_rows = cursor.fetchone()[0]
+            
+            # Calculate age
+            age_seconds = None
+            if max_ts_str:
+                try:
+                    max_dt = datetime.fromisoformat(max_ts_str.replace('Z', '+00:00'))
+                    now_dt = datetime.now(timezone.utc)
+                    age_seconds = (now_dt - max_dt).total_seconds()
+                except Exception:
+                    # Timestamp parsing failed, age_seconds will remain None
+                    pass
+            
+            # Health check: data should be < 3 minutes old
+            ok = age_seconds is not None and age_seconds < 180
+            
+            response = {
+                "ok": ok,
+                "age_seconds": round(age_seconds, 1) if age_seconds is not None else None,
+                "recent_rows_5min": recent_rows,
+                "latest_ts_iso": max_ts_str
+            }
+            
+            if ok:
+                return response
+            else:
+                return JSONResponse(status_code=503, content=response)
+                
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "ok": False,
+                "error": str(e),
+                "age_seconds": None,
+                "recent_rows_5min": 0,
+                "latest_ts_iso": None
+            }
+        )
+
 @app.get("/api/version")
 def asset_version():
     """Expose a simple asset version token for cache-busting (ASSET_VERSION env or today's date)."""

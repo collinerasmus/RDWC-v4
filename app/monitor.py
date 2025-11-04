@@ -43,6 +43,21 @@ class MonitoringState:
 _state = MonitoringState()
 
 
+def _safe_float(v):
+    """Safely convert value to float, returning None for empty/invalid values"""
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).strip()
+    if s == "":
+        return None
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return None
+
+
 def get_latest_sensor_data() -> Optional[Dict[str, Any]]:
     """Get latest sensor readings from database"""
     try:
@@ -55,16 +70,22 @@ def get_latest_sensor_data() -> Optional[Dict[str, Any]]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
-            # Get most recent reading
+            # Get most recent reading from correct table
             cursor.execute("""
-                SELECT * FROM sensor_data 
-                ORDER BY timestamp DESC 
+                SELECT ts, temp_c, ph, ec_ms_cm FROM readings 
+                ORDER BY ts DESC 
                 LIMIT 1
             """)
             
             row = cursor.fetchone()
             if row:
-                return dict(row)
+                # Map to expected format with safe parsing
+                return {
+                    'timestamp': row['ts'],
+                    'water_temp': _safe_float(row['temp_c']),
+                    'ph': _safe_float(row['ph']),
+                    'ec': _safe_float(row['ec_ms_cm'])
+                }
             return None
             
     except Exception as e:
