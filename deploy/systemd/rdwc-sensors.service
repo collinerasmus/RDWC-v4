@@ -1,0 +1,25 @@
+[Unit]
+Description=RDWC Sensor Poller (Headless)
+Documentation=https://github.com/collinerasmus/RDWC-v4
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/RDWC-v4
+Environment="RDWC_SENSOR_POLL_INTERVAL=5"
+Environment="RDWC_DB_PATH=/home/pi/RDWC-v4/data/rdwc.db"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/python3 -m app.sensor_poller
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Safety: no relay operations in this service
+# Only reads sensors and writes to DB
+
+[Install]
+WantedBy=multi-user.target

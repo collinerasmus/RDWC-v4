@@ -364,6 +364,8 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   gap: 8px;
   margin-bottom: 12px;
 }
+#sensors-card .fresh-dot{ width:10px;height:10px;border-radius:999px;display:inline-block;border:1px solid rgba(148,163,184,.35);box-shadow:0 0 0 2px rgba(0,0,0,0.25) inset;}
+#sensors-card .rate-caption{ font-size: .8rem; opacity:.75; }
 #sensors-card .card-title{
   margin: 0;
 }
@@ -827,6 +829,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <span id="ov-mode" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);">Mode: —</span>
         <span id="ov-estop" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);">E-STOP: —</span>
         <span id="ov-lights-window" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);">Lights Window: —</span>
+        <span id="ov-sensor-poller" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);" title="Headless sensor polling status">Sensors: —</span>
       </div>
     </div>
   </section>
@@ -1014,6 +1017,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <div style="font-weight:600;">Sensors</div>
         <span id="sensors-grow-day-badge" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;font-weight:500;"></span>
         <span id="sensors-health-badge" title="sensor health" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(34,197,94,0.4);background:rgba(34,197,94,0.12);color:#86efac;font-size:0.85rem;font-weight:600;">OK</span>
+        <span id="sensorsFreshnessDot" class="fresh-dot" title="DB freshness"></span>
       </div>
       <!-- controls moved below KPI row to match pH chart layout -->
     </div>
@@ -1032,6 +1036,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <div class="kpi-label">Temp (°C)</div>
         <div class="kpi-value" id="kpiTemp">—</div>
       </div>
+      <div class="rate-caption" id="samplesRate" style="align-self:center;">—</div>
     </div>
 
     <!-- Sensors recent readings (ph-style collapsible) -->
@@ -1057,6 +1062,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <button class="btn btn-chip" data-range="30d">30d</button>
           <button class="btn btn-chip" data-range="90d">90d</button>
           <button class="btn btn-chip" data-range="grow">Grow</button>
+          <button class="btn btn-chip" data-range="today">Since 00:00</button>
           <span class="sep" style="opacity:.5;">|</span>
           <input type="datetime-local" id="trendFrom">
           <input type="datetime-local" id="trendTo">
@@ -1758,7 +1764,20 @@ refresh();
 setInterval(() => { refresh().catch(()=>{}); }, 5000); // 5s refresh, ignore transient errors
 // Sensors poller now self-contained (IIFE above) with single-instance guard
 setInterval(() => { loadOverrides().catch(()=>{}); }, 10000); // 10s override refresh
-function exportCsv(hours=24){ window.open(`/export/sensors.csv?hours=${hours}`,'_blank'); }
+function exportCsv(hours=24){
+  try{
+    // Prefer explicit window from trends
+    const w = (window.trendsWindow && window.trendsWindow.start && window.trendsWindow.end) ? window.trendsWindow : null;
+    if (w) {
+      const fromISO = new Date(w.start).toISOString();
+      const toISO = new Date(w.end).toISOString();
+      window.open(`/export/sensors.csv?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`,'_blank');
+      return;
+    }
+  }catch(e){ /* ignore and fall back */ }
+  // Fallback to hours window
+  window.open(`/export/sensors.csv?hours=${hours}`,'_blank');
+}
 
 function toggleRecentReadings(){
   const card = document.getElementById('recent-readings-card');

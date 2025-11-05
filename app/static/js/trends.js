@@ -98,6 +98,11 @@
     if (preset === '7d')  start = now - 7*24*60*60*1000;
     if (preset === '30d') start = now - 30*24*60*60*1000;
     if (preset === '90d') start = now - 90*24*60*60*1000;
+    if (preset === 'today'){
+      const d = new Date();
+      d.setHours(0,0,0,0);
+      start = d.getTime();
+    }
     return { start, end: now };
   }
 
@@ -203,9 +208,36 @@
     console.log('[Sensors] render');
 
     // Series to XY (timestamps in seconds from API, convert to ms)
-    const ph    = (data?.series?.ph   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
-    const ecRaw = (data?.series?.ec   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
-    const temp  = (data?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
+    let ph    = (data?.series?.ph   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
+    let ecRaw = (data?.series?.ec   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
+    let temp  = (data?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
+
+    // Helper: interpolate single-sample gaps for smoother rendering
+    function interpSingles(series){
+      if (!series || series.length < 3) return series;
+      // estimate expected interval as median delta
+      const deltas = [];
+      for(let i=1;i<series.length;i++){ const dt = series[i].x - series[i-1].x; if (dt>0) deltas.push(dt); }
+      deltas.sort((a,b)=>a-b);
+      const mid = Math.floor(deltas.length/2);
+      const expected = deltas.length ? (deltas.length%2? deltas[mid] : (deltas[mid-1]+deltas[mid])/2) : 0;
+      if (!expected) return series;
+      const out = [series[0]];
+      for(let i=1;i<series.length;i++){
+        const prev = series[i-1], cur = series[i];
+        const dt = cur.x - prev.x;
+        if (dt > 1.5*expected && dt <= 2.5*expected && Number.isFinite(prev.y) && Number.isFinite(cur.y)){
+          // insert midpoint linear interpolation
+          const midx = prev.x + Math.round(dt/2);
+          const midy = prev.y + (cur.y - prev.y)/2;
+          out.push({ x:midx, y: midy });
+        }
+        out.push(cur);
+      }
+      return out;
+    }
+    ph = interpSingles(ph);
+    temp = interpSingles(temp);
     
     // Debug: Check actual data time range
     if (ph.length) {
@@ -224,7 +256,8 @@
     }
     let ecScale = 1.0;
     if (median(ecRaw) > 20) ecScale = 1/1000; // µS -> mS
-    const ec = ecRaw.map(p => ({ x:p.x, y: p.y * ecScale }));
+  let ec = ecRaw.map(p => ({ x:p.x, y: p.y * ecScale }));
+  ec = interpSingles(ec);
 
     // KPIs (scaled EC)
     const last = arr => (arr && arr.length ? arr[arr.length-1].y : null);
@@ -262,7 +295,7 @@
     const aEc   = chooseAxis(PREF.ec,   ec);
     const aTemp = chooseAxis(PREF.temp, temp);
 
-    // IMPORTANT: Set x-axis bounds to requested timeframe (not data-derived)
+  // IMPORTANT: Set x-axis bounds to requested timeframe (not data-derived)
     if (state.window.start && state.window.end) {
       console.log('[Sensors] Chart x-axis spans full requested timeframe:', {
         start: new Date(state.window.start).toISOString(),
@@ -295,6 +328,17 @@
     if (temp.length) datasets.push({ id:'temp', yAxisID:'yTemp', label:'Temp (°C)', data:temp, borderWidth:2, borderColor:COLORS.temp, backgroundColor:COLORS.temp, pointRadius:0, spanGaps:true });
 
     trendChart.data.datasets = datasets;
+
+    // If very few points, synthesize boundary points to avoid flatline illusion
+    function synthBounds(series){
+      if (!state.window.start || !state.window.end) return series;
+      if (!series || series.length === 0) return series;
+      if (series.length >= 2) return series;
+      // duplicate a single point at both bounds
+      const v = series[0].y;
+      return [ {x: state.window.start, y: v}, {x: state.window.end, y: v} ];
+    }
+    trendChart.data.datasets.forEach(ds => { ds.data = synthBounds(ds.data); });
 
     // Empty state toggle
     const hasAny = (ph.length || ec.length || temp.length);
@@ -387,3 +431,33 @@
     if (emptyEl) emptyEl.style.display = 'block';
   });
 })();
+
+// Expose current trends window for export
+window.trendsWindow = window.trendsWindow || {};
+try{
+  // Proxy state updates into global for exportCsv
+  (function(){
+    const _set = (start,end)=>{ window.trendsWindow.start = start; window.trendsWindow.end = end; };
+    const orig = document.getElementById('trendApply');
+    if (orig){
+      orig.addEventListener('click', ()=>{
+        const fromEl = document.getElementById('trendFrom');
+        const toEl = document.getElementById('trendTo');
+        if (fromEl && toEl && fromEl.value && toEl.value){
+          _set(new Date(fromEl.value).getTime(), new Date(toEl.value).getTime());
+        }
+      });
+    }
+    // Also hook into preset buttons to update global window after load
+    const btns = document.querySelectorAll('#sensors-card .btn-chip, #trends-card .btn-chip');
+    btns.forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const fromEl = document.getElementById('trendFrom');
+        const toEl = document.getElementById('trendTo');
+        if (fromEl && toEl && fromEl.value && toEl.value){
+          _set(new Date(fromEl.value).getTime(), new Date(toEl.value).getTime());
+        }
+      });
+    });
+  })();
+}catch(e){ /* ignore */ }

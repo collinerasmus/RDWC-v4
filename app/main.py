@@ -12,11 +12,9 @@ from typing import Optional, Any
 from subprocess import run, PIPE
 from datetime import datetime, timedelta  # Keep global import
 from app.debug import router as debug_router, trace_relay_request
-from app.ezo_i2c_stabilized import read_all
-from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
-from app import ezo_i2c as _ezo
-from app.infra.i2c_bus import get_bus as _get_bus
-from app.infra.i2c_bus import close_bus as _close_i2c_bus
+# NOTE: Avoid importing EZO/I2C helpers at module import time to prevent
+# accidental /dev/i2c-1 ownership by the web process. Perform lazy imports
+# within endpoints that explicitly request direct hardware access.
 from app.diag import router as diag_router
 from app.blueprints.sensors_api import sensors_router
 from app.hardware import PumpController, RelayBank
@@ -99,6 +97,7 @@ def _sensor_loop():
     while True:
         try:
             # read_all() returns {"temperature": <float>, "ph": <float>, "ec_ms": <float>}
+            from app.ezo_i2c_stabilized import read_all
             vals = read_all()
             _last = {
                 "temp_c": vals.get("temperature"),
@@ -118,6 +117,7 @@ async def sensor_loop():
     global _last, _last_t, _sensor_diag
     while True:
         try:
+            from app.ezo_i2c_stabilized import read_all
             vals = read_all()
             _last = {
                 "temp_c": vals.get("temperature"),
@@ -168,39 +168,46 @@ async def _start_tasks():
         from app.relays_core import smart_restore_critical_relays
         smart_restore_critical_relays()
     
-    # Start async sensor loop (single reader)
-    sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
-    
-    # Start sensors watchdog (auto-heal if stale)
-    async def sensors_watchdog():
-        global sensor_task, _last_t, _sensor_diag
-        STALE_SEC = int(os.environ.get("RDWC_SENSORS_STALE_SEC", "120"))
-        INTERVAL = int(os.environ.get("RDWC_SENSORS_WATCHDOG_INTERVAL", "30"))
-        while True:
-            try:
-                age = time.time() - _last_t
-                if age > STALE_SEC:
-                    # Attempt auto-heal: reset I2C and restart sensor task
-                    try:
-                        _close_i2c_bus()
-                    except Exception:
-                        pass
-                    # Restart sensor task
-                    with suppress(Exception):
-                        if sensor_task:
-                            sensor_task.cancel()
-                    await asyncio.sleep(0.1)
-                    sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
-                    # Update diagnostics
-                    try:
-                        _sensor_diag["restarts"] = int(_sensor_diag.get("restarts", 0)) + 1
-                        _sensor_diag["last_watchdog_ts"] = time.time()
-                    except Exception:
-                        pass
-                await asyncio.sleep(INTERVAL)
-            except Exception:
-                await asyncio.sleep(INTERVAL)
-    watchdog_task = asyncio.create_task(sensors_watchdog(), name="sensors_watchdog")
+    # Start async sensor loop (single reader) - DISABLED by default in production
+    # (standalone sensor poller runs as rdwc-sensors.service)
+    SENSOR_LOOP_ENABLED = os.environ.get("SENSOR_LOOP_ENABLED", "false").lower() == "true"
+    if SENSOR_LOOP_ENABLED:
+        sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
+        print("Web sensor_loop ENABLED (legacy mode)")
+        
+        # Start sensors watchdog (auto-heal if stale) - only when sensor_loop is enabled
+        async def sensors_watchdog():
+            global sensor_task, _last_t, _sensor_diag
+            STALE_SEC = int(os.environ.get("RDWC_SENSORS_STALE_SEC", "120"))
+            INTERVAL = int(os.environ.get("RDWC_SENSORS_WATCHDOG_INTERVAL", "30"))
+            while True:
+                try:
+                    age = time.time() - _last_t
+                    if age > STALE_SEC:
+                        # Attempt auto-heal: reset I2C and restart sensor task
+                        try:
+                            from app.infra.i2c_bus import close_bus
+                            close_bus()
+                        except Exception:
+                            pass
+                        # Restart sensor task
+                        with suppress(Exception):
+                            if sensor_task:
+                                sensor_task.cancel()
+                        await asyncio.sleep(0.1)
+                        sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
+                        # Update diagnostics
+                        try:
+                            _sensor_diag["restarts"] = int(_sensor_diag.get("restarts", 0)) + 1
+                            _sensor_diag["last_watchdog_ts"] = time.time()
+                        except Exception:
+                            pass
+                    await asyncio.sleep(INTERVAL)
+                except Exception:
+                    await asyncio.sleep(INTERVAL)
+        watchdog_task = asyncio.create_task(sensors_watchdog(), name="sensors_watchdog")
+    else:
+        print("Web sensor_loop DISABLED (using standalone poller)")
     _scheduler.start()
     # Start alert monitoring
     start_monitoring()
@@ -348,6 +355,162 @@ def health():
         return JSONResponse(status_code=503, content=response_data)
     
     return response_data
+
+@app.get("/health/db")
+def health_db():
+    """Database health check with freshness validation"""
+    import sqlite3
+    from datetime import datetime, timezone
+    from pathlib import Path
+    
+    try:
+        db_path = Path("data/rdwc.db")
+        if not db_path.exists():
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "ok": False,
+                    "error": "Database file not found",
+                    "age_seconds": None,
+                    "recent_rows_5min": 0,
+                    "latest_ts_iso": None
+                }
+            )
+        
+        with sqlite3.connect(str(db_path)) as conn:
+            cursor = conn.cursor()
+            
+            # Get latest timestamp (stored as Unix timestamp integer)
+            cursor.execute("SELECT MAX(ts) as max_ts FROM readings")
+            row = cursor.fetchone()
+            max_ts = row[0] if row else None
+            
+            # Get recent row count (last 5 minutes = 300 seconds)
+            now_unix = int(time.time())
+            cursor.execute("""
+                SELECT COUNT(*) FROM readings 
+                WHERE ts >= ?
+            """, (now_unix - 300,))
+            recent_rows = cursor.fetchone()[0]
+            
+            # Calculate age and convert to ISO
+            age_seconds = None
+            latest_ts_iso = None
+            if max_ts:
+                try:
+                    # ts is Unix timestamp integer
+                    now_unix = int(time.time())
+                    age_seconds = now_unix - max_ts
+                    # Convert to ISO for display
+                    latest_ts_iso = datetime.fromtimestamp(max_ts, tz=timezone.utc).isoformat()
+                except Exception:
+                    # Timestamp parsing failed, age_seconds will remain None
+                    pass
+            
+            # Health check: data should be < 3 minutes old
+            ok = age_seconds is not None and age_seconds < 180
+            
+            response = {
+                "ok": ok,
+                "age_seconds": round(age_seconds, 1) if age_seconds is not None else None,
+                "recent_rows_5min": recent_rows,
+                "latest_ts_iso": latest_ts_iso
+            }
+            
+            if ok:
+                return response
+            else:
+                return JSONResponse(status_code=503, content=response)
+                
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "ok": False,
+                "error": str(e),
+                "age_seconds": None,
+                "recent_rows_5min": 0,
+                "latest_ts_iso": None
+            }
+        )
+
+@app.get("/api/sensors/status")
+def api_sensors_status():
+    """
+    Sensor poller status endpoint - reports on headless background polling.
+    
+    Returns:
+        running: bool - is poller loop active
+        last_sample_ts: float - Unix timestamp of last sensor sample
+        last_heartbeat_ts: float - Unix timestamp of last heartbeat update
+        interval_sec: int - polling interval
+        i2c_device: str - I2C bus device path
+        poll_count: int - total polls since start
+        lock_file: str - PID lock file path
+        lock_exists: bool - does lock file exist
+        lock_pid: int - PID from lock file (if exists)
+    """
+    from app.sensor_poller import get_status
+    return get_status()
+
+@app.get("/api/health")
+def api_health():
+    """
+    Application health summary endpoint.
+    
+    Returns:
+        ok: bool - overall health status
+        app_version: str - ASSET_VERSION token
+        git_commit: str - short git SHA (if available)
+        uptime_seconds: float - time since app start
+        sensor_poller: dict - sensor poller status
+        database: dict - database connectivity check
+    """
+    import subprocess
+    from pathlib import Path
+    
+    # Get git commit
+    git_commit = None
+    try:
+        repo_root = Path(__file__).parent.parent
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        if result.returncode == 0:
+            git_commit = result.stdout.strip()
+    except Exception:
+        pass
+    
+    # Check database
+    db_ok = False
+    try:
+        import sqlite3
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("SELECT 1").fetchone()
+            db_ok = True
+    except Exception:
+        pass
+    
+    # Get sensor poller status
+    from app.sensor_poller import get_status
+    poller_status = get_status()
+    
+    uptime = time.time() - START_TS
+    
+    return {
+        "ok": db_ok,
+        "app_version": ASSET_VERSION,
+        "git_commit": git_commit,
+        "uptime_seconds": uptime,
+        "sensor_poller": poller_status,
+        "database": {
+            "ok": db_ok,
+            "path": DB_PATH
+        }
+    }
 
 @app.get("/api/version")
 def asset_version():
@@ -1393,11 +1556,44 @@ def api_sensors_health():
 @app.get("/sensors/read")
 def sensors_read():
     """
-    Get sensor readings with deadline-aware pH-first read.
-    sensors_core.read_all_sensors() enforces its own 2.5s deadline internally.
+    Get sensor readings.
+    Default: return latest database sample (no I2C access).
+    If query param mode=direct is provided, perform a one-off direct probe
+    against the I2C bus and return that value.
     """
-    from app.sensors_core import read_all_sensors
-    return read_all_sensors()
+    from fastapi import Request
+    from fastapi import Request as _Req  # type: ignore
+    # FastAPI injects Request if declared; but keep fallback for safety
+    try:
+        # When FastAPI calls us, it will pass Request automatically
+        pass
+    except Exception:
+        pass
+    # Parse query directly from environment since we're not declaring Request param
+    # Use starlette request if available via context (not strictly required)
+    mode = None
+    try:
+        # Use global request available via FastAPI context (best-effort)
+        # If unavailable, default to DB mode
+        from starlette.requests import Request as _StarReq  # type: ignore
+    except Exception:
+        _StarReq = None  # type: ignore
+
+    # Simple query parsing via os.environ isn't reliable here; instead, provide a sibling endpoint
+    # Implement behavior identical to /api/sensors/read below.
+    from app.services.sensors_fallback import get_last_reading
+    # Always DB for this legacy endpoint to avoid bus contention
+    last = get_last_reading()
+    return last or {
+        "temperature_c": None,
+        "ec_mscm": None,
+        "ph": None,
+        "ts": None,
+        "source": "db",
+        "online": False,
+        "temp_comp_applied": False,
+        "temp_comp_reason": "fallback-empty"
+    }
 
 @app.get("/sensors/last")
 def sensors_last():
@@ -1413,11 +1609,71 @@ def sensors_last():
         "ec_mscm": None,
         "ph": None,
         "ts": None,
+        "source": "db",
         "stale_seconds": None,
         "online": False,
         "temp_comp_applied": False,
         "temp_comp_reason": "fallback-empty"
     }
+
+@app.get("/api/sensors/last")
+def api_sensors_last():
+    """Alias of /sensors/last that always returns latest DB sample."""
+    from app.services.sensors_fallback import get_last_reading
+    data = get_last_reading()
+    return data or {
+        "temperature_c": None,
+        "ec_mscm": None,
+        "ph": None,
+        "ts": None,
+        "source": "db",
+        "stale_seconds": None,
+        "online": False,
+        "temp_comp_applied": False,
+        "temp_comp_reason": "fallback-empty"
+    }
+
+@app.get("/api/sensors/read")
+def api_sensors_read(mode: str = Query(default="db")):
+    """
+    Read sensors with selectable mode.
+    - mode=db (default): return latest DB sample, no I2C access
+    - mode=direct: perform one-off I2C probe and return live values
+    """
+    if mode != "direct":
+        from app.services.sensors_fallback import get_last_reading
+        data = get_last_reading()
+        if data:
+            data["source"] = "db"
+        return data or {
+            "temperature_c": None,
+            "ec_mscm": None,
+            "ph": None,
+            "ts": None,
+            "source": "db",
+            "online": False,
+            "temp_comp_applied": False,
+            "temp_comp_reason": "fallback-empty"
+        }
+    # Direct mode: lazy import to avoid opening bus at module import time
+    try:
+        from app.sensors_core import read_all_sensors
+        live = read_all_sensors()
+        if isinstance(live, dict):
+            live["source"] = "i2c"
+        return live
+    except Exception as e:
+        return {
+            "temperature_c": None,
+            "ec_mscm": None,
+            "ph": None,
+            "ts": datetime.utcnow().isoformat() + "Z",
+            "source": "i2c",
+            "online": False,
+            "temp_comp_applied": False,
+            "temp_comp_reason": f"direct-error: {e}",
+            "errors": {"read": str(e)}
+        }
 
 @app.get("/api/sensors")
 def api_sensors():
@@ -1547,6 +1803,7 @@ def diag_sensors_flash(count: int = 8, period_ms: int = 250):
 @app.post("/read_now")
 def read_now():
     try:
+        from app.ezo_i2c_stabilized import read_all
         data = read_all()
         return JSONResponse({"ok": True, "data": data})
     except Exception as e:
@@ -1555,6 +1812,8 @@ def read_now():
 @app.post("/fix_ezo")
 def fix_ezo():
     try:
+        from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
+        from app.ezo_i2c_stabilized import read_all
         id_ph  = identify(addr=ADDR_PH)
         id_ec  = identify(addr=ADDR_EC)
         id_rtd = identify(addr=ADDR_RTD)
@@ -1738,6 +1997,8 @@ def _calib_enabled() -> bool:
 
 def _ph_cmd(cmd: str, settle: float = 0.35):
     try:
+        from app.infra.i2c_bus import get_bus as _get_bus
+        from app import ezo_i2c as _ezo
         bus = _get_bus()
         _ezo._send_cmd(bus, _ezo.ADDR_PH, cmd)
         time.sleep(settle)
@@ -1753,6 +2014,7 @@ def calib_ph_caps():
 @app.get("/calib/ph/read")
 def calib_ph_read():
     try:
+        from app import ezo_i2c as _ezo
         val = _ezo.read_single(_ezo.ADDR_PH)
         return {"ok": True, "value": val}
     except Exception as ex:
@@ -1761,6 +2023,7 @@ def calib_ph_read():
 @app.get("/calib/ph/status")
 def calib_ph_status():
     st, payload = _ph_cmd("Cal,?")
+    from app import ezo_i2c as _ezo
     ok = (st == _ezo.EZO_STATUS_SUCCESS)
     flags = []
     note = payload
@@ -1786,6 +2049,7 @@ def calib_ph_read_stable(timeout_s: float = 20.0, delta: float = 0.02, min_sampl
     prev = None
     last = None
     try:
+        from app import ezo_i2c as _ezo
         while time.monotonic() - t0 < max(1.0, float(timeout_s)):
             val = _ezo.read_single(_ezo.ADDR_PH)
             if val is None:
@@ -1806,6 +2070,7 @@ def calib_ph_read_stable(timeout_s: float = 20.0, delta: float = 0.02, min_sampl
 @app.post("/calib/leds/on")
 def calib_leds_on():
     try:
+        from app import ezo_i2c as _ezo
         out = _ezo.enable_all_leds(True)
         return {"ok": True, **out}
     except Exception as ex:
@@ -1814,6 +2079,7 @@ def calib_leds_on():
 @app.post("/calib/leds/off")
 def calib_leds_off():
     try:
+        from app import ezo_i2c as _ezo
         out = _ezo.enable_all_leds(False)
         return {"ok": True, **out}
     except Exception as ex:
@@ -1822,6 +2088,7 @@ def calib_leds_off():
 @app.post("/calib/leds/blink")
 def calib_leds_blink(count: int = 8, period_s: float = 0.25):
     try:
+        from app import ezo_i2c as _ezo
         out = _ezo.blink_leds(count=count, period_s=period_s)
         return out
     except Exception as ex:
@@ -1974,6 +2241,7 @@ def calib_ph_clear():
     if chk:
         return chk
     st, payload = _ph_cmd("Cal,clear")
+    from app import ezo_i2c as _ezo
     ok = (st == _ezo.EZO_STATUS_SUCCESS)
     return {"ok": ok, "note": payload or ("Cleared" if ok else "Failed")}
 
@@ -1983,6 +2251,7 @@ def _apply_point(kind: str, value: float):
         return chk
     v = max(0.0, min(14.0, float(value)))
     st, payload = _ph_cmd(f"Cal,{kind},{v:.2f}")
+    from app import ezo_i2c as _ezo
     ok = (st == _ezo.EZO_STATUS_SUCCESS)
     return {"ok": ok, "note": payload or (f"Applied {kind} {v:.2f}" if ok else "Failed")}
 

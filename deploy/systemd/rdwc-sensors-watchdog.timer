@@ -1,0 +1,12 @@
+[Unit]
+Description=RDWC Sensor Poller Watchdog Timer
+Documentation=https://github.com/collinerasmus/RDWC-v4
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
