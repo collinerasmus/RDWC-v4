@@ -220,31 +220,31 @@ def _get_latest_ec() -> Tuple[Optional[float], Optional[int]]:
         pass
     return (None, None)
 
-    def _get_latest_ph() -> Tuple[Optional[float], Optional[int]]:
-        """Return latest pH and its unix ts from readings table."""
-        try:
-            with sqlite3.connect(str(DB_PATH)) as conn:
-                cur = conn.cursor()
-                cur.execute("SELECT ts, ph FROM readings ORDER BY ts DESC LIMIT 1")
-                row = cur.fetchone()
-                if row and row[1] is not None:
-                    return (float(row[1]), int(row[0]))
-        except Exception:
-            pass
-        return (None, None)
+def _get_latest_ph() -> Tuple[Optional[float], Optional[int]]:
+    """Return latest pH and its unix ts from readings table."""
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT ts, ph FROM readings ORDER BY ts DESC LIMIT 1")
+            row = cur.fetchone()
+            if row and row[1] is not None:
+                return (float(row[1]), int(row[0]))
+    except Exception:
+        pass
+    return (None, None)
 
-    def _get_latest_temp() -> Tuple[Optional[float], Optional[int]]:
-        """Return latest temp_c and its unix ts from readings table."""
-        try:
-            with sqlite3.connect(str(DB_PATH)) as conn:
-                cur = conn.cursor()
-                cur.execute("SELECT ts, temp_c FROM readings ORDER BY ts DESC LIMIT 1")
-                row = cur.fetchone()
-                if row and row[1] is not None:
-                    return (float(row[1]), int(row[0]))
-        except Exception:
-            pass
-        return (None, None)
+def _get_latest_temp() -> Tuple[Optional[float], Optional[int]]:
+    """Return latest temp_c and its unix ts from readings table."""
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT ts, temp_c FROM readings ORDER BY ts DESC LIMIT 1")
+            row = cur.fetchone()
+            if row and row[1] is not None:
+                return (float(row[1]), int(row[0]))
+    except Exception:
+        pass
+    return (None, None)
 
 def _get_settings_dict() -> Dict[str, str]:
     """Get all settings as string dict."""
@@ -361,17 +361,17 @@ def _check_guards() -> Tuple[bool, Optional[str]]:
     if _dose_lock.locked():
         return (False, "mix_lock")
     
-        # Temperature range gate (16-26°C as specified)
-        temp_val, temp_ts = _get_latest_temp()
-        if temp_val is not None:
-            if temp_val < 16.0 or temp_val > 26.0:
-                return (False, f"temp_range ({temp_val:.1f}°C)")
+    # Temperature range gate (16-26°C as specified)
+    temp_val, temp_ts = _get_latest_temp()
+    if temp_val is not None:
+        if temp_val < 16.0 or temp_val > 26.0:
+            return (False, f"temp_range ({temp_val:.1f}°C)")
     
-        # pH range gate (5.5-6.5 as specified)
-        ph_val, ph_ts = _get_latest_ph()
-        if ph_val is not None:
-            if ph_val < 5.5 or ph_val > 6.5:
-                return (False, f"ph_range ({ph_val:.2f})")
+    # pH range gate (5.5-6.5 as specified)
+    ph_val, ph_ts = _get_latest_ph()
+    if ph_val is not None:
+        if ph_val < 5.5 or ph_val > 6.5:
+            return (False, f"ph_range ({ph_val:.2f})")
     
     return (True, None)
 
@@ -409,11 +409,16 @@ def dose_ec(body: dict = Body(...)):
         if pump not in ["grow", "micro", "bloom"]:
             return JSONResponse(status_code=400, content={"error": "pump must be grow|micro|bloom"})
         
-        # Check enabled or override
+        # Check enabled or global maintenance override
         enabled = _b("ec.enabled", False)
-        override = _b("ec.maintenance_override", False)
+        # Global safety override gate
+        try:
+            from app.settings import get_all_settings
+            override = (get_all_settings().get("safety.maintenance_override","false").lower() == "true")
+        except Exception:
+            override = False
         if not enabled and not override:
-            return JSONResponse(status_code=409, content={"error": "EC control disabled (enable ec.enabled or ec.maintenance_override)"})
+            return JSONResponse(status_code=409, content={"error": "EC control disabled (enable ec.enabled or safety.maintenance_override)"})
         
         # Clamp seconds
         max_sec = 10.0 if override else 5.0
@@ -449,6 +454,17 @@ def dose_ec(body: dict = Body(...)):
         
         # Pre-read EC
         ec_before, _ = _get_latest_ec()
+        # Hard guardrail: disallow nutrient if EC already above target band
+        try:
+            # Prefer target±tolerance if present
+            ec_tgt = _f("targets.ec_target", 0.0)
+            ec_tol = _f("targets.ec_tolerance", 0.0)
+            ec_hi = _f("targets.ec_high", 1.2)
+            threshold = (ec_tgt + ec_tol) if (ec_tgt > 0 and ec_tol > 0) else ec_hi
+            if (ec_before is not None) and (threshold > 0) and (ec_before >= threshold):
+                return JSONResponse(status_code=409, content={"error": f"blocked: ec_high_guard ({ec_before:.2f} >= {threshold:.2f})"})
+        except Exception:
+            pass
         
         # Actuate with lock and try/finally
         from app.relays_core import set_dosing_grow, set_dosing_micro, set_dosing_bloom
@@ -531,6 +547,18 @@ def dose_ec(body: dict = Body(...)):
     if not ok:
         if not _b("safety.maintenance_override", False):
             return JSONResponse(status_code=409, content={"error": f"blocked by {guard}"})
+
+    # Hard guardrail before dosing in ml-mode as well
+    try:
+        ec_before, _ = _get_latest_ec()
+        ec_tgt = _f("targets.ec_target", 0.0)
+        ec_tol = _f("targets.ec_tolerance", 0.0)
+        ec_hi = _f("targets.ec_high", 1.2)
+        threshold = (ec_tgt + ec_tol) if (ec_tgt > 0 and ec_tol > 0) else ec_hi
+        if (ec_before is not None) and (threshold > 0) and (ec_before >= threshold):
+            return JSONResponse(status_code=409, content={"error": f"blocked: ec_high_guard ({ec_before:.2f} >= {threshold:.2f})"})
+    except Exception:
+        pass
     
     # Split by ratio
     if mix_ratio == "custom":
@@ -736,7 +764,7 @@ def get_ec_status():
     today_ml = _today_total_ml(now_dt)
     
     # Recent
-    recent = _recent_doses(5)
+    recent = _recent_doses(50)
     
     return {
         "ec_ms_cm": ec_val,
@@ -918,6 +946,11 @@ def _auto_worker():
         time.sleep(poll_interval)
         poll_count += 1
         
+        # Suppress auto when global maintenance override is active
+        if _b("safety.maintenance_override", False):
+            with _auto_lock:
+                _auto_last_holding_reason = "maintenance_override"
+            continue
         if not _b("ec.auto_enabled", False):
             with _auto_lock:
                 _auto_last_holding_reason = "disabled"

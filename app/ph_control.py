@@ -372,7 +372,7 @@ def ph_status():
     remaining = int(max(0, min_int - since))
     # Last ok ts for reference
     last_ok = _last_ok_ts()
-    recent = _recent_doses(5)
+    recent = _recent_doses(50)
     try:
         from app.settings import get_setting_key
         maint_override = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
@@ -528,6 +528,22 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
     ts_iso = datetime.now(timezone.utc).isoformat()
 
     pre_ph, pre_ts = _get_latest_ph()
+
+    # Hard guardrail: disallow pH-Up when pH is already above the safe high threshold
+    try:
+        # Use targets.ph_high if configured; otherwise use an absolute 6.6 ceiling
+        ph_high = _settings_get_float("targets.ph_high", 6.2)
+        hard_hi = max(6.6, ph_high)
+        if (pre_ph is not None) and (pre_ph >= hard_hi):
+            ts_iso = datetime.now(timezone.utc).isoformat()
+            rowid = _log_row({
+                "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
+                "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
+                "result": "blocked", "reason": f"ph_high_guard ({pre_ph:.2f} >= {hard_hi:.2f})"
+            })
+            return {"http_status": 409, "ok": False, "blocked": True, "reasons": ["ph_high_guard"], "rowid": rowid}
+    except Exception:
+        pass
 
     if blocked_reasons:
         # Provide structured reason and remaining cooldown if applicable
@@ -733,6 +749,15 @@ def _auto_loop():
     
     while _auto_stop_evt and not _auto_stop_evt.is_set():
         try:
+            # Suppress automation when global maintenance override is active
+            try:
+                from app.settings import get_setting_key
+                if (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true":
+                    _set_auto_block("maintenance_override")
+                    time.sleep(poll_s)
+                    continue
+            except Exception:
+                pass
             # Backoff: skip one extra poll if same non-interval guard repeated 3×
             if skip_next_poll:
                 skip_next_poll = False

@@ -361,6 +361,39 @@
     }
     ph = interpSingles(ph);
     temp = interpSingles(temp);
+
+    // Forward-fill temperature across small gaps using union of PH/EC timestamps (visual continuity)
+    function fillForward(series, referenceXs, maxGapMs){
+      if (!series || series.length === 0 || !referenceXs || referenceXs.length === 0) return series;
+      const sortedRefs = Array.from(new Set(referenceXs)).sort((a,b)=>a-b);
+      const out = [];
+      let cursor = 0;
+      let lastVal = null;
+      let lastTs = null;
+      for (const x of sortedRefs){
+        while (cursor < series.length && series[cursor].x <= x){
+          lastVal = series[cursor].y;
+          lastTs = series[cursor].x;
+          cursor++;
+        }
+        if (lastVal != null && lastTs != null && (x - lastTs) <= maxGapMs){
+          out.push({ x, y: lastVal });
+        }
+      }
+      // keep original points too to preserve exact samples
+      const merged = [...series, ...out];
+      merged.sort((a,b)=>a.x-b.x);
+      // de-dup by x, keep last
+      const dedup = [];
+      let prevX = null;
+      for (const p of merged){ if (p.x !== prevX){ dedup.push(p); prevX = p.x; } else { dedup[dedup.length-1] = p; } }
+      return dedup;
+    }
+    try{
+      const refXs = [...ph.map(p=>p.x), ...ecRaw.map(p=>p.x)];
+      // Consider gaps up to 20 minutes safe to carry
+      temp = fillForward(temp, refXs, 20*60*1000);
+    }catch(_){ /* noop */ }
     
     // Debug: Check actual data time range
     if (ph.length) {

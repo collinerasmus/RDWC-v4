@@ -1,0 +1,6 @@
+[Unit]
+Description=RDWC v4 Soak Watch (oneshot)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/rdwc_soak_watch.sh

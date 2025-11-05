@@ -321,6 +321,8 @@
         const s2 = await fetchStatus();
         if(s2) renderStatus(s2);
         refreshDoseLog();
+        // Update totals to reflect new event
+        updateEcTotals().catch(()=>{});
       }
     }catch(e){
       showToast(`Dose error: ${e.message}`, 'error');
@@ -391,6 +393,9 @@
     el('btnEcRefreshDoseLog')?.addEventListener('click', refreshDoseLog);
     refreshDoseLog();
 
+  // Compute EC Today/Week totals from unified dose_events as fallback
+  updateEcTotals().catch(()=>{});
+
     // Bind Maintenance Override header toggle
     try{
       const toggle = document.getElementById('ec-maint-toggle');
@@ -449,6 +454,28 @@
         showToast(`Save error: ${e.message}`, 'error');
       }
     });
+  }
+
+  // Compute EC Today/Week totals from unified dose_events (seconds * ml/s per pump)
+  async function updateEcTotals(){
+    try{
+      const rate = {
+        grow: parseFloat(window.rdwcSettings?.get('dosing.grow_ml_per_sec') || '20'),
+        micro: parseFloat(window.rdwcSettings?.get('dosing.micro_ml_per_sec') || '20'),
+        bloom: parseFloat(window.rdwcSettings?.get('dosing.bloom_ml_per_sec') || '20')
+      };
+      const calc = async (hours)=>{
+        const r = await fetch(`/api/dose/recent?hours=${hours}`, {cache:'no-store'});
+        if(!r.ok) return 0;
+        const j = await r.json();
+        const ev = (j.events||[]).filter(e => !e.blocked_by && ['grow','micro','bloom'].includes(e.pump));
+        return ev.reduce((acc, e)=> acc + (Number(e.seconds||0) * (rate[e.pump]||0)), 0);
+      };
+      const todayMl = await calc(24);
+      const weekMl = await calc(24*7);
+      const tEl = el('ec-total-today'); if (tEl) tEl.textContent = todayMl>0 ? `Today: ${todayMl.toFixed(1)} ml` : 'Today: — ml';
+      const wEl = el('ec-total-week'); if (wEl) wEl.textContent = weekMl>0 ? `Week: ${weekMl.toFixed(1)} ml` : 'Week: — ml';
+    }catch(e){ /* noop */ }
   }
 
   // Load settings into UI

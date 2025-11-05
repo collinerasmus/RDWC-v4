@@ -163,8 +163,10 @@
         if (wrap.mode) { currentMode = String(wrap.mode); state.systemMode = currentMode; updateModeButtons(); renderModeHint(); }
         if (typeof wrap.estop === 'boolean') { state.estop = wrap.estop; updateEstopButton(); }
         if (typeof wrap.restored === 'boolean') { state.restoredBoot = !!wrap.restored; }
-        // Coerce to { key: {state, lockout} }
+        // Coerce to { key: {state, lockout} } and ensure all expected relays are present
         const map = {};
+        // Start with all known keys so UI doesn't go empty if backend omits some
+        RELAY_ORDER.forEach(k => { map[k] = { state: false, lockout: { active:false, seconds_remaining:0 } }; });
         Object.entries(wrap.relays).forEach(([k, v]) => {
           map[k] = { state: !!(v && v.is_on), lockout: { active:false, seconds_remaining:0 } };
         });

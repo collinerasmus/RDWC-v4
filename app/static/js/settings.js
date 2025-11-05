@@ -463,6 +463,13 @@
     Object.entries(j||{}).forEach(([ns, m])=>{
       Object.entries(m||{}).forEach(([k, v])=> flat[`${ns}.${k}`] = String(v ?? ''));
     });
+    // Defensive: seed new safety caps if backend hasn't populated yet (UI fallback)
+    const defaults = {
+      'safety.max_seconds_per_press': '1.5',
+      'safety.max_total_seconds_per_24h': '120',
+      'safety.min_off_window_sec': '2'
+    };
+    Object.entries(defaults).forEach(([k,v])=>{ if (!(k in flat)) flat[k] = v; });
     original = {...flat};
     current = {...flat};
   }
