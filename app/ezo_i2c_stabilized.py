@@ -72,6 +72,9 @@ def read_all(bus_num: int = 1):
 
     for dev in (rtd, ph, ec):
         dev.init_once()
+    
+    # Allow devices to settle after init (C,0 command)
+    sleep(0.3)
 
     temp_c = float(rtd.read_value())
     for dev in (ph, ec):
