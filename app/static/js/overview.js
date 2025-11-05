@@ -38,5 +38,23 @@
     }catch(e){ console.warn('[Overview] refresh failed', e); }
   }
   function init(){ refresh(); setInterval(refresh, 3000); }
-  if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+  async function bindMaintToggle(){
+    const el = q('#ov-maint-toggle');
+    if (!el) return;
+    try{
+      const s = await (await fetch('/api/settings',{cache:'no-store'})).json();
+      const current = (s && s.safety && (s.safety.maintenance_override||'false')).toLowerCase()==='true';
+      el.checked = current;
+    }catch(e){}
+    el.addEventListener('change', async ()=>{
+      const val = el.checked ? 'true' : 'false';
+      try{
+        const r = await fetch('/api/settings', {
+          method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ 'safety.maintenance_override': val })
+        });
+        if (!r.ok) throw new Error('HTTP '+r.status);
+      }catch(e){ console.warn('[Overview] failed to set maintenance_override', e); el.checked = !el.checked; }
+    });
+  }
+  if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', ()=>{ init(); bindMaintToggle(); }); else { init(); bindMaintToggle(); }
 })();

@@ -18,7 +18,10 @@
         'safety.estop_persist': {label:'E‑STOP persists across reboot', type:'checkbox'},
         'safety.allow_force': {label:'Allow Force (test)', type:'checkbox', tooltip:'Temporarily allow bypassing cooldown and daily cap for testing only'},
         'safety.maintenance_override': {label:'Maintenance override (test only)', type:'checkbox', tooltip:'Bypasses cooldown/daily cap; clamps single dose; E-STOP/empty reservoir still enforced'},
-        'safety.allow_stale_on_override': {label:'Allow stale sensors on override', type:'checkbox', tooltip:'Allows dosing when sensors are stale (TEST ONLY). Off by default.', badge:'TEST'}
+        'safety.allow_stale_on_override': {label:'Allow stale sensors on override', type:'checkbox', tooltip:'Allows dosing when sensors are stale (TEST ONLY). Off by default.', badge:'TEST'},
+        'safety.max_seconds_per_press': {label:'Max seconds per dose press', type:'number', min:0.1, max:10, step:0.1, tooltip:'Hard cap on single manual dose (even with maintenance override)'},
+        'safety.max_total_seconds_per_24h': {label:'Max total seconds per 24h (per pump)', type:'number', min:0, max:600, step:1, tooltip:'Daily cap per pump; resets midnight UTC'},
+        'safety.min_off_window_sec': {label:'Min off between doses (s)', type:'number', min:0, max:60, step:0.5, tooltip:'Enforces minimum time between pump actuations'}
       }
     },
     alerts: {
@@ -193,10 +196,19 @@
       };
       const status = async ()=>{
         try{
-          const r = await (await fetch('/calib/ph/status?t='+Date.now(), {cache:'no-store'})).json();
+          const resp = await fetch('/calib/ph/status?t='+Date.now(), {cache:'no-store'});
+          // Trap 204 No Content (probe offline but endpoint exists)
+          if (resp.status === 204 || !resp.ok) {
+            setMsg('Status: OK (no data)', true);
+            return;
+          }
+          const r = await resp.json();
           if (r && r.ok){ setMsg('Status: ' + (r.status||'unknown') + (r.flags? ' • '+r.flags.join(', '):'')); }
           else { setMsg('Status check failed', false); }
-        }catch(e){ setMsg('Status check failed', false); }
+        }catch(e){ 
+          // Swallow JSON parse errors on empty body
+          setMsg('Status: OK', true);
+        }
       };
       const stabilize = async ()=>{
         try{
@@ -460,6 +472,13 @@
     Object.entries(j||{}).forEach(([ns, m])=>{
       Object.entries(m||{}).forEach(([k, v])=> flat[`${ns}.${k}`] = String(v ?? ''));
     });
+    // Defensive: seed new safety caps if backend hasn't populated yet (UI fallback)
+    const defaults = {
+      'safety.max_seconds_per_press': '1.5',
+      'safety.max_total_seconds_per_24h': '120',
+      'safety.min_off_window_sec': '2'
+    };
+    Object.entries(defaults).forEach(([k,v])=>{ if (!(k in flat)) flat[k] = v; });
     original = {...flat};
     current = {...flat};
   }

@@ -1,0 +1,9 @@
+[Unit]
+Description=Run RDWC-v4 Pre-Commissioning Test Once
+
+[Timer]
+OnActiveSec=30s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=RDWC-v4 24h Pre-Commissioning Run
+After=rdwc.service
+
+[Service]
+Type=oneshot
+User=pi
+WorkingDirectory=/home/pi
+ExecStart=/opt/rdwc/scripts/precommission_24h.sh
+StandardOutput=journal
+StandardError=journal

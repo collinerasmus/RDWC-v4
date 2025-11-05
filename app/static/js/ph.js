@@ -182,6 +182,17 @@
         learnedBadge.style.display = 'none';
       }
     }
+
+    // Update caps display from settings (mirror EC caps summary)
+    if (window.rdwcSettings) {
+      const maxPress = window.rdwcSettings.get('safety.max_seconds_per_press') || '1.5';
+      const dailyCap = window.rdwcSettings.get('safety.max_total_seconds_per_24h') || '120';
+      const minOff = window.rdwcSettings.get('safety.min_off_window_sec') || '2';
+      const m = (id, val) => { const n = el(id); if(n) n.textContent = val + 's'; };
+      m('phCapMaxPress', maxPress);
+      m('phCapDaily', dailyCap);
+      m('phCapMinOff', minOff);
+    }
   }
 
   async function tick(){
@@ -290,17 +301,118 @@
     }
   }
 
+  // --- Unified dosing with new endpoints ---
+  async function doseUnified(pump, seconds, reason='manual'){
+    // Disable button temporarily to enforce min_off visually
+    const btnMap = {
+      'ph_up': ['btnPrime', 'btnDose1', 'btnDose5', 'btnDoseCustom']
+    };
+    const btns = (btnMap[pump] || []).map(id => el(id)).filter(b => b);
+    btns.forEach(b => { b.disabled = true; });
+    
+    try{
+      const r = await fetch(`/api/dose/${pump}`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({seconds, reason, actor:'ui'})
+      });
+      const j = await r.json();
+      
+      if(!r.ok || !j.ok){
+        const msg = j.message || j.error || j.blocked_by || 'Unknown error';
+        if(window.showToast) showToast(`Dose blocked: ${msg}`, 'error');
+        else alert('Dose blocked: ' + msg);
+      } else {
+        if(window.showToast) showToast(`Dosed ${pump} for ${seconds}s`, 'success');
+        // Refresh status and dose log
+        tick();
+        refreshDoseLog();
+      }
+    }catch(e){
+      if(window.showToast) showToast(`Dose error: ${e.message}`, 'error');
+      else alert('Dose error: ' + e.message);
+    } finally {
+      // Re-enable after min_off (default 2s)
+      setTimeout(()=>{ btns.forEach(b => { b.disabled = false; }); }, 2000);
+    }
+  }
+
+  async function refreshDoseLog(){
+    const table = el('phDoseLogTable');
+    if(!table) return;
+    
+    try{
+      const r = await fetch('/api/dose/recent?limit=20', {cache:'no-store'});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const data = await r.json();
+      const events = (data.events||[]).filter(e => e.pump === 'ph_up');
+      
+      if(events.length === 0){
+        table.innerHTML = '<tr><td colspan="6" style="padding:12px;text-align:center;">No doses yet</td></tr>';
+        return;
+      }
+      
+      table.innerHTML = events.map(e => {
+        const time = e.ts_utc ? new Date(e.ts_utc).toLocaleString() : '—';
+        const ph_before = e.ph_before != null ? e.ph_before.toFixed(2) : '—';
+        const ph_after = e.ph_after != null ? e.ph_after.toFixed(2) : '—';
+        const note = e.blocked_by || e.reason || '—';
+        const row_style = e.blocked_by ? 'color:#f59e0b;' : '';
+        return `<tr style="${row_style}">
+          <td style="padding:6px 8px;">${time}</td>
+          <td style="padding:6px 8px;">${e.pump}</td>
+          <td style="padding:6px 8px;text-align:right;">${e.seconds.toFixed(2)}s</td>
+          <td style="padding:6px 8px;text-align:right;">${ph_before}</td>
+          <td style="padding:6px 8px;text-align:right;">${ph_after}</td>
+          <td style="padding:6px 8px;">${note}</td>
+        </tr>`;
+      }).join('');
+    }catch(e){
+      table.innerHTML = '<tr><td colspan="6" style="padding:12px;text-align:center;">Error loading log</td></tr>';
+    }
+  }
+
   async function wire(){
     const c = document.getElementById('ph-card');
     if(!c) return;
-    el('btnPrime')?.addEventListener('click', ()=> postDose({ms:200, reason:'prime'}));
-    el('btnDose1')?.addEventListener('click', ()=> postDose({ml:1, reason:'manual'}));
-    el('btnDose5')?.addEventListener('click', ()=> postDose({ml:5, reason:'manual'}));
+    
+    // Use new unified endpoints with time-based dosing
+    el('btnPrime')?.addEventListener('click', ()=> doseUnified('ph_up', 0.2, 'prime'));
+    el('btnDose1')?.addEventListener('click', ()=> doseUnified('ph_up', 0.5, 'manual'));
+    el('btnDose5')?.addEventListener('click', ()=> doseUnified('ph_up', 1.0, 'manual'));
     el('btnDoseCustom')?.addEventListener('click', ()=>{
       const v = parseFloat(el('phCustomMl').value||'0');
-      if(!isFinite(v) || v<=0){ alert('Enter ml > 0'); return; }
-      postDose({ml:v, reason:'custom'});
+      if(!isFinite(v) || v<=0){ alert('Enter seconds > 0'); return; }
+      doseUnified('ph_up', v, 'custom');
     });
+    
+    // Dose log refresh
+    el('btnRefreshDoseLog')?.addEventListener('click', refreshDoseLog);
+    refreshDoseLog(); // Initial load
+    // Bind Maintenance Override header toggle
+    try{
+      const toggle = document.getElementById('ph-maint-toggle');
+      if (toggle){
+        // Initialize checked state from settings
+        try{
+          const s = await (await fetch('/api/settings', {cache:'no-store'})).json();
+          const cur = (s && s.safety && (s.safety.maintenance_override||'false')).toLowerCase()==='true';
+          toggle.checked = cur;
+        }catch(e){}
+        toggle.addEventListener('change', async ()=>{
+          const val = toggle.checked ? 'true' : 'false';
+          try{
+            const r = await fetch('/api/settings', {
+              method:'PUT', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ 'safety.maintenance_override': val })
+            });
+            if(!r.ok) throw new Error('HTTP '+r.status);
+            // Re-poll to reflect guard/badges immediately
+            tick();
+          }catch(e){ console.warn('[pH] failed to set maintenance_override', e); toggle.checked = !toggle.checked; }
+        });
+      }
+    }catch(e){ console.warn('[pH] maint toggle bind failed', e); }
     el('btnAutoToggle')?.addEventListener('click', async ()=>{
       const enable = !(lastStatus?.auto?.enabled);
       const r = await fetch('/api/ph/auto', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enable})});
@@ -491,24 +603,49 @@
 })();
   async function refreshSummary(){
     try{
-      // Today: sum from 24h log; Week: 7d summary
-      const log = await (await fetch('/api/ph/dose_log?hours=24',{cache:'no-store'})).json();
-      const vols = (log||[]).map(e => e.volume_ml);
-      const hasVol = vols.some(v => v!=null);
-      const today = (log||[]).reduce((acc,e)=> acc + (e.volume_ml||0), 0);
-      const weekRows = await (await fetch('/api/ph/dose_summary?days=7',{cache:'no-store'})).json();
-      const week = (weekRows||[]).reduce((acc,r)=> acc + (r.total_ml||0), 0);
-      const tEl = document.getElementById('ph-total-today'); if (tEl) tEl.textContent = hasVol ? `Today: ${today.toFixed(1)} ml` : `Today: — ml`;
-      const wEl = document.getElementById('ph-total-week'); if (wEl) wEl.textContent = hasVol ? `Week: ${week.toFixed(1)} ml` : `Week: — ml`;
+      // Prefer unified dose_events (compute ml from seconds * rate) as fallback
+      const rate = parseFloat(window.rdwcSettings?.get('dosing.ph_up_ml_per_sec') || '25');
       
-      // Calibration banner: show only when events exist + all null + invalid rate
+      // Try legacy pH dose log first (has volume_ml)
+      let todayMl = 0, weekMl = 0, hasLegacy = false;
+      try {
+        const log = await (await fetch('/api/ph/dose_log?hours=24',{cache:'no-store'})).json();
+        const vols = (log||[]).map(e => e.volume_ml);
+        hasLegacy = vols.some(v => v!=null);
+        if (hasLegacy) {
+          todayMl = (log||[]).reduce((acc,e)=> acc + (e.volume_ml||0), 0);
+          const weekRows = await (await fetch('/api/ph/dose_summary?days=7',{cache:'no-store'})).json();
+          weekMl = (weekRows||[]).reduce((acc,r)=> acc + (r.total_ml||0), 0);
+        }
+      } catch(e) { /* ignore */ }
+      
+      // Fallback: compute from unified dose_events
+      if (!hasLegacy) {
+        const calc = async (hours) => {
+          try {
+            const r = await fetch(`/api/dose/recent?hours=${hours}`, {cache:'no-store'});
+            if (!r.ok) return 0;
+            const j = await r.json();
+            const ev = (j.events||[]).filter(e => !e.blocked_by && e.pump === 'ph_up');
+            return ev.reduce((acc, e) => acc + (Number(e.seconds||0) * rate), 0);
+          } catch(e) { return 0; }
+        };
+        todayMl = await calc(24);
+        weekMl = await calc(24*7);
+      }
+      
+      const tEl = document.getElementById('ph-total-today'); 
+      if (tEl) tEl.textContent = todayMl > 0 ? `Today: ${todayMl.toFixed(1)} ml` : `Today: — ml`;
+      const wEl = document.getElementById('ph-total-week'); 
+      if (wEl) wEl.textContent = weekMl > 0 ? `Week: ${weekMl.toFixed(1)} ml` : `Week: — ml`;
+      
+      // Calibration banner: show only when legacy events exist + all null + invalid rate
       const banner = document.getElementById('ph-calib-banner');
-      if (banner) {
-        const hasEvents = (log||[]).length > 0;
-        const allNull = (log||[]).every(e => e.volume_ml == null);
-        const rate = window.rdwcSettings?.get('dosing.ph_up_ml_per_sec');
+      if (banner && hasLegacy) {
         const invalidRate = !rate || rate <= 0;
-        banner.style.display = (hasEvents && allNull && invalidRate) ? 'block' : 'none';
+        banner.style.display = invalidRate ? 'block' : 'none';
+      } else if (banner) {
+        banner.style.display = 'none';
       }
     }catch(e){ /* ignore */ }
   }

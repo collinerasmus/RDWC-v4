@@ -163,8 +163,10 @@
         if (wrap.mode) { currentMode = String(wrap.mode); state.systemMode = currentMode; updateModeButtons(); renderModeHint(); }
         if (typeof wrap.estop === 'boolean') { state.estop = wrap.estop; updateEstopButton(); }
         if (typeof wrap.restored === 'boolean') { state.restoredBoot = !!wrap.restored; }
-        // Coerce to { key: {state, lockout} }
+        // Coerce to { key: {state, lockout} } and ensure all expected relays are present
         const map = {};
+        // Start with all known keys so UI doesn't go empty if backend omits some
+        RELAY_ORDER.forEach(k => { map[k] = { state: false, lockout: { active:false, seconds_remaining:0 } }; });
         Object.entries(wrap.relays).forEach(([k, v]) => {
           map[k] = { state: !!(v && v.is_on), lockout: { active:false, seconds_remaining:0 } };
         });
@@ -349,6 +351,15 @@
     if (rendered === 0){
       grid.innerHTML = '<div class="text-sm text-gray-400">No relays found from API.</div>';
     }
+    
+    // Add status subfooter with timestamp for quick triage
+    const subfooter = q('#relays-status-subfooter');
+    if (subfooter) {
+      const now = new Date();
+      const hms = now.toTimeString().split(' ')[0]; // HH:MM:SS
+      subfooter.textContent = `Last updated at ${hms}`;
+    }
+    
     renderModeHint();
     updateEstopBanner();
   }
