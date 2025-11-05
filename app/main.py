@@ -427,6 +427,84 @@ def health_db():
             }
         )
 
+@app.get("/api/sensors/status")
+def api_sensors_status():
+    """
+    Sensor poller status endpoint - reports on headless background polling.
+    
+    Returns:
+        running: bool - is poller loop active
+        last_sample_ts: float - Unix timestamp of last sensor sample
+        last_heartbeat_ts: float - Unix timestamp of last heartbeat update
+        interval_sec: int - polling interval
+        i2c_device: str - I2C bus device path
+        poll_count: int - total polls since start
+        lock_file: str - PID lock file path
+        lock_exists: bool - does lock file exist
+        lock_pid: int - PID from lock file (if exists)
+    """
+    from app.sensor_poller import get_status
+    return get_status()
+
+@app.get("/api/health")
+def api_health():
+    """
+    Application health summary endpoint.
+    
+    Returns:
+        ok: bool - overall health status
+        app_version: str - ASSET_VERSION token
+        git_commit: str - short git SHA (if available)
+        uptime_seconds: float - time since app start
+        sensor_poller: dict - sensor poller status
+        database: dict - database connectivity check
+    """
+    import subprocess
+    from pathlib import Path
+    
+    # Get git commit
+    git_commit = None
+    try:
+        repo_root = Path(__file__).parent.parent
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        if result.returncode == 0:
+            git_commit = result.stdout.strip()
+    except Exception:
+        pass
+    
+    # Check database
+    db_ok = False
+    try:
+        import sqlite3
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("SELECT 1").fetchone()
+            db_ok = True
+    except Exception:
+        pass
+    
+    # Get sensor poller status
+    from app.sensor_poller import get_status
+    poller_status = get_status()
+    
+    uptime = time.time() - START_TS
+    
+    return {
+        "ok": db_ok,
+        "app_version": ASSET_VERSION,
+        "git_commit": git_commit,
+        "uptime_seconds": uptime,
+        "sensor_poller": poller_status,
+        "database": {
+            "ok": db_ok,
+            "path": DB_PATH
+        }
+    }
+
 @app.get("/api/version")
 def asset_version():
     """Expose a simple asset version token for cache-busting (ASSET_VERSION env or today's date)."""

@@ -1,0 +1,8 @@
+[Unit]
+Description=RDWC Sensor Poller Watchdog
+Documentation=https://github.com/collinerasmus/RDWC-v4
+
+[Service]
+Type=oneshot
+User=pi
+ExecStart=/usr/bin/python3 -c "import requests, time, sys; resp = requests.get('http://localhost:8000/api/sensors/status', timeout=5); status = resp.json(); age = time.time() - (status.get('last_heartbeat_ts') or 0); sys.exit(0 if age < 30 else 1)"
