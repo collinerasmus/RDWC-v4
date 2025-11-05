@@ -293,7 +293,7 @@ def run_poller(force: bool = False) -> None:
 
 def get_status() -> Dict[str, Any]:
     """
-    Get current poller status.
+    Get current poller status (reads from database for cross-process access).
     
     Returns:
         Dict containing:
@@ -307,6 +307,7 @@ def get_status() -> Dict[str, Any]:
         - lock_exists: bool
         - lock_pid: int or None
     """
+    # Read from DB (persistent state accessible across processes)
     lock_pid = None
     if LOCK_FILE.exists():
         try:
@@ -314,13 +315,32 @@ def get_status() -> Dict[str, Any]:
         except (ValueError, OSError):
             pass
     
+    # Query system_state table for heartbeat/count
+    heartbeat_ts = None
+    poll_count = 0
+    try:
+        conn = _get_db_conn()
+        row = conn.execute("SELECT value FROM system_state WHERE key=?", ("sensor_poller_heartbeat_ts",)).fetchone()
+        if row:
+            heartbeat_ts = float(row[0])
+        row = conn.execute("SELECT value FROM system_state WHERE key=?", ("sensor_poller_count",)).fetchone()
+        if row:
+            poll_count = int(row[0])
+    except Exception:
+        pass
+    
+    # Determine if poller is "running" based on recent heartbeat (<30s)
+    running = False
+    if heartbeat_ts and (time.time() - heartbeat_ts < 30):
+        running = True
+    
     return {
-        "running": _poller_running,
-        "last_sample_ts": _last_sample_ts,
-        "last_heartbeat_ts": _last_heartbeat_ts,
+        "running": running,
+        "last_sample_ts": heartbeat_ts,  # Use heartbeat as sample timestamp
+        "last_heartbeat_ts": heartbeat_ts,
         "interval_sec": POLL_INTERVAL_SEC,
-        "i2c_device": "/dev/i2c-1",  # Standard Pi I2C bus
-        "poll_count": _poll_count,
+        "i2c_device": "/dev/i2c-1",
+        "poll_count": poll_count,
         "lock_file": str(LOCK_FILE),
         "lock_exists": LOCK_FILE.exists(),
         "lock_pid": lock_pid
