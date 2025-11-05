@@ -154,14 +154,12 @@ def _init_sensors():
     ph = EZO(1, PH_ADDR, "pH")
     ec = EZO(1, EC_ADDR, "EC")
     
-    for dev in (rtd, ph, ec):
-        dev.init_once()
-    
-    from time import sleep
-    sleep(0.5)  # Allow devices to settle after init
+    # NOTE: NOT calling init_once() - leave devices in continuous mode
+    # This allows read_value() to immediately fetch latest reading without
+    # waiting for on-demand measurement completion
     
     _ezo_devices = {"rtd": rtd, "ph": ph, "ec": ec}
-    logger.info("EZO sensors initialized")
+    logger.info("EZO sensors initialized (continuous mode)")
 
 
 def _read_sensors() -> Dict[str, Any]:
