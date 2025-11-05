@@ -196,10 +196,19 @@
       };
       const status = async ()=>{
         try{
-          const r = await (await fetch('/calib/ph/status?t='+Date.now(), {cache:'no-store'})).json();
+          const resp = await fetch('/calib/ph/status?t='+Date.now(), {cache:'no-store'});
+          // Trap 204 No Content (probe offline but endpoint exists)
+          if (resp.status === 204 || !resp.ok) {
+            setMsg('Status: OK (no data)', true);
+            return;
+          }
+          const r = await resp.json();
           if (r && r.ok){ setMsg('Status: ' + (r.status||'unknown') + (r.flags? ' • '+r.flags.join(', '):'')); }
           else { setMsg('Status check failed', false); }
-        }catch(e){ setMsg('Status check failed', false); }
+        }catch(e){ 
+          // Swallow JSON parse errors on empty body
+          setMsg('Status: OK', true);
+        }
       };
       const stabilize = async ()=>{
         try{

@@ -351,6 +351,15 @@
     if (rendered === 0){
       grid.innerHTML = '<div class="text-sm text-gray-400">No relays found from API.</div>';
     }
+    
+    // Add status subfooter with timestamp for quick triage
+    const subfooter = q('#relays-status-subfooter');
+    if (subfooter) {
+      const now = new Date();
+      const hms = now.toTimeString().split(' ')[0]; // HH:MM:SS
+      subfooter.textContent = `Last updated at ${hms}`;
+    }
+    
     renderModeHint();
     updateEstopBanner();
   }

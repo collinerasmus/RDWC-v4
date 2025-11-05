@@ -603,24 +603,49 @@
 })();
   async function refreshSummary(){
     try{
-      // Today: sum from 24h log; Week: 7d summary
-      const log = await (await fetch('/api/ph/dose_log?hours=24',{cache:'no-store'})).json();
-      const vols = (log||[]).map(e => e.volume_ml);
-      const hasVol = vols.some(v => v!=null);
-      const today = (log||[]).reduce((acc,e)=> acc + (e.volume_ml||0), 0);
-      const weekRows = await (await fetch('/api/ph/dose_summary?days=7',{cache:'no-store'})).json();
-      const week = (weekRows||[]).reduce((acc,r)=> acc + (r.total_ml||0), 0);
-      const tEl = document.getElementById('ph-total-today'); if (tEl) tEl.textContent = hasVol ? `Today: ${today.toFixed(1)} ml` : `Today: — ml`;
-      const wEl = document.getElementById('ph-total-week'); if (wEl) wEl.textContent = hasVol ? `Week: ${week.toFixed(1)} ml` : `Week: — ml`;
+      // Prefer unified dose_events (compute ml from seconds * rate) as fallback
+      const rate = parseFloat(window.rdwcSettings?.get('dosing.ph_up_ml_per_sec') || '25');
       
-      // Calibration banner: show only when events exist + all null + invalid rate
+      // Try legacy pH dose log first (has volume_ml)
+      let todayMl = 0, weekMl = 0, hasLegacy = false;
+      try {
+        const log = await (await fetch('/api/ph/dose_log?hours=24',{cache:'no-store'})).json();
+        const vols = (log||[]).map(e => e.volume_ml);
+        hasLegacy = vols.some(v => v!=null);
+        if (hasLegacy) {
+          todayMl = (log||[]).reduce((acc,e)=> acc + (e.volume_ml||0), 0);
+          const weekRows = await (await fetch('/api/ph/dose_summary?days=7',{cache:'no-store'})).json();
+          weekMl = (weekRows||[]).reduce((acc,r)=> acc + (r.total_ml||0), 0);
+        }
+      } catch(e) { /* ignore */ }
+      
+      // Fallback: compute from unified dose_events
+      if (!hasLegacy) {
+        const calc = async (hours) => {
+          try {
+            const r = await fetch(`/api/dose/recent?hours=${hours}`, {cache:'no-store'});
+            if (!r.ok) return 0;
+            const j = await r.json();
+            const ev = (j.events||[]).filter(e => !e.blocked_by && e.pump === 'ph_up');
+            return ev.reduce((acc, e) => acc + (Number(e.seconds||0) * rate), 0);
+          } catch(e) { return 0; }
+        };
+        todayMl = await calc(24);
+        weekMl = await calc(24*7);
+      }
+      
+      const tEl = document.getElementById('ph-total-today'); 
+      if (tEl) tEl.textContent = todayMl > 0 ? `Today: ${todayMl.toFixed(1)} ml` : `Today: — ml`;
+      const wEl = document.getElementById('ph-total-week'); 
+      if (wEl) wEl.textContent = weekMl > 0 ? `Week: ${weekMl.toFixed(1)} ml` : `Week: — ml`;
+      
+      // Calibration banner: show only when legacy events exist + all null + invalid rate
       const banner = document.getElementById('ph-calib-banner');
-      if (banner) {
-        const hasEvents = (log||[]).length > 0;
-        const allNull = (log||[]).every(e => e.volume_ml == null);
-        const rate = window.rdwcSettings?.get('dosing.ph_up_ml_per_sec');
+      if (banner && hasLegacy) {
         const invalidRate = !rate || rate <= 0;
-        banner.style.display = (hasEvents && allNull && invalidRate) ? 'block' : 'none';
+        banner.style.display = invalidRate ? 'block' : 'none';
+      } else if (banner) {
+        banner.style.display = 'none';
       }
     }catch(e){ /* ignore */ }
   }
