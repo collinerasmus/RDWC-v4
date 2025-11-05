@@ -107,6 +107,10 @@ DEFAULTS: Dict[str, str] = {
     "safety.allow_force": "false",
     # maintenance override (global test mode)
     "safety.maintenance_override": "false",
+    # manual dosing safety caps (server-side enforced)
+    "safety.max_seconds_per_press": "1.5",
+    "safety.max_total_seconds_per_24h": "120",
+    "safety.min_off_window_sec": "2",
     # TEST-ONLY: allow dosing when sensors are stale, but only when maintenance_override is also true
     # Defaults to OFF for production safety
     "safety.allow_stale_on_override": "false",
@@ -274,6 +278,20 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
             v = i(final[k])
             if v is None or not (0 <= v <= 3600):
                 return False, {"field": k, "message": "Must be 0–3600"}
+
+        # Manual dosing caps
+        if "safety.max_seconds_per_press" in final:
+            v = f(final["safety.max_seconds_per_press"])
+            if v is None or not (0.1 <= v <= 10.0):
+                return False, {"field": "safety.max_seconds_per_press", "message": "Must be 0.1–10.0 seconds"}
+        if "safety.max_total_seconds_per_24h" in final:
+            v = f(final["safety.max_total_seconds_per_24h"])
+            if v is None or not (0.0 <= v <= 600.0):
+                return False, {"field": "safety.max_total_seconds_per_24h", "message": "Must be 0–600 seconds"}
+        if "safety.min_off_window_sec" in final:
+            v = f(final["safety.min_off_window_sec"])
+            if v is None or not (0.0 <= v <= 60.0):
+                return False, {"field": "safety.min_off_window_sec", "message": "Must be 0–60 seconds"}
     
     # Chiller temperature control (14–26°C safe range for cannabis)
     if "chiller.target_temp" in final:

@@ -182,6 +182,17 @@
         learnedBadge.style.display = 'none';
       }
     }
+
+    // Update caps display from settings (mirror EC caps summary)
+    if (window.rdwcSettings) {
+      const maxPress = window.rdwcSettings.get('safety.max_seconds_per_press') || '1.5';
+      const dailyCap = window.rdwcSettings.get('safety.max_total_seconds_per_24h') || '120';
+      const minOff = window.rdwcSettings.get('safety.min_off_window_sec') || '2';
+      const m = (id, val) => { const n = el(id); if(n) n.textContent = val + 's'; };
+      m('phCapMaxPress', maxPress);
+      m('phCapDaily', dailyCap);
+      m('phCapMinOff', minOff);
+    }
   }
 
   async function tick(){
