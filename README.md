@@ -98,10 +98,29 @@ cd c:\Users\USER-PC\OneDrive\Documents\GitHub\RDWC-v4
 # Manual deployment
 ssh pi@192.168.88.49
 cd /home/pi/RDWC-v4
+# Sensor poller + watchdog
 sudo cp deploy/systemd/rdwc-sensors* /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now rdwc-sensors.service
 sudo systemctl enable --now rdwc-sensors-watchdog.timer
+
+# DB maintenance (weekly export + vacuum)
+sudo cp deploy/systemd/rdwc-db-maint.* /etc/systemd/system/
+sudo install -m 0755 deploy/db_maint.sh /usr/local/bin/rdwc_db_maint.sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now rdwc-db-maint.timer
+```
+
+### DB Maintenance (weekly)
+- Purpose: Export last 24h CSV to /home/pi/backups and VACUUM the SQLite DB.
+- Files:
+  - deploy/db_maint.sh -> installed to /usr/local/bin/rdwc_db_maint.sh
+  - deploy/systemd/rdwc-db-maint.service (oneshot)
+  - deploy/systemd/rdwc-db-maint.timer (Sun 03:30)
+- Check status:
+```bash
+systemctl list-timers rdwc-db-maint.timer --no-pager
+journalctl -u rdwc-db-maint.service -n 20 --no-pager
 ```
 
 ### Verify Headless Operation

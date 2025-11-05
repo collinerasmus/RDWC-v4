@@ -180,10 +180,20 @@ After validation, choose:
   - OnUnitActiveSec: 1min
   - Auto-restarts poller if watchdog fails
 
+- **deploy/systemd/rdwc-db-maint.service**
+  - Type: oneshot
+  - Runs weekly DB maintenance script (export last 24h CSV + VACUUM)
+  - ExecStart: `/usr/local/bin/rdwc_db_maint.sh`
+
+- **deploy/systemd/rdwc-db-maint.timer**
+  - OnCalendar: Sun 03:30
+  - Persistent=true (runs once at next opportunity if missed)
+
 ### Deployment Tools
-- **deploy/deploy_sensor_poller.ps1** (86 lines)
+- **deploy/deploy_sensor_poller.ps1**
   - Automated deployment from Windows to Pi
   - Runs audit, pulls code, deploys units, verifies status
+  - Also deploys and enables the weekly DB maintenance service + timer
   
 - **deploy/audit_sensor_readers.sh** (98 lines)
   - Detects duplicate/legacy sensor processes

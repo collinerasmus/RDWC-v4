@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly RDWC DB maintenance (export+vacuum)
+
+[Timer]
+OnCalendar=Sun *-*-* 03:30:00
+Persistent=true
+Unit=rdwc-db-maint.service
+
+[Install]
+WantedBy=timers.target

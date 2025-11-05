@@ -1,0 +1,12 @@
+[Unit]
+Description=RDWC DB maintenance (export+vacuum)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+ExecStart=/usr/local/bin/rdwc_db_maint.sh
+
+[Install]
+WantedBy=multi-user.target
