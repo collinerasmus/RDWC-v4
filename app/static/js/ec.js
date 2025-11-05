@@ -109,7 +109,7 @@
     // Override badge in header
     const overrideBadge = el('ecOverrideBadge');
     if(overrideBadge){
-      const override = (window.rdwcSettings?.get('ec.maintenance_override')||'false').toLowerCase() === 'true';
+      const override = (window.rdwcSettings?.get('safety.maintenance_override')||'false').toLowerCase() === 'true';
       overrideBadge.style.display = override ? 'inline-block' : 'none';
     }
     if(recent && s){
@@ -198,6 +198,16 @@
         learnedBadge.style.display = 'none';
       }
     }
+    
+    // Update caps display from settings
+    if(window.rdwcSettings){
+      const maxPress = window.rdwcSettings.get('safety.max_seconds_per_press') || '1.5';
+      const dailyCap = window.rdwcSettings.get('safety.max_total_seconds_per_24h') || '120';
+      const minOff = window.rdwcSettings.get('safety.min_off_window_sec') || '2';
+      if(el('ecCapMaxPress')) el('ecCapMaxPress').textContent = maxPress + 's';
+      if(el('ecCapDaily')) el('ecCapDaily').textContent = dailyCap + 's';
+      if(el('ecCapMinOff')) el('ecCapMinOff').textContent = minOff + 's';
+    }
   }
 
   function startPoll(){
@@ -285,6 +295,75 @@
     });
   }
 
+  // --- Unified dosing ---
+  async function doseUnified(pump, seconds, reason='manual'){
+    const btnMap = {
+      'grow': ['btnDoseGrow'],
+      'micro': ['btnDoseMicro'],
+      'bloom': ['btnDoseBloom']
+    };
+    const btns = (btnMap[pump] || []).map(id => el(id)).filter(b => b);
+    btns.forEach(b => { b.disabled = true; });
+    
+    try{
+      const r = await fetch(`/api/dose/${pump}`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({seconds, reason, actor:'ui'})
+      });
+      const j = await r.json();
+      
+      if(!r.ok || !j.ok){
+        const msg = j.message || j.error || j.blocked_by || 'Unknown error';
+        showToast(`Dose blocked: ${msg}`, 'error');
+      } else {
+        showToast(`Dosed ${pump} for ${seconds}s`, 'success');
+        const s2 = await fetchStatus();
+        if(s2) renderStatus(s2);
+        refreshDoseLog();
+      }
+    }catch(e){
+      showToast(`Dose error: ${e.message}`, 'error');
+    } finally {
+      setTimeout(()=>{ btns.forEach(b => { b.disabled = false; }); }, 2000);
+    }
+  }
+
+  async function refreshDoseLog(){
+    const table = el('ecDoseLogTable');
+    if(!table) return;
+    
+    try{
+      const r = await fetch('/api/dose/recent?limit=20', {cache:'no-store'});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const data = await r.json();
+      const events = (data.events||[]).filter(e => ['grow','micro','bloom'].includes(e.pump));
+      
+      if(events.length === 0){
+        table.innerHTML = '<tr><td colspan="6" style="padding:12px;text-align:center;">No doses yet</td></tr>';
+        return;
+      }
+      
+      table.innerHTML = events.map(e => {
+        const time = e.ts_utc ? new Date(e.ts_utc).toLocaleString() : '—';
+        const ec_before = e.ec_before != null ? e.ec_before.toFixed(2) : '—';
+        const ec_after = e.ec_after != null ? e.ec_after.toFixed(2) : '—';
+        const note = e.blocked_by || e.reason || '—';
+        const row_style = e.blocked_by ? 'color:#f59e0b;' : '';
+        return `<tr style="${row_style}">
+          <td style="padding:6px 8px;">${time}</td>
+          <td style="padding:6px 8px;">${e.pump}</td>
+          <td style="padding:6px 8px;text-align:right;">${e.seconds.toFixed(2)}s</td>
+          <td style="padding:6px 8px;text-align:right;">${ec_before}</td>
+          <td style="padding:6px 8px;text-align:right;">${ec_after}</td>
+          <td style="padding:6px 8px;">${note}</td>
+        </tr>`;
+      }).join('');
+    }catch(e){
+      table.innerHTML = '<tr><td colspan="6" style="padding:12px;text-align:center;">Error loading log</td></tr>';
+    }
+  }
+
   // Initialize
   async function init(){
     const s = await fetchStatus();
@@ -292,7 +371,12 @@
     startPoll();
     setupMixRatioToggle();
 
-    // Dose buttons
+    // New unified dose buttons (time-based)
+    el('btnDoseGrow')?.addEventListener('click', ()=> doseUnified('grow', 0.3, 'manual'));
+    el('btnDoseMicro')?.addEventListener('click', ()=> doseUnified('micro', 0.3, 'manual'));
+    el('btnDoseBloom')?.addEventListener('click', ()=> doseUnified('bloom', 0.3, 'manual'));
+    
+    // Legacy volume-based dose buttons (keep for now)
     el('btnEcDose10')?.addEventListener('click', ()=>doseEC(10));
     el('btnEcDose50')?.addEventListener('click', ()=>doseEC(50));
     el('btnEcDose100')?.addEventListener('click', ()=>doseEC(100));
@@ -302,6 +386,36 @@
     });
     el('btnEcAutoToggle')?.addEventListener('click', toggleAuto);
     el('btnEcExport24')?.addEventListener('click', exportCSV24h);
+    
+    // Dose log refresh
+    el('btnEcRefreshDoseLog')?.addEventListener('click', refreshDoseLog);
+    refreshDoseLog();
+
+    // Bind Maintenance Override header toggle
+    try{
+      const toggle = document.getElementById('ec-maint-toggle');
+      if (toggle){
+        // Initialize from settings
+        try{
+          const s = await (await fetch('/api/settings', {cache:'no-store'})).json();
+          const cur = (s && s.safety && (s.safety.maintenance_override||'false')).toLowerCase()==='true';
+          toggle.checked = cur;
+        }catch(e){}
+        toggle.addEventListener('change', async ()=>{
+          const val = toggle.checked ? 'true' : 'false';
+          try{
+            const r = await fetch('/api/settings', {
+              method:'PUT', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ 'safety.maintenance_override': val })
+            });
+            if(!r.ok) throw new Error('HTTP '+r.status);
+            // refresh view
+            const s2 = await fetchStatus();
+            if(s2) renderStatus(s2);
+          }catch(e){ console.warn('[EC] failed to set maintenance_override', e); toggle.checked = !toggle.checked; }
+        });
+      }
+    }catch(e){ console.warn('[EC] maint toggle bind failed', e); }
 
     // Settings save
     el('btnSaveEcSettings')?.addEventListener('click', async ()=>{

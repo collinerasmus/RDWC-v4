@@ -830,6 +830,11 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <span id="ov-estop" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);">E-STOP: —</span>
         <span id="ov-lights-window" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);">Lights Window: —</span>
         <span id="ov-sensor-poller" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);" title="Headless sensor polling status">Sensors: —</span>
+        <!-- Maintenance override toggle -->
+        <label class="muted" title="Controller outputs are inhibited; manual dosing allowed. Hard safety interlocks still enforced." style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;border:1px solid rgba(239,68,68,0.45);background:rgba(239,68,68,0.08);color:#fecaca;">
+          <input id="ov-maint-toggle" type="checkbox" style="accent-color:#ef4444;" />
+          Maintenance Override
+        </label>
       </div>
     </div>
   </section>
@@ -1078,7 +1083,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <section id="ph-card" class="card card-wide tab-section" data-tab="ph" style="display:none;">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
           <h3 class="card-title" style="margin:0;">pH Control</h3>
-          <div class="muted" id="ph-band">Targets 5.8 – 6.2</div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <label class="muted" title="Controller outputs are inhibited; manual dosing allowed. Hard safety interlocks still enforced." style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.06);color:#fecaca;font-size:0.85rem;">
+              <input id="ph-maint-toggle" type="checkbox" style="accent-color:#ef4444;" />
+              Maintenance Override
+            </label>
+            <div class="muted" id="ph-band">Targets 5.8 – 6.2</div>
+          </div>
         </div>
         <div class="card-body">
           <div id="ph-reservoir-banner" class="muted" style="display:none;margin-bottom:8px;padding:6px 10px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#fecaca;">
@@ -1132,6 +1143,31 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <span id="phLearnedBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Learned: —</span>
             </div>
             <button id="btnAutoToggle" class="btn-secondary">Enable automation</button>
+          </div>
+
+          <!-- Dose Log -->
+          <div style="margin-top:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <div class="muted" style="font-weight:600;font-size:0.9rem;">📝 Dose Log (Last 20)</div>
+              <button id="btnRefreshDoseLog" class="btn-secondary" style="padding:4px 10px;font-size:0.85rem;" title="Refresh dose log">Refresh</button>
+            </div>
+            <div style="max-height:200px;overflow-y:auto;border-radius:6px;border:1px solid rgba(148,163,184,0.1);">
+              <table style="width:100%;font-size:0.85rem;">
+                <thead style="position:sticky;top:0;background:#111827;border-bottom:1px solid rgba(148,163,184,0.2);">
+                  <tr>
+                    <th style="padding:6px 8px;text-align:left;">Time</th>
+                    <th style="padding:6px 8px;text-align:left;">Pump</th>
+                    <th style="padding:6px 8px;text-align:right;">Seconds</th>
+                    <th style="padding:6px 8px;text-align:right;">pH Before</th>
+                    <th style="padding:6px 8px;text-align:right;">pH After</th>
+                    <th style="padding:6px 8px;text-align:left;">Note</th>
+                  </tr>
+                </thead>
+                <tbody id="phDoseLogTable" class="muted">
+                  <tr><td colspan="6" style="padding:12px;text-align:center;">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <!-- pH-Specific Settings -->
@@ -1247,7 +1283,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <h3 class="card-title" style="margin:0;">EC Control</h3>
               <span id="ecOverrideBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.85rem;" title="OVERRIDE ON">OVERRIDE ON</span>
             </div>
-            <div class="muted" id="ec-band">Targets 0.8 – 1.2 mS/cm</div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <label class="muted" title="Controller outputs are inhibited; manual dosing allowed. Hard safety interlocks still enforced." style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.06);color:#fecaca;font-size:0.85rem;">
+                <input id="ec-maint-toggle" type="checkbox" style="accent-color:#ef4444;" />
+                Maintenance Override
+              </label>
+              <div class="muted" id="ec-band">Targets 0.8 – 1.2 mS/cm</div>
+            </div>
           </div>
           <div class="card-body">
             <div id="ec-reservoir-banner" class="muted" style="display:none;margin-bottom:8px;padding:6px 10px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#fecaca;">
@@ -1287,8 +1329,32 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <div id="ec-recent" class="muted" style="display:none;max-height:140px;overflow-y:auto;padding-right:6px;"></div>
             </div>
             <div id="ec-tab-manual" style="display:none;">
+              <!-- Direct pump control (time-based) -->
+              <div style="margin-bottom:16px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">⏱️ Direct Pump Control (Time-based)</div>
+                <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Press and hold pattern for individual nutrient pumps. Safety caps enforced.</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                  <div>
+                    <button id="btnDoseGrow" class="btn-secondary" style="width:100%;" title="Dose Grow for 0.3s">Grow (0.3s)</button>
+                  </div>
+                  <div>
+                    <button id="btnDoseMicro" class="btn-secondary" style="width:100%;" title="Dose Micro for 0.3s">Micro (0.3s)</button>
+                  </div>
+                  <div>
+                    <button id="btnDoseBloom" class="btn-secondary" style="width:100%;" title="Dose Bloom for 0.3s">Bloom (0.3s)</button>
+                  </div>
+                </div>
+                <div class="muted" style="font-size:0.75rem;margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(148,163,184,0.05);">
+                  Max per press: <span id="ecCapMaxPress">1.5s</span> • Daily cap: <span id="ecCapDaily">120s</span> • Min off: <span id="ecCapMinOff">2s</span>
+                </div>
+              </div>
+
+              <!-- Separator -->
+              <div style="border-top:1px solid rgba(148,163,184,0.1);margin:16px 0;"></div>
+
+              <!-- Volume-based dosing with mix ratio -->
               <div style="margin-bottom:12px;">
-                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Mix Ratio</label>
+                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Mix Ratio (Volume-based)</label>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                   <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
                     <input type="radio" name="ecMixRatio" value="schedule" checked style="accent-color:#3b82f6;" />
@@ -1331,6 +1397,31 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <span id="ecLearnedBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Learned: —</span>
               </div>
               <button id="btnEcAutoToggle" class="btn-secondary">Enable automation</button>
+            </div>
+
+            <!-- Dose Log -->
+            <div style="margin-top:20px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <div class="muted" style="font-weight:600;font-size:0.9rem;">📝 Dose Log (Last 20)</div>
+                <button id="btnEcRefreshDoseLog" class="btn-secondary" style="padding:4px 10px;font-size:0.85rem;" title="Refresh dose log">Refresh</button>
+              </div>
+              <div style="max-height:200px;overflow-y:auto;border-radius:6px;border:1px solid rgba(148,163,184,0.1);">
+                <table style="width:100%;font-size:0.85rem;">
+                  <thead style="position:sticky;top:0;background:#111827;border-bottom:1px solid rgba(148,163,184,0.2);">
+                    <tr>
+                      <th style="padding:6px 8px;text-align:left;">Time</th>
+                      <th style="padding:6px 8px;text-align:left;">Pump</th>
+                      <th style="padding:6px 8px;text-align:right;">Seconds</th>
+                      <th style="padding:6px 8px;text-align:right;">EC Before</th>
+                      <th style="padding:6px 8px;text-align:right;">EC After</th>
+                      <th style="padding:6px 8px;text-align:left;">Note</th>
+                    </tr>
+                  </thead>
+                  <tbody id="ecDoseLogTable" class="muted">
+                    <tr><td colspan="6" style="padding:12px;text-align:center;">Loading...</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <!-- EC-Specific Settings -->

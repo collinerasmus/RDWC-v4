@@ -649,6 +649,176 @@ def api_chiller_settings_update(req: dict):
     upsert_settings(updates)
     return {"ok": True, "updated": updates}
 
+# --- Unified dosing endpoints ------------------------------------------------
+@app.post("/api/dose/grow")
+def dose_grow(body: dict = Body(...)):
+    """Manual Grow nutrient dose with centralized safety caps."""
+    return _dose_pump("grow", body)
+
+@app.post("/api/dose/micro")
+def dose_micro(body: dict = Body(...)):
+    """Manual Micro nutrient dose with centralized safety caps."""
+    return _dose_pump("micro", body)
+
+@app.post("/api/dose/bloom")
+def dose_bloom(body: dict = Body(...)):
+    """Manual Bloom nutrient dose with centralized safety caps."""
+    return _dose_pump("bloom", body)
+
+@app.post("/api/dose/ph_up")
+def dose_ph_up(body: dict = Body(...)):
+    """Manual pH Up dose with centralized safety caps."""
+    return _dose_pump("ph_up", body)
+
+def _dose_pump(pump: str, body: dict) -> dict:
+    """Centralized dose handler for all pumps."""
+    from app.dosing import (
+        check_dosing_guards, log_dose_event, actuate_pump, _get_latest_readings
+    )
+    
+    # Validate payload
+    seconds = body.get("seconds")
+    reason = body.get("reason", "manual")
+    actor = body.get("actor", "ui")
+    
+    if seconds is None:
+        return JSONResponse(status_code=400, content={
+            "ok": False, "error": "Missing 'seconds' field"
+        })
+    
+    try:
+        seconds = float(seconds)
+    except (ValueError, TypeError):
+        return JSONResponse(status_code=400, content={
+            "ok": False, "error": "Invalid 'seconds' value"
+        })
+    
+    if seconds <= 0:
+        return JSONResponse(status_code=400, content={
+            "ok": False, "error": "seconds must be > 0"
+        })
+    
+    # Get KPIs before
+    readings_before = _get_latest_readings()
+    kpis_before = {
+        "ph": readings_before.get("ph"),
+        "ec_ms_cm": readings_before.get("ec_ms_cm"),
+        "temp_c": readings_before.get("temp_c")
+    }
+    
+    # Check guards
+    ok, blocked_by, caps_info = check_dosing_guards(pump, seconds)
+    
+    if not ok:
+        # Log blocked event
+        log_dose_event(
+            pump=pump,
+            seconds=seconds,
+            reason=reason,
+            actor=actor,
+            ph_before=kpis_before.get("ph"),
+            ec_before=kpis_before.get("ec_ms_cm"),
+            temp_c=kpis_before.get("temp_c"),
+            blocked_by=blocked_by
+        )
+        
+        # Human-readable messages
+        messages = {
+            "press_cap": f"Press limit exceeded (max: {caps_info['max_press']}s)",
+            "daily_cap": f"Daily cap reached (max: {caps_info['daily_cap']}s per 24h)",
+            "min_off": f"Min off window not met (wait: {caps_info['min_off']}s)",
+            "stale": "Sensor readings are stale (>60s old)",
+            "estop": "Emergency stop is active",
+            "safeoff": "System in safe-off mode",
+            "mix_lock": "Another pump is currently active",
+            "ph_guard": "pH too high for pH Up dosing",
+            "ec_guard": "EC too high for nutrient dosing"
+        }
+        
+        return JSONResponse(status_code=409, content={
+            "ok": False,
+            "blocked_by": blocked_by,
+            "message": messages.get(blocked_by, f"Blocked by {blocked_by}"),
+            "caps": caps_info
+        })
+    
+    # Actuate pump
+    success, error_msg = actuate_pump(pump, seconds)
+    
+    if not success:
+        # Log error
+        log_dose_event(
+            pump=pump,
+            seconds=seconds,
+            reason=reason,
+            actor=actor,
+            ph_before=kpis_before.get("ph"),
+            ec_before=kpis_before.get("ec_ms_cm"),
+            temp_c=kpis_before.get("temp_c"),
+            blocked_by=f"error:{error_msg}"
+        )
+        return JSONResponse(status_code=500, content={
+            "ok": False,
+            "error": f"Actuation failed: {error_msg}"
+        })
+    
+    # Wait for readings to settle (5s)
+    time.sleep(5)
+    
+    # Get KPIs after
+    readings_after = _get_latest_readings()
+    kpis_after = {
+        "ph": readings_after.get("ph"),
+        "ec_ms_cm": readings_after.get("ec_ms_cm"),
+        "temp_c": readings_after.get("temp_c")
+    }
+    
+    # Log successful event
+    log_dose_event(
+        pump=pump,
+        seconds=seconds,
+        reason=reason,
+        actor=actor,
+        ph_before=kpis_before.get("ph"),
+        ph_after=kpis_after.get("ph"),
+        ec_before=kpis_before.get("ec_ms_cm"),
+        ec_after=kpis_after.get("ec_ms_cm"),
+        temp_c=kpis_after.get("temp_c"),
+        blocked_by=None
+    )
+    
+    # Build guards status for response
+    guards_status = {
+        "ec_guard": False,
+        "ph_guard": False,
+        "stale": False
+    }
+    
+    return {
+        "ok": True,
+        "pump": pump,
+        "seconds": seconds,
+        "ts": int(time.time()),
+        "caps": caps_info,
+        "guards": guards_status,
+        "kpis_before": kpis_before,
+        "kpis_after": kpis_after,
+        "note": "executed"
+    }
+
+@app.get("/api/dose/recent")
+def dose_recent(limit: int = Query(50), hours: Optional[int] = Query(None)):
+    """Get recent dose events, optionally filtered by hours."""
+    from app.dosing import get_recent_dose_events, get_doses_since
+    
+    if hours is not None:
+        ts_start = int(time.time()) - (hours * 3600)
+        events = get_doses_since(ts_start)
+    else:
+        events = get_recent_dose_events(limit)
+    
+    return {"events": events, "count": len(events)}
+
 @app.get("/")
 def ui():
     path = os.path.join(os.path.dirname(__file__), "static", "index.html")
@@ -992,6 +1162,22 @@ def api_settings_import(payload: dict = Body(...)):
     res = import_all(payload or {})
     status = 200 if res.get("ok") else 422
     return JSONResponse(status_code=status, content=res)
+
+@app.get("/api/health/override")
+def health_override():
+    """Quick endpoint to reflect current maintenance override and related safety switches.
+    Returns: { maintenance_override: bool, allow_stale_on_override: bool, estop_persist: bool }
+    """
+    try:
+        from app.settings import get_setting_key
+        maint = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
+        allow_stale = (get_setting_key("safety.allow_stale_on_override", "false") or "false").lower() == "true"
+        estop_persist = (get_setting_key("estop_active", "false") or "false").lower() == "true"
+    except Exception:
+        maint = False
+        allow_stale = False
+        estop_persist = False
+    return {"maintenance_override": bool(maint), "allow_stale_on_override": bool(allow_stale), "estop_persist": bool(estop_persist)}
 
 # System Mode endpoints (Auto/Manual)
 @app.get("/api/system_mode")
