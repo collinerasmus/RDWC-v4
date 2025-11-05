@@ -140,20 +140,61 @@ def _update_system_state(key: str, value: str) -> None:
         logger.error(f"Failed to update system_state[{key}]: {e}")
 
 
+# Persistent EZO instances (init once per process lifetime)
+_ezo_devices = None
+
+def _init_sensors():
+    """Initialize EZO devices once per process"""
+    global _ezo_devices
+    if _ezo_devices is not None:
+        return
+    
+    from app.ezo_i2c_stabilized import EZO, RTD_ADDR, PH_ADDR, EC_ADDR
+    rtd = EZO(1, RTD_ADDR, "RTD")
+    ph = EZO(1, PH_ADDR, "pH")
+    ec = EZO(1, EC_ADDR, "EC")
+    
+    for dev in (rtd, ph, ec):
+        dev.init_once()
+    
+    from time import sleep
+    sleep(0.5)  # Allow devices to settle after init
+    
+    _ezo_devices = {"rtd": rtd, "ph": ph, "ec": ec}
+    logger.info("EZO sensors initialized")
+
+
 def _read_sensors() -> Dict[str, Any]:
     """
-    Read sensors using the proven ezo_i2c_stabilized module.
+    Read sensors using persistent EZO instances.
     
     Returns:
         Dict with keys: temp_c, ph, ec_ms_cm, errors
     """
     try:
-        from app.ezo_i2c_stabilized import read_all
-        vals = read_all()
+        _init_sensors()
+        rtd = _ezo_devices["rtd"]
+        ph = _ezo_devices["ph"]
+        ec = _ezo_devices["ec"]
+        
+        # Read RTD first
+        temp_c = float(rtd.read_value())
+        
+        # Apply temperature compensation
+        for dev in (ph, ec):
+            try:
+                dev.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.06)
+            except Exception:
+                pass
+        
+        # Read pH and EC
+        ph_val = float(ph.read_value())
+        ec_val = float(ec.read_value())
+        
         return {
-            "temp_c": vals.get("temperature"),
-            "ph": vals.get("ph"),
-            "ec_ms_cm": vals.get("ec_ms"),
+            "temp_c": temp_c,
+            "ph": ph_val,
+            "ec_ms_cm": ec_val,
             "errors": {}
         }
     except Exception as e:
