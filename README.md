@@ -61,6 +61,106 @@ Web UI organized by function (http://192.168.88.49:8080):
 - Chiller override has explicit modes (auto | force_on | force_off). AUTO does not thermostat in software; hardware thermostat remains in control.
 - Alerts are OFF by default (opt-in via .env).
 
+## Headless Sensor Poller (24/7 Logging)
+
+**Design Philosophy**: Sensors log continuously whether or not a browser is open.
+
+### Architecture
+- **Standalone Module**: `app/sensor_poller.py` — runs independently with PID lock
+- **Systemd Service**: `rdwc-sensors.service` — headless background polling
+- **Watchdog Timer**: Monitors heartbeat, auto-restarts if stale (>30s)
+- **Poll Interval**: 5 seconds (configurable via `RDWC_SENSOR_POLL_INTERVAL`)
+- **Database**: Direct writes to `readings` table (same as UI Trends)
+- **Safety**: No relay operations, read-only I2C access
+
+### Single-Instance Guard
+- **PID Lock**: `/run/rdwc_sensors.lock` (fallback: `/tmp/rdwc_sensors.lock`)
+- **Behavior**: Only one poller can run at a time; prevents I2C bus conflicts
+- **Heartbeat**: Updates `sensor_poller_heartbeat_ts` in `system_state` table every cycle
+
+### API Endpoints
+```bash
+# Get poller status
+curl -s http://192.168.88.49:8000/api/sensors/status | jq .
+# Returns: running, last_sample_ts, last_heartbeat_ts, interval_sec, lock_pid, poll_count
+
+# Comprehensive health check
+curl -s http://192.168.88.49:8000/api/health | jq .
+# Returns: ok, app_version, git_commit, uptime_seconds, sensor_poller, database
+```
+
+### Deployment
+```bash
+# Deploy to Pi (from dev machine)
+cd c:\Users\USER-PC\OneDrive\Documents\GitHub\RDWC-v4
+.\deploy\deploy_sensor_poller.ps1
+
+# Manual deployment
+ssh pi@192.168.88.49
+cd /home/pi/RDWC-v4
+sudo cp deploy/systemd/rdwc-sensors* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now rdwc-sensors.service
+sudo systemctl enable --now rdwc-sensors-watchdog.timer
+```
+
+### Verify Headless Operation
+```bash
+# 1. Check service status
+systemctl status rdwc-sensors.service --no-pager
+
+# 2. View logs
+journalctl -u rdwc-sensors.service -n 50 --no-pager
+
+# 3. Verify poller is running
+curl -s http://192.168.88.49:8000/api/sensors/status | jq '.running, .poll_count'
+
+# 4. Confirm data is being written
+sqlite3 /home/pi/RDWC-v4/data/rdwc.db \
+  "SELECT datetime(ts, 'unixepoch', 'localtime'), temp_c, ph, ec_ms_cm 
+   FROM readings ORDER BY ts DESC LIMIT 10"
+```
+
+### Cleanup Legacy Pollers
+```bash
+# Audit and remove ghost/duplicate readers
+ssh pi@192.168.88.49
+cd /home/pi/RDWC-v4
+bash deploy/audit_sensor_readers.sh        # Dry-run (shows issues)
+bash deploy/audit_sensor_readers.sh --kill # Cleanup mode (kills strays)
+
+# Check for legacy systemd units
+systemctl list-units --all | grep -Ei 'rdwc|hydro|sensor|atlas|ezo'
+
+# Check for legacy cron jobs
+crontab -l | grep -Ei 'sensor|rdwc'
+
+# Verify only one process owns I2C bus
+sudo lsof /dev/i2c-1
+```
+
+### UI Indicator
+The **Overview** tab shows a live sensor poller status badge:
+- **🟢 Online**: Last sample <30s ago
+- **🔴 Offline**: No samples or stale heartbeat
+- **Tooltip**: Shows last sample age, poll count
+
+### Troubleshooting
+```bash
+# Poller not running?
+sudo systemctl restart rdwc-sensors.service
+
+# Stale lock file?
+sudo rm /run/rdwc_sensors.lock
+sudo systemctl restart rdwc-sensors.service
+
+# I2C bus conflicts?
+sudo lsof /dev/i2c-1  # Should show only rdwc-sensors.service process
+
+# View watchdog timer status
+systemctl list-timers rdwc-sensors-watchdog.timer --no-pager
+```
+
 ## Endpoints (overview)
 
 - `/health` — readiness and service summary (DB/I2C/camera/relays/sensors heartbeat)
