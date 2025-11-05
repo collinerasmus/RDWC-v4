@@ -175,8 +175,17 @@ def _read_sensors() -> Dict[str, Any]:
         ph = _ezo_devices["ph"]
         ec = _ezo_devices["ec"]
         
-        # Read RTD first
-        temp_c = float(rtd.read_value())
+        # Read RTD first with one retry on failure
+        def _try_read(fn, retries: int = 1, delay: float = 0.18):
+            try:
+                return fn()
+            except Exception:
+                if retries > 0:
+                    time.sleep(delay)
+                    return _try_read(fn, retries-1, delay)
+                raise
+
+        temp_c = float(_try_read(rtd.read_value))
         
         # Apply temperature compensation
         for dev in (ph, ec):
@@ -186,8 +195,16 @@ def _read_sensors() -> Dict[str, Any]:
                 pass
         
         # Read pH and EC
-        ph_val = float(ph.read_value())
-        ec_val = float(ec.read_value())
+        try:
+            ph_val = float(_try_read(ph.read_value))
+        except Exception as _pe:
+            logger.warning(f"pH read retry failed: {_pe}")
+            ph_val = None
+        try:
+            ec_val = float(_try_read(ec.read_value))
+        except Exception as _ee:
+            logger.warning(f"EC read retry failed: {_ee}")
+            ec_val = None
         
         return {
             "temp_c": temp_c,
@@ -279,9 +296,11 @@ def run_poller(force: bool = False) -> None:
     logger.info(f"Starting sensor poller (interval={POLL_INTERVAL_SEC}s, db={DB_PATH})")
     
     try:
+        import random
         while _poller_running:
             poll_once()
-            time.sleep(POLL_INTERVAL_SEC)
+            jitter = random.uniform(0.0, 0.8)
+            time.sleep(max(0.5, POLL_INTERVAL_SEC + jitter))
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt, shutting down...")
     except Exception as e:
