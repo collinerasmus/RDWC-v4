@@ -946,7 +946,12 @@ def get_ec_control_preview():
     auto_enabled = _b("ec.auto_enabled", False)
     
     # Read current EC
-    ec_val, ec_age_sec = _get_latest_ec()
+    ec_val, ec_ts = _get_latest_ec()
+    
+    # Calculate age
+    ec_age_sec = None
+    if ec_ts is not None:
+        ec_age_sec = int(time.time()) - ec_ts
     
     # Get targets
     ec_low = _f("targets.ec_low", 0.8)
