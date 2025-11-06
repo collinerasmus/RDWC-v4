@@ -1377,6 +1377,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <div class="kpi-label">PPM</div>
                 <div class="kpi-value" id="ec-ppm">—</div>
               </div>
+              <span class="muted" id="ec-age" style="font-size:0.7rem;padding:4px 6px;border-radius:6px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.25);">age: —s</span>
               <span id="ecFreshnessDot" title="Data freshness" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6b7280;"></span>
               <div id="ec-guards" class="muted" title="">—</div>
               <span id="ec-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
@@ -1403,6 +1404,14 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <div id="ec-recent" class="muted" style="display:none;max-height:140px;overflow-y:auto;padding-right:6px;"></div>
             </div>
             <div id="ec-tab-manual" style="display:none;">
+              <!-- Rapid Test Mode (client only) -->
+              <div style="margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.35);display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;cursor:pointer;">
+                  <input type="checkbox" id="ecRapidTestToggle" style="accent-color:#22c55e;" /> Rapid test mode (10s interval)
+                </label>
+                <span class="muted" style="font-size:0.7rem;">Current interval: <strong id="ecIntervalDisplay">—s</strong></span>
+                <span class="muted" style="font-size:0.7rem;">(Restores to 300s when off)</span>
+              </div>
               <!-- Direct pump control (time-based) -->
               <div style="margin-bottom:16px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
                 <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">⏱️ Direct Pump Control (Time-based)</div>
@@ -1439,6 +1448,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <div class="muted" style="font-size:0.75rem;margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(148,163,184,0.05);">
                   Max per press: <span id="ecCapMaxPress">1.5s</span> • Daily cap: <span id="ecCapDaily">120s</span> • Min off: <span id="ecCapMinOff">2s</span>
                 </div>
+                <!-- Quick Test Row -->
+                <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                  <span class="muted" style="font-size:0.7rem;">Rapid 0.4s test:</span>
+                  <button id="btnRapidGrow" class="btn-mini" title="Grow 0.4s">Grow 0.4s</button>
+                  <button id="btnRapidMicro" class="btn-mini" title="Micro 0.4s">Micro 0.4s</button>
+                  <button id="btnRapidBloom" class="btn-mini" title="Bloom 0.4s">Bloom 0.4s</button>
+                </div>
               </div>
 
               <!-- Separator -->
@@ -1446,6 +1462,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
               <!-- Volume-based dosing with mix ratio -->
               <div style="margin-bottom:12px;">
+                <div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                  <span class="muted" style="font-size:0.7rem;">Last three doses:</span>
+                  <div id="ec-last-three" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+                </div>
                 <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Mix Ratio (Volume-based)</label>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                   <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">

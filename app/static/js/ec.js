@@ -21,15 +21,8 @@
     }catch(e){ return null; }
   }
 
-  async function detectDoseMode(){
-    if(endpointMode) return endpointMode;
-    try{
-      const t = await fetch('/api/dose/grow', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({seconds:0.0, reason:'probe'})});
-      if(t.ok){ endpointMode = 'dose_api'; return endpointMode; }
-    }catch(e){ /* ignore */ }
-    endpointMode = 'relay_pulse';
-    return endpointMode;
-  }
+  // Always use unified EC dosing endpoint
+  async function detectDoseMode(){ return 'ec_unified_v1'; }
 
   async function fetchHealthDB(){
     try{
@@ -340,17 +333,25 @@
   }
 
   // --- Unified dosing ---
-  async function doseUnified(pump, seconds, reason='manual'){
+  async function doseUnified(pump, seconds, reason='ui-manual'){
     // Debounce per pump
     window.__ecPulseLast = window.__ecPulseLast || {};
     const now = Date.now();
     const last = window.__ecPulseLast[pump] || 0;
     if(now - last < 400){ return; }
     window.__ecPulseLast[pump] = now;
+    // Clamp client-side
+    if(typeof seconds !== 'number' || isNaN(seconds)){
+      showToast('Invalid seconds value', 'error');
+      return;
+    }
+    if(seconds < 0.1) seconds = 0.1;
+    if(seconds > 3.0) seconds = 3.0;
+
     const btnMap = {
-      'grow': ['btnDoseGrow','btnDoseGrow05','btnDoseGrow10','btnPulseGrowCustom'],
-      'micro': ['btnDoseMicro','btnDoseMicro05','btnDoseMicro10','btnPulseMicroCustom'],
-      'bloom': ['btnDoseBloom','btnDoseBloom05','btnDoseBloom10','btnPulseBloomCustom']
+      'grow': ['btnDoseGrow','btnDoseGrow05','btnDoseGrow10','btnPulseGrowCustom','btnRapidGrow'],
+      'micro': ['btnDoseMicro','btnDoseMicro05','btnDoseMicro10','btnPulseMicroCustom','btnRapidMicro'],
+      'bloom': ['btnDoseBloom','btnDoseBloom05','btnDoseBloom10','btnPulseBloomCustom','btnRapidBloom']
     };
     const btns = (btnMap[pump] || []).map(id => el(id)).filter(b => b);
     btns.forEach(b => { b.disabled = true; b.classList.add('loading'); });
@@ -358,24 +359,25 @@
     try{
       const mode = await detectDoseMode();
       let r, j;
-      if(mode === 'dose_api'){
-        r = await fetch(`/api/dose/${pump}`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({seconds, reason, actor:'ui'}) });
+      if(mode === 'ec_unified_v1'){
+        r = await fetch('/api/ec/dose', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({pump, seconds, reason, actor:'user'}) });
         j = await r.json().catch(()=>({}));
       } else {
-        const relayMap = {grow:'dosing_grow', micro:'dosing_micro', bloom:'dosing_bloom'};
-        r = await fetch('/api/relays/pulse', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({relay: relayMap[pump], seconds, reason}) });
+        r = await fetch(`/api/dose/${pump}`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({seconds, reason, actor:'ui'}) });
         j = await r.json().catch(()=>({}));
       }
       
-      if(!r.ok || (!j.ok && j.blocked_by)){
-        const msg = j.message || j.error || j.blocked_by || 'Unknown error';
+      if(!r.ok || (!j.ok && j.error)){
+        const msg = j.error || j.message || j.blocked_by || 'Unknown error';
         showToast(`Dose blocked: ${msg}`, 'error');
       } else {
-        showToast(`Dosed ${pump} for ${seconds}s`, 'success');
+        showToast(`Dose executed (${pump}, ${seconds.toFixed(2)}s)`, 'success');
+        try{ if(window.ecChart && window.ecChart.refresh){ window.ecChart.refresh(); } }catch(_){/*noop*/}
         const s2 = await fetchStatus();
         if(s2) renderStatus(s2);
         refreshDoseLog();
         updateEcTotals().catch(()=>{});
+        refreshLastThree();
       }
     }catch(e){
       showToast(`Dose error: ${e.message}`, 'error');
@@ -419,6 +421,23 @@
     }
   }
 
+  // Last three doses widget
+  async function refreshLastThree(){
+    const wrap = document.getElementById('ec-last-three');
+    if(!wrap) return;
+    try{
+      const r = await fetch('/api/dose/recent?limit=15', {cache:'no-store'});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const j = await r.json();
+      const events = (j.events||[]).filter(e => ['grow','micro','bloom'].includes(e.pump) && !e.blocked_by).slice(0,3);
+      if(events.length===0){ wrap.innerHTML = '<span class="muted" style="font-size:0.7rem;">No recent doses</span>'; return; }
+      wrap.innerHTML = events.map(e => {
+        const t = e.ts_utc ? new Date(e.ts_utc).toLocaleTimeString() : '—';
+        return `<span style="padding:4px 6px;border:1px solid rgba(148,163,184,0.25);border-radius:6px;font-size:0.65rem;background:rgba(148,163,184,0.08);">${t} • ${e.pump} • ${e.seconds.toFixed(2)}s</span>`;
+      }).join(' ');
+    }catch(err){ wrap.innerHTML = '<span class="muted" style="font-size:0.7rem;">Load error</span>'; }
+  }
+
   // Initialize
   async function init(){
     const s = await fetchStatus();
@@ -439,6 +458,25 @@
     el('btnDoseBloom05')?.addEventListener('click', ()=> doseUnified('bloom', 0.5, 'manual'));
     el('btnDoseBloom10')?.addEventListener('click', ()=> doseUnified('bloom', 1.0, 'manual'));
     el('btnPulseBloomCustom')?.addEventListener('click', ()=>{ const v=parseFloat(el('ecBloomCustomSec')?.value||0); if(v>0) doseUnified('bloom', v, 'manual'); });
+    // Rapid 0.4s
+    el('btnRapidGrow')?.addEventListener('click', ()=> doseUnified('grow', 0.4, 'rapid-test'));
+    el('btnRapidMicro')?.addEventListener('click', ()=> doseUnified('micro', 0.4, 'rapid-test'));
+    el('btnRapidBloom')?.addEventListener('click', ()=> doseUnified('bloom', 0.4, 'rapid-test'));
+
+    // Rapid Test Mode toggle
+    const rapidToggle = document.getElementById('ecRapidTestToggle');
+    rapidToggle?.addEventListener('change', async ()=>{
+      const val = rapidToggle.checked ? 10 : 300;
+      try{
+        const r = await fetch('/api/settings', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({'ec.min_interval_sec': val})});
+        if(!r.ok){ showToast('Failed to set interval', 'error'); rapidToggle.checked = !rapidToggle.checked; return; }
+        showToast(`Interval set to ${val}s`, 'success');
+        updateIntervalDisplay(val);
+      }catch(e){ showToast('Interval error: '+e.message, 'error'); rapidToggle.checked = !rapidToggle.checked; }
+    });
+    const initialInt = parseInt(window.rdwcSettings?.get('ec.min_interval_sec')||'300');
+    updateIntervalDisplay(initialInt);
+    refreshLastThree();
     
     // Legacy volume-based dose buttons (keep for now)
     el('btnEcDose10')?.addEventListener('click', ()=>doseEC(10));
@@ -586,6 +624,14 @@
   renderStatus = function(s){
     _origRender(s);
     try{
+      // Age seconds display
+      const ageEl = document.getElementById('ec-age');
+      if(ageEl && s){
+        if(s.ec_ts){
+          const age = Math.max(0, Math.round((Date.now()/1000) - s.ec_ts));
+          ageEl.textContent = `age: ${age}s`;
+        } else { ageEl.textContent = 'age: —s'; }
+      }
       const sp = parseFloat(el('ecSetpoint')?.value||'');
       if(s && s.ec_ms_cm!=null && !isNaN(sp)){
         const d = s.ec_ms_cm - sp;
