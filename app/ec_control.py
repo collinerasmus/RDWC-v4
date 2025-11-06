@@ -934,6 +934,104 @@ def get_ec_auto_debug():
             "learned_ml_per_mScm": _learned_ml_per_mScm
         }
 
+# --- Controller Preview endpoint --------------------------------------------
+@router.get("/api/ec/control/preview")
+def get_ec_control_preview():
+    """
+    Dry-run EC controller decision logic.
+    Returns what action the controller would take without executing it.
+    Useful for UI feedback and debugging.
+    """
+    # Check if auto control is enabled
+    auto_enabled = _b("ec.auto_enabled", False)
+    
+    # Read current EC
+    ec_val, ec_age_sec = _get_latest_ec()
+    
+    # Get targets
+    ec_low = _f("targets.ec_low", 0.8)
+    ec_high = _f("targets.ec_high", 1.2)
+    target_mid = (ec_low + ec_high) / 2.0
+    deadband = _f("ec.deadband", 0.05)
+    
+    # Default response
+    response = {
+        "would_dose": False,
+        "current_ec": ec_val,
+        "ec_age_sec": ec_age_sec,
+        "setpoint": target_mid,
+        "ec_low": ec_low,
+        "ec_high": ec_high,
+        "deadband": deadband,
+        "auto_enabled": auto_enabled,
+        "reason": None,
+        "proposed_action": None
+    }
+    
+    # Check sensor validity
+    if ec_val is None:
+        response["reason"] = "sensor_null"
+        return response
+    
+    if ec_age_sec is not None and ec_age_sec > 120:
+        response["reason"] = "sensor_stale"
+        return response
+    
+    # Check if in range
+    if ec_val >= ec_low:
+        response["reason"] = "in_range"
+        return response
+    
+    # Check guards (for preview purposes)
+    ok, guard = _check_guards()
+    if not ok:
+        response["reason"] = f"blocked_by_guard: {guard}"
+        return response
+    
+    # Check interval guard
+    ok_int, int_reason = _check_interval_guard(datetime.now(timezone.utc))
+    if not ok_int:
+        response["reason"] = f"blocked_by_interval: {int_reason}"
+        return response
+    
+    # Check daily cap
+    ok_cap, cap_reason = _check_daily_cap(datetime.now(timezone.utc))
+    if not ok_cap:
+        response["reason"] = f"blocked_by_cap: {cap_reason}"
+        return response
+    
+    # Compute proposed dose
+    needed_mScm = target_mid - ec_val
+    safety_factor = _f("dosing.ec_safety_factor", 0.6)
+    
+    if _learned_ml_per_mScm:
+        planned_ml = needed_mScm * _learned_ml_per_mScm * safety_factor
+    else:
+        # Default: 30ml per 0.1 mS/cm
+        planned_ml = needed_mScm * 300 * safety_factor
+    
+    # Clamp
+    min_ml = _f("dosing.ec_step_ml_min", 10)
+    max_ml = _f("dosing.ec_step_ml_max", 120)
+    planned_ml = max(min_ml, min(planned_ml, max_ml))
+    
+    # Get mix ratio (schedule or custom)
+    mix_ratio = _s("dosing.ec_mix_ratio", "schedule")
+    
+    response.update({
+        "would_dose": True,
+        "reason": "ec_below_target",
+        "proposed_action": {
+            "ml": round(planned_ml, 1),
+            "mix_ratio": mix_ratio,
+            "needed_mScm": round(needed_mScm, 3),
+            "safety_factor": safety_factor,
+            "learned_ml_per_mScm": _learned_ml_per_mScm
+        }
+    })
+    
+    return response
+
 # --- Automation worker -------------------------------------------------------
 def _auto_worker():
     """Background thread: polls EC and doses when below target."""
