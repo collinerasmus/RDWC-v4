@@ -743,6 +743,14 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   .ui-status-chip.neutral { background: rgba(148,163,184,0.1); color: #94a3b8; border-color: rgba(148,163,184,0.3); }
   .ui-status-chip.warning { background: rgba(251,146,60,0.1); color: #fb923c; border-color: rgba(251,146,60,0.3); }
   .ui-status-chip.danger  { background: rgba(239,68,68,0.1); color: #ef4444; border-color: rgba(239,68,68,0.3); }
+  /* UI Polish 2025-11 Part 2 (.ui-polish-2025-11b scope) */
+  .ui-polish-2025-11b .sensor-meta-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:4px;}
+  .ui-polish-2025-11b #sensors-updated{padding:3px 8px;border:1px solid rgba(148,163,184,0.35);border-radius:6px;font-size:0.7rem;background:rgba(148,163,184,0.08);color:#94a3b8;white-space:nowrap;}
+  .ui-polish-2025-11b #sensors-target-hints{font-size:0.7rem;opacity:.75;display:flex;gap:10px;flex-wrap:wrap;}
+  .ui-polish-2025-11b #sensors-target-hints span{background:rgba(17,24,39,0.6);padding:3px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.15);}
+  .relay-btn.loading{opacity:.7;position:relative;}
+  .relay-btn.loading::after{content:"";position:absolute;top:50%;left:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -1070,6 +1078,15 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <div class="kpi-value" id="kpiTemp">—</div>
       </div>
       <div class="rate-caption" id="samplesRate" style="align-self:center;">—</div>
+    </div>
+    <!-- Part 2 polish: meta row (timestamp + targets) -->
+    <div class="ui-polish-2025-11b sensor-meta-row">
+      <span id="sensors-updated" title="Last sample time">Updated: —</span>
+      <div id="sensors-target-hints" title="Grow targets">
+        <span>pH 5.8–6.2</span>
+        <span>EC 0.8–1.2 mS/cm</span>
+        <span>Temp 18–20°C optimal (16–24°C safe)</span>
+      </div>
     </div>
 
     <!-- Sensors recent readings (ph-style collapsible) -->
