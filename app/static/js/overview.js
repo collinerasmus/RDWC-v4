@@ -2,6 +2,7 @@
   const q = (s)=>document.querySelector(s);
   const getJSON = async (u)=>{ const r = await fetch(u,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); };
   function setBadge(id, on){ const el = q(id); if (!el) return; el.textContent = on?'ON':'OFF'; el.className = 'bop-status-badge '+(on?'on':'off'); }
+  function setChip(id, text, cls){ const el = q(id); if (!el) return; el.textContent = text; el.className = 'ui-status-chip ' + cls; }
   async function refresh(){
     try{
       const wrap = await getJSON('/api/relays/status');
@@ -12,20 +13,27 @@
       setBadge('#ov-chiller', !!(rel.chiller_power && rel.chiller_power.is_on));
       const mode = wrap.mode || 'manual';
       const estop = !!wrap.estop;
+      // Update status chips
+      setChip('#chip-mode', mode.toUpperCase(), mode === 'auto' ? 'success' : 'neutral');
+      setChip('#chip-estop', estop ? 'E-STOP' : 'OK', estop ? 'danger' : 'success');
       const modeEl = q('#ov-mode'); const estopEl = q('#ov-estop');
       if (modeEl) modeEl.textContent = 'Mode: ' + mode.toUpperCase();
       if (estopEl) estopEl.textContent = 'E-STOP: ' + (estop?'ACTIVE':'off');
       try{
         const s = await (await fetch('/settings?'+Date.now(),{cache:'no-store'})).json();
         const w = s.today_window; if (w && !w.error) q('#ov-lights-window').textContent = `Lights Window: ${w.on_time} → ${w.off_time}`;
+        // Maintenance override chip
+        const maint = (s && s.safety && (s.safety.maintenance_override||'false')).toLowerCase()==='true';
+        setChip('#chip-maint', maint ? 'MAINT' : 'PROD', maint ? 'warning' : 'success');
       }catch(e){}
-      // Sensor poller status badge
+      // Sensor poller status badge + chip
       try{
         const ps = await getJSON('/api/sensors/status');
+        const age = ps.last_sample_ts ? (Date.now()/1000 - ps.last_sample_ts) : 999;
+        const online = ps.running && age < 60;
+        setChip('#chip-sensors', online ? 'SENSORS' : 'DEGRADED', online ? 'success' : 'danger');
         const pollerEl = q('#ov-sensor-poller');
         if (pollerEl && ps) {
-          const age = ps.last_sample_ts ? (Date.now()/1000 - ps.last_sample_ts) : 999;
-          const online = ps.running || age < 30;
           const dot = online ? '🟢' : '🔴';
           const ageStr = age < 60 ? `${Math.round(age)}s` : age < 3600 ? `${Math.round(age/60)}m` : `${Math.round(age/3600)}h`;
           pollerEl.textContent = `Sensors: ${dot} ${online?'Online':'Offline'}`;
