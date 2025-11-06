@@ -322,12 +322,15 @@
   }
 
   // Export API for other modules
+  // Backwards-compatible global hooks used by tabs.js
   window.scheduleModule = {
     init,
     refresh: async ()=>{ await fetchSchedule(); await renderTimeline(); await renderPlan(); await renderStatus(); },
     showRapidHelper: ()=>{ const h = el('rapid-test-helper'); if(h) h.style.display = 'block'; },
     hideRapidHelper: ()=>{ const h = el('rapid-test-helper'); if(h) h.style.display = 'none'; }
   };
+  window.scheduleInit = window.scheduleModule.init;
+  window.scheduleRefresh = window.scheduleModule.refresh;
 
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', ()=>{init(); startPoll();});

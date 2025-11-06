@@ -11,16 +11,10 @@
       btn.classList.toggle('active', btn.getAttribute('data-tab')===name);
     });
     // Lazy hooks per tab
-    if (name==='schedule' && typeof window.loadSettings==='function'){
-      window.loadSettings();
-      // Bind save if not bound
-      const saveBtn = qs('#btnScheduleSave');
-      if (saveBtn && !saveBtn.__bound){
-        saveBtn.addEventListener('click', function(){
-          if (typeof window.saveSettings==='function') window.saveSettings();
-        });
-        saveBtn.__bound = true;
-      }
+    if (name==='schedule'){
+      // New Schedule preview init & refresh hooks
+      if (typeof window.scheduleInit==='function') try{ window.scheduleInit(); }catch(e){ console.warn('scheduleInit error', e); }
+      if (typeof window.scheduleRefresh==='function') try{ window.scheduleRefresh(); }catch(e){ console.warn('scheduleRefresh error', e); }
     }
     if (name==='lights' && typeof window.LightsControl!=='undefined'){
       window.LightsControl.refresh();
