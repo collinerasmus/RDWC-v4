@@ -20,6 +20,7 @@ from app.blueprints.sensors_api import sensors_router
 from app.hardware import PumpController, RelayBank
 from app.ph_control import router as ph_router
 from app.ec_control import router as ec_router
+from app.schedule_api import router as schedule_router
 from app.logger import log_reading, last_n, fetch_history_since
 from app.scheduler import Scheduler, load_cfg, save_cfg
 from app.monitor import start_monitoring, stop_monitoring, get_monitoring_status
@@ -63,6 +64,7 @@ app.include_router(debug_router, prefix="/debug", tags=["debug"])
 app.include_router(sensors_router)
 app.include_router(ph_router)
 app.include_router(ec_router)
+app.include_router(schedule_router)
 
 # Mount static files directory for serving CSS/JS
 static_dir = os.path.join(os.path.dirname(__file__), "static")
