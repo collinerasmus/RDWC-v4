@@ -219,6 +219,39 @@
       if(el('ecCapDaily')) el('ecCapDaily').textContent = dailyCap + 's';
       if(el('ecCapMinOff')) el('ecCapMinOff').textContent = minOff + 's';
     }
+    
+    // Update K-factor and calibration status chips in header
+    updateHeaderChips();
+  }
+
+  async function updateHeaderChips() {
+    try {
+      const res = await fetch('/api/ec/cal/status', {cache:'no-store'});
+      if (!res.ok) return;
+      
+      const data = await res.json();
+      const k = data.k;
+      const cal = data.cal;
+      
+      // Update K chip
+      const kChip = el('ecKChip');
+      if (kChip) {
+        kChip.textContent = k != null ? `K=${k}` : 'K=—';
+        // Success if K=0.1, neutral otherwise
+        kChip.className = 'ui-status-chip ' + (k === 0.1 ? 'success' : 'neutral');
+      }
+      
+      // Update Cal chip
+      const calChip = el('ecCalChip');
+      if (calChip) {
+        calChip.textContent = cal ? `Cal: ${cal}` : 'Cal: —';
+        // Success if calibrated (one-point or two-point), neutral if uncalibrated/unknown
+        const isCalibrated = cal && (cal.includes('one-point') || cal.includes('two-point'));
+        calChip.className = 'ui-status-chip ' + (isCalibrated ? 'success' : 'neutral');
+      }
+    } catch (e) {
+      // Silently fail - chips will show default values
+    }
   }
 
   function startPoll(){
