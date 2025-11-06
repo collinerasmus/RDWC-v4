@@ -426,14 +426,16 @@
     const wrap = document.getElementById('ec-last-three');
     if(!wrap) return;
     try{
-      const r = await fetch('/api/dose/recent?limit=15', {cache:'no-store'});
+      const r = await fetch('/api/ec/dose/recent?limit=3', {cache:'no-store'});
       if(!r.ok) throw new Error('HTTP '+r.status);
       const j = await r.json();
-      const events = (j.events||[]).filter(e => ['grow','micro','bloom'].includes(e.pump) && !e.blocked_by).slice(0,3);
+      const events = (j.events||[]);
       if(events.length===0){ wrap.innerHTML = '<span class="muted" style="font-size:0.7rem;">No recent doses</span>'; return; }
       wrap.innerHTML = events.map(e => {
-        const t = e.ts_utc ? new Date(e.ts_utc).toLocaleTimeString() : '—';
-        return `<span style="padding:4px 6px;border:1px solid rgba(148,163,184,0.25);border-radius:6px;font-size:0.65rem;background:rgba(148,163,184,0.08);">${t} • ${e.pump} • ${e.seconds.toFixed(2)}s</span>`;
+        const t = e.ts_iso ? new Date(e.ts_iso).toLocaleTimeString() : '—';
+        const pump = (e.pump||'').toUpperCase();
+        const sec = e.seconds!=null ? e.seconds.toFixed(1) : '?';
+        return `<span style="padding:4px 8px;border:1px solid rgba(148,163,184,0.25);border-radius:6px;font-size:0.7rem;background:rgba(148,163,184,0.08);white-space:nowrap;">[${pump} • ${sec}s] ${t}</span>`;
       }).join(' ');
     }catch(err){ wrap.innerHTML = '<span class="muted" style="font-size:0.7rem;">Load error</span>'; }
   }

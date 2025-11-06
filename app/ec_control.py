@@ -781,6 +781,59 @@ def get_ec_status():
     }
 
 # --- Dose log/summary endpoints --------------------------------------------
+@router.get("/api/ec/dose/recent")
+def ec_dose_recent(limit: int = 20):
+    """Return recent EC dose events with pump info for UI pills."""
+    _ensure_tables()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT ts_utc, action, volume_ml, mix_ratio, duration_ms, result, reason
+            FROM ec_dose_log
+            WHERE result='ok'
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (int(limit),)
+        )
+        rows = cur.fetchall()
+    
+    events = []
+    for r in rows:
+        ts_iso = r[0]
+        mix_ratio = r[3] or ""
+        duration_ms = r[4]
+        
+        # Extract pump from mix_ratio (format: "grow:0.4s" or "micro:0.2s")
+        pump = "unknown"
+        seconds = None
+        if ":" in mix_ratio:
+            parts = mix_ratio.split(":")
+            pump = parts[0].strip()
+            if len(parts) > 1 and parts[1].endswith("s"):
+                try:
+                    seconds = float(parts[1].rstrip("s"))
+                except Exception:
+                    pass
+        
+        # Fallback to duration_ms if seconds not parsed
+        if seconds is None and duration_ms:
+            seconds = float(duration_ms) / 1000.0
+        
+        events.append({
+            "ts_iso": ts_iso,
+            "pump": pump,
+            "seconds": seconds,
+            "volume_ml": float(r[2]) if r[2] else None,
+            "actor": r[6] or "manual",
+            "reason": r[6] or "",
+            "result": r[5]
+        })
+    
+    return {"events": events}
+
+
 @router.get("/api/ec/dose_log")
 def ec_dose_log(
     start: Optional[str] = None,
