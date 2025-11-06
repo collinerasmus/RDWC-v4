@@ -751,6 +751,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   .relay-btn.loading{opacity:.7;position:relative;}
   .relay-btn.loading::after{content:"";position:absolute;top:50%;left:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg)}}
+  /* EC Control v1 UI (scoped) */
+  .ec-v1-ui .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .ec-v1-ui .chip{padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,0.3);background:rgba(148,163,184,0.08);font-size:.75rem;white-space:nowrap}
+  .ec-v1-ui input[type="number"]{height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:.85rem}
+  .ec-v1-ui .btn-mini{padding:4px 8px;border-radius:6px;border:1px solid #374151;background:#1f2937;color:#e5e7eb;font-size:.7rem;cursor:pointer}
+  .ec-v1-ui .btn-mini:hover{background:#374151}
+  .ec-v1-ui .nowrap{white-space:nowrap}
 </style>
 </head>
 <body>
@@ -1340,6 +1347,21 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             </div>
           </div>
           <div class="card-body">
+            <!-- EC Control v1 additions -->
+            <div class="ec-v1-ui" style="margin-bottom:12px;">
+              <div class="row" style="gap:12px;">
+                <span class="chip nowrap" id="ecV1DeltaWrap">Δ <span id="ecDeltaChip">—</span> mS/cm</span>
+                <label class="muted nowrap" style="display:flex;align-items:center;gap:6px;">Setpoint
+                  <input id="ecSetpoint" type="number" step="0.01" min="0" placeholder="mS/cm" style="width:90px;" />
+                </label>
+                <button id="btnSaveEcSetpoint" class="btn-secondary" title="Save EC setpoint">Save</button>
+                <span id="ecCapsRow" class="muted nowrap" style="padding:4px 8px;border-radius:6px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.25);display:flex;gap:8px;align-items:center;">
+                  <span>Max pulse: <strong id="ecV1CapMaxPress">—</strong></span>
+                  <span>Min off: <strong id="ecV1CapMinOff">—</strong></span>
+                  <span>Daily cap: <strong id="ecV1CapDaily">—</strong></span>
+                </span>
+              </div>
+            </div>
             <div id="ec-reservoir-banner" class="muted" style="display:none;margin-bottom:8px;padding:6px 10px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#fecaca;">
               Reservoir set to 0 L — dosing disabled
             </div>
@@ -1384,12 +1406,30 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
                   <div>
                     <button id="btnDoseGrow" class="btn-secondary" style="width:100%;" title="Dose Grow for 0.3s">Grow (0.3s)</button>
+                    <div class="ec-v1-ui row" style="margin-top:6px;">
+                      <button id="btnDoseGrow05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
+                      <button id="btnDoseGrow10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
+                      <input id="ecGrowCustomSec" type="number" step="0.1" min="0" placeholder="sec" style="width:70px;" />
+                      <button id="btnPulseGrowCustom" class="btn-mini" title="Custom seconds">Pulse</button>
+                    </div>
                   </div>
                   <div>
                     <button id="btnDoseMicro" class="btn-secondary" style="width:100%;" title="Dose Micro for 0.3s">Micro (0.3s)</button>
+                    <div class="ec-v1-ui row" style="margin-top:6px;">
+                      <button id="btnDoseMicro05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
+                      <button id="btnDoseMicro10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
+                      <input id="ecMicroCustomSec" type="number" step="0.1" min="0" placeholder="sec" style="width:70px;" />
+                      <button id="btnPulseMicroCustom" class="btn-mini" title="Custom seconds">Pulse</button>
+                    </div>
                   </div>
                   <div>
                     <button id="btnDoseBloom" class="btn-secondary" style="width:100%;" title="Dose Bloom for 0.3s">Bloom (0.3s)</button>
+                    <div class="ec-v1-ui row" style="margin-top:6px;">
+                      <button id="btnDoseBloom05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
+                      <button id="btnDoseBloom10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
+                      <input id="ecBloomCustomSec" type="number" step="0.1" min="0" placeholder="sec" style="width:70px;" />
+                      <button id="btnPulseBloomCustom" class="btn-mini" title="Custom seconds">Pulse</button>
+                    </div>
                   </div>
                 </div>
                 <div class="muted" style="font-size:0.75rem;margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(148,163,184,0.05);">
