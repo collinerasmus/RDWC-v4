@@ -726,6 +726,23 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   /* Generic responsive form row helper */
   .form-row{ display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap: var(--gap); }
   .form-row > div{ min-width:0; }
+
+  /* UI Polish 2025-11: Status chips and standardization */
+  .ui-status-chip {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    border: 1px solid;
+  }
+  .ui-status-chip.success { background: rgba(34,197,94,0.1); color: #22c55e; border-color: rgba(34,197,94,0.3); }
+  .ui-status-chip.neutral { background: rgba(148,163,184,0.1); color: #94a3b8; border-color: rgba(148,163,184,0.3); }
+  .ui-status-chip.warning { background: rgba(251,146,60,0.1); color: #fb923c; border-color: rgba(251,146,60,0.3); }
+  .ui-status-chip.danger  { background: rgba(239,68,68,0.1); color: #ef4444; border-color: rgba(239,68,68,0.3); }
 </style>
 </head>
 <body>
@@ -779,7 +796,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <section id="overview-card" class="card card-wide tab-section" data-tab="overview">
     <!-- Camera -->
     <div style="margin-bottom:16px;">
-      <h3>Camera <span id="camera-status-pill" class="muted" style="font-size:0.85rem;font-weight:400;margin-left:8px;"></span></h3>
+      <h3>Camera — Live (USB/OpenCV)</h3>
+      <div class="muted" style="font-size:0.75rem;margin-top:-6px;margin-bottom:8px;">
+        <span id="camera-status-pill">Status: streaming</span>
+      </div>
       <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;">
         <img id="camera-stream" alt="Camera stream" style="width:100%;height:100%;object-fit:cover;"/>
         <div id="camera-overlay" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">Connecting...</div>
@@ -787,9 +807,14 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
     
     <!-- System Overview -->
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <h3 class="card-title" style="margin:0;">System Overview</h3>
-      <div class="muted" style="font-size:0.85rem;">Status at a glance</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <span class="ui-status-chip" id="chip-mode" title="System mode">—</span>
+        <span class="ui-status-chip" id="chip-estop" title="Emergency stop status">—</span>
+        <span class="ui-status-chip" id="chip-sensors" title="Sensor poller status">—</span>
+        <span class="ui-status-chip" id="chip-maint" title="Maintenance override">—</span>
+      </div>
     </div>
     <div class="card-body">
       <div class="muted" style="margin-bottom:12px;padding:8px 12px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;">
