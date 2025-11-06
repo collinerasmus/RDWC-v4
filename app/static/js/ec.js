@@ -1,6 +1,7 @@
 // EC Control UI
 (function(){
   const POLL_DEFAULT = 5000;
+  let endpointMode = null; // 'dose_api' or 'relay_pulse'
   let pollMs = POLL_DEFAULT;
   let pollTimer = null;
   lastStatus = null;
@@ -18,6 +19,16 @@
       if(!r.ok) throw new Error('status');
       return await r.json();
     }catch(e){ return null; }
+  }
+
+  async function detectDoseMode(){
+    if(endpointMode) return endpointMode;
+    try{
+      const t = await fetch('/api/dose/grow', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({seconds:0.0, reason:'probe'})});
+      if(t.ok){ endpointMode = 'dose_api'; return endpointMode; }
+    }catch(e){ /* ignore */ }
+    endpointMode = 'relay_pulse';
+    return endpointMode;
   }
 
   async function fetchHealthDB(){
@@ -297,23 +308,33 @@
 
   // --- Unified dosing ---
   async function doseUnified(pump, seconds, reason='manual'){
+    // Debounce per pump
+    window.__ecPulseLast = window.__ecPulseLast || {};
+    const now = Date.now();
+    const last = window.__ecPulseLast[pump] || 0;
+    if(now - last < 400){ return; }
+    window.__ecPulseLast[pump] = now;
     const btnMap = {
-      'grow': ['btnDoseGrow'],
-      'micro': ['btnDoseMicro'],
-      'bloom': ['btnDoseBloom']
+      'grow': ['btnDoseGrow','btnDoseGrow05','btnDoseGrow10','btnPulseGrowCustom'],
+      'micro': ['btnDoseMicro','btnDoseMicro05','btnDoseMicro10','btnPulseMicroCustom'],
+      'bloom': ['btnDoseBloom','btnDoseBloom05','btnDoseBloom10','btnPulseBloomCustom']
     };
     const btns = (btnMap[pump] || []).map(id => el(id)).filter(b => b);
-    btns.forEach(b => { b.disabled = true; });
+    btns.forEach(b => { b.disabled = true; b.classList.add('loading'); });
     
     try{
-      const r = await fetch(`/api/dose/${pump}`, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({seconds, reason, actor:'ui'})
-      });
-      const j = await r.json();
+      const mode = await detectDoseMode();
+      let r, j;
+      if(mode === 'dose_api'){
+        r = await fetch(`/api/dose/${pump}`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({seconds, reason, actor:'ui'}) });
+        j = await r.json().catch(()=>({}));
+      } else {
+        const relayMap = {grow:'dosing_grow', micro:'dosing_micro', bloom:'dosing_bloom'};
+        r = await fetch('/api/relays/pulse', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({relay: relayMap[pump], seconds, reason}) });
+        j = await r.json().catch(()=>({}));
+      }
       
-      if(!r.ok || !j.ok){
+      if(!r.ok || (!j.ok && j.blocked_by)){
         const msg = j.message || j.error || j.blocked_by || 'Unknown error';
         showToast(`Dose blocked: ${msg}`, 'error');
       } else {
@@ -321,13 +342,12 @@
         const s2 = await fetchStatus();
         if(s2) renderStatus(s2);
         refreshDoseLog();
-        // Update totals to reflect new event
         updateEcTotals().catch(()=>{});
       }
     }catch(e){
       showToast(`Dose error: ${e.message}`, 'error');
     } finally {
-      setTimeout(()=>{ btns.forEach(b => { b.disabled = false; }); }, 2000);
+      setTimeout(()=>{ btns.forEach(b => { b.disabled = false; b.classList.remove('loading'); }); }, 600);
     }
   }
 
@@ -375,8 +395,17 @@
 
     // New unified dose buttons (time-based)
     el('btnDoseGrow')?.addEventListener('click', ()=> doseUnified('grow', 0.3, 'manual'));
+    el('btnDoseGrow05')?.addEventListener('click', ()=> doseUnified('grow', 0.5, 'manual'));
+    el('btnDoseGrow10')?.addEventListener('click', ()=> doseUnified('grow', 1.0, 'manual'));
+    el('btnPulseGrowCustom')?.addEventListener('click', ()=>{ const v=parseFloat(el('ecGrowCustomSec')?.value||0); if(v>0) doseUnified('grow', v, 'manual'); });
     el('btnDoseMicro')?.addEventListener('click', ()=> doseUnified('micro', 0.3, 'manual'));
+    el('btnDoseMicro05')?.addEventListener('click', ()=> doseUnified('micro', 0.5, 'manual'));
+    el('btnDoseMicro10')?.addEventListener('click', ()=> doseUnified('micro', 1.0, 'manual'));
+    el('btnPulseMicroCustom')?.addEventListener('click', ()=>{ const v=parseFloat(el('ecMicroCustomSec')?.value||0); if(v>0) doseUnified('micro', v, 'manual'); });
     el('btnDoseBloom')?.addEventListener('click', ()=> doseUnified('bloom', 0.3, 'manual'));
+    el('btnDoseBloom05')?.addEventListener('click', ()=> doseUnified('bloom', 0.5, 'manual'));
+    el('btnDoseBloom10')?.addEventListener('click', ()=> doseUnified('bloom', 1.0, 'manual'));
+    el('btnPulseBloomCustom')?.addEventListener('click', ()=>{ const v=parseFloat(el('ecBloomCustomSec')?.value||0); if(v>0) doseUnified('bloom', v, 'manual'); });
     
     // Legacy volume-based dose buttons (keep for now)
     el('btnEcDose10')?.addEventListener('click', ()=>doseEC(10));
@@ -483,6 +512,10 @@
     if(!window.rdwcSettings) return;
     el('ecTargetLow').value = window.rdwcSettings.get('targets.ec_low') || '0.8';
     el('ecTargetHigh').value = window.rdwcSettings.get('targets.ec_high') || '1.2';
+    // Setpoint (new key ec.setpoint_mscm)
+    const sp = window.rdwcSettings.get('ec.setpoint_mscm');
+    const spInput = el('ecSetpoint');
+    if(spInput) spInput.value = sp || '';
     el('ecGrowMlPerSec').value = window.rdwcSettings.get('dosing.grow_ml_per_sec') || '25';
     el('ecMicroMlPerSec').value = window.rdwcSettings.get('dosing.micro_ml_per_sec') || '25';
     el('ecBloomMlPerSec').value = window.rdwcSettings.get('dosing.bloom_ml_per_sec') || '25';
@@ -502,6 +535,38 @@
     loadECSettings();
     init();
   }
+  // Save setpoint handler
+  document.addEventListener('click', async (e)=>{
+    if(e.target && e.target.id === 'btnSaveEcSetpoint'){
+      const v = parseFloat(el('ecSetpoint')?.value||'');
+      const payload = { 'ec.setpoint_mscm': isNaN(v)? null : v };
+      try{
+        const r = await fetch('/api/settings', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        showToast('EC setpoint saved','success');
+      }catch(err){ showToast('Setpoint save failed: '+err.message,'error'); }
+    }
+  });
+
+  // Patch renderStatus to compute delta & caps
+  const _origRender = renderStatus;
+  renderStatus = function(s){
+    _origRender(s);
+    try{
+      const sp = parseFloat(el('ecSetpoint')?.value||'');
+      if(s && s.ec_ms_cm!=null && !isNaN(sp)){
+        const d = s.ec_ms_cm - sp;
+        const chip = el('ecDeltaChip');
+        if(chip){ chip.textContent = (d>=0? '+' : '') + d.toFixed(2); chip.parentElement.style.color = d>=0? '#f59e0b':'#3b82f6'; }
+      }
+      const capMax = window.rdwcSettings?.get('safety.max_seconds_per_press');
+      const capDaily = window.rdwcSettings?.get('safety.max_total_seconds_per_24h');
+      const capMinOff = window.rdwcSettings?.get('safety.min_off_window_sec');
+      if(el('ecV1CapMaxPress')) el('ecV1CapMaxPress').textContent = capMax ? capMax+'s' : '—';
+      if(el('ecV1CapDaily')) el('ecV1CapDaily').textContent = capDaily ? capDaily+'s' : '—';
+      if(el('ecV1CapMinOff')) el('ecV1CapMinOff').textContent = capMinOff ? capMinOff+'s' : '—';
+    }catch(e){ /* ignore */ }
+  };
 
   window.ecController = { init, fetchStatus, renderStatus, doseEC, toggleAuto };
 })();
