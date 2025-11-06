@@ -187,7 +187,11 @@ def _read_sensors() -> Dict[str, Any]:
         
         # Read pH and EC
         ph_val = float(ph.read_value())
-        ec_val = float(ec.read_value())
+        ec_raw = float(ec.read_value())
+        
+        # Convert EC from µS/cm to mS/cm if needed
+        # Heuristic: if value > 10, assume µS/cm and convert to mS/cm
+        ec_val = ec_raw / 1000.0 if ec_raw > 10 else ec_raw
         
         return {
             "temp_c": temp_c,
