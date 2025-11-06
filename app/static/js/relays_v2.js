@@ -482,6 +482,14 @@
   async function requestToggle(key){
     try{
       if (state.estop) { showToast('E-STOP engaged: action blocked', 'warning'); return; }
+      // Debounce: prevent rapid double toggles within 400ms per relay
+      window.__relayLastClick = window.__relayLastClick || {};
+      const now = Date.now();
+      const last = window.__relayLastClick[key] || 0;
+      if (now - last < 400){
+        return; // ignore rapid re-click
+      }
+      window.__relayLastClick[key] = now;
       const info = state.relays[key] || {};
       // micro feedback
       const btn = document.querySelector(`[data-relay="${key}"]`);
@@ -501,7 +509,7 @@
       }
       // Refresh after toggle
       setTimeout(refreshRelays, 150);
-      if (btn) setTimeout(() => btn.classList.remove('loading'), 250);
+      if (btn) setTimeout(() => btn.classList.remove('loading'), 350);
     }catch(e){
       console.error('Toggle failed', key, e);
       showToast(`Failed to toggle ${key}`, 'error');

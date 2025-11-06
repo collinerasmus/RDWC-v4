@@ -88,13 +88,15 @@
       const e = j.ec_mscm ?? null;
       const p = j.ph ?? null;
       
-      setMetric($("val-temp"), t, classify("temp", t));
-      setMetric($("val-ec"),   e, classify("ec", e));
-      setMetric($("val-ph"),   p, classify("ph", p));
+  // Adapted: use KPI elements directly (ids kpiTemp/kpiEc/kpiPh)
+  setMetric($("kpiTemp"), t, classify("temp", t));
+  setMetric($("kpiEc"),   e, classify("ec", e));
+  setMetric($("kpiPh"),   p, classify("ph", p));
       
-      setBadge($("cal-badge-temp"), j.cal?.temp?.is_calibrated === true, j.cal?.temp?.detail || "");
-      setBadge($("cal-badge-ec"),   j.cal?.ec?.is_calibrated === true,   j.cal?.ec?.detail || "");
-      setBadge($("cal-badge-ph"),   j.cal?.ph?.is_calibrated === true,   j.cal?.ph?.detail || "");
+  // Calibration badge elements may be absent in this layout; guard safely
+  setBadge($("cal-badge-temp"), j.cal?.temp?.is_calibrated === true, j.cal?.temp?.detail || "");
+  setBadge($("cal-badge-ec"),   j.cal?.ec?.is_calibrated === true,   j.cal?.ec?.detail || "");
+  setBadge($("cal-badge-ph"),   j.cal?.ph?.is_calibrated === true,   j.cal?.ph?.detail || "");
       
       setOnline(!!j.online);
       
@@ -102,9 +104,9 @@
       if (updated) {
         if (j.ts) {
           const d = new Date(j.ts);
-          updated.textContent = d.toLocaleTimeString();
+          updated.textContent = 'Updated: ' + d.toLocaleTimeString();
         } else {
-          updated.textContent = new Date().toLocaleTimeString();
+          updated.textContent = 'Updated: ' + new Date().toLocaleTimeString();
         }
       }
       // Fetch sensor cache health and DB health in parallel (non-blocking)

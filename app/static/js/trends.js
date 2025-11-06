@@ -62,21 +62,23 @@
             tooltipFormat: 'yyyy-MM-dd HH:mm', 
             displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'MMM d' } 
           },
-          ticks: { maxRotation: 0, autoSkip: true }
+          ticks: { maxRotation: 0, autoSkip: true },
+          grid: { color: 'rgba(148,163,184,0.15)', drawTicks: false }
         },
         yPh: {
           position: 'left',
-          title: { display: true, text: 'pH' }
+          title: { display: true, text: 'pH' },
+          grid: { color: 'rgba(148,163,184,0.12)', drawTicks:false }
         },
         yEc: {
           position: 'right',
           title: { display: true, text: 'EC (mS/cm)' },
-          grid: { drawOnChartArea: false }
+          grid: { color: 'rgba(148,163,184,0.12)', drawTicks:false }
         },
         yTemp: {
           position: 'right',
           title: { display: true, text: 'Temp (°C)' },
-          grid: { drawOnChartArea: false }
+          grid: { color: 'rgba(148,163,184,0.12)', drawTicks:false }
         }
       },
       elements: {
@@ -454,9 +456,10 @@
       // keep preferred but let Chart adjust within soft bounds
       return { min: pref.min, max: pref.max };
     }
-    const aPh   = chooseAxis(PREF.ph,   ph);
-    const aEc   = chooseAxis(PREF.ec,   ec);
-    const aTemp = chooseAxis(PREF.temp, temp);
+  const aPh   = chooseAxis(PREF.ph,   ph);
+  const aEc   = chooseAxis(PREF.ec,   ec);
+  const aTemp = chooseAxis(PREF.temp, temp);
+  // Auto-fit axis by applying dynamic padding (already handled in chooseAxis when out-of-band)
 
   // IMPORTANT: Set x-axis bounds to requested timeframe (not data-derived)
     if (state.window.start && state.window.end) {
