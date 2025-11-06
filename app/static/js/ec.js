@@ -568,5 +568,70 @@
     }catch(e){ /* ignore */ }
   };
 
+  // EC Debug Modal handlers
+  async function openEcDebug(){
+    const modal = el('ecDebugModal');
+    const content = el('ecDebugContent');
+    if(!modal || !content) return;
+    
+    modal.style.display = 'flex';
+    content.innerHTML = 'Loading...';
+    
+    try{
+      const [rawRes, idRes] = await Promise.all([
+        fetch('/debug/ec_raw', {cache:'no-store'}),
+        fetch('/debug/i2c_ec_id', {cache:'no-store'})
+      ]);
+      
+      if(!rawRes.ok || !idRes.ok){
+        content.innerHTML = '<div style="color:#f59e0b;">Debug endpoints not available (404). Set DEBUG=true in environment.</div>';
+        return;
+      }
+      
+      const raw = await rawRes.json();
+      const id = await idRes.json();
+      
+      let html = '<div style="display:grid;gap:12px;">';
+      
+      html += '<div style="padding:12px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);border-radius:8px;">';
+      html += '<div style="font-weight:600;margin-bottom:8px;color:#60a5fa;">Raw EC Reading</div>';
+      html += `<div>Value: <strong>${raw.raw_value}</strong> ${raw.raw_unit}</div>`;
+      html += `<div>Processed: <strong>${raw.processed_mS_cm}</strong> mS/cm</div>`;
+      html += `<div>Suggested scale: <strong>${raw.suggested_scale_hint}</strong></div>`;
+      html += `<div style="margin-top:8px;padding:8px;background:rgba(251,191,36,0.08);border-left:3px solid #fbbf24;font-size:0.85rem;">${raw.note}</div>`;
+      html += '</div>';
+      
+      html += '<div style="padding:12px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.25);border-radius:8px;">';
+      html += '<div style="font-weight:600;margin-bottom:8px;color:#cbd5e1;">Device Info</div>';
+      html += `<div>Device: <strong>${id.device_info}</strong></div>`;
+      html += `<div>K value: <strong>${id.k_value}</strong></div>`;
+      html += `<div>Calibration: <strong>${id.cal_status}</strong></div>`;
+      html += `<div>Output params: <strong>${id.output_params}</strong></div>`;
+      html += '</div>';
+      
+      if(raw.error){
+        html += `<div style="padding:12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;color:#fecaca;">Error: ${raw.error}</div>`;
+      }
+      
+      html += '</div>';
+      content.innerHTML = html;
+      
+    }catch(err){
+      content.innerHTML = `<div style="color:#ef4444;">Error loading debug data: ${err.message}</div>`;
+    }
+  }
+  
+  function closeEcDebug(){
+    const modal = el('ecDebugModal');
+    if(modal) modal.style.display = 'none';
+  }
+  
+  // Bind debug button
+  el('btnEcDebug')?.addEventListener('click', openEcDebug);
+  el('btnCloseEcDebug')?.addEventListener('click', closeEcDebug);
+  el('ecDebugModal')?.addEventListener('click', (e)=>{
+    if(e.target.id === 'ecDebugModal') closeEcDebug();
+  });
+
   window.ecController = { init, fetchStatus, renderStatus, doseEC, toggleAuto };
 })();
