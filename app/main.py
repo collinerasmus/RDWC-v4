@@ -2452,3 +2452,99 @@ def calib_ph_low(value: float = 4.00):
 @app.post("/calib/ph/high")
 def calib_ph_high(value: float = 10.00):
     return _apply_point("high", value)
+
+
+# EC Calibration Endpoints
+@app.post("/api/ec/cal/clear")
+def ec_cal_clear():
+    """Clear EC calibration"""
+    try:
+        from app.ezo_i2c_stabilized import EZO, EC_ADDR
+        ec_dev = EZO(1, EC_ADDR, "EC")
+        response = ec_dev.cmd("Cal,clear", read_len=32, settle=0.3)
+        return {"ok": True, "response": response or "Calibration cleared"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/ec/cal/low")
+def ec_cal_low(body: dict = Body(...)):
+    """Apply low-point EC calibration (typically 1413 µS/cm)"""
+    try:
+        us_cm = body.get("us_cm", 1413)
+        from app.ezo_i2c_stabilized import EZO, EC_ADDR
+        ec_dev = EZO(1, EC_ADDR, "EC")
+        # EZO EC expects calibration value in µS/cm
+        response = ec_dev.cmd(f"Cal,low,{us_cm}", read_len=32, settle=0.9)
+        return {"ok": True, "response": response or f"Low calibration applied at {us_cm} µS/cm"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/ec/cal/high")
+def ec_cal_high(body: dict = Body(...)):
+    """Apply high-point EC calibration (typically 12,880 µS/cm)"""
+    try:
+        us_cm = body.get("us_cm", 12880)
+        from app.ezo_i2c_stabilized import EZO, EC_ADDR
+        ec_dev = EZO(1, EC_ADDR, "EC")
+        response = ec_dev.cmd(f"Cal,high,{us_cm}", read_len=32, settle=0.9)
+        return {"ok": True, "response": response or f"High calibration applied at {us_cm} µS/cm"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/ec/k")
+def ec_set_k(body: dict = Body(...)):
+    """Set EC probe K factor (probe constant)"""
+    try:
+        k = body.get("k", 1.0)
+        from app.ezo_i2c_stabilized import EZO, EC_ADDR
+        ec_dev = EZO(1, EC_ADDR, "EC")
+        response = ec_dev.cmd(f"K,{k:.1f}", read_len=32, settle=0.3)
+        return {"ok": True, "response": response or f"K factor set to {k}"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/ec/cal/status")
+def ec_cal_status():
+    """Get EC calibration status"""
+    try:
+        from app.ezo_i2c_stabilized import EZO, EC_ADDR
+        ec_dev = EZO(1, EC_ADDR, "EC")
+        
+        # Query calibration status
+        cal_response = ec_dev.cmd("Cal,?", read_len=32, settle=0.3)
+        
+        # Query K value
+        k_response = ec_dev.cmd("K,?", read_len=32, settle=0.3)
+        
+        # Parse cal status: "?Cal,0" = uncalibrated, "?Cal,1" = one-point, "?Cal,2" = two-point
+        cal_status = "unknown"
+        if cal_response:
+            if "0" in cal_response:
+                cal_status = "none"
+            elif "1" in cal_response:
+                cal_status = "low"
+            elif "2" in cal_response:
+                cal_status = "two-point"
+        
+        # Parse K value
+        k_value = None
+        if k_response and "," in k_response:
+            try:
+                k_value = float(k_response.split(",")[1])
+            except Exception:
+                pass
+        
+        return {
+            "ok": True,
+            "cal": cal_status,
+            "k": k_value,
+            "cal_raw": cal_response,
+            "k_raw": k_response
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+

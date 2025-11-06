@@ -568,6 +568,85 @@
     }catch(e){ /* ignore */ }
   };
 
+  // EC Calibration Wizard
+  async function refreshCalStatus(){
+    try{
+      const [statusRes, sensorRes] = await Promise.all([
+        fetch('/api/ec/cal/status', {cache:'no-store'}),
+        fetchStatus()
+      ]);
+      if(statusRes.ok){
+        const status = await statusRes.json();
+        el('ecCalStatusValue').textContent = status.cal || 'unknown';
+        el('ecKValue').textContent = status.k != null ? status.k.toFixed(1) : '—';
+      }
+      if(sensorRes && sensorRes.ec_ms_cm != null){
+        el('ecCalCurrentReading').textContent = sensorRes.ec_ms_cm.toFixed(2);
+      }
+      showCalMessage('Status refreshed', 'info');
+    }catch(err){
+      showCalMessage('Error: '+err.message, 'error');
+    }
+  }
+  async function ecCalClear(){
+    if(!confirm('Clear EC calibration? You will need to recalibrate.')) return;
+    try{
+      const r = await fetch('/api/ec/cal/clear', {method:'POST'});
+      const j = await r.json();
+      showCalMessage(j.ok ? ('✓ '+j.response) : ('✗ '+j.error), j.ok?'success':'error');
+      if(j.ok) setTimeout(refreshCalStatus, 1000);
+    }catch(err){ showCalMessage('✗ '+err.message, 'error'); }
+  }
+  async function ecCalLow(){
+    if(!confirm('Apply low-point (1413 µS/cm)? Probe must be in solution and stable (30s).')) return;
+    try{
+      const r = await fetch('/api/ec/cal/low', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({us_cm:1413})});
+      const j = await r.json();
+      showCalMessage(j.ok ? ('✓ '+j.response) : ('✗ '+j.error), j.ok?'success':'error');
+      if(j.ok) setTimeout(refreshCalStatus, 1000);
+    }catch(err){ showCalMessage('✗ '+err.message, 'error'); }
+  }
+  async function ecCalHigh(){
+    if(!confirm('Apply high-point (12,880 µS/cm)? Requires low-point first. Probe must be in solution and stable (30s).')) return;
+    try{
+      const r = await fetch('/api/ec/cal/high', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({us_cm:12880})});
+      const j = await r.json();
+      showCalMessage(j.ok ? ('✓ '+j.response) : ('✗ '+j.error), j.ok?'success':'error');
+      if(j.ok) setTimeout(refreshCalStatus, 1000);
+    }catch(err){ showCalMessage('✗ '+err.message, 'error'); }
+  }
+  async function ecSetK(){
+    const k = prompt('Enter K factor (probe constant, typically 1.0 or 10.0):', '1.0');
+    if(!k) return;
+    const kVal = parseFloat(k);
+    if(isNaN(kVal) || kVal <= 0){ alert('Invalid K value'); return; }
+    try{
+      const r = await fetch('/api/ec/k', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({k:kVal})});
+      const j = await r.json();
+      showCalMessage(j.ok ? ('✓ K='+kVal+' '+j.response) : ('✗ '+j.error), j.ok?'success':'error');
+      if(j.ok) setTimeout(refreshCalStatus, 1000);
+    }catch(err){ showCalMessage('✗ '+err.message, 'error'); }
+  }
+  function showCalMessage(msg, type){
+    const msgEl = el('ecCalMessage');
+    if(!msgEl) return;
+    msgEl.textContent = msg;
+    const colors = {
+      success: {bg:'rgba(34,197,94,0.08)', border:'rgba(34,197,94,0.3)', text:'#a7f3d0'},
+      error: {bg:'rgba(239,68,68,0.08)', border:'rgba(239,68,68,0.3)', text:'#fecaca'},
+      info: {bg:'rgba(59,130,246,0.08)', border:'rgba(59,130,246,0.3)', text:'#93c5fd'}
+    };
+    const c = colors[type] || colors.info;
+    msgEl.style.background = c.bg;
+    msgEl.style.borderColor = c.border;
+    msgEl.style.color = c.text;
+  }
+  el('btnEcCalRefreshStatus')?.addEventListener('click', refreshCalStatus);
+  el('btnEcCalClear')?.addEventListener('click', ecCalClear);
+  el('btnEcCalLow')?.addEventListener('click', ecCalLow);
+  el('btnEcCalHigh')?.addEventListener('click', ecCalHigh);
+  el('btnEcCalSetK')?.addEventListener('click', ecSetK);
+
   // EC Debug Modal handlers
   async function openEcDebug(){
     const modal = el('ecDebugModal');
