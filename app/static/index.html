@@ -1337,6 +1337,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <div style="display:flex;align-items:center;gap:8px;">
               <h3 class="card-title" style="margin:0;">EC Control</h3>
               <span id="ecOverrideBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.85rem;" title="OVERRIDE ON">OVERRIDE ON</span>
+              <button id="btnEcDebug" class="btn-text" style="padding:4px 8px;font-size:0.85rem;opacity:0.6;" title="EC scale diagnostics">🔍 Debug</button>
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
               <label class="muted" title="Controller outputs are inhibited; manual dosing allowed. Hard safety interlocks still enforced." style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.06);color:#fecaca;font-size:0.85rem;">
@@ -2207,5 +2208,19 @@ window.CircControl = (function(){
   .catch(function(){ return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], (new Date()).toISOString().slice(0,10)); });
   })();
   </script>
+
+  <!-- EC Debug Modal -->
+  <div id="ecDebugModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#1a1f2e;border-radius:12px;padding:24px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;border:1px solid rgba(148,163,184,0.25);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="margin:0;">EC Scale Diagnostics</h3>
+        <button id="btnCloseEcDebug" class="btn-text" style="font-size:1.5rem;padding:0 8px;">×</button>
+      </div>
+      <div id="ecDebugContent" style="font-family:monospace;font-size:0.9rem;line-height:1.6;">
+        Loading...
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
