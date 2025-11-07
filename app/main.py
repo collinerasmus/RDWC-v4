@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Body, Query
 from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 import threading
 import time
 import os
@@ -59,6 +61,71 @@ def _compute_asset_version() -> str:
 ASSET_VERSION = _compute_asset_version()
 
 app = FastAPI()
+
+# Request audit middleware: log all requests to detect unexpected POSTs
+class RequestAuditMiddleware(BaseHTTPMiddleware):
+    """
+    Logs all requests with:
+    - method, path, query params
+    - body preview (first 256 bytes) for POST/PUT
+    - per-minute POST/PUT counter by path
+    
+    Purpose: Detect unexpected POST/PUT requests on UI tab loads (should be GET/OPTIONS only)
+    """
+    def __init__(self, app):
+        super().__init__(app)
+        self._write_counts = {}  # {path: {minute_bucket: count}}
+        import logging
+        self.logger = logging.getLogger("request_audit")
+    
+    async def dispatch(self, request: Request, call_next):
+        method = request.method
+        path = request.url.path
+        query = str(request.query_params) if request.query_params else ""
+        
+        # Read body preview for POST/PUT (non-destructive)
+        body_preview = ""
+        if method in ("POST", "PUT", "PATCH"):
+            try:
+                body_bytes = await request.body()
+                # Restore body for downstream handlers
+                request._body = body_bytes
+                
+                if len(body_bytes) > 0:
+                    preview_len = min(256, len(body_bytes))
+                    body_preview = body_bytes[:preview_len].decode('utf-8', errors='replace')
+                    if len(body_bytes) > 256:
+                        body_preview += f"... ({len(body_bytes)} bytes total)"
+            except Exception as e:
+                body_preview = f"[body read error: {e}]"
+        
+        # Log request
+        log_msg = f"{method} {path}"
+        if query:
+            log_msg += f"?{query}"
+        if body_preview:
+            log_msg += f" | body: {body_preview}"
+        
+        self.logger.info(log_msg)
+        
+        # Track POST/PUT per minute
+        if method in ("POST", "PUT", "PATCH"):
+            minute_bucket = int(time.time() // 60)
+            if path not in self._write_counts:
+                self._write_counts[path] = {}
+            self._write_counts[path][minute_bucket] = self._write_counts[path].get(minute_bucket, 0) + 1
+            
+            # Log high-frequency writes (>10/min is suspicious for UI)
+            count = self._write_counts[path][minute_bucket]
+            if count > 10:
+                self.logger.warning(f"High-frequency writes to {path}: {count}/min")
+        
+        # Process request
+        response = await call_next(request)
+        return response
+
+app.add_middleware(RequestAuditMiddleware)
+
 app.include_router(diag_router)
 app.include_router(debug_router, prefix="/debug", tags=["debug"])
 app.include_router(sensors_router)
@@ -146,6 +213,14 @@ async def _start_tasks():
     # Initialize system mode tables
     from app.system_mode import _init_tables
     _init_tables()
+    
+    # Initialize relay guard (shadow state tracking + structured logging)
+    try:
+        from app.relay_guard import init_safe
+        init_safe()
+        print("[RelayGuard] Initialized with shadow state tracking")
+    except Exception as e:
+        print(f"[RelayGuard] WARNING: Failed to initialize: {e}")
     
     # E-STOP persisted state: honor before any auto-restore
     estop_persisted = False
@@ -237,6 +312,41 @@ async def _start_tasks():
     except Exception:
         # Non-fatal: UI can still enable manually
         pass
+
+    # Start relay watchdog (detect unexpected relay energization)
+    async def relay_watchdog():
+        """250ms watchdog: detect unexpected LOW (ON) states and force safe"""
+        from app.relay_guard import get_pin_levels, get_shadow_state, force_off
+        import logging
+        logger = logging.getLogger("relay_watchdog")
+        
+        while True:
+            try:
+                await asyncio.sleep(0.25)  # 250ms polling
+                
+                # Read actual pin levels
+                actual_levels = get_pin_levels()
+                shadow_state = get_shadow_state()
+                
+                # Check for unexpected LOW (active-low: LOW = ON/energized)
+                for relay_name, shadow_is_on in shadow_state.items():
+                    actual_level = actual_levels.get(relay_name)
+                    
+                    # Expected: shadow_is_on=True → actual=LOW, shadow_is_on=False → actual=HIGH
+                    expected_level = "LOW" if shadow_is_on else "HIGH"
+                    
+                    if actual_level != expected_level:
+                        # ANOMALY: Actual pin state doesn't match shadow state
+                        anomaly_reason = f"watchdog_anomaly:expected={expected_level},actual={actual_level}"
+                        logger.error(f"[RelayWatchdog] ANOMALY on {relay_name}: {anomaly_reason}")
+                        force_off(relay_name, anomaly_reason)
+                        
+            except Exception as e:
+                logger.error(f"[RelayWatchdog] Error in watchdog loop: {e}")
+                await asyncio.sleep(1.0)  # Back off on error
+    
+    relay_watchdog_task = asyncio.create_task(relay_watchdog(), name="relay_watchdog")
+    print("[RelayWatchdog] Started 250ms polling for unexpected relay energization")
 
 @app.on_event("shutdown")  
 async def _stop_tasks():
@@ -582,6 +692,35 @@ def api_relays_estop_toggle():
     from app.relays_core import get_estop_status
     active = bool(get_estop_status())
     return api_estop_set({"active": (not active)})
+
+@app.get("/api/relays/guard/status")
+def api_relays_guard_status():
+    """
+    Relay guard status endpoint for monitoring and soak test verification.
+    Returns:
+      shadow_state: {relay_name: bool (logical ON/OFF)}
+      pin_levels: {relay_name: "HIGH"|"LOW" (actual GPIO level)}
+      anomalies: {count: int, anomalies: [...]}
+    """
+    try:
+        from app.relay_guard import get_shadow_state, get_pin_levels, get_anomalies
+        
+        shadow = get_shadow_state()
+        levels = get_pin_levels()
+        anomalies = get_anomalies()
+        
+        return {
+            "ok": True,
+            "shadow_state": shadow,
+            "pin_levels": levels,
+            "anomalies": anomalies,
+            "active_low_note": "LOW=energized/ON, HIGH=safe/OFF"
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={
+            "ok": False,
+            "error": str(e)
+        })
 
 # === Intelligent Chiller Control (Hailea HS-52A) ===
 
