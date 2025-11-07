@@ -175,6 +175,12 @@ class Scheduler:
                     if h == on_h and m == on_m:
                         # Lights ON edge - execute once and trust it
                         result = set_lights(True, REASON_SCHEDULE_ON)
+                        try:
+                            from app.relay_guard import sync_from_actual
+                            sync_from_actual()
+                            log_event({"kind": "GuardSync", "relays": ["lights"]})
+                        except Exception:
+                            pass
                         log_event({"kind": "lights_schedule_on", "time": f"{h:02d}:{m:02d}", "changed": result["changed"]})
                         if result["changed"]:
                             self.daily_used["grow_lights"] = self.daily_used.get("grow_lights", 0) + 1
@@ -182,6 +188,12 @@ class Scheduler:
                     elif h == off_h and m == off_m:
                         # Lights OFF edge - execute once and trust it
                         result = set_lights(False, REASON_SCHEDULE_OFF)
+                        try:
+                            from app.relay_guard import sync_from_actual
+                            sync_from_actual()
+                            log_event({"kind": "GuardSync", "relays": ["lights"]})
+                        except Exception:
+                            pass
                         log_event({"kind": "lights_schedule_off", "time": f"{h:02d}:{m:02d}", "changed": result["changed"]})
 
                 # ±5s GUARDS: Re-assert intended state up to 5s after edge
@@ -191,9 +203,21 @@ class Scheduler:
                         if h == on_h and m == on_m:
                             # Guard ON
                             set_lights(True, "schedule_guard_on")
+                            try:
+                                from app.relay_guard import sync_from_actual
+                                sync_from_actual()
+                                log_event({"kind": "GuardSync", "relays": ["lights"]})
+                            except Exception:
+                                pass
                         elif h == off_h and m == off_m:
                             # Guard OFF
                             set_lights(False, "schedule_guard_off")
+                            try:
+                                from app.relay_guard import sync_from_actual
+                                sync_from_actual()
+                                log_event({"kind": "GuardSync", "relays": ["lights"]})
+                            except Exception:
+                                pass
                     
             except Exception as e:
                 log_event({"kind": "lights_error", "error": str(e)})

@@ -10,6 +10,7 @@ from collections import deque, defaultdict
 from typing import Dict, Any, List
 from datetime import datetime
 import logging
+from app import relay_guard  # unified guard
 
 try:
     from gpiozero import OutputDevice
@@ -90,7 +91,7 @@ WHITELIST_LIGHTS = {
 }
 
 # Global state
-_devices: Dict[str, OutputDevice] = {}
+_devices: Dict[str, Any] = {}
 _last_state: Dict[str, bool] = {}
 _last_change_ts: Dict[str, float] = {}
 _last_reason: Dict[str, str] = {}
@@ -326,123 +327,70 @@ def _update_antiflap_detector(relay_name: str, new_state: bool):
         )
         _antiflap_until[relay_name] = now + 300  # 5 minutes
 
-def set_relay(name: str, desired_on: bool, reason: str, force: bool = False) -> Dict[str, Any]:
-    """
-    Core relay control function - idempotent and rate-limited.
-    
-    Args:
-        name: Relay name from RELAY_PINS
-        desired_on: Desired state (True=ON, False=OFF)
-        reason: Human-readable reason for change
-        force: Skip cooldown and anti-flap protection
-    
-    Returns:
-        Dict with changed, state, reason, cooldown_remaining
+def set_relay(name: str, desired_on: bool, reason: str, force: bool = False, actor: str = "system") -> Dict[str, Any]:
+    """Unified relay mutation path routed through relay_guard.safe_set with legacy cooldown/antiflap checks.
+
+    Returns dict: {changed,state,reason,cooldown_remaining,guard:{ok,coerced,retries}}
     """
     if name not in RELAY_PINS:
         return {"changed": False, "reason": f"unknown_relay: {name}"}
-    
+
     now = time.monotonic()
-    
-    # Initialize device if needed
-    if name not in _devices:
-        _devices[name] = _initialize_device(name)
-    
-    device = _devices[name]
     current_state = _last_state.get(name, False)
 
-    # Emergency stop behavior: latching block for ON; force OFF allowed
-    if _estop_active:
-        if desired_on:
-            _log_relay_event(name, True, current_state, "estop_active", 0, blocked=True)
-            return {
-                "changed": False,
-                "state": current_state,
-                "reason": "estop_active",
-                "cooldown_remaining": 0
-            }
-        else:
-            # Force OFF regardless of cooldown/antiflap
-            force = True
-    
-    # Idempotent check (skip only when not forcing)
-    # When force=True (e.g., during E-STOP or boot safe-off), we still drive
-    # the physical pin to the desired state to guarantee hardware sync even
-    # if our cached _last_state already matches.
+    # ESTOP handling
+    if _estop_active and desired_on:
+        _log_relay_event(name, True, current_state, "estop_active", 0, blocked=True)
+        return {"changed": False, "state": current_state, "reason": "estop_active", "cooldown_remaining": 0}
+    if _estop_active and not desired_on:
+        force = True
+
+    # Idempotent skip (unless force)
     if current_state == desired_on and not force:
-        return {
-            "changed": False,
-            "state": current_state,
-            "reason": "idempotent",
-            "cooldown_remaining": 0
-        }
-    
+        return {"changed": False, "state": current_state, "reason": "idempotent", "cooldown_remaining": 0}
+
     if not force:
-        # Anti-flap protection
+        # Anti-flap
         if name in _antiflap_until and now < _antiflap_until[name]:
             remaining = int(_antiflap_until[name] - now)
-            return {
-                "changed": False,
-                "state": current_state,
-                "reason": "antiflap",
-                "cooldown_remaining": remaining
-            }
-        
-        # Cooldown protection
+            return {"changed": False, "state": current_state, "reason": "antiflap", "cooldown_remaining": remaining}
+        # Cooldowns
         elapsed = _elapsed(name)
-        if current_state:  # Currently ON, check MIN_ON
+        if current_state:  # ON -> check MIN_ON
             min_on = _get_min_time(name, MIN_ON)
             if elapsed < min_on:
                 remaining = int(min_on - elapsed)
-                return {
-                    "changed": False,
-                    "state": current_state,
-                    "reason": "cooldown",
-                    "cooldown_remaining": remaining
-                }
-        else:  # Currently OFF, check MIN_OFF
+                return {"changed": False, "state": current_state, "reason": "cooldown", "cooldown_remaining": remaining}
+        else:  # OFF -> check MIN_OFF
             min_off = _get_min_time(name, MIN_OFF)
             if elapsed < min_off:
                 remaining = int(min_off - elapsed)
-                return {
-                    "changed": False,
-                    "state": current_state,
-                    "reason": "cooldown",
-                    "cooldown_remaining": remaining
-                }
-    
-    # Execute the change
-    try:
-        device.value = desired_on
-        _last_state[name] = desired_on
+                return {"changed": False, "state": current_state, "reason": "cooldown", "cooldown_remaining": remaining}
+
+    # Delegate to guard
+    guard_res = relay_guard.safe_set(name, desired_on, reason=reason, actor=actor)
+    changed = guard_res.get("changed", False)
+    ok = guard_res.get("ok", False)
+    coerced = guard_res.get("coerced", False)
+
+    if changed:
+        _last_state[name] = guard_res.get("shadow", desired_on)
         _last_change_ts[name] = now
         _last_reason[name] = reason
-        
-        # Update anti-flap detector
-        _update_antiflap_detector(name, desired_on)
-        
-        # Persist state unless this is a safety transition that shouldn't
-        # overwrite the last-known-good state used for restoration.
+        _update_antiflap_detector(name, _last_state[name])
         if reason not in _SKIP_PERSIST_REASONS:
             _save_state()
-        
-        logger.info(f"relay {name} -> {'ON' if desired_on else 'OFF'} (reason={reason})")
-        
-        return {
-            "changed": True,
-            "state": desired_on,
-            "reason": reason,
-            "cooldown_remaining": 0
-        }
-    
-    except Exception as e:
-        logger.error(f"Failed to set relay {name}: {e}")
-        return {
-            "changed": False,
-            "state": current_state,
-            "reason": f"error: {e}",
-            "cooldown_remaining": 0
-        }
+
+    # Structured legacy log wrapper (guard already logged detailed line)
+    logger.info(f"relay_core {name} final={'ON' if _last_state.get(name, False) else 'OFF'} reason={reason} ok={ok} coerced={coerced}")
+
+    return {
+        "changed": changed,
+        "state": _last_state.get(name, False),
+        "reason": reason,
+        "cooldown_remaining": 0,
+        "guard": {"ok": ok, "coerced": coerced, "retries": guard_res.get("mismatch_retries", 0)}
+    }
 
 def initialize_all_safe_off():
     """Initialize all relays to safe OFF state at boot."""

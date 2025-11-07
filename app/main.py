@@ -82,15 +82,15 @@ class RequestAuditMiddleware(BaseHTTPMiddleware):
         method = request.method
         path = request.url.path
         query = str(request.query_params) if request.query_params else ""
-        
-        # Read body preview for POST/PUT (non-destructive)
-        body_preview = ""
+        client = request.client.host if request.client else "unknown"
+
+        # Only audit write methods to reduce noise
         if method in ("POST", "PUT", "PATCH"):
+            body_preview = ""
             try:
                 body_bytes = await request.body()
                 # Restore body for downstream handlers
                 request._body = body_bytes
-                
                 if len(body_bytes) > 0:
                     preview_len = min(256, len(body_bytes))
                     body_preview = body_bytes[:preview_len].decode('utf-8', errors='replace')
@@ -98,28 +98,24 @@ class RequestAuditMiddleware(BaseHTTPMiddleware):
                         body_preview += f"... ({len(body_bytes)} bytes total)"
             except Exception as e:
                 body_preview = f"[body read error: {e}]"
-        
-        # Log request
-        log_msg = f"{method} {path}"
-        if query:
-            log_msg += f"?{query}"
-        if body_preview:
-            log_msg += f" | body: {body_preview}"
-        
-        self.logger.info(log_msg)
-        
-        # Track POST/PUT per minute
-        if method in ("POST", "PUT", "PATCH"):
+
+            # Structured audit line
+            log_msg = f"request_audit method={method} path={path} actor={client}"
+            if query:
+                log_msg += f" query={query}"
+            if body_preview:
+                log_msg += f" body={body_preview}"
+            self.logger.info(log_msg)
+
+            # Per-minute write counts
             minute_bucket = int(time.time() // 60)
             if path not in self._write_counts:
                 self._write_counts[path] = {}
             self._write_counts[path][minute_bucket] = self._write_counts[path].get(minute_bucket, 0) + 1
-            
-            # Log high-frequency writes (>10/min is suspicious for UI)
             count = self._write_counts[path][minute_bucket]
             if count > 10:
-                self.logger.warning(f"High-frequency writes to {path}: {count}/min")
-        
+                self.logger.warning(f"request_audit_highfreq path={path} count_per_min={count}")
+
         # Process request
         response = await call_next(request)
         return response
@@ -2492,6 +2488,24 @@ def _auto_stop_after(name: str, after_s: float):
         except Exception:
             pass
     threading.Thread(target=_w, daemon=True).start()
+
+# --- Relay verification endpoint -------------------------------------------
+@app.get("/api/relays/verify")
+def api_relays_verify():
+    """One-shot relay verification: compare shadow vs actual pin levels (active-low)."""
+    from app.relay_guard import get_shadow_state, get_pin_levels, RELAY_PINS as GUARD_PINS
+    shadow = get_shadow_state()
+    levels = get_pin_levels()
+    results = []
+    all_ok = True
+    for rname, shadow_on in shadow.items():
+        level = levels.get(rname)
+        actual_on = (level == 'LOW')
+        ok = (shadow_on == actual_on)
+        if not ok:
+            all_ok = False
+        results.append({"name": rname, "bcm": GUARD_PINS.get(rname), "shadow": shadow_on, "level": level, "ok": ok})
+    return {"ok_all": all_ok, "relays": results, "count": len(results)}
 
 @app.post("/calib/dose/prime")
 def calib_dose_prime(pump: str, seconds: float = 0.5):

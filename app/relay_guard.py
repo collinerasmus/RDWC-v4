@@ -21,7 +21,8 @@ RELAY_PINS = {
     'dosing_ph_up': 5,
     'main_pump': 26,
     'chiller_pump': 16,
-    'chiller': 20,
+    # Use unified naming "chiller_power" to match relays_core
+    'chiller_power': 20,
     'lights': 21,
 }
 
@@ -67,7 +68,7 @@ def init_safe(relays: Optional[Dict[str, int]] = None):
         raise
 
 
-def safe_set(name: str, desired_on: bool, reason: str, actor: str) -> bool:
+def safe_set(name: str, desired_on: bool, reason: str, actor: str) -> dict:
     """
     Set relay state with active-low translation and no-op duplicate prevention.
     
@@ -77,47 +78,72 @@ def safe_set(name: str, desired_on: bool, reason: str, actor: str) -> bool:
         reason: Why this action (e.g., 'manual_dose', 'auto_ph_up')
         actor: Who triggered (e.g., 'user:192.168.88.46', 'controller:ph')
     
-    Returns:
-        True if state changed, False if no-op
+    Returns dict:
+        {"changed": bool, "ok": bool, "coerced": bool, "mismatch_retries": int, "shadow": bool}
     """
     global _shadow_state, _anomaly_count
     
     if not _initialized:
         logger.error(f"[GuardSet] REJECTED {name}={desired_on}: relay_guard not initialized")
-        return False
+        return {"changed": False, "ok": False, "coerced": False, "mismatch_retries": 0, "shadow": _shadow_state.get(name, False)}
     
     if name not in RELAY_PINS:
         logger.error(f"[GuardSet] REJECTED unknown relay: {name}")
-        return False
+        return {"changed": False, "ok": False, "coerced": False, "mismatch_retries": 0, "shadow": _shadow_state.get(name, False)}
     
     # Check current shadow state
     current_on = _shadow_state.get(name, False)
     if current_on == desired_on:
         # No-op: already in desired state
         logger.debug(f"[GuardSet] NO-OP {name} already {'ON' if desired_on else 'OFF'}")
-        return False
+        return {"changed": False, "ok": True, "coerced": False, "mismatch_retries": 0, "shadow": current_on}
     
     # Translate logical to pin level (active-low)
     pin = RELAY_PINS[name]
     pin_level = GPIO.LOW if desired_on else GPIO.HIGH
     
     # Single write
+    mismatch_retries = 0
     try:
         GPIO.output(pin, pin_level)
+        time.sleep(0.01)  # 10ms settle
+        level_after = GPIO.input(pin)
+        logical_after = (level_after == GPIO.LOW)
+        if logical_after != desired_on:
+            # First mismatch - retry once
+            logger.warning(f"[GuardSet] GUARD_MISMATCH initial name={name} bcm={pin} expected={'LOW' if desired_on else 'HIGH'} actual={level_str(level_after)} reason={reason} actor={actor} retry=1")
+            mismatch_retries = 1
+            GPIO.output(pin, pin_level)
+            time.sleep(0.01)
+            level_after2 = GPIO.input(pin)
+            logical_after2 = (level_after2 == GPIO.LOW)
+            if logical_after2 != desired_on:
+                # Persistent mismatch - coerce shadow to actual, record anomaly
+                logger.error(f"[GuardSet] GUARD_MISMATCH persistent name={name} bcm={pin} expected={'LOW' if desired_on else 'HIGH'} actual={level_str(level_after2)} reason={reason} actor={actor} COERCE_SHADOW")
+                _anomaly_count += 1
+                _anomalies.append({
+                    'ts': datetime.utcnow().isoformat(),
+                    'relay': name,
+                    'anomaly': 'mismatch_persistent',
+                    'expected_on': desired_on,
+                    'actual_on': logical_after2,
+                    'reason': reason,
+                    'actor': actor
+                })
+                _shadow_state[name] = logical_after2
+                caller_frame = traceback.extract_stack()[-2]
+                caller_loc = f"{caller_frame.filename}:{caller_frame.lineno}"
+                mono_ts = time.monotonic()
+                return {"changed": logical_after2 != current_on, "ok": False, "coerced": True, "mismatch_retries": mismatch_retries, "shadow": _shadow_state[name], "caller": caller_loc, "mono_ts": mono_ts}
+        # Success path
         _shadow_state[name] = desired_on
-        
-        # Structured log with monotonic timestamp and caller trace
         caller_frame = traceback.extract_stack()[-2]
         caller_loc = f"{caller_frame.filename}:{caller_frame.lineno}"
         mono_ts = time.monotonic()
-        
         logger.info(
-            f"[GuardSet] {name} (BCM {pin}) → {'ON' if desired_on else 'OFF'} | "
-            f"reason={reason} actor={actor} caller={caller_loc} mono_ts={mono_ts:.3f}"
+            f"[RelayGuard] {name} bcm={pin} → {'ON' if desired_on else 'OFF'} reason={reason} actor={actor} caller={caller_loc} mono_ts={mono_ts:.3f} retries={mismatch_retries}"
         )
-        
-        return True
-        
+        return {"changed": True, "ok": True, "coerced": False, "mismatch_retries": mismatch_retries, "shadow": desired_on, "caller": caller_loc, "mono_ts": mono_ts}
     except Exception as e:
         logger.error(f"[GuardSet] FAILED {name}: {e}", exc_info=True)
         _anomaly_count += 1
@@ -129,7 +155,7 @@ def safe_set(name: str, desired_on: bool, reason: str, actor: str) -> bool:
             'reason': reason,
             'actor': actor
         })
-        return False
+        return {"changed": False, "ok": False, "coerced": False, "mismatch_retries": mismatch_retries, "shadow": current_on}
 
 
 def get_shadow_state() -> Dict[str, bool]:

@@ -22,14 +22,15 @@ def get_relay_status():
     from app.relays_core import get_relay_status as _get_relay_status
     return _get_relay_status()
 
-def relay_set(name: str, on: bool, reason: str = ''):
-    from app.relays_core import set as _relay_set
-    return _relay_set(name, on, reason=reason)
+def relay_set(name: str, on: bool, reason: str = '', actor: str = 'chiller-ctl'):
+    from app.relays_core import set_relay as _set_relay
+    return _set_relay(name, on, reason=reason, actor=actor)
 
-def get_setting(key: str, default: str = None):
+def get_setting(key: str, default: str = ""):
     from app.settings import get_all_settings
     settings = get_all_settings()
-    return settings.get(key, default)
+    val = settings.get(key)
+    return val if val is not None else default
 
 def set_setting(key: str, value: str):
     from app.settings import upsert_settings
@@ -181,7 +182,7 @@ def set_chiller_relay(desired_on: bool, reason: str = '') -> bool:
         
         # Set relay
         try:
-            relay_set('chiller_power', desired_on, reason=reason)
+            relay_set('chiller_power', desired_on, reason=reason, actor='chiller-ctl')
             
             # Update state
             now = time.time()
