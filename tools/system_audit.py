@@ -77,10 +77,11 @@ def test_sensor_readings():
     r = requests.get(f"{BASE_URL}/sensors/read", timeout=5)
     data = r.json()
     print(f"  pH: {data.get('ph')}")
-    print(f"  EC: {data.get('ec_ms_cm')} mS/cm")
-    print(f"  Temp: {data.get('temp_c')} °C")
+    print(f"  EC: {data.get('ec_mscm')} mS/cm")
+    print(f"  Temp: {data.get('temperature_c')} °C")
+    print(f"  Stale: {data.get('stale_seconds')}s")
     # Allow None for dry run (no water)
-    return 'ph' in data and 'ec_ms_cm' in data and 'temp_c' in data
+    return 'ph' in data and 'ec_mscm' in data and 'temperature_c' in data
 
 def test_relay_toggle_lights():
     """Test relay toggle via API (lights)."""
@@ -133,7 +134,7 @@ def test_dosing_pump_micro_short_pulse():
     r = requests.post(
         f"{BASE_URL}/api/dose/micro",
         json={"seconds": 0.3, "reason": "test", "actor": "audit_script"},
-        timeout=10
+        timeout=20
     )
     
     if r.status_code == 409:
@@ -141,8 +142,11 @@ def test_dosing_pump_micro_short_pulse():
         print(f"  Blocked: {data.get('message')}")
         # Check if it's a guard (expected) vs error
         blocked = data.get('blocked_by', '')
-        if 'cap' in blocked or 'min_off' in blocked or 'stale' in blocked:
+        if 'cap' in blocked or 'min_off' in blocked:
             print("  (Expected guard block—pump hardware is functional)")
+            return True
+        elif 'stale' in blocked:
+            print("  (Stale sensor block—normal if sensors not ready)")
             return True
         return False
     elif r.status_code == 200:
