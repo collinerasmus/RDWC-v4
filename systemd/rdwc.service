@@ -9,10 +9,11 @@ User=pi
 WorkingDirectory=/home/pi/RDWC-v4
 Environment=PYTHONUNBUFFERED=1
 Environment=TZ=Africa/Johannesburg
+Environment=ASSET_VERSION=%h-%t
 LimitNOFILE=32768
 ExecStartPre=/bin/sleep 2
 # Use project venv if available, fallback to system python3
-ExecStart=/bin/bash -c 'if [ -f venv/bin/python ]; then exec venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1 --timeout-keep-alive 5; else exec /usr/bin/python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1 --timeout-keep-alive 5; fi'
+ExecStart=/bin/bash -c 'if [ -f venv/bin/python ]; then exec env ASSET_VERSION=${ASSET_VERSION} venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1 --timeout-keep-alive 5; else exec env ASSET_VERSION=${ASSET_VERSION} /usr/bin/python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1 --timeout-keep-alive 5; fi'
 Restart=always
 RestartSec=3
 WatchdogSec=30

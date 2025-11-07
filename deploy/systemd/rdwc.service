@@ -9,9 +9,10 @@ User=pi
 WorkingDirectory=/home/pi/RDWC-v4
 Environment=PYTHONUNBUFFERED=1
 Environment=TZ=Africa/Johannesburg
+Environment=ASSET_VERSION=%h-%t
 LimitNOFILE=32768
 ExecStartPre=/bin/sleep 2
-ExecStart=/home/pi/RDWC-v4/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1 --timeout-keep-alive 5
+ExecStart=/usr/bin/env ASSET_VERSION=${ASSET_VERSION} /home/pi/RDWC-v4/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1 --timeout-keep-alive 5
 Restart=always
 RestartSec=3
 WatchdogSec=30
