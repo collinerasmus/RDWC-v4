@@ -1,0 +1,11 @@
+[Unit]
+Description=RDWC Relay Edge Monitor (FALLING)
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'mkdir -p /var/log/rdwc; exec gpiomon --falling-edge --line-buffered gpiochip0 5 6 13 19 26 16 20 21 | while read line; do echo "[$(date +%%Y-%%m-%%d\ %%H:%%M:%%S)] $line" >> /var/log/rdwc/relay_edges.log; done'
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
