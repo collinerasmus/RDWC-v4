@@ -411,16 +411,24 @@
     
     if (autoBtn) {
       autoBtn.addEventListener('click', () => {
-        if (currentMode !== 'auto') {
-          setSystemMode('auto');
+        if (state.estop) { showToast('E-STOP engaged: mode change blocked','warning'); return; }
+        const prev = currentMode;
+        setSystemMode('auto');
+        if (prev === 'auto') {
+          showToast('Already in AUTO mode','info');
         }
       });
     }
     
     if (manualBtn) {
       manualBtn.addEventListener('click', () => {
-        if (currentMode !== 'manual') {
-          setSystemMode('manual');
+        if (state.estop) { showToast('E-STOP engaged: mode change blocked','warning'); return; }
+        const prev = currentMode;
+        setSystemMode('manual');
+        if (prev === 'manual') {
+          showToast('Already in MANUAL mode','info');
+        } else {
+          showToast('Switched to MANUAL: relay controls enabled','success');
         }
       });
     }
