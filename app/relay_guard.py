@@ -137,6 +137,31 @@ def get_shadow_state() -> Dict[str, bool]:
     return _shadow_state.copy()
 
 
+def sync_from_actual():
+    """
+    Sync shadow state from actual pin levels (for startup reconciliation).
+    Call this after relays_core initialization to avoid false anomalies.
+    """
+    global _shadow_state
+    
+    if not _initialized:
+        logger.warning("relay_guard not initialized; cannot sync from actual")
+        return
+    
+    for name, pin in RELAY_PINS.items():
+        try:
+            level = GPIO.input(pin)
+            # Active-low: LOW = ON, HIGH = OFF
+            logical_on = (level == GPIO.LOW)
+            _shadow_state[name] = logical_on
+            logger.info(f"[GuardSync] {name}: actual={level_str(level)} → shadow={'ON' if logical_on else 'OFF'}")
+        except Exception as e:
+            logger.error(f"[GuardSync] Failed to read {name} (BCM {pin}): {e}")
+
+def level_str(level):
+    """Helper to convert GPIO level to string"""
+    return 'LOW' if level == GPIO.LOW else 'HIGH'
+
 def get_pin_levels() -> Dict[str, str]:
     """Read actual GPIO pin levels (for watchdog verification)."""
     if not _initialized:

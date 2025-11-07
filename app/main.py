@@ -245,6 +245,14 @@ async def _start_tasks():
         from app.relays_core import smart_restore_critical_relays
         smart_restore_critical_relays()
     
+    # Sync relay_guard shadow state from actual pin levels after restoration
+    try:
+        from app.relay_guard import sync_from_actual
+        sync_from_actual()
+        print("[RelayGuard] Synced shadow state from actual pin levels")
+    except Exception as e:
+        print(f"[RelayGuard] WARNING: Failed to sync from actual: {e}")
+    
     # Start async sensor loop (single reader) - DISABLED by default in production
     # (standalone sensor poller runs as rdwc-sensors.service)
     SENSOR_LOOP_ENABLED = os.environ.get("SENSOR_LOOP_ENABLED", "false").lower() == "true"
