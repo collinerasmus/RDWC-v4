@@ -52,9 +52,10 @@ def init_safe(relays: Optional[Dict[str, int]] = None):
         GPIO.setmode(GPIO.BCM)
         GPIO.setwarnings(False)
         
-        # Set each pin to OUTPUT with initial HIGH (OFF) and enable pull-up
+        # Set each pin to OUTPUT with initial HIGH (OFF)
+        # Note: pull_up_down is not valid for outputs
         for name, pin in pins_map.items():
-            GPIO.setup(pin, GPIO.OUT, initial=GPIO.HIGH, pull_up_down=GPIO.PUD_UP)
+            GPIO.setup(pin, GPIO.OUT, initial=GPIO.HIGH)
             _shadow_state[name] = False  # Logical OFF
             logger.info(f"[GuardInit] {name} (BCM {pin}) → OUTPUT HIGH (OFF)")
         
