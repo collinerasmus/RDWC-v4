@@ -726,6 +726,15 @@ def api_relays_guard_status():
             "error": str(e)
         })
 
+@app.get("/api/relays/guard/recent")
+def api_relays_guard_recent(limit: int = 50):
+    """Return recent RelayGuard events (ring buffer)."""
+    try:
+        from app.relay_guard import get_recent_guard_events
+        return get_recent_guard_events(limit)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
 # === Intelligent Chiller Control (Hailea HS-52A) ===
 
 @app.get("/api/chiller/status")

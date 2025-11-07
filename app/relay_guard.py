@@ -31,6 +31,9 @@ _shadow_state: Dict[str, bool] = {}
 _initialized = False
 _anomaly_count = 0
 _anomalies = []
+# Recent guard events ring buffer (last N successful or attempted state changes)
+_recent_events = []  # list[dict]; truncated to max 60 entries
+_RECENT_MAX = 60
 
 def init_safe(relays: Optional[Dict[str, int]] = None):
     """
@@ -94,8 +97,20 @@ def safe_set(name: str, desired_on: bool, reason: str, actor: str) -> dict:
     # Check current shadow state
     current_on = _shadow_state.get(name, False)
     if current_on == desired_on:
-        # No-op: already in desired state
+        # No-op: already in desired state; still record an event for audit clarity
         logger.debug(f"[GuardSet] NO-OP {name} already {'ON' if desired_on else 'OFF'}")
+        _append_recent({
+            'ts': datetime.utcnow().isoformat(),
+            'relay': name,
+            'desired_on': desired_on,
+            'final_on': current_on,
+            'changed': False,
+            'reason': reason,
+            'actor': actor,
+            'coerced': False,
+            'mismatch_retries': 0,
+            'status': 'noop'
+        })
         return {"changed": False, "ok": True, "coerced": False, "mismatch_retries": 0, "shadow": current_on}
     
     # Translate logical to pin level (active-low)
@@ -134,6 +149,18 @@ def safe_set(name: str, desired_on: bool, reason: str, actor: str) -> dict:
                 caller_frame = traceback.extract_stack()[-2]
                 caller_loc = f"{caller_frame.filename}:{caller_frame.lineno}"
                 mono_ts = time.monotonic()
+                _append_recent({
+                    'ts': datetime.utcnow().isoformat(),
+                    'relay': name,
+                    'desired_on': desired_on,
+                    'final_on': logical_after2,
+                    'changed': logical_after2 != current_on,
+                    'reason': reason,
+                    'actor': actor,
+                    'coerced': True,
+                    'mismatch_retries': mismatch_retries,
+                    'status': 'mismatch_persistent'
+                })
                 return {"changed": logical_after2 != current_on, "ok": False, "coerced": True, "mismatch_retries": mismatch_retries, "shadow": _shadow_state[name], "caller": caller_loc, "mono_ts": mono_ts}
         # Success path
         _shadow_state[name] = desired_on
@@ -143,6 +170,18 @@ def safe_set(name: str, desired_on: bool, reason: str, actor: str) -> dict:
         logger.info(
             f"[RelayGuard] {name} bcm={pin} → {'ON' if desired_on else 'OFF'} reason={reason} actor={actor} caller={caller_loc} mono_ts={mono_ts:.3f} retries={mismatch_retries}"
         )
+        _append_recent({
+            'ts': datetime.utcnow().isoformat(),
+            'relay': name,
+            'desired_on': desired_on,
+            'final_on': desired_on,
+            'changed': True,
+            'reason': reason,
+            'actor': actor,
+            'coerced': False,
+            'mismatch_retries': mismatch_retries,
+            'status': 'ok'
+        })
         return {"changed": True, "ok": True, "coerced": False, "mismatch_retries": mismatch_retries, "shadow": desired_on, "caller": caller_loc, "mono_ts": mono_ts}
     except Exception as e:
         logger.error(f"[GuardSet] FAILED {name}: {e}", exc_info=True)
@@ -154,6 +193,19 @@ def safe_set(name: str, desired_on: bool, reason: str, actor: str) -> dict:
             'desired_on': desired_on,
             'reason': reason,
             'actor': actor
+        })
+        _append_recent({
+            'ts': datetime.utcnow().isoformat(),
+            'relay': name,
+            'desired_on': desired_on,
+            'final_on': current_on,
+            'changed': False,
+            'reason': reason,
+            'actor': actor,
+            'coerced': False,
+            'mismatch_retries': mismatch_retries,
+            'status': 'error',
+            'error': str(e)
         })
         return {"changed": False, "ok": False, "coerced": False, "mismatch_retries": mismatch_retries, "shadow": current_on}
 
@@ -232,6 +284,21 @@ def get_anomalies() -> Dict:
         'count': _anomaly_count,
         'anomalies': _anomalies[-50:]  # Last 50 anomalies
     }
+
+def _append_recent(ev: dict):
+    """Internal: append event to ring buffer."""
+    try:
+        _recent_events.append(ev)
+        # Trim if exceeded
+        if len(_recent_events) > _RECENT_MAX:
+            del _recent_events[0:len(_recent_events)-_RECENT_MAX]
+    except Exception:
+        pass
+
+def get_recent_guard_events(limit: int = 50) -> Dict[str, list]:
+    """Return recent guard events (up to limit)."""
+    lim = max(1, min(limit, _RECENT_MAX))
+    return {"events": _recent_events[-lim:]}
 
 
 def cleanup():
