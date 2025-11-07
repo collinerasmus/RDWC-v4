@@ -12,6 +12,8 @@
   const el = (h) => { const d=document.createElement('div'); d.innerHTML=h.trim(); return d.firstChild; };
 
   let currentMode = 'manual';  // Track current system mode
+  // Global asset version for cache-busting; populated from /api/version on init
+  let ASSET_VER = '';
 
   // Fixed relay order + display names
   const RELAY_ORDER = [
@@ -44,12 +46,17 @@
   const state = { systemMode: 'manual', relays: {}, estop: false, restoredBoot: false };
 
   async function getJSON(url){
+    // Append cache-buster to avoid stale responses when user requests a full refresh
+    const bust = ASSET_VER ? `v=${encodeURIComponent(ASSET_VER)}` : `t=${Date.now()}`;
+    url += (url.includes('?') ? '&' : '?') + bust;
     const r = await fetch(url, {cache:'no-store'});
     if (!r.ok) throw new Error('HTTP '+r.status+' for '+url);
     return r.json();
   }
 
   async function postJSON(url, body){
+    const bust = ASSET_VER ? `v=${encodeURIComponent(ASSET_VER)}` : `t=${Date.now()}`;
+    url += (url.includes('?') ? '&' : '?') + bust;
     const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
     if (!r.ok) throw new Error('HTTP '+r.status+' for '+url);
     return r.json().catch(()=> ({}));
@@ -191,13 +198,33 @@
   }
 
   async function setRelay(key, desiredOn) {
-    // Prefer new wrapper
-    try { return await postJSON(`/api/relay/${encodeURIComponent(key)}/toggle`, { on: !!desiredOn }); } catch(_){ }
-    // Fall back to modern POST with {name,on}
-    try { return await postJSON('/relay/set', { name:key, on: !!desiredOn }); } catch(_){ }
-    // Try GET with ?name=&on=
-    try { return await getJSON(`/relay/set?name=${encodeURIComponent(key)}&on=${desiredOn?1:0}`); } catch(_){}
-    throw new Error('All relay set methods failed');
+    // Single primary endpoint (now implemented backend-side). If this fails, we degrade gracefully.
+    const payload = { on: !!desiredOn };
+    const started = performance.now();
+    try {
+      const r = await postJSON(`/api/relay/${encodeURIComponent(key)}/toggle`, payload);
+      r._latency_ms = Math.round(performance.now() - started);
+      return r;
+    } catch(ePrimary) {
+      console.warn('Primary toggle failed, falling back', key, ePrimary);
+      try {
+        const r2 = await postJSON('/relay/set', { name:key, on: !!desiredOn });
+        r2._latency_ms = Math.round(performance.now() - started);
+        r2._fallback = 'relay_set_post';
+        return r2;
+      } catch(ePost){
+        try {
+          const r3 = await getJSON(`/relay/set?name=${encodeURIComponent(key)}&on=${desiredOn?1:0}`);
+          r3._latency_ms = Math.round(performance.now() - started);
+          r3._fallback = 'relay_set_get';
+          return r3;
+        } catch(eGet){
+          window.__relayErrors = window.__relayErrors || [];
+          window.__relayErrors.push({ key, at: Date.now(), ePrimary: String(ePrimary), ePost: String(ePost), eGet: String(eGet) });
+          throw new Error('All relay set methods failed for '+key);
+        }
+      }
+    }
   }
 
   // --- Toast Notifications ---------------------------------------------------
@@ -453,6 +480,8 @@
   let _bootstrapped = false;
   function initRelaysUI(){
     if (_bootstrapped) return; _bootstrapped = true;
+    // Fetch asset version early for consistent cache-busting tokens
+    (async () => { try { const v = await getJSON('/api/version'); ASSET_VER = v.version || ''; } catch(_){ ASSET_VER=''; } })();
     refreshSystemMode();
     refreshEstop();
     refreshRelays();
@@ -496,6 +525,7 @@
       if (btn) btn.classList.add('loading');
       const desired = !info.state;
       const result = await setRelay(key, desired);
+      const latency = result && result._latency_ms !== undefined ? result._latency_ms : null;
       if (result && (result.ok===false || result.changed===false)){
         const reason = result.reason || 'unknown';
         const cooldown = result.cooldown_remaining || 0;
@@ -506,6 +536,9 @@
         } else {
           showToast(`Action blocked: ${result.message || reason}`,'error');
         }
+      } else if (latency !== null) {
+        // Success feedback with tiny latency info (for performance triage)
+        showToast(`${key} toggled (${desired? 'ON':'OFF'}) in ${latency}ms`, 'success');
       }
       // Refresh after toggle
       setTimeout(refreshRelays, 150);
