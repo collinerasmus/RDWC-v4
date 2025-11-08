@@ -2136,6 +2136,10 @@ function toggleRecentReadings(){
   const BASE_DELAY_MS = 1000;
   const MAX_DELAY_MS = 30000;
   let statusCheckTimer = null;
+  let watchdogTimer = null;
+  let lastFrameAt = 0;
+  const WATCHDOG_INTERVAL = 10000; // 10s
+  const FRAME_STALE_MS = 20000; // if no load event in 20s, restart
 
   async function refreshStatus() {
     try {
@@ -2184,6 +2188,7 @@ function toggleRecentReadings(){
       // Refresh status pill every 30s while streaming
       if (statusCheckTimer) clearInterval(statusCheckTimer);
       statusCheckTimer = setInterval(refreshStatus, 30000);
+      lastFrameAt = Date.now();
     };
   }
 
@@ -2200,6 +2205,16 @@ function toggleRecentReadings(){
       if (overlay) overlay.textContent = status.note || 'Camera unavailable';
     }
   });
+  // Watchdog: periodically check for staleness and restart stream if needed
+  function watchdog(){
+    const now = Date.now();
+    if (lastFrameAt && (now - lastFrameAt) > FRAME_STALE_MS){
+      console.warn('[Camera] Watchdog detected stale frame, restarting stream');
+      stopStream();
+      startStream();
+    }
+  }
+  watchdogTimer = setInterval(watchdog, WATCHDOG_INTERVAL);
 
   // Expose for external control if needed
   window.cameraControl = { startStream, stopStream, refreshStatus };
