@@ -786,8 +786,14 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 <main id="rdwc-root" class="container">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
     <h1 style="margin:0;">RDWC v4 — Dashboard</h1>
-    <div id="build-banner" class="muted" style="font-size:0.8rem;padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,0.25);background:rgba(148,163,184,0.06);color:#cbd5e1;">
-      Build: <span id="build-version">—</span> • <span id="build-status">initializing…</span>
+    <div id="build-banner" class="muted" style="font-size:0.8rem;padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,0.25);background:rgba(148,163,184,0.06);color:#cbd5e1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span>Build: <span id="build-version">—</span> • <span id="build-status">initializing…</span></span>
+      <span style="opacity:.6;">•</span>
+      <span id="hdr-progress" title="Overall progress">0%</span>
+      <span style="opacity:.6;">•</span>
+      <span id="hdr-hb" title="Heartbeat freshness">HB: —</span>
+      <span style="opacity:.6;">•</span>
+      <span id="hdr-eta" title="Estimated time to completion">ETA: —</span>
     </div>
   </div>
 

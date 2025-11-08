@@ -25,7 +25,11 @@
     const label = $('progress-label');
     if (!bar || !label) return;
     bar.style.width = clamp(p,0,100)+'%';
-    label.textContent = Math.round(clamp(p,0,100))+'%';
+    const pctTxt = Math.round(clamp(p,0,100))+'% complete';
+    label.textContent = pctTxt;
+    // Mirror into header summary if present
+    const hdr = document.getElementById('hdr-progress');
+    if (hdr) hdr.textContent = pctTxt.replace(' complete','');
   }
 
   function setHeartbeat(ok){
@@ -39,6 +43,11 @@
     hbLabel.textContent = ago!=null? `heartbeat ${ago}s ago` : 'heartbeat —';
     etaLabel.textContent = etaMinutes!=null? `${etaMinutes}m remaining` : '—';
     etaLabel.className = 'chip-mini ' + ((etaMinutes!=null && etaMinutes<5)?'ok':'');
+    // Mirror into header banner if present
+    const hdrHb = document.getElementById('hdr-hb');
+    if (hdrHb) hdrHb.textContent = ago!=null? `HB: ${ago}s` : 'HB: —';
+    const hdrEta = document.getElementById('hdr-eta');
+    if (hdrEta) hdrEta.textContent = etaMinutes!=null? `ETA: ${etaMinutes}m` : 'ETA: —';
   }
 
   function renderComponentChips(){
