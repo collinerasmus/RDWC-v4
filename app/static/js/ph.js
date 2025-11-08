@@ -23,18 +23,32 @@
     modeInitialized = true;
     localStorage.setItem('ph_mode', mode);
     
-    // Update mode button active states
-    ['ph-mode-manual', 'ph-mode-auto', 'ph-mode-maint'].forEach(id => {
-      const btn = el(id);
-      if (btn) {
-        const btnMode = btn.getAttribute('data-mode');
-        if (btnMode === mode) {
-          btn.classList.add('active');
-        } else {
-          btn.classList.remove('active');
-        }
+    // Update mode button active states - infer mode from button ID
+    const manualBtn = el('ph-mode-manual');
+    const autoBtn = el('ph-mode-auto');
+    const maintBtn = el('ph-mode-maint');
+    
+    if (manualBtn) {
+      if (mode === 'manual') {
+        manualBtn.classList.add('active');
+      } else {
+        manualBtn.classList.remove('active');
       }
-    });
+    }
+    if (autoBtn) {
+      if (mode === 'auto') {
+        autoBtn.classList.add('active');
+      } else {
+        autoBtn.classList.remove('active');
+      }
+    }
+    if (maintBtn) {
+      if (mode === 'maintenance') {
+        maintBtn.classList.add('active');
+      } else {
+        maintBtn.classList.remove('active');
+      }
+    }
     
     // Show/hide content based on mode
     const manualContent = el('ph-manual-content');
