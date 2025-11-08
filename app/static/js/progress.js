@@ -30,12 +30,23 @@
 
   function setHeartbeat(ok){
     const dot = $('progress-heartbeat');
-    const meta = $('progress-meta');
-    if (!dot || !meta) return;
-    if (ok){ dot.style.background = '#22c55e'; }
-    else { dot.style.background = '#ef4444'; }
+    const hbLabel = $('progress-heartbeat-label');
+    const etaLabel = $('progress-eta-label');
+    if (!dot || !hbLabel || !etaLabel) return;
+    if (ok){ dot.style.background = '#22c55e'; dot.classList.add('pulse'); }
+    else { dot.style.background = '#ef4444'; dot.classList.remove('pulse'); }
     const ago = lastBeatTs? Math.max(0, Math.round((Date.now()-lastBeatTs)/1000)) : null;
-    meta.textContent = `HB ${ago!=null? ago+'s':'—'} • ETA ${etaMinutes!=null? etaMinutes+'m':'—'}`;
+    hbLabel.textContent = ago!=null? `heartbeat ${ago}s ago` : 'heartbeat —';
+    etaLabel.textContent = etaMinutes!=null? `${etaMinutes}m remaining` : '—';
+    etaLabel.className = 'chip-mini ' + ((etaMinutes!=null && etaMinutes<5)?'ok':'');
+  }
+
+  function renderComponentChips(){
+    const wrap = $('progress-components');
+    if(!wrap) return;
+    wrap.innerHTML = tasks.map(t=>{
+      return `<span class="chip-mini ${t.ok?'ok':'bad'}" title="${t.label}">${t.key}</span>`;
+    }).join('');
   }
 
   function computePercent(){
@@ -81,8 +92,9 @@
       }
 
       lastBeatTs = Date.now();
-      const pct = computePercent();
-      setProgress(pct);
+  const pct = computePercent();
+  setProgress(pct);
+  renderComponentChips();
       // Simple ETA: assume ~2 minutes per remaining block during bootstrap; shorten as we progress
       const remainW = 100 - pct;
       if (bootstrap){ etaMinutes = Math.ceil(remainW / 10 * 2); } else { etaMinutes = Math.ceil(remainW / 20); }
@@ -94,7 +106,7 @@
 
   function init(){
     // Start polling heartbeat every 10s
-    pollHealth();
+  pollHealth();
     setInterval(pollHealth, 10000);
     // After first minute, reduce ETA pessimism
     setTimeout(()=>{ bootstrap=false; }, 60000);
