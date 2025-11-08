@@ -64,6 +64,19 @@
 
   async function pollHealth(){
     try {
+      // Prefer server-side snapshot if available
+      const snap = await fetch('/api/progress', {cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null);
+      if (snap && typeof snap.percent==='number' && snap.components){
+        // Adopt server snapshot
+        tasks.forEach(t=>{ t.ok = !!snap.components[t.key]; });
+        lastBeatTs = Date.now() - ((snap.heartbeat_age_s||0)*1000);
+        etaMinutes = (typeof snap.eta_minutes==='number')? snap.eta_minutes : null;
+        const pct = clamp(snap.percent,0,100);
+        setProgress(pct);
+        renderComponentChips();
+        setHeartbeat(true);
+        return;
+      }
       // System/Relays
       const sys = await fetch('/api/relays/status', {cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null);
       tasks.find(t=>t.key==='system').ok = !!(sys && sys.mode && sys.estop===false);

@@ -30,6 +30,7 @@ from app.relays_core import initialize_all_safe_off, get_relay_event_log, allowe
 from app.relays_core import set as relay_set
 from app.relays_core import get_estop_status
 from app.relays_core import get_relay_status
+# Removed unused lru_cache import
 
 DB_PATH = os.environ.get("RDWC_DB", os.path.join(os.path.dirname(__file__), "..", "data", "rdwc.db"))
 DB_PATH = os.path.abspath(DB_PATH)
@@ -62,6 +63,115 @@ def _compute_asset_version() -> str:
 
 # Asset version for cache-busting of static JS/CSS assets (used by /api/version and loader)
 ASSET_VERSION = _compute_asset_version()
+
+# --- Progress state (in-memory with occasional recompute) ---
+_progress_cache = {
+    "last_compute_ts": 0.0,
+    "percent": 0.0,
+    "components": {},
+    "eta_minutes": None,
+    "heartbeat_ts": time.time(),
+}
+
+def _progress_components() -> dict:
+    """Compute component OK flags used by UI progress widget.
+    Lightweight: relies on existing endpoints/helpers instead of extra sensor reads.
+    """
+    comps = {}
+    # relays/system mode & estop
+    try:
+        from app.relays_core import get_relay_status
+        rs = get_relay_status()
+        comps['system'] = bool(rs and rs.get('mode') and rs.get('estop') is False)
+        comps['lights'] = bool(rs and 'lights' in (rs.get('relays') or {}))
+    except Exception:
+        comps['system'] = False
+        comps['lights'] = False
+    # sensors
+    try:
+        from app.sensors_core import read_all_sensors
+        d = read_all_sensors()
+        comps['sensors'] = bool(d and d.get('online'))
+    except Exception:
+        comps['sensors'] = False
+    # pH
+    try:
+        from app.ph_control import ph_status
+        phs = ph_status()
+        hard = bool(phs and (phs.get('guards', {}).get('estop') or phs.get('guards', {}).get('sensor_stale') or phs.get('guards', {}).get('reservoir')))
+        comps['ph'] = bool(phs and not hard)
+    except Exception:
+        comps['ph'] = False
+    # EC
+    try:
+        from app.ec_control import get_ec_status
+        ecs = get_ec_status()
+        hard = bool(ecs and (ecs.get('guards', {}).get('estop') or ecs.get('guards', {}).get('sensor_stale') or ecs.get('guards', {}).get('reservoir')))
+        comps['ec'] = bool(ecs and not hard)
+    except Exception:
+        comps['ec'] = False
+    # schedule
+    try:
+        from app.schedule_api import get_nutrient_schedule
+        sch = get_nutrient_schedule()
+        comps['schedule'] = bool(sch and sch.get('weeks'))
+    except Exception:
+        comps['schedule'] = False
+    # environment (chiller control running)
+    try:
+        from app.chiller_control import get_chiller_state
+        ch = get_chiller_state()
+        comps['env'] = bool(ch)
+    except Exception:
+        comps['env'] = False
+    # tests (placeholder; can be toggled by future background runner)
+    comps['tests'] = bool(os.environ.get('RDWC_TESTS_PASS', '0') == '1')
+    return comps
+
+def _progress_percent(comps: dict) -> float:
+    weights = {
+        'system':15,'sensors':20,'ph':15,'ec':15,'schedule':10,'env':10,'lights':10,'tests':5
+    }
+    pct = 0.0
+    for k, w in weights.items():
+        if comps.get(k):
+            pct += w
+    return pct
+
+def _progress_eta(pct: float) -> int | None:
+    if pct >= 99.9:
+        return 0
+    remain = max(0.0, 100.0 - pct)
+    # simple heuristic like UI: early pessimistic then linear
+    if pct < 30:
+        return int((remain/10.0)*2)  # 2m per 10% block early
+    return int((remain/20.0))        # 1m per 20% later
+
+@app.get('/api/progress')
+def api_progress(force: bool = Query(False)):
+    """Server-side progress snapshot consumed by UI/banner.
+    Cached for 5s unless force=true to avoid hammering subsystems.
+    """
+    now = time.time()
+    if force or (now - _progress_cache['last_compute_ts'] > 5):
+        comps = _progress_components()
+        pct = _progress_percent(comps)
+        eta = _progress_eta(pct)
+        _progress_cache.update({
+            'last_compute_ts': now,
+            'components': comps,
+            'percent': pct,
+            'eta_minutes': eta,
+            'heartbeat_ts': now,
+        })
+    return {
+        'percent': round(_progress_cache['percent'],2),
+        'eta_minutes': _progress_cache['eta_minutes'],
+        'heartbeat_age_s': int(time.time() - _progress_cache['heartbeat_ts']),
+        'components': _progress_cache['components'],
+        'cached': True,
+        'computed_ts': _progress_cache['last_compute_ts'],
+    }
 
 app = FastAPI()
 
