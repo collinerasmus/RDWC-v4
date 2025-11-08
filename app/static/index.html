@@ -872,19 +872,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- Overview Tab (includes Camera) -->
   <section id="overview-card" class="card card-wide tab-section" data-tab="overview">
-    <!-- Camera -->
-    <div style="margin-bottom:16px;">
-      <h3>Camera — Live (USB/OpenCV)</h3>
-      <div class="muted" style="font-size:0.75rem;margin-top:-6px;margin-bottom:8px;">
-        <span id="camera-status-pill">Status: streaming</span>
-      </div>
-      <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;">
-        <img id="camera-stream" alt="Camera stream" style="width:100%;height:100%;object-fit:cover;"/>
-        <div id="camera-overlay" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">Connecting...</div>
-      </div>
-    </div>
-    
-    <!-- System Overview -->
+    <!-- System Overview (moved above camera for immediate status visibility) -->
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <h3 class="card-title" style="margin:0;">System Overview</h3>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
@@ -938,6 +926,18 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <input id="ov-maint-toggle" type="checkbox" style="accent-color:#ef4444;" />
           Maintenance Override
         </label>
+      </div>
+    </div>
+    
+    <!-- Camera (moved to bottom and height-limited) -->
+    <div style="margin-top:16px;">
+      <h3>Camera — Live (USB/OpenCV)</h3>
+      <div class="muted" style="font-size:0.75rem;margin-top:-6px;margin-bottom:8px;">
+        <span id="camera-status-pill">Status: streaming</span>
+      </div>
+      <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;height:var(--h-camera);">
+        <img id="camera-stream" alt="Camera stream" style="width:100%;height:100%;object-fit:cover;"/>
+        <div id="camera-overlay" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">Connecting...</div>
       </div>
     </div>
   </section>

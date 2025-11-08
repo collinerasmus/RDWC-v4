@@ -43,7 +43,10 @@ def _compute_asset_version() -> str:
     """
     v = os.environ.get("ASSET_VERSION")
     if v:
-        return v
+        # Sanitize: ignore suspicious values (paths or empty)
+        vv = str(v).strip()
+        if vv and all((c.isalnum() or c in "-_.") for c in vv):
+            return vv
     # Try git short SHA from repository root
     try:
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
