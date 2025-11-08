@@ -14,11 +14,13 @@
   // Mode system state
   let currentMode = localStorage.getItem('ph_mode') || 'manual';
   let doseLogCollapsed = localStorage.getItem('ph_dose_log_collapsed') !== 'false'; // default hidden
+  let modeInitialized = false; // Track if mode has been set by user or init
 
   function el(id){ return document.getElementById(id); }
 
   function setMode(mode) {
     currentMode = mode;
+    modeInitialized = true;
     localStorage.setItem('ph_mode', mode);
     
     // Update mode button active states
@@ -851,7 +853,10 @@
     await wire();  // This includes wireRangeControls which sets currentRange
     
     // Initialize mode and dose log state AFTER wire() completes
-    setMode(currentMode);
+    // Only set mode if user hasn't already clicked a mode button
+    if (!modeInitialized) {
+      setMode(currentMode);
+    }
     setDoseLogCollapsed(doseLogCollapsed);
     
     tick();
