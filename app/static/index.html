@@ -1197,9 +1197,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <h3 class="card-title" style="margin:0;">pH Control</h3>
             <!-- Mode Selection Buttons -->
             <div class="ph-mode-buttons" style="display:flex;gap:6px;">
-              <button id="ph-mode-manual" class="btn-chip active" onclick="if(window.phSetMode) window.phSetMode('manual')">Manual</button>
-              <button id="ph-mode-auto" class="btn-chip" onclick="if(window.phSetMode) window.phSetMode('auto')">Auto</button>
-              <button id="ph-mode-maint" class="btn-chip" onclick="if(window.phSetMode) window.phSetMode('maintenance')">Maintenance</button>
+              <button id="ph-mode-manual" class="btn-chip active" onclick="window.phSetMode?window.phSetMode('manual'):alert('Loading...')">Manual</button>
+              <button id="ph-mode-auto" class="btn-chip" onclick="window.phSetMode?window.phSetMode('auto'):alert('Loading...')">Auto</button>
+              <button id="ph-mode-maint" class="btn-chip" onclick="window.phSetMode?window.phSetMode('maintenance'):alert('Loading...')">Maintenance</button>
             </div>
             <!-- Controller Health Indicator -->
             <span id="ph-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
