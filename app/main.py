@@ -2416,21 +2416,22 @@ def _calib_enabled() -> bool:
     return os.environ.get("CALIB_ENABLE", "0") == "1"
 
 def _ph_cmd(cmd: str, settle: float = 0.35, timeout: float = 2.0):
-    """Send a pH command and poll until ready.
-    Returns (status_code, payload_str).
+    """Send a pH command using EZO class.
+    Returns (status_code, payload_str). Status 1 = success, 0 = failure.
     Adds structured logging to aid calibration debugging.
     """
     import logging
     log = logging.getLogger("calib")
     try:
-        from app.infra.i2c_bus import get_bus as _get_bus
-        from app import ezo_i2c as _ezo
-        bus = _get_bus()
+        from app.ezo_i2c_stabilized import EZO
+        ph_dev = EZO(1, 0x63, "pH")  # I2C bus 1, address 0x63
         log.info(f"[PH CMD] send='{cmd}' settle={settle}s timeout={timeout}s")
-        _ezo._send_cmd(bus, _ezo.ADDR_PH, cmd)
-        time.sleep(settle)
-        status, payload = _ezo._poll_until_ready(bus, _ezo.ADDR_PH, timeout_s=timeout)
+        
+        # Send command and read response
+        payload = ph_dev.cmd(cmd, read_len=32, settle=settle)
+        status = 1 if payload else 0  # EZO.cmd returns "" on failure
         payload = payload or ""
+        
         log.info(f"[PH CMD] status={status} payload='{payload}'")
         return status, payload
     except Exception as ex:
@@ -2445,35 +2446,28 @@ def calib_ph_caps():
 @app.get("/calib/ph/read")
 def calib_ph_read():
     """Robust, contention-safe single pH read for the Calibration UI.
-    Uses the same I2C lock and direct command path to avoid collisions
+    Uses the same I2C lock and direct EZO class to avoid collisions
     with the background poller. Retries once on transient errors.
     """
     import fcntl
     import time as _time
-    from app import ezo_i2c as _ezo
-    from app.infra.i2c_bus import get_bus as _get_bus
+    from app.ezo_i2c_stabilized import EZO
 
-    def _read_once(settle: float = 1.6, timeout: float = 5.0):
-        bus = _get_bus()
-        # Ensure continuous mode is off (safe if not supported)
+    def _read_once(timeout: float = 3.0):
         try:
-            _ezo._send_cmd(bus, _ezo.ADDR_PH, "C,0")
-            _time.sleep(0.25)
-            _ezo._poll_until_ready(bus, _ezo.ADDR_PH, timeout_s=2.0)
-        except Exception:
-            pass
-        # Send Atlas 'R' command directly via the lower-level helper
-        _ezo._send_cmd(bus, _ezo.ADDR_PH, "R")
-        _time.sleep(settle)
-        st, payload = _ezo._poll_until_ready(bus, _ezo.ADDR_PH, timeout_s=timeout)
-        if st != _ezo.EZO_STATUS_SUCCESS or not payload:
-            return None
-        # Payload: "<value>[,<temp>...]" – take first token
-        try:
-            tok = payload.split(",")[0].strip()
-            return float(tok)
-        except Exception:
-            return None
+            ph_dev = EZO(1, 0x63, "pH")  # I2C bus 1, address 0x63
+            # Disable continuous mode
+            ph_dev.cmd("C,0", read_len=0, settle=0.3)
+            # Read pH value with Atlas 'R' command
+            value_str = ph_dev.read_value("R", timeout=timeout, poll=0.15)
+            if value_str:
+                # Parse first token (pH value)
+                tok = value_str.split(",")[0].strip()
+                return float(tok)
+        except Exception as e:
+            import logging
+            logging.debug(f"pH read_once failed: {e}")
+        return None
 
     lock_path = "/tmp/rdwc_calib.lock"
     for attempt in (1, 2):
@@ -2484,11 +2478,9 @@ def calib_ph_read():
             # Wait longer for background poller to notice lock and skip its cycle
             # Poller checks lock every ~5s, so wait 6s to ensure it sees us
             _time.sleep(6.0)
-            # Use longer timings; Atlas EZO reads commonly need 1.0–1.6s
             # Try up to 3 immediate reads under the same lock to get a payload
             for tries in range(3):
-                val = _read_once(settle=1.6 if attempt == 1 else 2.0,
-                                 timeout=5.0 if attempt == 1 else 7.0)
+                val = _read_once(timeout=3.0 if attempt == 1 else 5.0)
                 if val is not None:
                     return {"ok": True, "value": round(float(val), 3)}
                 _time.sleep(1.2)
@@ -2529,8 +2521,8 @@ def calib_ph_status():
                 lock_fd.close()
             except Exception:
                 pass
-    from app import ezo_i2c as _ezo
-    ok = (st == _ezo.EZO_STATUS_SUCCESS)
+    # Status 1 = success (from _ph_cmd using EZO class)
+    ok = (st == 1)
     flags = []
     note = payload
     # Typical payloads include text like "?,mid,low" when points are set
@@ -2551,7 +2543,7 @@ def calib_ph_read_stable(timeout_s: float = 25.0, delta: float = 0.03, min_sampl
 
     Logic:
     1. Acquire calibration lock per sample to avoid contention.
-    2. Perform an explicit 'R' read with extended settle (1.2s first, 1.0s subsequent).
+    2. Perform an explicit 'R' read with EZO class (1.0s settle).
     3. Track moving window; declare stable when absolute delta between last two samples <= delta
        AND (optionally) variance across last 3 samples is small.
     4. Returns {ok, stable, value, samples, duration_s}.
@@ -2560,29 +2552,22 @@ def calib_ph_read_stable(timeout_s: float = 25.0, delta: float = 0.03, min_sampl
     """
     import fcntl
     import time as _time
-    from app.infra.i2c_bus import get_bus as _get_bus
-    from app import ezo_i2c as _ezo
+    from app.ezo_i2c_stabilized import EZO
     start = _time.monotonic()
     readings = []
 
-    def _locked_read(settle: float = 1.2, timeout: float = 4.5):
-        bus = _get_bus()
-        # Ensure continuous mode off (ignore failures)
+    def _locked_read(timeout: float = 4.5):
         try:
-            _ezo._send_cmd(bus, _ezo.ADDR_PH, "C,0")
-            _time.sleep(0.25)
-            _ezo._poll_until_ready(bus, _ezo.ADDR_PH, timeout_s=2.0)
+            ph_dev = EZO(1, 0x63, "pH")  # I2C bus 1, address 0x63
+            # Disable continuous mode
+            ph_dev.cmd("C,0", read_len=0, settle=0.3)
+            # Read pH value with Atlas 'R' command
+            value_str = ph_dev.read_value("R", timeout=timeout, poll=0.15)
+            if value_str:
+                return float(value_str.split(',')[0].strip())
         except Exception:
             pass
-        _ezo._send_cmd(bus, _ezo.ADDR_PH, "R")
-        _time.sleep(settle)
-        st, payload = _ezo._poll_until_ready(bus, _ezo.ADDR_PH, timeout_s=timeout)
-        if st != _ezo.EZO_STATUS_SUCCESS or not payload:
-            return None
-        try:
-            return float(payload.split(',')[0].strip())
-        except Exception:
-            return None
+        return None
 
     lock_path = "/tmp/rdwc_calib.lock"
     attempt = 0
@@ -2593,7 +2578,7 @@ def calib_ph_read_stable(timeout_s: float = 25.0, delta: float = 0.03, min_sampl
             lock_fd = open(lock_path, 'w')
             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
             _time.sleep(0.3)
-            val = _locked_read(settle=1.2 if attempt == 1 else 1.0, timeout=4.5)
+            val = _locked_read(timeout=4.5)
         except Exception:
             val = None
         finally:

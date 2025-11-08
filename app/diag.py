@@ -1,6 +1,7 @@
 import re, subprocess
 from fastapi import APIRouter
-from app.ezo_i2c import identify, read_all, ADDR_PH, ADDR_EC, ADDR_RTD
+from app.ezo_i2c_stabilized import EZO, PH_ADDR, EC_ADDR, RTD_ADDR
+from app.sensors_core import read_all_sensors
 
 router = APIRouter(prefix="/diag", tags=["diag"])
 
@@ -16,13 +17,15 @@ def i2c_scan():
 @router.get("/identify")
 def diag_identify():
     res = {}
-    for name, addr in (("ph", ADDR_PH), ("ec", ADDR_EC), ("rtd", ADDR_RTD)):
+    for name, addr in (("ph", PH_ADDR), ("ec", EC_ADDR), ("rtd", RTD_ADDR)):
         try:
-            res[name] = identify(addr=addr)
+            dev = EZO(1, addr, name)
+            info = dev.cmd("i", read_len=32, settle=0.3)
+            res[name] = info if info else ""
         except Exception as e:
             res[name] = f"ERR: {e}"
     return {"ids": res}
 
 @router.get("/probe")
 def diag_probe():
-    return {"data": read_all()}
+    return {"data": read_all_sensors()}
