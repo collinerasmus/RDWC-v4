@@ -103,17 +103,47 @@
         <div id="ph-calib-log" class="muted" style="margin-top:8px;max-height:160px;overflow:auto;font-family:ui-monospace, monospace;font-size:12px;border-top:1px dashed #1f2937;padding-top:6px"></div>
       `;
 
-      // EC placeholder
+      // EC Calibration (full wizard moved from EC Controller card)
       const ecWrap = document.createElement('div');
       ecWrap.className = 'card';
       ecWrap.style.padding = '12px';
       ecWrap.style.marginTop = '12px';
       ecWrap.innerHTML = `
-        <h3 style="margin-top:0;">EC Calibration (coming soon)</h3>
-        <div class="row">
-          <button class="btn-secondary" disabled title="Planned">Start</button>
-          <button class="btn-secondary" style="margin-left:8px" disabled title="Planned">Apply</button>
-          <span class="muted" style="margin-left:10px">Planned – will match pH flow</span>
+        <h3 style="margin-top:0;">EC Calibration</h3>
+        <div style="padding:12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;margin-bottom:16px;color:#fecaca;">
+          ⚠️ <strong>Warning:</strong> Calibration affects all EC readings. Follow Atlas Scientific calibration procedure precisely. Rinse probe between steps.
+        </div>
+        
+        <div style="margin-bottom:16px;padding:12px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);border-radius:8px;">
+          <div style="font-weight:600;margin-bottom:8px;">Current Status</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.9rem;">
+            <div>Calibration: <strong id="ecCalStatusValue">—</strong></div>
+            <div>K Factor: <strong id="ecKValue">—</strong></div>
+            <div>Current EC: <strong id="ecCalCurrentReading">—</strong> mS/cm</div>
+            <div><button id="btnEcCalRefreshStatus" class="btn-text" style="padding:4px 8px;font-size:0.85rem;">🔄 Refresh</button></div>
+          </div>
+        </div>
+        
+        <div style="margin-bottom:16px;padding:12px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);border-radius:8px;">
+          <div style="font-weight:600;margin-bottom:8px;">Calibration Steps</div>
+          <ol style="margin:0;padding-left:20px;line-height:1.8;">
+            <li>Rinse probe with DI water and shake dry</li>
+            <li>Place probe in 1413 µS/cm solution</li>
+            <li>Wait 30s for stabilization, then click "Low Point (1413 µS/cm)"</li>
+            <li><em>(Optional)</em> For 2-point: rinse, place in 12,880 µS/cm, wait 30s, click "High Point"</li>
+            <li>Verify reading matches known solution</li>
+          </ol>
+        </div>
+        
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <button id="btnEcCalClear" class="btn-secondary" title="Clear calibration and start fresh">Clear Calibration</button>
+          <button id="btnEcCalLow" class="btn-primary" title="Apply 1-point calibration at 1413 µS/cm">Low Point (1413 µS/cm)</button>
+          <button id="btnEcCalHigh" class="btn-secondary" title="Apply high point for 2-point calibration at 12,880 µS/cm">High Point (12,880 µS/cm)</button>
+          <button id="btnEcCalSetK" class="btn-secondary" title="Set K factor (probe constant)">Set K=1.0</button>
+        </div>
+        
+        <div id="ecCalMessage" class="muted" style="padding:8px;border-radius:6px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:40px;">
+          Ready. Click "Refresh" to see current status.
         </div>
       `;
 
@@ -262,6 +292,58 @@
       const bCal  = qP('#btnPhCalibrate'); if (bCal) bCal.addEventListener('click', doCal);
       const bClr  = qP('#btnPhClear'); if (bClr) bClr.addEventListener('click', clear);
 
+      // EC Calibration wiring (qP already defined above for panel-scoped queries)
+      const ecMsgEl = qP('#ecCalMessage');
+      const setEcMsg = (t, ok=true)=>{ if (ecMsgEl){ ecMsgEl.textContent = t||''; ecMsgEl.style.color = ok? '#9ca3af' : '#fca5a5'; } };
+      const ecStatus = async ()=>{
+        try{
+          const r = await (await fetch('/api/ec/cal/status?t='+Date.now(), {cache:'no-store'})).json();
+          if (!r || !r.ok){ setEcMsg('Status load failed', false); return; }
+          const sts = qP('#ecCalStatusValue'); if (sts) sts.textContent = r.status || '—';
+          const kv = qP('#ecKValue'); if (kv) kv.textContent = r.K ? Number(r.K).toFixed(2) : '—';
+          const ecCur = qP('#ecCalCurrentReading'); if (ecCur) ecCur.textContent = r.ec_mscm!=null ? Number(r.ec_mscm).toFixed(2) : '—';
+          setEcMsg(`Status: ${r.status}. K=${r.K||'—'}, EC=${r.ec_mscm!=null ? r.ec_mscm.toFixed(2) : '—'} mS/cm`);
+        }catch(e){ setEcMsg('Status failed', false); }
+      };
+      const btnEcCalRefreshStatus = qP('#btnEcCalRefreshStatus');
+      if (btnEcCalRefreshStatus) btnEcCalRefreshStatus.addEventListener('click', ecStatus);
+      const btnEcCalClear = qP('#btnEcCalClear');
+      if (btnEcCalClear) btnEcCalClear.addEventListener('click', async ()=>{
+        try{
+          setEcMsg('Clearing calibration...');
+          const r = await (await fetch('/api/ec/cal/clear', {method:'POST'})).json();
+          if (r && r.ok){ setEcMsg(r.note || 'Calibration cleared'); await ecStatus(); }
+          else { setEcMsg((r && r.note) || 'Clear failed', false); }
+        }catch(e){ setEcMsg('Clear failed', false); }
+      });
+      const btnEcCalLow = qP('#btnEcCalLow');
+      if (btnEcCalLow) btnEcCalLow.addEventListener('click', async ()=>{
+        try{
+          setEcMsg('Setting low point (1413 µS/cm)...');
+          const r = await (await fetch('/api/ec/cal/low', {method:'POST'})).json();
+          if (r && r.ok){ setEcMsg(r.note || 'Low point calibration accepted'); await ecStatus(); }
+          else { setEcMsg((r && r.note) || 'Low cal failed', false); }
+        }catch(e){ setEcMsg('Low cal failed', false); }
+      });
+      const btnEcCalHigh = qP('#btnEcCalHigh');
+      if (btnEcCalHigh) btnEcCalHigh.addEventListener('click', async ()=>{
+        try{
+          setEcMsg('Setting high point (12,880 µS/cm)...');
+          const r = await (await fetch('/api/ec/cal/high', {method:'POST'})).json();
+          if (r && r.ok){ setEcMsg(r.note || 'High point calibration accepted'); await ecStatus(); }
+          else { setEcMsg((r && r.note) || 'High cal failed', false); }
+        }catch(e){ setEcMsg('High cal failed', false); }
+      });
+      const btnEcCalSetK = qP('#btnEcCalSetK');
+      if (btnEcCalSetK) btnEcCalSetK.addEventListener('click', async ()=>{
+        try{
+          setEcMsg('Setting K=1.0...');
+          const r = await (await fetch('/api/ec/k', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({k:1.0})})).json();
+          if (r && r.ok){ setEcMsg(r.note || 'K factor set to 1.0'); await ecStatus(); }
+          else { setEcMsg((r && r.note) || 'K set failed', false); }
+        }catch(e){ setEcMsg('K set failed', false); }
+      });
+
   // Dosing wiring (qP already defined above for panel-scoped queries)
   const doseMsgEl = qP('#dose-calib-msg');
   const doseLog = (line)=>{ const box = qP('#dose-calib-log'); if (!box) return; const ts=new Date().toLocaleTimeString(); const div=document.createElement('div'); div.textContent = `[${ts}] ${line}`; box.appendChild(div); box.scrollTop = box.scrollHeight; };
@@ -357,7 +439,7 @@
       });
 
       // Prime values on open
-      setMsg(''); caps(); status(); read(); renderPumps(); refreshPrimeState();
+      setMsg(''); caps(); status(); read(); ecStatus(); renderPumps(); refreshPrimeState();
       return panel;
     }
     const fields = GROUP_DEF[ns].fields;
