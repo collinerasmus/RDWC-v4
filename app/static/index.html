@@ -2137,9 +2137,7 @@ function toggleRecentReadings(){
   const MAX_DELAY_MS = 30000;
   let statusCheckTimer = null;
   let watchdogTimer = null;
-  let lastFrameAt = 0;
   const WATCHDOG_INTERVAL = 10000; // 10s
-  const FRAME_STALE_MS = 20000; // if no load event in 20s, restart
 
   async function refreshStatus() {
     try {
@@ -2188,7 +2186,6 @@ function toggleRecentReadings(){
       // Refresh status pill every 30s while streaming
       if (statusCheckTimer) clearInterval(statusCheckTimer);
       statusCheckTimer = setInterval(refreshStatus, 30000);
-      lastFrameAt = Date.now();
     };
   }
 
@@ -2206,10 +2203,16 @@ function toggleRecentReadings(){
     }
   });
   // Watchdog: periodically check for staleness and restart stream if needed
-  function watchdog(){
-    const now = Date.now();
-    if (lastFrameAt && (now - lastFrameAt) > FRAME_STALE_MS){
-      console.warn('[Camera] Watchdog detected stale frame, restarting stream');
+  async function watchdog(){
+    try{
+      const r = await fetch('/camera/stream/health', {cache:'no-store'});
+      if (r.status !== 204){
+        console.warn('[Camera] Stream health not OK (', r.status, '), restarting');
+        stopStream();
+        startStream();
+      }
+    }catch(e){
+      console.warn('[Camera] Watchdog health check error, restarting', e);
       stopStream();
       startStream();
     }
