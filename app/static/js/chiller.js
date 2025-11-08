@@ -3,6 +3,54 @@
  * Hailea HS-52A - Cannabis-optimized temperature automation
  */
 (() => {
+  // ===== MODE MANAGEMENT =====
+  let envMode = localStorage.getItem('env_mode') || 'auto';
+
+  function envSetMode(next) {
+    if (!['auto', 'manual', 'maint'].includes(next)) return;
+    envMode = next;
+    localStorage.setItem('env_mode', next);
+
+    ['auto', 'manual', 'maint'].forEach(m => {
+      const btn = document.getElementById(`env-mode-${m}`);
+      if (btn) btn.classList.toggle('active', m === next);
+    });
+
+    // Show/hide content sections if they exist
+    const autoContent = document.getElementById('env-auto-content');
+    const manualContent = document.getElementById('env-manual-content');
+    const maintContent = document.getElementById('env-maint-content');
+    if (autoContent) autoContent.style.display = (next === 'auto') ? 'block' : 'none';
+    if (manualContent) manualContent.style.display = (next === 'manual') ? 'block' : 'none';
+    if (maintContent) maintContent.style.display = (next === 'maint') ? 'block' : 'none';
+
+    updateEnvHealth();
+  }
+
+  function updateEnvHealth() {
+    const chip = document.getElementById('env-health-indicator');
+    if (!chip) return;
+
+    if (envMode === 'maint') {
+      chip.textContent = 'MAINT';
+      chip.className = 'health-chip chip-mode';
+    } else if (chillerState.in_cooldown || chillerState.min_runtime_active) {
+      chip.textContent = 'HOLDING';
+      chip.className = 'health-chip chip-mode';
+    } else {
+      chip.textContent = 'OK';
+      chip.className = 'health-chip chip-ok';
+    }
+  }
+
+  window.envSetMode = envSetMode;
+
+  // Initialize mode on load
+  document.addEventListener('DOMContentLoaded', () => {
+    envSetMode(envMode);
+  });
+
+  // ===== CHILLER CONTROL LOGIC =====
   const q = (s) => document.querySelector(s);
 
   let chillerState = {
@@ -82,7 +130,8 @@
       
       // Update UI
       updateChillerUI();
-      
+  updateEnvHealth();
+
     } catch (e) {
       console.error('Failed to refresh chiller status:', e);
     }

@@ -2,6 +2,52 @@
 (function(){
   'use strict';
 
+  // ===== MODE MANAGEMENT =====
+  let scheduleMode = localStorage.getItem('schedule_mode') || 'auto';
+
+  function scheduleSetMode(next) {
+    if (!['auto', 'manual', 'maint'].includes(next)) return;
+    scheduleMode = next;
+    localStorage.setItem('schedule_mode', next);
+
+    ['auto', 'manual', 'maint'].forEach(m => {
+      const btn = document.getElementById(`schedule-mode-${m}`);
+      if (btn) btn.classList.toggle('active', m === next);
+    });
+
+    // Show/hide content sections if they exist
+    const autoContent = document.getElementById('schedule-auto-content');
+    const manualContent = document.getElementById('schedule-manual-content');
+    const maintContent = document.getElementById('schedule-maint-content');
+    if (autoContent) autoContent.style.display = (next === 'auto') ? 'block' : 'none';
+    if (manualContent) manualContent.style.display = (next === 'manual') ? 'block' : 'none';
+    if (maintContent) maintContent.style.display = (next === 'maint') ? 'block' : 'none';
+
+    updateScheduleHealth();
+  }
+
+  function updateScheduleHealth() {
+    const chip = document.getElementById('schedule-health-indicator');
+    if (!chip) return;
+
+    if (scheduleMode === 'maint') {
+      chip.textContent = 'MAINT';
+      chip.className = 'health-chip chip-mode';
+    } else {
+      chip.textContent = 'OK';
+      chip.className = 'health-chip chip-ok';
+    }
+  }
+
+  window.scheduleSetMode = scheduleSetMode;
+
+  // Initialize mode on load
+  document.addEventListener('DOMContentLoaded', () => {
+    scheduleSetMode(scheduleMode);
+  });
+
+  // ===== SCHEDULE DISPLAY LOGIC =====
+
   let scheduleCache = null;
   let selectedWeek = null;
   let pollTimer = null;

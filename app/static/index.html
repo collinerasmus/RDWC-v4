@@ -807,13 +807,21 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
 
 
-  <!-- Schedule Tab (Read-only Grow Plan Preview) -->
+  <!-- Schedule Controller Tab -->
   <section id="schedule-card" class="card card-wide tab-section" data-tab="schedule" style="display:none;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-      <h3 class="card-title" style="margin:0;">Grow Schedule (Preview)</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h3 class="card-title" style="margin:0;">Schedule Controller</h3>
+        <div class="schedule-mode-buttons" style="display:flex;gap:6px;">
+          <button id="schedule-mode-auto" class="btn-chip active" onclick="window.scheduleSetMode?window.scheduleSetMode('auto'):0">Auto</button>
+          <button id="schedule-mode-manual" class="btn-chip" onclick="window.scheduleSetMode?window.scheduleSetMode('manual'):0">Manual</button>
+          <button id="schedule-mode-maint" class="btn-chip" onclick="window.scheduleSetMode?window.scheduleSetMode('maintenance'):0">Maintenance</button>
+        </div>
+        <span id="schedule-health-indicator" class="ui-status-chip success" title="Schedule health">OK</span>
+        <span id="schedule-current-week-pill" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.10);border:1px solid rgba(59,130,246,0.35);font-size:0.75rem;">Week —</span>
+      </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
         <button id="scheduleSeedBtn" class="btn-secondary" title="Seed default 12-week schedule (non-destructive)">Seed Defaults</button>
-        <span id="schedule-current-week-pill" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.10);border:1px solid rgba(59,130,246,0.35);font-size:0.75rem;">Week —</span>
       </div>
     </div>
     <div class="card-body" style="padding:0;">
@@ -870,18 +878,23 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
   </section>
 
-  <!-- Overview Tab (includes Camera) -->
+  <!-- Overview Tab (System Controller) -->
   <section id="overview-card" class="card card-wide tab-section" data-tab="overview">
-    <!-- System Overview (moved above camera for immediate status visibility) -->
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-      <h3 class="card-title" style="margin:0;">System Overview</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h3 class="card-title" style="margin:0;">System Controller</h3>
+        <div class="system-mode-buttons" style="display:flex;gap:6px;">
+          <button id="system-mode-auto" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('auto'):0">Auto</button>
+          <button id="system-mode-manual" class="btn-chip active" onclick="window.systemSetMode?window.systemSetMode('manual'):0">Manual</button>
+          <button id="system-mode-maint" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('maintenance'):0">Maintenance</button>
+        </div>
+        <span id="system-health-indicator" class="ui-status-chip success" title="System health">OK</span>
+      </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-        <span class="ui-status-chip" id="chip-mode" title="System mode">—</span>
         <span class="ui-status-chip" id="chip-estop" title="Emergency stop status">—</span>
         <span class="ui-status-chip" id="chip-sensors" title="Sensor poller status">—</span>
         <span class="ui-status-chip" id="chip-ph" title="pH controller health">—</span>
         <span class="ui-status-chip" id="chip-ec" title="EC controller health">—</span>
-        <span class="ui-status-chip" id="chip-maint" title="Maintenance override">—</span>
       </div>
     </div>
     <div class="card-body">
@@ -918,16 +931,26 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <div class="muted" style="font-size:0.75rem;">Compressor-protected</div>
         </div>
       </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
-        <span id="ov-mode" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);">Mode: —</span>
+      <!-- System mode content sections -->
+      <div id="system-auto-content" style="display:none;">
+        <div class="muted" style="margin-bottom:12px;padding:8px 12px;border-radius:8px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);color:#a7f3d0;font-size:0.85rem;">
+          ✓ System automation enabled: Controllers follow programmed logic, schedules active, safety guards enforced.
+        </div>
+      </div>
+      <div id="system-manual-content" style="display:block;">
+        <div class="muted" style="margin-bottom:12px;padding:8px 12px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;">
+          Manual mode: User controls with safeties active. RDWC circulation required for cooling and sensors. E-STOP overrides all.
+        </div>
+      </div>
+      <div id="system-maint-content" style="display:none;">
+        <div class="muted" style="margin-bottom:12px;padding:8px 12px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);color:#fecaca;font-size:0.85rem;">
+          ⚠️ <strong>Maintenance Mode:</strong> All system safeties bypassed (cooldowns, daily caps, intervals). E-STOP and reservoir checks still enforced.
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:8px;">
         <span id="ov-estop" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);">E-STOP: —</span>
         <span id="ov-lights-window" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);">Lights Window: —</span>
         <span id="ov-sensor-poller" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);" title="Headless sensor polling status">Sensors: —</span>
-        <!-- Maintenance override toggle -->
-        <label class="muted" title="Controller outputs are inhibited; manual dosing allowed. Hard safety interlocks still enforced." style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;border:1px solid rgba(239,68,68,0.45);background:rgba(239,68,68,0.08);color:#fecaca;">
-          <input id="ov-maint-toggle" type="checkbox" style="accent-color:#ef4444;" />
-          Maintenance Override
-        </label>
       </div>
     </div>
     
@@ -944,11 +967,18 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
   </section>
 
-  <!-- Temperature Control Tab -->
+  <!-- Environment (Temperature/Chiller) Tab -->
   <section id="temp-card" class="card card-wide tab-section" data-tab="temp" style="display:none;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <div style="font-weight:600;">❄️ Intelligent Chiller Control</div>
-      <span id="chiller-auto-badge" class="muted" style="padding:3px 10px;border-radius:6px;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.3);color:#cbd5e1;font-size:0.85rem;">Manual</span>
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h3 class="card-title" style="margin:0;">Environment Controller</h3>
+        <div class="env-mode-buttons" style="display:flex;gap:6px;">
+          <button id="env-mode-auto" class="btn-chip" onclick="window.envSetMode?window.envSetMode('auto'):0">Auto</button>
+          <button id="env-mode-manual" class="btn-chip active" onclick="window.envSetMode?window.envSetMode('manual'):0">Manual</button>
+          <button id="env-mode-maint" class="btn-chip" onclick="window.envSetMode?window.envSetMode('maintenance'):0">Maintenance</button>
+        </div>
+        <span id="env-health-indicator" class="ui-status-chip success" title="Environment health">OK</span>
+      </div>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px;">
@@ -1107,9 +1137,16 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- Circulation Controller Tab -->
   <section id="circ-card" class="card card-wide tab-section" data-tab="circulation" style="display:none;">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-      <h3 class="card-title" style="margin:0;">Circulation Controller</h3>
-      <div class="muted" id="circ-mode-pill">—</div>
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h3 class="card-title" style="margin:0;">Circulation Controller</h3>
+        <div class="circ-mode-buttons" style="display:flex;gap:6px;">
+          <button id="circ-mode-auto" class="btn-chip" onclick="window.circSetMode?window.circSetMode('auto'):0">Auto</button>
+          <button id="circ-mode-manual" class="btn-chip active" onclick="window.circSetMode?window.circSetMode('manual'):0">Manual</button>
+          <button id="circ-mode-maint" class="btn-chip" onclick="window.circSetMode?window.circSetMode('maintenance'):0">Maintenance</button>
+        </div>
+        <span id="circ-health-indicator" class="ui-status-chip success" title="Circulation health">OK</span>
+      </div>
     </div>
     <div class="card-body">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
@@ -1158,14 +1195,18 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- 3. Sensors Card with Chart.js -->
   <section id="sensors-card" class="card card-wide tab-section" data-tab="sensors" style="display:none;">
-    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <div style="font-weight:600;">Sensors</div>
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h3 class="card-title" style="margin:0;">Sensors Controller</h3>
+        <div class="sensors-mode-buttons" style="display:flex;gap:6px;">
+          <button id="sensors-mode-auto" class="btn-chip active" onclick="window.sensorsSetMode?window.sensorsSetMode('auto'):0">Auto</button>
+          <button id="sensors-mode-manual" class="btn-chip" onclick="window.sensorsSetMode?window.sensorsSetMode('manual'):0">Manual</button>
+          <button id="sensors-mode-maint" class="btn-chip" onclick="window.sensorsSetMode?window.sensorsSetMode('maintenance'):0">Maintenance</button>
+        </div>
+        <span id="sensors-health-indicator" class="ui-status-chip success" title="Sensors health">OK</span>
         <span id="sensors-grow-day-badge" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;font-weight:500;"></span>
-        <span id="sensors-health-badge" title="sensor health" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(34,197,94,0.4);background:rgba(34,197,94,0.12);color:#86efac;font-size:0.85rem;font-weight:600;">OK</span>
         <span id="sensorsFreshnessDot" class="fresh-dot" title="DB freshness"></span>
       </div>
-      <!-- controls moved below KPI row to match pH chart layout -->
     </div>
 
     <!-- KPI badges -->
@@ -2388,10 +2429,10 @@ window.CircControl = (function(){
       .then(function(j){
         // Update banner early if possible
         try{ var vEl=document.getElementById('build-version'); if(vEl) vEl.textContent = (j&&j.version)||'n/a'; }catch(e){}
-  return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_v2.js','chiller.js','schedule.js','sensors.js','overview.js'], j && j.version);
+  return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_v2.js','chiller.js','schedule.js','sensors.js','system.js','circulation.js','overview.js'], j && j.version);
       })
       .catch(function(){
-  return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_v2.js','chiller.js','schedule.js','sensors.js','overview.js'], (new Date()).toISOString().slice(0,10));
+  return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_v2.js','chiller.js','schedule.js','sensors.js','system.js','circulation.js','overview.js'], (new Date()).toISOString().slice(0,10));
       })
       .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();

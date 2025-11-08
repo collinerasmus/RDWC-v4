@@ -7,6 +7,28 @@
   }
   const $ = (id)=>document.getElementById(id);
   
+  // Mode management for Sensors Controller
+  let sensorsMode = localStorage.getItem('sensors_mode') || 'auto';
+  const setActive = (btn, on)=>{ if(!btn) return; if(on) btn.classList.add('active'); else btn.classList.remove('active'); };
+  
+  function sensorsSetMode(next){
+    sensorsMode = next; localStorage.setItem('sensors_mode', next);
+    setActive($('sensors-mode-auto'), next==='auto');
+    setActive($('sensors-mode-manual'), next==='manual');
+    setActive($('sensors-mode-maint'), next==='maintenance');
+    updateSensorsHealth();
+  }
+  
+  function updateSensorsHealth(){
+    const ind = $('sensors-health-indicator');
+    if (!ind) return;
+    if (sensorsMode==='maintenance'){ ind.textContent='MAINT'; ind.className='ui-status-chip warning'; ind.title='Maintenance mode: simulated data'; }
+    else if (sensorsMode==='auto'){ ind.textContent='OK'; ind.className='ui-status-chip success'; ind.title='Live poller feed'; }
+    else { ind.textContent='OK'; ind.className='ui-status-chip success'; ind.title='Manual/simulated readings'; }
+  }
+  
+  window.sensorsSetMode = sensorsSetMode;
+  
   const setMetric = (el, val, classes) => {
     if (!el) return;
     el.textContent = (val===null || Number.isNaN(val)) ? "--" : String(val.toFixed ? val.toFixed(2) : val);
