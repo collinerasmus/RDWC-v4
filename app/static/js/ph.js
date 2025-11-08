@@ -10,8 +10,94 @@
   // Recent collapse state (manual only, no auto-hide)
   let recentCollapsed = true;
   let recentHeaderBound = false;
+  
+  // Mode system state
+  let currentMode = localStorage.getItem('ph_mode') || 'manual';
+  let doseLogCollapsed = localStorage.getItem('ph_dose_log_collapsed') !== 'false'; // default hidden
 
   function el(id){ return document.getElementById(id); }
+
+  function setMode(mode) {
+    currentMode = mode;
+    localStorage.setItem('ph_mode', mode);
+    
+    // Update mode button active states
+    ['ph-mode-manual', 'ph-mode-auto', 'ph-mode-maint'].forEach(id => {
+      const btn = el(id);
+      if (btn) {
+        const btnMode = btn.getAttribute('data-mode');
+        if (btnMode === mode) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      }
+    });
+    
+    // Show/hide content based on mode
+    const manualContent = el('ph-manual-content');
+    const autoContent = el('ph-auto-content');
+    const maintContent = el('ph-maint-content');
+    
+    if (manualContent) manualContent.style.display = (mode === 'manual') ? 'block' : 'none';
+    if (autoContent) autoContent.style.display = (mode === 'auto') ? 'block' : 'none';
+    if (maintContent) maintContent.style.display = (mode === 'maintenance') ? 'block' : 'none';
+    
+    // Update health indicator based on mode
+    updateHealthIndicator();
+  }
+
+  function updateHealthIndicator() {
+    const indicator = el('ph-health-indicator');
+    if (!indicator) return;
+    
+    // Determine health based on lastStatus and current mode
+    if (!lastStatus) {
+      indicator.textContent = '—';
+      indicator.className = 'ui-status-chip neutral';
+      indicator.title = 'Loading...';
+      return;
+    }
+    
+    const g = lastStatus.guards || {};
+    const hasHardBlocks = !!(g.estop || g.safe_off || g.sensor_stale || g.reservoir);
+    const hasSoftBlocks = !!(g.interval || g.daily_cap);
+    
+    if (hasHardBlocks) {
+      indicator.textContent = 'BLOCKED';
+      indicator.className = 'ui-status-chip error';
+      indicator.title = 'Hard safety blocks active: ' + guardList(g).join(', ');
+    } else if (hasSoftBlocks && currentMode === 'auto') {
+      indicator.textContent = 'HOLDING';
+      indicator.className = 'ui-status-chip warning';
+      indicator.title = 'Automation holding: ' + guardList(g).join(', ');
+    } else if (currentMode === 'maintenance') {
+      indicator.textContent = 'MAINT';
+      indicator.className = 'ui-status-chip warning';
+      indicator.title = 'Maintenance mode active';
+    } else {
+      indicator.textContent = 'OK';
+      indicator.className = 'ui-status-chip success';
+      indicator.title = 'Controller healthy';
+    }
+  }
+
+  function setDoseLogCollapsed(collapsed) {
+    doseLogCollapsed = collapsed;
+    localStorage.setItem('ph_dose_log_collapsed', collapsed);
+    
+    const header = el('ph-dose-log-header');
+    const body = el('ph-dose-log-body');
+    
+    if (header) {
+      header.innerHTML = collapsed ? 
+        '📝 Dose Log (Last 20) ▸' : 
+        '📝 Dose Log (Last 20) ▾';
+    }
+    if (body) {
+      body.style.display = collapsed ? 'none' : 'block';
+    }
+  }
 
   async function fetchStatus(){
     try{
@@ -66,6 +152,9 @@
       guards.title = list.length ? guardHints(s.guards) : '';
     }
     if(resBanner && s){ resBanner.style.display = s.guards?.reservoir ? 'block' : 'none'; }
+    
+    // Update health indicator
+    updateHealthIndicator();
     if(recent && s){
       recent.innerHTML = '';
       // Ensure compact, scrollable log even if HTML wasn't updated
@@ -376,12 +465,47 @@
     const c = document.getElementById('ph-card');
     if(!c) return;
     
-    // Use new unified endpoints with time-based dosing
+    // Mode selection buttons
+    ['ph-mode-manual', 'ph-mode-auto', 'ph-mode-maint'].forEach(id => {
+      const btn = el(id);
+      if (btn) {
+        btn.addEventListener('click', () => {
+          const mode = btn.getAttribute('data-mode');
+          setMode(mode);
+        });
+      }
+    });
+    
+    // Initialize mode on load
+    setMode(currentMode);
+    
+    // Dose log collapsible header
+    const doseLogHeader = el('ph-dose-log-header');
+    if (doseLogHeader) {
+      doseLogHeader.addEventListener('click', () => {
+        setDoseLogCollapsed(!doseLogCollapsed);
+      });
+    }
+    
+    // Initialize dose log collapsed state
+    setDoseLogCollapsed(doseLogCollapsed);
+    
+    // Use new unified endpoints with time-based dosing (Manual mode)
     el('btnPrime')?.addEventListener('click', ()=> doseUnified('ph_up', 0.2, 'prime'));
     el('btnDose1')?.addEventListener('click', ()=> doseUnified('ph_up', 0.5, 'manual'));
     el('btnDose5')?.addEventListener('click', ()=> doseUnified('ph_up', 1.0, 'manual'));
     el('btnDoseCustom')?.addEventListener('click', ()=>{
       const v = parseFloat(el('phCustomMl').value||'0');
+      if(!isFinite(v) || v<=0){ alert('Enter seconds > 0'); return; }
+      doseUnified('ph_up', v, 'custom');
+    });
+    
+    // Maintenance mode dosing buttons (mirror manual)
+    el('btnPrimeMaint')?.addEventListener('click', ()=> doseUnified('ph_up', 0.2, 'prime'));
+    el('btnDose1Maint')?.addEventListener('click', ()=> doseUnified('ph_up', 0.5, 'manual'));
+    el('btnDose5Maint')?.addEventListener('click', ()=> doseUnified('ph_up', 1.0, 'manual'));
+    el('btnDoseCustomMaint')?.addEventListener('click', ()=>{
+      const v = parseFloat(el('phCustomMlMaint').value||'0');
       if(!isFinite(v) || v<=0){ alert('Enter seconds > 0'); return; }
       doseUnified('ph_up', v, 'custom');
     });

@@ -743,6 +743,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   .ui-status-chip.neutral { background: rgba(148,163,184,0.1); color: #94a3b8; border-color: rgba(148,163,184,0.3); }
   .ui-status-chip.warning { background: rgba(251,146,60,0.1); color: #fb923c; border-color: rgba(251,146,60,0.3); }
   .ui-status-chip.danger  { background: rgba(239,68,68,0.1); color: #ef4444; border-color: rgba(239,68,68,0.3); }
+  .ui-status-chip.error   { background: rgba(239,68,68,0.1); color: #ef4444; border-color: rgba(239,68,68,0.3); }
   /* UI Polish 2025-11 Part 2 (.ui-polish-2025-11b scope) */
   .ui-polish-2025-11b .sensor-meta-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:4px;}
   .ui-polish-2025-11b #sensors-updated{padding:3px 8px;border:1px solid rgba(148,163,184,0.35);border-radius:6px;font-size:0.7rem;background:rgba(148,163,184,0.08);color:#94a3b8;white-space:nowrap;}
@@ -1190,8 +1191,19 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- 4. pH Control Card -->
   <section id="ph-card" class="card card-wide tab-section" data-tab="ph" style="display:none;">
+        <!-- 1. Header: Mode buttons, health indicator, maintenance override, targets -->
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-          <h3 class="card-title" style="margin:0;">pH Control</h3>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <h3 class="card-title" style="margin:0;">pH Control</h3>
+            <!-- Mode Selection Buttons -->
+            <div class="ph-mode-buttons" style="display:flex;gap:6px;">
+              <button id="ph-mode-manual" class="btn-chip active" data-mode="manual">Manual</button>
+              <button id="ph-mode-auto" class="btn-chip" data-mode="auto">Auto</button>
+              <button id="ph-mode-maint" class="btn-chip" data-mode="maintenance">Maintenance</button>
+            </div>
+            <!-- Controller Health Indicator -->
+            <span id="ph-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
+          </div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
             <label class="muted" title="Controller outputs are inhibited; manual dosing allowed. Hard safety interlocks still enforced." style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.06);color:#fecaca;font-size:0.85rem;">
               <input id="ph-maint-toggle" type="checkbox" style="accent-color:#ef4444;" />
@@ -1200,7 +1212,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <div class="muted" id="ph-band">Targets 5.8 – 6.2</div>
           </div>
         </div>
+
         <div class="card-body">
+          <!-- 2. Sensor Reading: pH KPI, guards (moved to manual section), countdown, summary pills -->
           <div id="ph-reservoir-banner" class="muted" style="display:none;margin-bottom:8px;padding:6px 10px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#fecaca;">
             Reservoir set to 0 L — dosing disabled
           </div>
@@ -1209,7 +1223,6 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <div class="kpi-label">pH</div>
               <div class="kpi-value" id="ph-current">—</div>
             </div>
-            <div id="ph-guards" class="muted" title="">—</div>
             <span id="ph-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
           </div>
 
@@ -1220,23 +1233,14 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <button id="ph-dose-csv" class="btn-secondary" title="Download dose log CSV (7d)">Download CSV</button>
           </div>
 
-          <div class="tabs" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px 0;">
-            <button class="btn-secondary" onclick="document.getElementById('ph-tab-status').style.display='block';document.getElementById('ph-tab-manual').style.display='none';document.getElementById('ph-tab-auto').style.display='none';">Status</button>
-            <button class="btn-secondary" onclick="document.getElementById('ph-tab-status').style.display='none';document.getElementById('ph-tab-manual').style.display='block';document.getElementById('ph-tab-auto').style.display='none';">Manual</button>
-            <button class="btn-secondary" onclick="document.getElementById('ph-tab-status').style.display='none';document.getElementById('ph-tab-manual').style.display='none';document.getElementById('ph-tab-auto').style.display='block';">Automation</button>
-          </div>
-
-          <div id="ph-tab-status">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap;">
-              <div id="ph-recent-header" class="muted" style="cursor:pointer;user-select:none;">Grow Log ▸</div>
-              <div>
-                <button id="btnPhExport24" class="btn-secondary" title="Download CSV of recent pH doses (24h)">Export CSV (24h)</button>
-              </div>
+          <!-- Mode-Specific Content -->
+          
+          <!-- Manual Mode Content -->
+          <div id="ph-manual-content" style="display:block;">
+            <!-- Guards status moved here (relevant to manual dosing) -->
+            <div style="margin-bottom:12px;">
+              <div id="ph-guards" class="muted" title="">—</div>
             </div>
-            <div id="ph-recent" class="muted" style="display:none;max-height:140px;overflow-y:auto;padding-right:6px;"></div>
-            <div id="ph-calib-banner" class="muted" style="display:none;margin-top:8px;padding:6px 10px;border-radius:8px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.3);color:#cbd5e1;">Set <strong>pH Up ml/s</strong> in Settings → Dosing to enable volume totals.</div>
-          </div>
-          <div id="ph-tab-manual" style="display:none;">
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
               <button id="btnPrime" class="btn-secondary" title="Prime (200 ms)">Prime</button>
               <button id="btnDose1" class="btn-secondary">+1 ml</button>
@@ -1249,7 +1253,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               Max per press: <span id="phCapMaxPress">1.5s</span> • Daily cap: <span id="phCapDaily">120s</span> • Min off: <span id="phCapMinOff">2s</span>
             </div>
           </div>
-          <div id="ph-tab-auto" style="display:none;">
+
+          <!-- Auto Mode Content -->
+          <div id="ph-auto-content" style="display:none;">
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
               <span id="phAutoStateBadge" class="countdown-pill" style="display:inline-block;border-color:rgba(148,163,184,.35);">Disabled</span>
               <span id="phLearnedBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Learned: —</span>
@@ -1257,13 +1263,56 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <button id="btnAutoToggle" class="btn-secondary">Enable automation</button>
           </div>
 
-          <!-- Dose Log -->
+          <!-- Maintenance Mode Content -->
+          <div id="ph-maint-content" style="display:none;">
+            <div class="muted" style="margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);color:#fecaca;">
+              ⚠️ <strong>Maintenance Mode Active:</strong> Controller automation disabled. Manual dosing available with reduced safety restrictions (E-STOP and empty reservoir checks still enforced).
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <button id="btnPrimeMaint" class="btn-secondary" title="Prime (200 ms)">Prime</button>
+              <button id="btnDose1Maint" class="btn-secondary">+1 ml</button>
+              <button id="btnDose5Maint" class="btn-secondary">+5 ml</button>
+              <input id="phCustomMlMaint" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
+              <button id="btnDoseCustomMaint" class="btn-secondary">Dose</button>
+            </div>
+          </div>
+
+          <!-- 3. Graph (Dose History Chart) -->
+          <hr class="separator" style="margin:20px 0;" />
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="muted">Dose History</div>
+              <span id="ph-in-range" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;">In range: — ml</span>
+            </div>
+          </div>
+          <div id="ph-dose-chart-wrap" class="chart-card">
+            <canvas id="phDoseChart"></canvas>
+            <div id="ph-dose-empty" class="muted small" style="display:none;padding:8px 0;">
+              No doses recorded in this period.
+            </div>
+          </div>
+
+          <!-- 4. Graph Controls (Range buttons, date pickers) -->
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;justify-content:flex-end;">
+            <button class="btn btn-chip" data-range="24h">24h</button>
+            <button class="btn btn-chip" data-range="7d">7d</button>
+            <button class="btn btn-chip" data-range="30d">30d</button>
+            <button class="btn btn-chip" data-range="90d">90d</button>
+            <button class="btn btn-chip" data-range="grow" title="From grow start date to now">Grow</button>
+            <span style="opacity:.5;">|</span>
+            <input type="datetime-local" id="phDoseFrom" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
+            <input type="datetime-local" id="phDoseTo" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
+            <button class="btn btn-secondary" id="phDoseApply">Apply</button>
+          </div>
+
+          <!-- 5. Dose Log (newest first, collapsible, hidden by default) -->
+
           <div style="margin-top:20px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <div class="muted" style="font-weight:600;font-size:0.9rem;">📝 Dose Log (Last 20)</div>
+              <div id="ph-dose-log-header" class="muted" style="cursor:pointer;user-select:none;font-weight:600;font-size:0.9rem;">📝 Dose Log (Last 20) ▸</div>
               <button id="btnRefreshDoseLog" class="btn-secondary" style="padding:4px 10px;font-size:0.85rem;" title="Refresh dose log">Refresh</button>
             </div>
-            <div style="max-height:200px;overflow-y:auto;border-radius:6px;border:1px solid rgba(148,163,184,0.1);">
+            <div id="ph-dose-log-body" style="display:none;max-height:200px;overflow-y:auto;border-radius:6px;border:1px solid rgba(148,163,184,0.1);">
               <table style="width:100%;font-size:0.85rem;">
                 <thead style="position:sticky;top:0;background:#111827;border-bottom:1px solid rgba(148,163,184,0.2);">
                   <tr>
@@ -1282,13 +1331,16 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             </div>
           </div>
 
-          <!-- pH-Specific Settings -->
-          <details style="margin-top:12px;" open>
+          <!-- 6. Settings -->
+
+          <details style="margin-top:12px;">
             <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ pH Settings</summary>
             <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
               <div class="muted" style="font-size:0.75rem;margin-bottom:16px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
                 Configure pH targets, dosing parameters, and alert thresholds specific to this controller.
               </div>
+              
+              <!-- Target Range -->
               <div style="margin-bottom:16px;">
                 <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Target Range</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
@@ -1302,7 +1354,24 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                   </div>
                 </div>
               </div>
-              <div style="margin-bottom:16px;">
+
+              <!-- Alert Thresholds (moved before Dosing Parameters for better workflow) -->
+              <div style="margin-bottom:16px;padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
+                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Alert Thresholds</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Low Alert pH</label>
+                    <input type="number" id="phAlertLow" step="0.1" min="3.0" max="8.0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;">High Alert pH</label>
+                    <input type="number" id="phAlertHigh" step="0.1" min="3.0" max="8.0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Dosing Parameters -->
+              <div style="margin-bottom:16px;padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
                 <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Dosing Parameters</div>
                 <div class="muted" style="font-size:0.75rem;margin-bottom:8px;">Configure pH Up dosing amounts and safety limits</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:8px;">
@@ -1321,6 +1390,16 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">
                   <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;" data-tooltip="Calibration: ml of pH Up per second">pH Up ml/s</label>
+                    <input type="number" id="phUpMlPerSec" step="0.01" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0.83" />
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;" data-tooltip="Wait time after dosing for mixing">Mix delay (s)</label>
+                    <input type="number" id="phMixDelay" step="1" min="0" max="3600" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0" />
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                  <div>
                     <label style="display:block;font-size:0.85rem;margin-bottom:4px;" data-tooltip="Maximum ml of pH Up per hour">Max ml/hour</label>
                     <input type="number" id="phMaxMlHour" step="1" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0" />
                   </div>
@@ -1329,35 +1408,12 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                     <input type="number" id="phMaxMlDay" step="1" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0" />
                   </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                  <div>
-                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;" data-tooltip="Wait time after dosing for mixing">Mix delay (s)</label>
-                    <input type="number" id="phMixDelay" step="1" min="0" max="3600" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0" />
-                  </div>
-                  <div>
-                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;" data-tooltip="Calibration: ml of pH Up per second">pH Up ml/s</label>
-                    <input type="number" id="phUpMlPerSec" step="0.01" min="0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" placeholder="0.83" />
-                  </div>
-                </div>
               </div>
-              <div style="margin-bottom:16px;">
-                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Alert Thresholds</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                  <div>
-                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Low Alert pH</label>
-                    <input type="number" id="phAlertLow" step="0.1" min="3.0" max="8.0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
-                  </div>
-                  <div>
-                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;">High Alert pH</label>
-                    <input type="number" id="phAlertHigh" step="0.1" min="3.0" max="8.0" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
-                  </div>
-                </div>
-              </div>
-              <button id="btnSavePhSettings" class="btn-secondary" style="width:100%;">Save pH Settings</button>
+              
+              <button id="btnSavePhSettings" class="btn-secondary" style="width:100%;margin-bottom:12px;">Save pH Settings</button>
               
               <!-- pH Calibration -->
-              <hr style="margin:20px 0;border:none;border-top:1px solid rgba(148,163,184,0.2);" />
-              <div style="margin-top:16px;">
+              <div style="padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
                 <div style="font-weight:600;margin-bottom:12px;font-size:0.9rem;">🧪 pH Probe Calibration</div>
                 <div id="ph-calib-banner-inline" class="muted" style="display:none;margin-bottom:12px;padding:8px 12px;border-radius:6px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:#fecaca;font-size:0.85rem;">
                   ⚠️ Writes are disabled. Set CALIB_ENABLE=1 and restart service to enable calibration commands.
@@ -1399,32 +1455,6 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               </div>
             </div>
           </details>
-
-          <!-- History chart -->
-          <hr class="separator" />
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <div class="muted">Dose History</div>
-              <span id="ph-in-range" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;">In range: — ml</span>
-            </div>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-              <button class="btn btn-chip" data-range="24h">24h</button>
-              <button class="btn btn-chip" data-range="7d">7d</button>
-              <button class="btn btn-chip" data-range="30d">30d</button>
-              <button class="btn btn-chip" data-range="90d">90d</button>
-              <button class="btn btn-chip" data-range="grow" title="From grow start date to now">Grow</button>
-              <span style="opacity:.5;">|</span>
-              <input type="datetime-local" id="phDoseFrom" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
-              <input type="datetime-local" id="phDoseTo" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
-              <button class="btn btn-secondary" id="phDoseApply">Apply</button>
-            </div>
-          </div>
-          <div id="ph-dose-chart-wrap" class="chart-card">
-            <canvas id="phDoseChart"></canvas>
-            <div id="ph-dose-empty" class="muted small" style="display:none;padding:8px 0;">
-              No doses recorded in this period.
-            </div>
-          </div>
         </div>
   </section>
 
