@@ -499,7 +499,7 @@
     el('btnPhReadInline')?.addEventListener('click', async ()=>{
       setCalibBusy(true);
       try{
-        setMsg('Reading...');
+        setMsg('Reading (waits for sensor poller to pause, ~8s)...');
         const resp = await fetch('/calib/ph/read?t='+Date.now(), {cache:'no-store'});
         const r = await resp.json();
         if (r && r.ok){ 

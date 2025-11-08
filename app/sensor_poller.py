@@ -224,14 +224,46 @@ def _log_reading(temp_c: Optional[float], ph: Optional[float], ec_ms_cm: Optiona
         logger.error(f"Failed to log reading: {e}")
 
 
+def _calib_lock_held() -> bool:
+    """Check if calibration lock is currently held by another process"""
+    import fcntl
+    lock_path = "/tmp/rdwc_calib.lock"
+    try:
+        fd = open(lock_path, 'w')
+        # Try non-blocking exclusive lock
+        fcntl.flock(fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # If we got the lock, release it immediately
+        fcntl.flock(fd.fileno(), fcntl.LOCK_UN)
+        fd.close()
+        return False  # Lock was available, no calibration in progress
+    except (IOError, OSError):
+        # Lock is held by another process
+        return True
+
+
 def poll_once() -> Dict[str, Any]:
     """
     Execute one sensor poll cycle.
+    Skips reading if calibration lock is held to avoid I²C bus contention.
     
     Returns:
         Dict containing sensor readings and metadata
     """
     global _last_sample_ts, _last_heartbeat_ts, _poll_count
+    
+    # Check for calibration activity - skip polling if calibration is in progress
+    if _calib_lock_held():
+        logger.debug("Calibration lock held, skipping sensor poll to avoid I²C contention")
+        # Still update heartbeat so we don't appear dead
+        now = time.time()
+        _last_heartbeat_ts = now
+        _update_system_state("sensor_poller_heartbeat_ts", str(int(now)))
+        return {
+            "temp_c": None,
+            "ph": None,
+            "ec_ms_cm": None,
+            "errors": {"skipped": "calibration_in_progress"}
+        }
     
     readings = _read_sensors()
     now = time.time()

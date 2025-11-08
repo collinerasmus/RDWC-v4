@@ -2481,8 +2481,9 @@ def calib_ph_read():
         try:
             lock_fd = open(lock_path, 'w')
             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
-            # Allow any in-flight sensor read to finish before we send our command
-            _time.sleep(2.0)
+            # Wait longer for background poller to notice lock and skip its cycle
+            # Poller checks lock every ~5s, so wait 6s to ensure it sees us
+            _time.sleep(6.0)
             # Use longer timings; Atlas EZO reads commonly need 1.0–1.6s
             # Try up to 3 immediate reads under the same lock to get a payload
             for tries in range(3):
