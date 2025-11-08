@@ -153,7 +153,8 @@ def read_all_sensors() -> Dict[str, Any]:
             v = ezo_i2c.read_single(addr)
             return v, None
         except Exception as ex:
-            out["errors"][label] = type(ex).__name__
+            logger.error(f"{label} read error: {ex}", exc_info=True)
+            out["errors"][label] = f"{type(ex).__name__}: {str(ex)}"
             return None, None
 
     # 1) pH first
