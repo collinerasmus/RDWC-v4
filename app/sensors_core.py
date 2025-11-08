@@ -19,24 +19,15 @@ _last_t_sent_c: Optional[float] = None
 _last_t_set_ts: float = 0.0
 
 # Graceful I²C imports - works on Pi and dev PCs
-# Use the stabilized EZO interface that's proven to work
+# Use the simple ezo_i2c interface (no i2c_rdwr dependency)
 I2C_AVAILABLE = False
 
-# Stub class for dev environments
-class _EZOStub:  # type: ignore
-    def __init__(self, bus_num, addr, name):
-        self.name = name
-    def init_once(self): pass
-    def read_value(self, request="R", timeout=1.8, poll=0.15):
-        return "23.0" if self.name == "RTD" else "6.5" if self.name == "pH" else "1500"
-    def cmd(self, cmd, read_len=0, settle=0.06): pass
-
 try:
-    from .ezo_i2c_stabilized import EZO
+    from . import ezo_i2c
     I2C_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"I²C libraries not available - running in simulation mode: {e}")
-    EZO = _EZOStub  # type: ignore
+    ezo_i2c = None  # type: ignore
 
 
 def _should_send_temp_comp(temp_c: float) -> tuple[bool, float]:
@@ -76,7 +67,7 @@ def _update_temp_comp_cache(temp_c: float):
 
 def _read_with_temp_comp_check():
     """
-    Read sensors using proven ezo_i2c_stabilized.read_all() with throttled T compensation.
+    Read sensors using ezo_i2c.read_all() (no i2c_rdwr dependency).
     
     Returns:
         tuple: (t_write_performed, compensation_results, temp_c, ph_val, ec_val)
@@ -85,43 +76,24 @@ def _read_with_temp_comp_check():
         # Simulated read
         return False, {"ph": True, "ec": True}, 23.0, 6.5, 1500.0
     
-    # Use the proven read_all function from ezo_i2c_stabilized
-    # But we need to control T compensation ourselves for throttling
     try:
-        from .ezo_i2c_stabilized import EZO, RTD_ADDR, PH_ADDR, EC_ADDR
+        result = ezo_i2c.read_all()
         
-        # Initialize all devices
-        rtd = EZO(1, RTD_ADDR, "RTD")
-        ph = EZO(1, PH_ADDR, "pH")
-        ec = EZO(1, EC_ADDR, "EC")
+        temp_c = result.get("temp_c")
+        ph_val = result.get("ph")
+        ec_val = result.get("ec_ms_cm")
         
-        for dev in (rtd, ph, ec):
-            dev.init_once()
+        # Check if temp comp was applied this read
+        temp_comp_applied = result.get("temp_comp_applied", False)
+        temp_comp_reason = result.get("temp_comp_reason", "")
         
-        # Read RTD first
-        temp_c = float(rtd.read_value())
+        # Build comp_results dict from reason string
+        comp_results = {
+            "ph": "ph" in temp_comp_reason,
+            "ec": "ec" in temp_comp_reason
+        }
         
-        # Check throttle conditions AFTER reading temp
-        should_send, _ = _should_send_temp_comp(temp_c)
-        
-        # Apply temperature compensation with throttling
-        comp_results = {"ph": False, "ec": False}
-        if should_send:
-            for dev, name in [(ph, "ph"), (ec, "ec")]:
-                try:
-                    dev.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.06)
-                    comp_results[name] = True
-                except Exception as e:
-                    logger.warning(f"{name} temp comp failed: {e}")
-            
-            # Update cache after successful send
-            _update_temp_comp_cache(temp_c)
-        
-        # Read pH and EC
-        ph_val = float(ph.read_value())
-        ec_val = float(ec.read_value())
-        
-        return should_send, comp_results, temp_c, ph_val, ec_val
+        return temp_comp_applied, comp_results, temp_c, ph_val, ec_val
         
     except Exception as e:
         logger.error(f"Sensor read failed: {e}")
