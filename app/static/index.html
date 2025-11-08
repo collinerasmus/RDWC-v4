@@ -784,7 +784,12 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 </head>
 <body>
 <main id="rdwc-root" class="container">
-  <h1>RDWC v4 — Dashboard</h1>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+    <h1 style="margin:0;">RDWC v4 — Dashboard</h1>
+    <div id="build-banner" class="muted" style="font-size:0.8rem;padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,0.25);background:rgba(148,163,184,0.06);color:#cbd5e1;">
+      Build: <span id="build-version">—</span> • <span id="build-status">initializing…</span>
+    </div>
+  </div>
 
   <!-- Top-level Tabs Navigation -->
   <nav id="tabs-nav" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px 0;padding-bottom:4px;">
@@ -2303,13 +2308,44 @@ window.CircControl = (function(){
     function chain(files, v){
       var base = '/static/js/';
       return files.reduce(function(p, f){
-        return p.then(function(){ return loadScript(base + f + (v? ('?v='+encodeURIComponent(v)) : '')); });
+        return p.then(function(){
+          var cb = 'cb=' + Date.now();
+          var ver = v ? ('v=' + encodeURIComponent(v)) : null;
+          var qs = ver ? ('?' + ver + '&' + cb) : ('?' + cb);
+          return loadScript(base + f + qs);
+        });
       }, Promise.resolve());
     }
     fetch('/api/version', {cache:'no-store'})
       .then(function(r){ return r.json(); })
-  .then(function(j){ return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], j && j.version); })
-  .catch(function(){ return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], (new Date()).toISOString().slice(0,10)); });
+      .then(function(j){
+        // Update banner early if possible
+        try{ var vEl=document.getElementById('build-version'); if(vEl) vEl.textContent = (j&&j.version)||'n/a'; }catch(e){}
+        return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], j && j.version);
+      })
+      .catch(function(){
+        return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], (new Date()).toISOString().slice(0,10));
+      })
+      .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
+  })();
+  </script>
+
+  <script>
+  // Lightweight version ping to keep banner current and indicate liveness
+  (function(){
+    function ping(){
+      fetch('/api/version', {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(j){
+        var v = (j && j.version) || 'n/a';
+        var vEl = document.getElementById('build-version');
+        var sEl = document.getElementById('build-status');
+        if (vEl) vEl.textContent = v;
+        if (sEl) sEl.textContent = 'live';
+      }).catch(function(){
+        var sEl = document.getElementById('build-status'); if (sEl) sEl.textContent = 'offline?';
+      });
+    }
+    if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', ping); else ping();
+    setInterval(ping, 15000);
   })();
   </script>
 
