@@ -1973,30 +1973,31 @@ function showToast(message, type = 'info') {
 
 // Chiller override management
 async function loadOverrides(){
+  // Defensive: temperature/chiller override UI may be absent (simplified layout)
+  const radios = document.querySelectorAll('input[name="chillerMode"]');
+  const durationRow = document.getElementById('durationRow');
+  const statusEl = document.getElementById('chillerStatus');
+  // If none of the expected elements are present, silently skip
+  if (radios.length === 0 && !durationRow && !statusEl) return;
   try {
     const overrides = await (await fetch(`/overrides?${Date.now()}`, {cache:'no-store'})).json();
-    
-    // Update radio buttons
-    const radios = document.querySelectorAll('input[name="chillerMode"]');
-    radios.forEach(radio => {
-      radio.checked = radio.value === overrides.effective_mode;
-    });
-    
-    // Show/hide duration controls
-    const durationRow = document.getElementById('durationRow');
-    if (overrides.effective_mode !== 'auto') {
-      durationRow.style.display = 'flex';
-    } else {
-      durationRow.style.display = 'none';
+    if (radios.length){
+      radios.forEach(radio => { radio.checked = (radio.value === overrides.effective_mode); });
     }
-    
-    // Update status
-    let statusText = 'Status: ' + overrides.effective_mode.replace('_', ' ').toUpperCase();
-    if (overrides.time_remaining && overrides.is_override_active) {
-      statusText += ` (${overrides.time_remaining} remaining)`;
+    if (durationRow){
+      if (overrides.effective_mode !== 'auto') {
+        durationRow.style.display = 'flex';
+      } else {
+        durationRow.style.display = 'none';
+      }
     }
-    document.getElementById('chillerStatus').textContent = statusText;
-    
+    if (statusEl){
+      let statusText = 'Status: ' + (overrides.effective_mode||'unknown').replace('_', ' ').toUpperCase();
+      if (overrides.time_remaining && overrides.is_override_active) {
+        statusText += ` (${overrides.time_remaining} remaining)`;
+      }
+      statusEl.textContent = statusText;
+    }
   } catch(e) {
     console.error('Failed to load overrides:', e);
   }
@@ -2005,53 +2006,44 @@ async function loadOverrides(){
 function updateChillerMode() {
   const selected = document.querySelector('input[name="chillerMode"]:checked');
   const durationRow = document.getElementById('durationRow');
-  
-  if (selected && selected.value !== 'auto') {
-    durationRow.style.display = 'flex';
-  } else {
-    durationRow.style.display = 'none';
-    // Apply auto mode immediately
-    if (selected && selected.value === 'auto') {
+  if (!selected && !durationRow) return; // UI missing
+  if (selected && durationRow){
+    if (selected.value !== 'auto') {
+      durationRow.style.display = 'flex';
+    } else {
+      durationRow.style.display = 'none';
+      // Apply auto mode immediately
       applyChillerOverride();
     }
   }
 }
 
 async function applyChillerOverride() {
+  // Skip if UI not present
+  const selected = document.querySelector('input[name="chillerMode"]:checked');
+  if (!selected) return;
   try {
-    const selected = document.querySelector('input[name="chillerMode"]:checked');
-    if (!selected) return;
-    
     const data = { chiller_mode: selected.value };
-    
-    // Add duration if not auto
     if (selected.value !== 'auto') {
-      const duration = document.getElementById('chillerDuration').value;
+      const durEl = document.getElementById('chillerDuration');
+      const duration = durEl ? durEl.value : '';
       if (duration === 'midnight') {
-        // Calculate minutes until midnight
         const now = new Date();
         const midnight = new Date();
         midnight.setDate(midnight.getDate() + 1);
         midnight.setHours(0, 0, 0, 0);
-        const minutesUntilMidnight = Math.floor((midnight - now) / (1000 * 60));
-        data.hold_minutes = minutesUntilMidnight;
-      } else {
+        data.hold_minutes = Math.floor((midnight - now) / (1000 * 60));
+      } else if (duration) {
         data.hold_minutes = parseInt(duration);
       }
     }
-    
-    const response = await fetch('/overrides', {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(data)
-    });
-    
+    const response = await fetch('/overrides', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
     if (response.ok) {
       showToast('Chiller override applied!', 'success');
       setTimeout(loadOverrides, 500);
     } else {
-      const error = await response.json();
-      showToast(`Error: ${error.error}`, 'error');
+      let error = {}; try { error = await response.json(); }catch(_){ }
+      showToast(`Error: ${error.error || 'override failed'}`, 'error');
     }
   } catch(e) {
     showToast(`Failed to apply override: ${e.message}`, 'error');
