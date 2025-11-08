@@ -500,10 +500,18 @@
       setCalibBusy(true);
       try{
         setMsg('Reading...');
-        const r = await (await fetch('/calib/ph/read?t='+Date.now(), {cache:'no-store'})).json();
-        if (r && r.ok){ setCurrent(r.value); setMsg(`pH: ${Number(r.value).toFixed(2)}`, true, 'success'); }
-        else { setMsg((r && r.note) || 'Read failed', false); }
-      }catch(e){ setMsg('Read failed (network)', false); }
+        const resp = await fetch('/calib/ph/read?t='+Date.now(), {cache:'no-store'});
+        const r = await resp.json();
+        if (r && r.ok){ 
+          setCurrent(r.value); 
+          setMsg(`pH: ${Number(r.value).toFixed(2)}`, true, 'success'); 
+        } else { 
+          const hint = (r && r.note === 'NoData') 
+            ? 'NoData — probe not responding. Check: 1) sensor power relay ON, 2) I²C wiring, 3) /fix_ezo to verify address 0x63.' 
+            : ((r && r.note) || 'Read failed');
+          setMsg(hint, false); 
+        }
+      }catch(e){ setMsg(`Read failed (network): ${e.message}`, false); }
       finally { setCalibBusy(false); }
     });
 
@@ -511,22 +519,36 @@
       setCalibBusy(true);
       try{
         setMsg('Waiting for stable reading...');
-        const r = await (await fetch('/calib/ph/read_stable?t='+Date.now(), {cache:'no-store'})).json();
-        if (r && r.ok){ setCurrent(r.value); setMsg(`Stable pH: ${Number(r.value).toFixed(2)} (σ=${r.std?.toFixed(3)||'?'})`, true, 'success'); }
-        else { setMsg((r && r.note) || 'Stabilize failed', false); }
-      }catch(e){ setMsg('Stabilize failed (network)', false); }
+        const resp = await fetch('/calib/ph/read_stable?t='+Date.now(), {cache:'no-store'});
+        const r = await resp.json();
+        if (r && r.ok){ 
+          setCurrent(r.value); 
+          setMsg(`Stable pH: ${Number(r.value).toFixed(2)} (σ=${r.std?.toFixed(3)||'?'})`, true, 'success'); 
+        } else { 
+          const hint = (r && r.note && r.note.includes('NoData')) 
+            ? 'NoData — probe not responding. Check sensor power & I²C wiring.' 
+            : ((r && r.note) || 'Stabilize failed');
+          setMsg(hint, false); 
+        }
+      }catch(e){ setMsg(`Stabilize failed (network): ${e.message}`, false); }
       finally { setCalibBusy(false); }
     });
 
     el('btnPhStatusInline')?.addEventListener('click', async ()=>{
       setCalibBusy(true);
       try{
-        const r = await (await fetch('/calib/ph/status?t='+Date.now(), {cache:'no-store'})).json();
+        const resp = await fetch('/calib/ph/status?t='+Date.now(), {cache:'no-store'});
+        const r = await resp.json();
         if (r && r.ok){ 
           const pts = r.points ? (r.points.length? r.points.join(', ') : 'none') : 'none';
-            setMsg(`Calibration: ${pts}`); 
-        } else { setMsg((r && r.note) || 'Status failed', false); }
-      }catch(e){ setMsg('Status failed (network)', false); }
+          setMsg(`Calibration: ${pts}`); 
+        } else { 
+          const hint = (r && r.note && r.note.includes('NoData')) 
+            ? 'NoData — probe not responding. Check sensor power & I²C wiring.' 
+            : ((r && r.note) || 'Status failed');
+          setMsg(hint, false); 
+        }
+      }catch(e){ setMsg(`Status failed (network): ${e.message}`, false); }
       finally { setCalibBusy(false); }
     });
 
