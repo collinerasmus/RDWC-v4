@@ -1046,24 +1046,60 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
   </section>
 
-  <!-- Light Control Tab -->
+  <!-- Light Control Tab (standardized header + mode + health) -->
   <section id="lights-card" class="card card-wide tab-section" data-tab="lights" style="display:none;">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-      <h3 class="card-title" style="margin:0;">Light Control</h3>
-      <div class="muted" id="lights-window-preview">—</div>
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h3 class="card-title" style="margin:0;">Lights Control</h3>
+        <div class="lights-mode-buttons" style="display:flex;gap:6px;">
+          <button id="lights-mode-manual" class="btn-chip active" onclick="window.lightsSetMode?window.lightsSetMode('manual'):0">Manual</button>
+          <button id="lights-mode-auto" class="btn-chip" onclick="window.lightsSetMode?window.lightsSetMode('auto'):0">Auto</button>
+          <button id="lights-mode-maint" class="btn-chip" onclick="window.lightsSetMode?window.lightsSetMode('maintenance'):0">Maintenance</button>
+        </div>
+        <span id="lights-health-indicator" class="ui-status-chip neutral" title="Controller health">—</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="muted" id="lights-window-preview" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.35);">Window: —</div>
+      </div>
     </div>
     <div class="card-body">
-      <div class="bop-relay-card" style="max-width:360px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <div style="font-weight:600;font-size:0.95rem;">💡 Lights</div>
-          <span class="bop-status-badge" id="lights-status">—</span>
+      <!-- KPI style row (current state + schedule status) -->
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
+        <div class="kpi" style="min-width:120px;">
+          <div class="kpi-label">State</div>
+          <div class="kpi-value" id="lights-state-kpi">—</div>
         </div>
-        <button class="relay-btn" id="btnLightsToggle" style="width:100%;">
-          <span class="relay-label" id="lights-label">Lights</span>
-        </button>
-        <div class="muted" style="font-size:0.75rem;margin-top:4px;">Honors cooldowns and mode</div>
+        <div class="kpi" style="min-width:140px;">
+          <div class="kpi-label">Schedule</div>
+          <div class="kpi-value" id="lights-sched-kpi" style="font-size:0.85rem;">—</div>
+        </div>
       </div>
-      <div class="muted" style="margin-top:12px;">Use Schedule tab to adjust on/off window.</div>
+      <!-- Manual / Auto / Maintenance content (only manual needs toggle) -->
+      <div id="lights-manual-content" style="display:block;">
+        <div class="bop-relay-card" style="max-width:360px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-weight:600;font-size:0.95rem;">💡 Lights</div>
+            <span class="bop-status-badge" id="lights-status">—</span>
+          </div>
+          <button class="relay-btn" id="btnLightsToggle" style="width:100%;">
+            <span class="relay-label" id="lights-label">Lights</span>
+          </button>
+          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Honors cooldowns and mode</div>
+        </div>
+      </div>
+      <div id="lights-auto-content" style="display:none;" class="muted">Automation follows the configured on/off window. Manual toggles disabled.</div>
+      <div id="lights-maint-content" style="display:none;" class="muted">Maintenance mode: schedule paused; manual toggle available with safety guards.</div>
+      <hr class="separator" style="margin:20px 0;" />
+      <details>
+        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Lights Info</summary>
+        <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);font-size:0.8rem;">
+          <ul style="margin:0;padding-left:18px;line-height:1.4;">
+            <li>Edge-only scheduler sets two transitions per day (no periodic enforcement).</li>
+            <li>Manual mode ignores schedule; Auto enforces window; Maintenance keeps relay state but suppresses auto edges.</li>
+            <li>Cooldowns & anti-flap: ON min 10s, OFF min 5s.</li>
+          </ul>
+        </div>
+      </details>
     </div>
   </section>
 
@@ -2350,10 +2386,10 @@ window.CircControl = (function(){
       .then(function(j){
         // Update banner early if possible
         try{ var vEl=document.getElementById('build-version'); if(vEl) vEl.textContent = (j&&j.version)||'n/a'; }catch(e){}
-        return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], j && j.version);
+  return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_v2.js','chiller.js','schedule.js','sensors.js','overview.js'], j && j.version);
       })
       .catch(function(){
-        return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_control.js','chiller.js','schedule.js','sensors.js','overview.js'], (new Date()).toISOString().slice(0,10));
+  return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_v2.js','chiller.js','schedule.js','sensors.js','overview.js'], (new Date()).toISOString().slice(0,10));
       })
       .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();
