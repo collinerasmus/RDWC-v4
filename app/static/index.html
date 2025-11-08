@@ -804,6 +804,18 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <button class="btn-chip" data-tab="settings">🛠️ System</button>
   </nav>
 
+  <!-- Progress/Heartbeat widget -->
+  <div id="progress-widget" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:-8px 0 12px 0;">
+    <div id="progress-bar-wrap" style="flex:1;min-width:220px;height:10px;background:rgba(148,163,184,0.15);border:1px solid rgba(148,163,184,0.3);border-radius:999px;overflow:hidden;position:relative;">
+      <div id="progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#22c55e,#3b82f6);transition:width .4s ease;"></div>
+      <div id="progress-label" style="position:absolute;top:-22px;right:8px;font-size:0.8rem;color:#94a3b8;">0%</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span id="progress-heartbeat" style="display:inline-block;width:10px;height:10px;border-radius:999px;background:#ef4444;border:1px solid rgba(255,255,255,0.25);"></span>
+      <span id="progress-meta" class="muted" style="font-size:0.85rem;">HB — • ETA —</span>
+    </div>
+  </div>
+
 
 
   <!-- Schedule Controller Tab -->
@@ -2425,10 +2437,10 @@ window.CircControl = (function(){
       .then(function(j){
         // Update banner early if possible
         try{ var vEl=document.getElementById('build-version'); if(vEl) vEl.textContent = (j&&j.version)||'n/a'; }catch(e){}
-  return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_v2.js','chiller.js','schedule.js','sensors.js','system.js','circulation.js','overview.js'], j && j.version);
+  return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_v2.js','chiller.js','schedule.js','sensors.js','system.js','circulation.js','progress.js','overview.js'], j && j.version);
       })
       .catch(function(){
-  return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_v2.js','chiller.js','schedule.js','sensors.js','system.js','circulation.js','overview.js'], (new Date()).toISOString().slice(0,10));
+  return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_v2.js','chiller.js','schedule.js','sensors.js','system.js','circulation.js','progress.js','overview.js'], (new Date()).toISOString().slice(0,10));
       })
       .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();
