@@ -1197,9 +1197,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <h3 class="card-title" style="margin:0;">pH Control</h3>
             <!-- Mode Selection Buttons -->
             <div class="ph-mode-buttons" style="display:flex;gap:6px;">
-              <button id="ph-mode-manual" class="btn-chip active" data-mode="manual">Manual</button>
-              <button id="ph-mode-auto" class="btn-chip" data-mode="auto">Auto</button>
-              <button id="ph-mode-maint" class="btn-chip" data-mode="maintenance">Maintenance</button>
+              <button id="ph-mode-manual" class="btn-chip active" onclick="if(window.phSetMode) window.phSetMode('manual')">Manual</button>
+              <button id="ph-mode-auto" class="btn-chip" onclick="if(window.phSetMode) window.phSetMode('auto')">Auto</button>
+              <button id="ph-mode-maint" class="btn-chip" onclick="if(window.phSetMode) window.phSetMode('maintenance')">Maintenance</button>
             </div>
             <!-- Controller Health Indicator -->
             <span id="ph-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
@@ -1309,7 +1309,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
           <div style="margin-top:20px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <div id="ph-dose-log-header" class="muted" style="cursor:pointer;user-select:none;font-weight:600;font-size:0.9rem;">📝 Dose Log (Last 20) ▸</div>
+              <div id="ph-dose-log-header" class="muted" style="cursor:pointer;user-select:none;font-weight:600;font-size:0.9rem;" onclick="if(window.phToggleDoseLog) window.phToggleDoseLog()">📝 Dose Log (Last 20) ▸</div>
               <button id="btnRefreshDoseLog" class="btn-secondary" style="padding:4px 10px;font-size:0.85rem;" title="Refresh dose log">Refresh</button>
             </div>
             <div id="ph-dose-log-body" style="display:none;max-height:200px;overflow-y:auto;border-radius:6px;border:1px solid rgba(148,163,184,0.1);">

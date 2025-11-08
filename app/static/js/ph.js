@@ -484,32 +484,8 @@
     
     console.log('[pH] Wiring pH controls...');
     
-    // Mode selection buttons
-    ['ph-mode-manual', 'ph-mode-auto', 'ph-mode-maint'].forEach(id => {
-      const btn = el(id);
-      if (btn) {
-        console.log(`[pH] Binding mode button: ${id}`);
-        btn.addEventListener('click', () => {
-          const mode = btn.getAttribute('data-mode');
-          console.log(`[pH] Mode button clicked: ${mode}`);
-          setMode(mode);
-        });
-      } else {
-        console.warn(`[pH] Mode button not found: ${id}`);
-      }
-    });
-    
-    // Dose log collapsible header
-    const doseLogHeader = el('ph-dose-log-header');
-    if (doseLogHeader) {
-      console.log('[pH] Binding dose log header');
-      doseLogHeader.addEventListener('click', () => {
-        console.log('[pH] Dose log header clicked');
-        setDoseLogCollapsed(!doseLogCollapsed);
-      });
-    } else {
-      console.warn('[pH] Dose log header not found');
-    }
+    // Mode buttons and dose log header use inline onclick handlers (see HTML)
+    // This ensures they work immediately without waiting for event listener binding
     
     // Use new unified endpoints with time-based dosing (Manual mode)
     el('btnPrime')?.addEventListener('click', ()=> doseUnified('ph_up', 0.2, 'prime'));
@@ -928,6 +904,13 @@
     // DOM already loaded; initialize immediately
     initPH();
   }
+  
+  // Export functions to window for inline onclick handlers
+  window.phSetMode = setMode;
+  window.phSetDoseLogCollapsed = setDoseLogCollapsed;
+  window.phToggleDoseLog = function() {
+    setDoseLogCollapsed(!doseLogCollapsed);
+  };
 })();
   async function refreshSummary(){
     try{
