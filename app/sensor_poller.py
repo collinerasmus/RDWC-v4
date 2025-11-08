@@ -154,6 +154,8 @@ def _read_sensors() -> Dict[str, Any]:
         from app.sensors_core import read_all_sensors
         result = read_all_sensors()
         
+        logger.debug(f"Sensor read result: {result}")
+        
         return {
             "temp_c": result.get("temperature_c"),
             "ph": result.get("ph"),
@@ -161,7 +163,7 @@ def _read_sensors() -> Dict[str, Any]:
             "errors": result.get("errors", {})
         }
     except Exception as e:
-        logger.error(f"Sensor read failed: {e}")
+        logger.error(f"Sensor read failed: {e}", exc_info=True)
         return {
             "temp_c": None,
             "ph": None,
@@ -347,7 +349,7 @@ def get_status() -> Dict[str, Any]:
 if __name__ == "__main__":
     # Standalone mode - run as dedicated poller service
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
     )
     
