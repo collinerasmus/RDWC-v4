@@ -12,25 +12,28 @@ from datetime import datetime
 import logging
 from app import relay_guard  # unified guard
 
-try:
-    from gpiozero import OutputDevice
+GPIO_AVAILABLE = False
+try:  # pragma: no cover - hw path
+    from gpiozero import OutputDevice as _GpioZeroOutputDevice  # type: ignore
     GPIO_AVAILABLE = True
-except ImportError:
-    GPIO_AVAILABLE = False
-    # Mock for development
-    class OutputDevice:
+    # Lightweight wrapper to keep a stable, test-friendly type name
+    class OutputDevice(_GpioZeroOutputDevice):  # type: ignore
+        pass
+except Exception:  # pragma: no cover - fallback path
+    # Mock for development/testing when gpiozero not present or on non-Linux
+    class OutputDevice:  # type: ignore
         def __init__(self, pin, active_high=True):
             self.pin = pin
             self.active_high = active_high
             self._value = False
-        
+
         @property
-        def value(self):
+        def value(self):  # type: ignore
             return self._value
-        
+
         @value.setter
-        def value(self, val):
-            self._value = val
+        def value(self, val):  # type: ignore
+            self._value = bool(val)
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,33 @@ RELAY_PINS = {
     "dosing_bloom": 19,
     "dosing_ph_up": 5,
 }
+
+# Per-relay polarity (OutputDevice.active_high). Default all relays to active_low (False).
+# Some boards (like high-side MOSFETs) may be active-high; allow configuration via env for extras.
+ACTIVE_HIGH = {
+    "lights": False,
+    "chiller_pump": False,
+    "chiller_power": False,
+    "main_pump": False,
+    "dosing_grow": False,
+    "dosing_micro": False,
+    "dosing_bloom": False,
+    "dosing_ph_up": False,
+}
+
+# Optional: dynamically register a sensor power control pin for EZO boards
+try:
+    _sp_pin = os.getenv("RDWC_SENSOR_POWER_PIN")
+    if _sp_pin is not None and _sp_pin.strip() != "":
+        pin_num = int(_sp_pin)
+        RELAY_PINS["sensor_power"] = pin_num
+        # Polarity via env (default active_low=1)
+        active_low_env = os.getenv("RDWC_SENSOR_POWER_ACTIVE_LOW", "1").strip()
+        active_low = active_low_env not in ("0", "false", "False")
+        ACTIVE_HIGH["sensor_power"] = (not active_low)
+        logger.info(f"Registered sensor_power on BCM {pin_num} active_low={active_low}")
+except Exception as e:
+    logger.warning(f"Failed to register sensor_power pin from env: {e}")
 
 # Minimum ON/OFF times to prevent short-cycling (seconds)
 # Optimized for responsive manual control with minimal protection
@@ -271,8 +301,8 @@ def _initialize_device(relay_name: str) -> OutputDevice:
         raise ValueError(f"Unknown relay: {relay_name}")
     
     pin = RELAY_PINS[relay_name]
-    # Active-low boards: TRUE = drive LOW
-    device = OutputDevice(pin, active_high=False)
+    # Polarity per relay: active_high=True means HIGH=energized/ON
+    device = OutputDevice(pin, active_high=bool(ACTIVE_HIGH.get(relay_name, False)))
     return device
 
 def _get_caller_info() -> str:

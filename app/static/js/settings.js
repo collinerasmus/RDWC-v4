@@ -226,14 +226,23 @@
         }catch(e){ /* noop */ }
       };
       const doCal = async ()=>{
+        const btn = qP('#btnPhCalibrate');
+        if (btn){ btn.disabled = true; btn.textContent = 'Working…'; }
         try{
           const kind = (kindSel && kindSel.value) || 'mid';
-          const val  = parseFloat(valInp && valInp.value || '7.00');
-          const ep = kind==='low'? 'low' : kind==='high'? 'high' : 'mid';
-          const r = await (await fetch(`/calib/ph/${ep}?value=${encodeURIComponent(val.toFixed(2))}`, {method:'POST'})).json();
-          if (r && r.ok){ setMsg(r.note || 'Calibration command sent'); await status(); }
-          else { setMsg((r && r.note) || 'Calibration rejected', false); }
-        }catch(e){ setMsg('Calibration failed', false); }
+            const val  = parseFloat(valInp && valInp.value || '7.00');
+            const ep = kind==='low'? 'low' : kind==='high'? 'high' : 'mid';
+            setMsg(`Sending ${ep} calibration...`);
+            const resp = await fetch(`/calib/ph/${ep}?value=${encodeURIComponent(val.toFixed(2))}`, {method:'POST'});
+            let r = null; try{ r = await resp.json(); }catch(_){ /* ignore */ }
+            if (r && r.ok){ setMsg(r.note || 'Calibration OK'); await status(); }
+            else {
+              // Show raw HTTP status if JSON parse failed
+              const note = (r && r.note) || `Calibration failed (HTTP ${resp.status})`;
+              setMsg(note, false);
+            }
+        }catch(e){ setMsg('Calibration failed (exception)', false); }
+        finally{ if (btn){ btn.disabled = false; btn.textContent = 'Calibrate'; } }
       };
       const clear = async ()=>{
         try{

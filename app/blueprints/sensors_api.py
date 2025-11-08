@@ -35,14 +35,14 @@ def _get_sensors_data():
     """
     try:
         from app.main import _last, _last_t
-        age = (datetime.datetime.utcnow().timestamp() - _last_t)
+        age = (datetime.datetime.now(datetime.UTC).timestamp() - _last_t)
         if age < 60 and _last.get("temp_c") is not None:
             return {
                 "temperature_c": _last.get("temp_c"),
                 "ec_mscm": _last.get("ec_ms_cm"),
                 "ph": _last.get("ph"),
                 "online": True,
-                "ts": datetime.datetime.utcnow().isoformat() + "Z",
+                "ts": datetime.datetime.now(datetime.UTC).isoformat() + "Z",
                 "temp_comp_applied": False,
                 "temp_comp_reason": "cached",
                 "cal": {
@@ -81,7 +81,7 @@ def _get_sensors_data():
         "ec_mscm": None,
         "ph": None,
         "online": False,
-        "ts": datetime.datetime.utcnow().isoformat() + "Z",
+        "ts": datetime.datetime.now(datetime.UTC).isoformat() + "Z",
         "temp_comp_applied": False,
         "temp_comp_reason": "no-data",
         "cal": {

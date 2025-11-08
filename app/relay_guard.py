@@ -4,7 +4,27 @@ Relay Guard Module - Safe GPIO control with active-low logic, shadow state, and 
 Prime directive: No unintended relay toggles ever.
 Active-low: HIGH = OFF (safe), LOW = ON (energized).
 """
-import RPi.GPIO as GPIO
+try:  # Hardware GPIO path (Pi)
+    import RPi.GPIO as GPIO  # type: ignore
+    _GPIO_AVAILABLE = True
+except Exception:  # Fallback shim for dev/CI (Windows, non-Pi)
+    _GPIO_AVAILABLE = False
+    class _ShimGPIO:  # pragma: no cover - simulation only
+        BCM = 11
+        BOARD = 10
+        OUT = 0
+        IN = 1
+        HIGH = 1
+        LOW = 0
+        def setmode(self, mode): pass
+        def setwarnings(self, flag): pass
+        def setup(self, pin, direction, initial=None): pass
+        def output(self, pin, level): pass
+        def input(self, pin): return self.HIGH  # default safe OFF
+        def cleanup(self): pass
+    GPIO = _ShimGPIO()  # type: ignore
+    import logging as _lg
+    _lg.getLogger(__name__).info("relay_guard using GPIO shim (RPi.GPIO not available)")
 import time
 import logging
 import traceback

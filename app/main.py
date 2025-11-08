@@ -638,7 +638,7 @@ def api_relays_status():
     """Wrapper endpoint for UI/verify tools: returns mode, estop, and relay map.
     Shape: {"mode":"manual|auto","estop":bool,"relays":{ name: {pin_bcm, active_low, is_on, label} }}
     """
-    from app.relays_core import get_relay_status, RELAY_PINS, get_estop_status, get_last_restore_event
+    from app.relays_core import get_relay_status, RELAY_PINS, get_estop_status, get_last_restore_event, ACTIVE_HIGH
     from app.system_mode import get_system_mode
     status = get_relay_status()
     mode = get_system_mode() or 'manual'
@@ -659,12 +659,92 @@ def api_relays_status():
         info = status.get(name, {})
         rel[name] = {
             "pin_bcm": pin,
-            "active_low": True,
+            "active_low": (not bool(ACTIVE_HIGH.get(name, False))),
             "is_on": bool(info.get("state", False)),
             "label": LABELS.get(name, name)
         }
     restore = get_last_restore_event() if mode == 'auto' else {"restored": False}
     return {"mode": mode, "estop": estop, "restored": bool(restore.get("restored", False)), "relays": rel}
+
+@app.post("/api/sensors/power_cycle")
+def api_sensors_power_cycle(off_ms: int = 2000, post_wait_ms: int = 4000, validate: int = 1):
+    """Power-cycle the EZO sensor power rail via optional relay 'sensor_power'.
+
+    Requirements:
+      - Set env RDWC_SENSOR_POWER_PIN=<BCM pin>
+      - (Optional) RDWC_SENSOR_POWER_ACTIVE_LOW=1 (default) or 0 if active-high.
+
+    Steps:
+      1. Acquire calibration lock to quiesce I2C activity.
+      2. Turn sensor_power relay OFF (de-energize rail) for off_ms.
+      3. Turn sensor_power relay ON (re-energize).
+      4. Wait post_wait_ms for boards to boot.
+      5. (Optional validate) attempt identify/read to confirm recovery.
+
+    Returns JSON: {ok, off_ms, post_wait_ms, validate_attempts, ids?, sample?}
+    """
+    from app.relays_core import RELAY_PINS, set as relay_set
+    import time as _time
+    import fcntl
+    if "sensor_power" not in RELAY_PINS:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "sensor_power_pin_not_configured"})
+    lock_path = "/tmp/rdwc_calib.lock"
+    lock_fd = None
+    try:
+        # Exclusive lock (block sensor poll loop & calibration operations)
+        lock_fd = open(lock_path, 'w')
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+        # Small grace period for any in-flight read
+        _time.sleep(0.6)
+        off_ms = max(500, min(15000, int(off_ms)))
+        post_wait_ms = max(1000, min(15000, int(post_wait_ms)))
+        # Power OFF
+        relay_set("sensor_power", False, reason="sensor_power_cycle_off", force=True)
+        _time.sleep(off_ms / 1000.0)
+        # Power ON
+        relay_set("sensor_power", True, reason="sensor_power_cycle_on", force=True)
+        _time.sleep(post_wait_ms / 1000.0)
+        out = {"ok": True, "off_ms": off_ms, "post_wait_ms": post_wait_ms}
+        if int(validate):
+            v_attempts = []
+            try:
+                from app import ezo_i2c as _ezo
+                from app.infra.i2c_bus import get_bus as _get_bus
+                bus = _get_bus()
+                # Attempt identify each board (RTD/EC/pH)
+                for addr, name in ((_ezo.ADDR_RTD, "rtd"), (_ezo.ADDR_EC, "ec"), (_ezo.ADDR_PH, "ph")):
+                    try:
+                        _ezo._send_cmd(bus, addr, "i")
+                        _time.sleep(0.35)
+                        st, payload = _ezo._poll_until_ready(bus, addr, timeout_s=4.0)
+                        v_attempts.append({"board": name, "status": st, "id": payload})
+                    except Exception as ex:
+                        v_attempts.append({"board": name, "error": str(ex)})
+                # Try one pH read single 'R'
+                sample = None
+                try:
+                    _ezo._send_cmd(bus, _ezo.ADDR_PH, "R")
+                    _time.sleep(1.2)
+                    st, payload = _ezo._poll_until_ready(bus, _ezo.ADDR_PH, timeout_s=5.0)
+                    if st == _ezo.EZO_STATUS_SUCCESS and payload:
+                        try:
+                            sample = float(payload.split(',')[0])
+                        except Exception:
+                            sample = None
+                except Exception:
+                    pass
+                out["validate_attempts"] = v_attempts
+                out["ph_sample"] = sample
+            except Exception as ex:
+                out["validate_error"] = str(ex)
+        return out
+    finally:
+        if lock_fd:
+            try:
+                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+                lock_fd.close()
+            except Exception:
+                pass
 
 @app.post("/api/relay/{key}/toggle")
 def api_relay_toggle(key: str):
@@ -2364,12 +2444,65 @@ def calib_ph_caps():
 
 @app.get("/calib/ph/read")
 def calib_ph_read():
-    try:
-        from app import ezo_i2c as _ezo
-        val = _ezo.read_single(_ezo.ADDR_PH)
-        return {"ok": True, "value": val}
-    except Exception as ex:
-        return {"ok": False, "note": type(ex).__name__}
+    """Robust, contention-safe single pH read for the Calibration UI.
+    Uses the same I2C lock and direct command path to avoid collisions
+    with the background poller. Retries once on transient errors.
+    """
+    import fcntl
+    import time as _time
+    from app import ezo_i2c as _ezo
+    from app.infra.i2c_bus import get_bus as _get_bus
+
+    def _read_once(settle: float = 1.6, timeout: float = 5.0):
+        bus = _get_bus()
+        # Ensure continuous mode is off (safe if not supported)
+        try:
+            _ezo._send_cmd(bus, _ezo.ADDR_PH, "C,0")
+            _time.sleep(0.25)
+            _ezo._poll_until_ready(bus, _ezo.ADDR_PH, timeout_s=2.0)
+        except Exception:
+            pass
+        # Send Atlas 'R' command directly via the lower-level helper
+        _ezo._send_cmd(bus, _ezo.ADDR_PH, "R")
+        _time.sleep(settle)
+        st, payload = _ezo._poll_until_ready(bus, _ezo.ADDR_PH, timeout_s=timeout)
+        if st != _ezo.EZO_STATUS_SUCCESS or not payload:
+            return None
+        # Payload: "<value>[,<temp>...]" – take first token
+        try:
+            tok = payload.split(",")[0].strip()
+            return float(tok)
+        except Exception:
+            return None
+
+    lock_path = "/tmp/rdwc_calib.lock"
+    for attempt in (1, 2):
+        lock_fd = None
+        try:
+            lock_fd = open(lock_path, 'w')
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+            # Allow any in-flight sensor read to finish before we send our command
+            _time.sleep(2.0)
+            # Use longer timings; Atlas EZO reads commonly need 1.0–1.6s
+            # Try up to 3 immediate reads under the same lock to get a payload
+            for tries in range(3):
+                val = _read_once(settle=1.6 if attempt == 1 else 2.0,
+                                 timeout=5.0 if attempt == 1 else 7.0)
+                if val is not None:
+                    return {"ok": True, "value": round(float(val), 3)}
+                _time.sleep(1.2)
+        except Exception:
+            pass
+        finally:
+            if lock_fd:
+                try:
+                    fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+                    lock_fd.close()
+                except Exception:
+                    pass
+        _time.sleep(0.5)  # brief backoff before retry
+
+    return {"ok": False, "note": "NoData"}
 
 @app.get("/calib/ph/status")
 def calib_ph_status():
@@ -2412,32 +2545,76 @@ def calib_ph_status():
     return {"ok": ok, "status": note, "flags": flags}
 
 @app.get("/calib/ph/read_stable")
-def calib_ph_read_stable(timeout_s: float = 20.0, delta: float = 0.02, min_samples: int = 3, poll_s: float = 1.0):
-    """Read pH repeatedly until change between last two samples <= delta or timeout.
-    Returns {ok, stable, value, samples, duration_s}.
+def calib_ph_read_stable(timeout_s: float = 25.0, delta: float = 0.03, min_samples: int = 4, poll_s: float = 2.0):
+    """Robust stabilization loop using the same locked single-read path as /calib/ph/read.
+
+    Logic:
+    1. Acquire calibration lock per sample to avoid contention.
+    2. Perform an explicit 'R' read with extended settle (1.2s first, 1.0s subsequent).
+    3. Track moving window; declare stable when absolute delta between last two samples <= delta
+       AND (optionally) variance across last 3 samples is small.
+    4. Returns {ok, stable, value, samples, duration_s}.
+
+    Parameters are relaxed slightly (delta=0.03) to reflect realistic probe micro-variance.
     """
-    t0 = time.monotonic()
-    samples = 0
-    prev = None
-    last = None
-    try:
-        from app import ezo_i2c as _ezo
-        while time.monotonic() - t0 < max(1.0, float(timeout_s)):
-            val = _ezo.read_single(_ezo.ADDR_PH)
-            if val is None:
-                # Wait and try again
-                time.sleep(max(0.2, float(poll_s)))
-                continue
-            samples += 1
-            prev, last = last, float(val)
-            if samples >= max(2, int(min_samples)) and prev is not None:
-                if abs(last - prev) <= float(delta):
-                    return {"ok": True, "stable": True, "value": last, "samples": samples, "duration_s": round(time.monotonic() - t0, 3)}
-            time.sleep(max(0.2, float(poll_s)))
-        # Timeout
-        return {"ok": True, "stable": False, "value": last, "samples": samples, "duration_s": round(time.monotonic() - t0, 3)}
-    except Exception as ex:
-        return {"ok": False, "note": type(ex).__name__}
+    import fcntl
+    import time as _time
+    from app.infra.i2c_bus import get_bus as _get_bus
+    from app import ezo_i2c as _ezo
+    start = _time.monotonic()
+    readings = []
+
+    def _locked_read(settle: float = 1.2, timeout: float = 4.5):
+        bus = _get_bus()
+        # Ensure continuous mode off (ignore failures)
+        try:
+            _ezo._send_cmd(bus, _ezo.ADDR_PH, "C,0")
+            _time.sleep(0.25)
+            _ezo._poll_until_ready(bus, _ezo.ADDR_PH, timeout_s=2.0)
+        except Exception:
+            pass
+        _ezo._send_cmd(bus, _ezo.ADDR_PH, "R")
+        _time.sleep(settle)
+        st, payload = _ezo._poll_until_ready(bus, _ezo.ADDR_PH, timeout_s=timeout)
+        if st != _ezo.EZO_STATUS_SUCCESS or not payload:
+            return None
+        try:
+            return float(payload.split(',')[0].strip())
+        except Exception:
+            return None
+
+    lock_path = "/tmp/rdwc_calib.lock"
+    attempt = 0
+    while _time.monotonic() - start < float(timeout_s):
+        attempt += 1
+        lock_fd = None
+        try:
+            lock_fd = open(lock_path, 'w')
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+            _time.sleep(0.3)
+            val = _locked_read(settle=1.2 if attempt == 1 else 1.0, timeout=4.5)
+        except Exception:
+            val = None
+        finally:
+            if lock_fd:
+                try:
+                    fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+                    lock_fd.close()
+                except Exception:
+                    pass
+
+        if val is not None:
+            readings.append(val)
+            if len(readings) >= int(min_samples):
+                last = readings[-1]
+                prev = readings[-2]
+                recent = readings[-3:]
+                max_dev = max(recent) - min(recent)
+                if abs(last - prev) <= float(delta) and max_dev <= float(delta) * 1.5:
+                    return {"ok": True, "stable": True, "value": round(last, 3), "samples": len(readings), "duration_s": round(_time.monotonic() - start, 3)}
+        _time.sleep(float(poll_s))
+
+    return {"ok": True, "stable": False, "value": (round(readings[-1], 3) if readings else None), "samples": len(readings), "duration_s": round(_time.monotonic() - start, 3)}
 
 @app.post("/calib/leds/on")
 def calib_leds_on():
@@ -2680,28 +2857,37 @@ def _apply_point(kind: str, value: float):
         
         # Atlas Scientific EZO pH: Cal,mid,7.00 or Cal,low,4.00 or Cal,high,10.00
         # Calibration commands take 900ms-1600ms, use longer timeout
-        st, payload = _ph_cmd(f"Cal,{kind},{v:.2f}", settle=1.6, timeout=5.0)
+        # Attempt up to 3 times with progressively longer settle/timeout for transient 2/254/255 states
         from app import ezo_i2c as _ezo
-        ok = (st == _ezo.EZO_STATUS_SUCCESS)
-        # Retry once on syntax error (status 2) which can happen if bus had residual bytes
-        if not ok and st == _ezo.EZO_STATUS_SYNTAX_ERROR:
-            log.warning("[CALIB] first attempt syntax error; retrying once with extended settle")
-            time.sleep(0.8)
-            st2, payload2 = _ph_cmd(f"Cal,{kind},{v:.2f}", settle=2.0, timeout=6.0)
-            ok2 = (st2 == _ezo.EZO_STATUS_SUCCESS)
-            if ok2:
-                log.info(f"[CALIB] retry success status={st2} payload='{payload2}'")
-                return {"ok": True, "note": payload2 or f"{kind.title()} calibrated (retry) at {v:.2f}"}
-            else:
-                log.error(f"[CALIB] retry failed status={st2} payload='{payload2}'")
-                return {"ok": False, "note": f"Status {st2}, response: '{payload2}'"}
-        
-        if ok:
-            log.info(f"[CALIB] success kind={kind} value={v:.2f} payload='{payload}'")
-            return {"ok": True, "note": payload or f"{kind.title()} calibrated at {v:.2f}"}
-        else:
-            log.error(f"[CALIB] failure kind={kind} status={st} payload='{payload}'")
-            return {"ok": False, "note": f"Status {st}, response: '{payload}'"}
+        attempts = [
+            (1.6, 5.0),
+            (2.2, 6.5),
+            (2.8, 8.0),
+        ]
+        last_st, last_payload = None, ""
+        for idx, (settle_s, to_s) in enumerate(attempts, start=1):
+            # Defensive: ensure continuous is off and device is ready between tries
+            try:
+                from app.infra.i2c_bus import get_bus as _get_bus
+                bus = _get_bus()
+                _ezo._send_cmd(bus, _ezo.ADDR_PH, "C,0")
+                time.sleep(0.25)
+                _ezo._poll_until_ready(bus, _ezo.ADDR_PH, timeout_s=2.0)
+            except Exception:
+                pass
+
+            st, payload = _ph_cmd(f"Cal,{kind},{v:.2f}", settle=settle_s, timeout=to_s)
+            last_st, last_payload = st, payload
+            if st == _ezo.EZO_STATUS_SUCCESS:
+                log.info(f"[CALIB] success on attempt {idx} settle={settle_s} timeout={to_s}")
+                return {"ok": True, "note": payload or f"{kind.title()} calibrated at {v:.2f}"}
+
+            # If syntax error (2), pending (254) or timeout/other (255/0), back off then retry
+            log.warning(f"[CALIB] attempt {idx} non-success status={st} payload='{payload}', backing off")
+            time.sleep(0.8 if idx == 1 else 1.2)
+
+        log.error(f"[CALIB] all attempts failed, status={last_st} payload='{last_payload}'")
+        return {"ok": False, "note": f"Status {last_st}, response: '{last_payload}'"}
     finally:
         # Always release lock
         if lock_fd:
