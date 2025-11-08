@@ -16,6 +16,17 @@
       // Update status chips
       setChip('#chip-mode', mode.toUpperCase(), mode === 'auto' ? 'success' : 'neutral');
       setChip('#chip-estop', estop ? 'E-STOP' : 'OK', estop ? 'danger' : 'success');
+      // Derive controller health: reuse relay+sensor freshness and guards endpoints for lightweight overview
+      try {
+        const ph = await getJSON('/api/ph/status');
+        const phGuards = ph.guards || {}; const phHealth = (phGuards.estop || phGuards.safe_off || phGuards.sensor_stale || phGuards.reservoir) ? 'BLOCKED' : 'OK';
+        setChip('#chip-ph', phHealth, phHealth==='OK' ? 'success' : 'error');
+      } catch(e){ setChip('#chip-ph', '—', 'neutral'); }
+      try {
+        const ec = await getJSON('/api/ec/status');
+        const ecGuards = ec.guards || {}; const ecHealth = (ecGuards.estop || ecGuards.sensor_stale || ecGuards.reservoir || ecGuards.mix_lock) ? 'BLOCKED' : 'OK';
+        setChip('#chip-ec', ecHealth, ecHealth==='OK' ? 'success' : 'error');
+      } catch(e){ setChip('#chip-ec', '—', 'neutral'); }
       const modeEl = q('#ov-mode'); const estopEl = q('#ov-estop');
       if (modeEl) modeEl.textContent = 'Mode: ' + mode.toUpperCase();
       if (estopEl) estopEl.textContent = 'E-STOP: ' + (estop?'ACTIVE':'off');
