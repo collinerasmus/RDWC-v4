@@ -64,45 +64,6 @@
       title.className = 'muted';
       title.style.margin = '0 0 8px 0';
 
-      // pH calibration card
-      const phWrap = document.createElement('div');
-      phWrap.className = 'card';
-      phWrap.style.padding = '12px';
-      phWrap.innerHTML = `
-        <h3 style="margin-top:0;">pH Calibration</h3>
-        <div id="ph-calib-banner" class="row" style="margin-bottom:6px;display:none">
-          <span class="muted">Writes are disabled. Set CALIB_ENABLE=1 and restart service to enable calibration commands.</span>
-        </div>
-        <div class="row">
-          <label>Current pH:</label>
-          <span id="ph-current" style="margin-left:8px">—</span>
-          <button id="btnPhRead" class="btn-secondary" style="margin-left:8px">Read</button>
-          <button id="btnPhStabilize" class="btn-secondary" style="margin-left:8px" title="Read until stable or timeout">Stabilize</button>
-          <button id="btnPhStatus" class="btn-secondary" style="margin-left:8px">Status</button>
-        </div>
-        <div class="row" style="margin-top:6px;align-items:center;flex-wrap:wrap;gap:6px;">
-          <label>Buffer:</label>
-          <select id="ph-buffer-kind" style="margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3">
-            <option value="mid" data-default="7.00">Mid (7.00)</option>
-            <option value="low" data-default="4.00">Low (4.00)</option>
-            <option value="high" data-default="10.00">High (10.00)</option>
-          </select>
-          <input id="ph-buffer-val" type="number" step="0.01" min="0" max="14" value="7.00" style="width:90px;margin-left:4px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3"/>
-          <button id="btnPhCalibrate" class="btn-secondary">Calibrate</button>
-          <button id="btnPhClear" class="btn-secondary" style="margin-left:8px">Clear</button>
-        </div>
-        <div class="row" style="margin-top:6px">
-          <span id="ph-calib-msg" class="muted"></span>
-        </div>
-        <div class="row" style="margin-top:6px;gap:6px;align-items:center;flex-wrap:wrap;">
-          <label>Probe LEDs:</label>
-          <button id="btnLedsOn" class="btn-secondary" title="Turn LEDs on (all probes)">On</button>
-          <button id="btnLedsOff" class="btn-secondary" title="Turn LEDs off (all probes)">Off</button>
-          <button id="btnLedsBlink" class="btn-secondary" title="Blink LEDs to locate probes">Blink</button>
-        </div>
-        <div id="ph-calib-log" class="muted" style="margin-top:8px;max-height:160px;overflow:auto;font-family:ui-monospace, monospace;font-size:12px;border-top:1px dashed #1f2937;padding-top:6px"></div>
-      `;
-
       // EC Calibration (full wizard moved from EC Controller card)
       const ecWrap = document.createElement('div');
       ecWrap.className = 'card';
@@ -188,111 +149,13 @@
       `;
 
       panel.appendChild(title);
-      panel.appendChild(phWrap);
       panel.appendChild(doseWrap);
       panel.appendChild(ecWrap);
 
-      // Wire up pH controls (query from panel, not global document)
+      // Panel-scoped query helper
       const qP = (sel) => panel.querySelector(sel);
-      const msg = () => qP('#ph-calib-msg');
-      const setMsg = (t, ok=true) => { const el = msg(); if (!el) return; el.textContent = t||''; el.style.color = ok? '#9ca3af' : '#fca5a5'; log(t); };
-      const setCurrent = (v) => { const sp = qP('#ph-current'); if (sp) sp.textContent = (v==null? '—' : Number(v).toFixed(2)); };
-      const setBanner = (on) => { const b = qP('#ph-calib-banner'); if (b) b.style.display = on? 'block':'none'; const d = qP('#dose-calib-banner'); if (d) d.style.display = on? 'block':'none'; };
-      const log = (line) => {
-        const box = qP('#ph-calib-log'); if (!box) return;
-        const ts = new Date().toLocaleTimeString();
-        const div = document.createElement('div');
-        div.textContent = `[${ts}] ${line}`;
-        box.appendChild(div);
-        box.scrollTop = box.scrollHeight;
-      };
-
-      // Default buffer value follows selection
-      const kindSel = qP('#ph-buffer-kind');
-      const valInp = qP('#ph-buffer-val');
-      if (kindSel && valInp){
-        kindSel.addEventListener('change', ()=>{
-          const opt = kindSel.options[kindSel.selectedIndex];
-          const def = opt ? (opt.getAttribute('data-default')||'') : '';
-          if (def) valInp.value = def;
-        });
-      }
-
-      const read = async ()=>{
-        try{
-          const r = await (await fetch('/calib/ph/read?t='+Date.now(), {cache:'no-store'})).json();
-          if (r && r.ok){ setCurrent(r.value); setMsg('Read OK'); }
-          else { setMsg(r && r.note ? r.note : 'Read failed', false); }
-        }catch(e){ setMsg('Read failed', false); }
-      };
-      const status = async ()=>{
-        try{
-          const resp = await fetch('/calib/ph/status?t='+Date.now(), {cache:'no-store'});
-          // Trap 204 No Content (probe offline but endpoint exists)
-          if (resp.status === 204 || !resp.ok) {
-            setMsg('Status: OK (no data)', true);
-            return;
-          }
-          const r = await resp.json();
-          if (r && r.ok){ setMsg('Status: ' + (r.status||'unknown') + (r.flags? ' • '+r.flags.join(', '):'')); }
-          else { setMsg('Status check failed', false); }
-        }catch(e){ 
-          // Swallow JSON parse errors on empty body
-          setMsg('Status: OK', true);
-        }
-      };
-      const stabilize = async ()=>{
-        try{
-          setMsg('Stabilizing...');
-          const r = await (await fetch('/calib/ph/read_stable?t='+Date.now(), {cache:'no-store'})).json();
-          if (r && r.ok){ setCurrent(r.value); setMsg(r.stable? `Stable at ${Number(r.value).toFixed(2)} (n=${r.samples||0}, ${r.duration_s?.toFixed? r.duration_s.toFixed(1):r.duration_s}s)` : `Timeout; last ${Number(r.value).toFixed(2)} (n=${r.samples||0})`, r.stable); }
-          else { setMsg('Stabilize failed', false); }
-        }catch(e){ setMsg('Stabilize failed', false); }
-      };
-      const caps = async ()=>{
-        try{
-          const r = await (await fetch('/calib/ph/caps?t='+Date.now(), {cache:'no-store'})).json();
-          setBanner(!(r && r.enabled));
-        }catch(e){ /* noop */ }
-      };
-      const doCal = async ()=>{
-        const btn = qP('#btnPhCalibrate');
-        if (btn){ btn.disabled = true; btn.textContent = 'Working…'; }
-        try{
-          const kind = (kindSel && kindSel.value) || 'mid';
-            const val  = parseFloat(valInp && valInp.value || '7.00');
-            const ep = kind==='low'? 'low' : kind==='high'? 'high' : 'mid';
-            setMsg(`Sending ${ep} calibration...`);
-            const resp = await fetch(`/calib/ph/${ep}?value=${encodeURIComponent(val.toFixed(2))}`, {method:'POST'});
-            let r = null; try{ r = await resp.json(); }catch(_){ /* ignore */ }
-            if (r && r.ok){ setMsg(r.note || 'Calibration OK'); await status(); }
-            else {
-              // Show raw HTTP status if JSON parse failed
-              const note = (r && r.note) || `Calibration failed (HTTP ${resp.status})`;
-              setMsg(note, false);
-            }
-        }catch(e){ setMsg('Calibration failed (exception)', false); }
-        finally{ if (btn){ btn.disabled = false; btn.textContent = 'Calibrate'; } }
-      };
-      const clear = async ()=>{
-        try{
-          const r = await (await fetch('/calib/ph/clear', {method:'POST'})).json();
-          if (r && r.ok){ setMsg(r.note || 'Calibration cleared'); }
-          else { setMsg((r && r.note) || 'Clear rejected', false); }
-        }catch(e){ setMsg('Clear failed', false); }
-      };
-
-      // Wire up button event listeners (qP already defined above)
-      const bRead = qP('#btnPhRead'); if (bRead) bRead.addEventListener('click', read);
-      const bStat = qP('#btnPhStatus'); if (bStat) bStat.addEventListener('click', status);
-      const bStab = qP('#btnPhStabilize'); if (bStab) bStab.addEventListener('click', stabilize);
-      const bOn = qP('#btnLedsOn'); if (bOn) bOn.addEventListener('click', async ()=>{ try{ const r=await (await fetch('/calib/leds/on',{method:'POST'})).json(); setMsg(r.ok? 'LEDs on' : 'LEDs on failed', !!r.ok);}catch(e){ setMsg('LEDs on failed', false);} });
-      const bOff = qP('#btnLedsOff'); if (bOff) bOff.addEventListener('click', async ()=>{ try{ const r=await (await fetch('/calib/leds/off',{method:'POST'})).json(); setMsg(r.ok? 'LEDs off' : 'LEDs off failed', !!r.ok);}catch(e){ setMsg('LEDs off failed', false);} });
-      const bBlink = qP('#btnLedsBlink'); if (bBlink) bBlink.addEventListener('click', async ()=>{ try{ const r=await (await fetch('/calib/leds/blink',{method:'POST'})).json(); setMsg(r.ok? `Blink x${r.count||''}` : 'Blink failed', !!r.ok);}catch(e){ setMsg('Blink failed', false);} });
-      const bCal  = qP('#btnPhCalibrate'); if (bCal) bCal.addEventListener('click', doCal);
-      const bClr  = qP('#btnPhClear'); if (bClr) bClr.addEventListener('click', clear);
-
-      // EC Calibration wiring (qP already defined above for panel-scoped queries)
+      
+      // EC Calibration wiring
       const ecMsgEl = qP('#ecCalMessage');
       const setEcMsg = (t, ok=true)=>{ if (ecMsgEl){ ecMsgEl.textContent = t||''; ecMsgEl.style.color = ok? '#9ca3af' : '#fca5a5'; } };
       const ecStatus = async ()=>{
@@ -439,7 +302,7 @@
       });
 
       // Prime values on open
-      setMsg(''); caps(); status(); read(); ecStatus(); renderPumps(); refreshPrimeState();
+      ecStatus(); renderPumps(); refreshPrimeState();
       return panel;
     }
     const fields = GROUP_DEF[ns].fields;

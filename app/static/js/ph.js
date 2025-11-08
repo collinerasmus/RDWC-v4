@@ -428,6 +428,92 @@
   el('ph-dose-csv')?.addEventListener('click', ()=>{ exportCSV(); });
   el('btnPhExport24')?.addEventListener('click', ()=>{ exportCSV(); });
 
+    // pH Calibration event handlers (for inline calibration in pH Settings)
+    const msgEl = el('ph-calib-msg-inline');
+    const logEl = el('ph-calib-log-inline');
+    const setMsg = (t, ok=true) => { 
+      if (msgEl){ msgEl.textContent = t||''; msgEl.style.color = ok? '#9ca3af' : '#fca5a5'; }
+      if (logEl){ const ts=new Date().toLocaleTimeString(); const div=document.createElement('div'); div.textContent = `[${ts}] ${t}`; logEl.appendChild(div); logEl.scrollTop = logEl.scrollHeight; }
+    };
+    const setCurrent = (v) => { const sp = el('ph-current-inline'); if (sp) sp.textContent = (v==null? '—' : Number(v).toFixed(2)); };
+    const setBanner = (on) => { const b = el('ph-calib-banner-inline'); if (b) b.style.display = on? 'block':'none'; };
+    
+    const checkCaps = async ()=>{
+      try{
+        const r = await (await fetch('/calib/ph/caps?t='+Date.now(), {cache:'no-store'})).json();
+        setBanner(!(r && r.enabled));
+      }catch(e){ /* noop */ }
+    };
+    
+    el('btnPhReadInline')?.addEventListener('click', async ()=>{
+      try{
+        setMsg('Reading...');
+        const r = await (await fetch('/calib/ph/read?t='+Date.now(), {cache:'no-store'})).json();
+        if (r && r.ok){ setCurrent(r.value); setMsg(`pH: ${Number(r.value).toFixed(2)}`); }
+        else { setMsg((r && r.note) || 'Read failed', false); }
+      }catch(e){ setMsg('Read failed', false); }
+    });
+    
+    el('btnPhStabilizeInline')?.addEventListener('click', async ()=>{
+      try{
+        setMsg('Waiting for stable reading...');
+        const r = await (await fetch('/calib/ph/read_stable?t='+Date.now(), {cache:'no-store'})).json();
+        if (r && r.ok){ setCurrent(r.value); setMsg(`Stable pH: ${Number(r.value).toFixed(2)} (σ=${r.std?.toFixed(3)||'?'})`); }
+        else { setMsg((r && r.note) || 'Stabilize failed', false); }
+      }catch(e){ setMsg('Stabilize failed', false); }
+    });
+    
+    el('btnPhStatusInline')?.addEventListener('click', async ()=>{
+      try{
+        const r = await (await fetch('/calib/ph/status?t='+Date.now(), {cache:'no-store'})).json();
+        if (r && r.ok){ 
+          const pts = r.points ? r.points.join(', ') : 'none';
+          setMsg(`Calibration: ${pts}`); 
+        } else { setMsg((r && r.note) || 'Status failed', false); }
+      }catch(e){ setMsg('Status failed', false); }
+    });
+    
+    el('btnPhCalibrateInline')?.addEventListener('click', async ()=>{
+      const btn = el('btnPhCalibrateInline');
+      if (btn){ btn.disabled = true; btn.textContent = 'Working…'; }
+      try{
+        const kindSel = el('ph-buffer-kind-inline');
+        const valInp = el('ph-buffer-val-inline');
+        const kind = (kindSel && kindSel.value) || 'mid';
+        const val = parseFloat(valInp && valInp.value || '7.00');
+        const ep = kind==='low'? 'low' : kind==='high'? 'high' : 'mid';
+        setMsg(`Sending ${ep} calibration...`);
+        const resp = await fetch(`/calib/ph/${ep}?value=${encodeURIComponent(val.toFixed(2))}`, {method:'POST'});
+        let r = null; try{ r = await resp.json(); }catch(_){ /* ignore */ }
+        if (r && r.ok){ setMsg(r.note || 'Calibration OK'); }
+        else { setMsg((r && r.note) || `Calibration failed (HTTP ${resp.status})`, false); }
+      }catch(e){ setMsg('Calibration failed', false); }
+      finally{ if (btn){ btn.disabled = false; btn.textContent = 'Calibrate'; } }
+    });
+    
+    el('btnPhClearInline')?.addEventListener('click', async ()=>{
+      try{
+        const r = await (await fetch('/calib/ph/clear', {method:'POST'})).json();
+        if (r && r.ok){ setMsg(r.note || 'Calibration cleared'); }
+        else { setMsg((r && r.note) || 'Clear rejected', false); }
+      }catch(e){ setMsg('Clear failed', false); }
+    });
+    
+    el('btnLedsOnInline')?.addEventListener('click', async ()=>{ 
+      try{ const r=await (await fetch('/calib/leds/on',{method:'POST'})).json(); setMsg(r.ok? 'LEDs on' : 'LEDs on failed', !!r.ok);}catch(e){ setMsg('LEDs on failed', false);} 
+    });
+    
+    el('btnLedsOffInline')?.addEventListener('click', async ()=>{ 
+      try{ const r=await (await fetch('/calib/leds/off',{method:'POST'})).json(); setMsg(r.ok? 'LEDs off' : 'LEDs off failed', !!r.ok);}catch(e){ setMsg('LEDs off failed', false);} 
+    });
+    
+    el('btnLedsBlinkInline')?.addEventListener('click', async ()=>{ 
+      try{ const r=await (await fetch('/calib/leds/blink',{method:'POST'})).json(); setMsg(r.ok? `Blink x${r.count||''}` : 'Blink failed', !!r.ok);}catch(e){ setMsg('Blink failed', false);} 
+    });
+    
+    // Check calibration capabilities on init
+    checkCaps();
+
     // listen for settings UI updates to ui.sensors_poll_ms
     window.addEventListener('settings:ui', (ev)=>{
       const ms = ev.detail?.['ui.sensors_poll_ms'];
