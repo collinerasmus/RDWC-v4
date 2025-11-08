@@ -431,86 +431,151 @@
     // pH Calibration event handlers (for inline calibration in pH Settings)
     const msgEl = el('ph-calib-msg-inline');
     const logEl = el('ph-calib-log-inline');
-    const setMsg = (t, ok=true) => { 
-      if (msgEl){ msgEl.textContent = t||''; msgEl.style.color = ok? '#9ca3af' : '#fca5a5'; }
-      if (logEl){ const ts=new Date().toLocaleTimeString(); const div=document.createElement('div'); div.textContent = `[${ts}] ${t}`; logEl.appendChild(div); logEl.scrollTop = logEl.scrollHeight; }
-    };
-    const setCurrent = (v) => { const sp = el('ph-current-inline'); if (sp) sp.textContent = (v==null? '—' : Number(v).toFixed(2)); };
+
+    // Helper to format time HH:MM:SS
+    const ts = () => new Date().toLocaleTimeString();
+
+    // Central log append with type coloring
+    function appendLog(message, type='info'){
+      if(!logEl) return;
+      const div = document.createElement('div');
+      let color = '#9ca3af';
+      if(type==='error') color = '#f87171';
+      else if(type==='warn') color = '#fbbf24';
+      else if(type==='success') color = '#34d399';
+      div.style.color = color;
+      div.textContent = `[${ts()}] ${message}`;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // Unified message setter (keeps last status prominent)
+    function setMsg(message, ok=true, typeOverride){
+      if(msgEl){
+        msgEl.textContent = message || '';
+        msgEl.style.color = ok ? '#e5e7eb' : '#fca5a5';
+      }
+      const t = typeOverride || (ok ? 'info' : 'error');
+      appendLog(message, t);
+    }
+
+    // Current pH inline + range coloring (basic heuristic using settings if present)
+    function setCurrent(v){
+      const sp = el('ph-current-inline');
+      if(!sp) return;
+      if(v==null){ sp.textContent = '—'; sp.style.color = '#9ca3af'; return; }
+      const val = Number(v);
+      sp.textContent = val.toFixed(2);
+      let low = parseFloat(window.rdwcSettings?.get('targets.ph_low') || '5.5');
+      let high = parseFloat(window.rdwcSettings?.get('targets.ph_high') || '6.5');
+      if(val < low - 0.05) sp.style.color = '#60a5fa'; // low = blue
+      else if(val > high + 0.05) sp.style.color = '#f87171'; // high = red
+      else sp.style.color = '#34d399'; // in band
+    }
+
     const setBanner = (on) => { const b = el('ph-calib-banner-inline'); if (b) b.style.display = on? 'block':'none'; };
-    
+
+    // Disable/enable all calibration action buttons during operations
+    const calibBtnIds = [
+      'btnPhReadInline','btnPhStabilizeInline','btnPhStatusInline',
+      'btnPhCalibrateInline','btnPhClearInline',
+      'btnLedsOnInline','btnLedsOffInline','btnLedsBlinkInline'
+    ];
+    function setCalibBusy(busy, workingLabel){
+      calibBtnIds.forEach(id => {
+        const b = el(id); if(!b) return; if(busy){ b.disabled = true; if(workingLabel && id==='btnPhCalibrateInline'){ b.dataset._orig = b.textContent; b.textContent = workingLabel; } }
+        else { b.disabled = false; if(b.dataset._orig){ b.textContent = b.dataset._orig; delete b.dataset._orig; } }
+      });
+      if(busy) appendLog('⏳ Working...', 'warn');
+    }
+
     const checkCaps = async ()=>{
       try{
         const r = await (await fetch('/calib/ph/caps?t='+Date.now(), {cache:'no-store'})).json();
         setBanner(!(r && r.enabled));
       }catch(e){ /* noop */ }
     };
-    
+
     el('btnPhReadInline')?.addEventListener('click', async ()=>{
+      setCalibBusy(true);
       try{
         setMsg('Reading...');
         const r = await (await fetch('/calib/ph/read?t='+Date.now(), {cache:'no-store'})).json();
-        if (r && r.ok){ setCurrent(r.value); setMsg(`pH: ${Number(r.value).toFixed(2)}`); }
+        if (r && r.ok){ setCurrent(r.value); setMsg(`pH: ${Number(r.value).toFixed(2)}`, true, 'success'); }
         else { setMsg((r && r.note) || 'Read failed', false); }
-      }catch(e){ setMsg('Read failed', false); }
+      }catch(e){ setMsg('Read failed (network)', false); }
+      finally { setCalibBusy(false); }
     });
-    
+
     el('btnPhStabilizeInline')?.addEventListener('click', async ()=>{
+      setCalibBusy(true);
       try{
         setMsg('Waiting for stable reading...');
         const r = await (await fetch('/calib/ph/read_stable?t='+Date.now(), {cache:'no-store'})).json();
-        if (r && r.ok){ setCurrent(r.value); setMsg(`Stable pH: ${Number(r.value).toFixed(2)} (σ=${r.std?.toFixed(3)||'?'})`); }
+        if (r && r.ok){ setCurrent(r.value); setMsg(`Stable pH: ${Number(r.value).toFixed(2)} (σ=${r.std?.toFixed(3)||'?'})`, true, 'success'); }
         else { setMsg((r && r.note) || 'Stabilize failed', false); }
-      }catch(e){ setMsg('Stabilize failed', false); }
+      }catch(e){ setMsg('Stabilize failed (network)', false); }
+      finally { setCalibBusy(false); }
     });
-    
+
     el('btnPhStatusInline')?.addEventListener('click', async ()=>{
+      setCalibBusy(true);
       try{
         const r = await (await fetch('/calib/ph/status?t='+Date.now(), {cache:'no-store'})).json();
         if (r && r.ok){ 
-          const pts = r.points ? r.points.join(', ') : 'none';
-          setMsg(`Calibration: ${pts}`); 
+          const pts = r.points ? (r.points.length? r.points.join(', ') : 'none') : 'none';
+            setMsg(`Calibration: ${pts}`); 
         } else { setMsg((r && r.note) || 'Status failed', false); }
-      }catch(e){ setMsg('Status failed', false); }
+      }catch(e){ setMsg('Status failed (network)', false); }
+      finally { setCalibBusy(false); }
     });
-    
+
     el('btnPhCalibrateInline')?.addEventListener('click', async ()=>{
-      const btn = el('btnPhCalibrateInline');
-      if (btn){ btn.disabled = true; btn.textContent = 'Working…'; }
+      setCalibBusy(true, 'Working…');
       try{
         const kindSel = el('ph-buffer-kind-inline');
         const valInp = el('ph-buffer-val-inline');
         const kind = (kindSel && kindSel.value) || 'mid';
         const val = parseFloat(valInp && valInp.value || '7.00');
+        if(!isFinite(val)) { setMsg('Invalid buffer value', false); return; }
         const ep = kind==='low'? 'low' : kind==='high'? 'high' : 'mid';
-        setMsg(`Sending ${ep} calibration...`);
+        setMsg(`Sending ${ep} calibration (${val.toFixed(2)})...`);
         const resp = await fetch(`/calib/ph/${ep}?value=${encodeURIComponent(val.toFixed(2))}`, {method:'POST'});
         let r = null; try{ r = await resp.json(); }catch(_){ /* ignore */ }
-        if (r && r.ok){ setMsg(r.note || 'Calibration OK'); }
+        if (r && r.ok){ setMsg(r.note || 'Calibration OK', true, 'success'); }
         else { setMsg((r && r.note) || `Calibration failed (HTTP ${resp.status})`, false); }
-      }catch(e){ setMsg('Calibration failed', false); }
-      finally{ if (btn){ btn.disabled = false; btn.textContent = 'Calibrate'; } }
+      }catch(e){ setMsg('Calibration failed (network)', false); }
+      finally{ setCalibBusy(false); }
     });
-    
+
     el('btnPhClearInline')?.addEventListener('click', async ()=>{
+      setCalibBusy(true);
       try{
         const r = await (await fetch('/calib/ph/clear', {method:'POST'})).json();
-        if (r && r.ok){ setMsg(r.note || 'Calibration cleared'); }
+        if (r && r.ok){ setMsg(r.note || 'Calibration cleared', true, 'warn'); }
         else { setMsg((r && r.note) || 'Clear rejected', false); }
-      }catch(e){ setMsg('Clear failed', false); }
+      }catch(e){ setMsg('Clear failed (network)', false); }
+      finally { setCalibBusy(false); }
     });
-    
+
     el('btnLedsOnInline')?.addEventListener('click', async ()=>{ 
-      try{ const r=await (await fetch('/calib/leds/on',{method:'POST'})).json(); setMsg(r.ok? 'LEDs on' : 'LEDs on failed', !!r.ok);}catch(e){ setMsg('LEDs on failed', false);} 
+      setCalibBusy(true);
+      try{ const r=await (await fetch('/calib/leds/on',{method:'POST'})).json(); setMsg(r.ok? 'LEDs on' : 'LEDs on failed', !!r.ok, r.ok?'success':'error'); }catch(e){ setMsg('LEDs on failed (network)', false);} 
+      finally { setCalibBusy(false); }
     });
-    
+
     el('btnLedsOffInline')?.addEventListener('click', async ()=>{ 
-      try{ const r=await (await fetch('/calib/leds/off',{method:'POST'})).json(); setMsg(r.ok? 'LEDs off' : 'LEDs off failed', !!r.ok);}catch(e){ setMsg('LEDs off failed', false);} 
+      setCalibBusy(true);
+      try{ const r=await (await fetch('/calib/leds/off',{method:'POST'})).json(); setMsg(r.ok? 'LEDs off' : 'LEDs off failed', !!r.ok, r.ok?'success':'error'); }catch(e){ setMsg('LEDs off failed (network)', false);} 
+      finally { setCalibBusy(false); }
     });
-    
+
     el('btnLedsBlinkInline')?.addEventListener('click', async ()=>{ 
-      try{ const r=await (await fetch('/calib/leds/blink',{method:'POST'})).json(); setMsg(r.ok? `Blink x${r.count||''}` : 'Blink failed', !!r.ok);}catch(e){ setMsg('Blink failed', false);} 
+      setCalibBusy(true);
+      try{ const r=await (await fetch('/calib/leds/blink',{method:'POST'})).json(); setMsg(r.ok? `Blink x${r.count||''}` : 'Blink failed', !!r.ok, r.ok?'success':'error'); }catch(e){ setMsg('Blink failed (network)', false);} 
+      finally { setCalibBusy(false); }
     });
-    
+
     // Check calibration capabilities on init
     checkCaps();
 
