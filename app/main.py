@@ -62,6 +62,60 @@ ASSET_VERSION = _compute_asset_version()
 
 app = FastAPI()
 
+# --- Startup hook: ensure sensor LEDs honor persistent setting (default ON) ---
+@app.on_event("startup")
+def _startup_leds_apply():
+    try:
+        from app.settings import get_all_settings, upsert_settings
+        from app.ezo_i2c_stabilized import EZO, PH_ADDR, EC_ADDR, RTD_ADDR
+        s = get_all_settings()
+        # Seed default if missing (should already be in DEFAULTS but guard anyway)
+        if "sensors.leds_enabled" not in s:
+            upsert_settings({"sensors.leds_enabled": "1"})
+            s["sensors.leds_enabled"] = "1"
+        want_on = s.get("sensors.leds_enabled", "1") in ("1", "true", "True")
+        cmd = "L,1" if want_on else "L,0"
+        for addr, name in ((PH_ADDR, "pH"), (EC_ADDR, "EC"), (RTD_ADDR, "RTD")):
+            try:
+                dev = EZO(1, addr, name)
+                dev.cmd(cmd, read_len=0, settle=0.05)
+            except Exception:
+                continue
+    except Exception:
+        # Non-fatal: service continues even if LEDs can't be set
+        pass
+
+# --- Sensor LED state endpoints (persistent) ---
+@app.get("/api/sensors/leds")
+def api_sensors_leds():
+    try:
+        from app.settings import get_all_settings
+        s = get_all_settings()
+        enabled = s.get("sensors.leds_enabled", "1") in ("1", "true", "True")
+        return {"ok": True, "enabled": enabled}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+@app.post("/api/sensors/leds")
+def api_sensors_leds_set(enable: bool = True):
+    """Persist and apply sensor LED state (Atlas EZO L,1 / L,0)."""
+    try:
+        from app.settings import upsert_settings
+        from app.ezo_i2c_stabilized import EZO, PH_ADDR, EC_ADDR, RTD_ADDR
+        upsert_settings({"sensors.leds_enabled": "1" if enable else "0"})
+        cmd = "L,1" if enable else "L,0"
+        applied = []
+        for addr, name in ((PH_ADDR, "pH"), (EC_ADDR, "EC"), (RTD_ADDR, "RTD")):
+            try:
+                dev = EZO(1, addr, name)
+                dev.cmd(cmd, read_len=0, settle=0.05)
+                applied.append(name)
+            except Exception:
+                continue
+        return {"ok": True, "enabled": enable, "applied": applied}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
 # Request audit middleware: log all requests to detect unexpected POSTs
 class RequestAuditMiddleware(BaseHTTPMiddleware):
     """
@@ -2207,18 +2261,50 @@ def diag_sensors_leds(on: int = 1):
     /diag/sensors/leds?on=1  -> ON
     /diag/sensors/leds?on=0  -> OFF
     """
-    from app import ezo_i2c as _e
-    res = _e.enable_all_leds(bool(on))
-    return {"on": bool(on), "result": res}
+    try:
+        from app.ezo_i2c_stabilized import EZO, PH_ADDR, EC_ADDR, RTD_ADDR
+        cmd = "L,1" if bool(on) else "L,0"
+        for addr, name in ((PH_ADDR, "pH"), (EC_ADDR, "EC"), (RTD_ADDR, "RTD")):
+            try:
+                EZO(1, addr, name).cmd(cmd, read_len=0, settle=0.05)
+            except Exception:
+                pass
+        return {"on": bool(on), "result": {"ok": True}}
+    except Exception as e:
+        return {"on": bool(on), "result": {"ok": False, "error": str(e)}}
 
 @app.get("/diag/sensors/flash")
 def diag_sensors_flash(count: int = 8, period_ms: int = 250):
     """Flash all EZO LEDs for visual confirmation.
     Query: count (blinks), period_ms (on/off per half-cycle); leaves LEDs ON at end.
     """
-    from app import ezo_i2c as _e
-    res = _e.blink_leds(count=max(1, int(count)), period_s=max(0.05, period_ms/1000.0))
-    return {"requested": {"count": int(count), "period_ms": int(period_ms)}, "result": res}
+    try:
+        from time import sleep
+        from app.ezo_i2c_stabilized import EZO, PH_ADDR, EC_ADDR, RTD_ADDR
+        period = max(0.05, period_ms/1000.0)
+        cnt = max(1, int(count))
+        for i in range(cnt):
+            for addr, name in ((PH_ADDR, "pH"), (EC_ADDR, "EC"), (RTD_ADDR, "RTD")):
+                try:
+                    EZO(1, addr, name).cmd("L,1", read_len=0, settle=0.02)
+                except Exception:
+                    pass
+            sleep(period)
+            for addr, name in ((PH_ADDR, "pH"), (EC_ADDR, "EC"), (RTD_ADDR, "RTD")):
+                try:
+                    EZO(1, addr, name).cmd("L,0", read_len=0, settle=0.02)
+                except Exception:
+                    pass
+            sleep(period)
+        # Leave ON at end
+        for addr, name in ((PH_ADDR, "pH"), (EC_ADDR, "EC"), (RTD_ADDR, "RTD")):
+            try:
+                EZO(1, addr, name).cmd("L,1", read_len=0, settle=0.02)
+            except Exception:
+                pass
+        return {"requested": {"count": int(count), "period_ms": int(period_ms)}, "result": {"ok": True}}
+    except Exception as e:
+        return {"requested": {"count": int(count), "period_ms": int(period_ms)}, "result": {"ok": False, "error": str(e)}}
 
 @app.post("/read_now")
 def read_now():
@@ -2535,7 +2621,32 @@ def calib_ph_status():
             flags = parts
     except Exception:
         pass
-    return {"ok": ok, "status": note, "flags": flags}
+    # Derive points list from flags. Atlas pH 'Cal,?' responses vary by firmware:
+    # Examples:
+    #   '?CAL,mid,low' -> explicit names
+    #   '?CAL,2'       -> numeric count only (mid+low assumed)
+    # We map numeric forms to plausible point names for UI friendliness.
+    points: list[str] = []
+    try:
+        if flags:
+            # If any non-numeric tokens beyond first, treat them as explicit calibration points
+            named = [f for f in flags if not f.isdigit() and f.lower() not in ("?cal",)]
+            if named:
+                points = named
+            else:
+                # Numeric-only form; first numeric token = count
+                nums = [int(f) for f in flags if f.isdigit()]
+                if nums:
+                    cnt = nums[0]
+                    if cnt == 1:
+                        points = ["mid"]
+                    elif cnt == 2:
+                        points = ["mid", "low"]
+                    elif cnt >= 3:
+                        points = ["mid", "low", "high"]
+    except Exception:
+        points = []
+    return {"ok": ok, "status": note, "flags": flags, "points": points}
 
 @app.get("/calib/ph/read_stable")
 def calib_ph_read_stable(timeout_s: float = 25.0, delta: float = 0.03, min_samples: int = 4, poll_s: float = 2.0):

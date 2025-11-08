@@ -140,6 +140,8 @@ DEFAULTS: Dict[str, str] = {
     "ui.default_sensor_range": "24h",
     "ui.relays_poll_ms": "1000",
     "ui.sensors_poll_ms": "5000",
+    # sensors
+    "sensors.leds_enabled": "1",  # default: keep EZO LEDs ON for visual diagnostics
 }
 
 def _ensure_table_seed_defaults() -> None:
