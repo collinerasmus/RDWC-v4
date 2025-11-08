@@ -140,64 +140,25 @@ def _update_system_state(key: str, value: str) -> None:
         logger.error(f"Failed to update system_state[{key}]: {e}")
 
 
-# Persistent EZO instances (init once per process lifetime)
-_ezo_devices = None
-
-def _init_sensors():
-    """Initialize EZO devices once per process"""
-    global _ezo_devices
-    if _ezo_devices is not None:
-        return
-    
-    from app.ezo_i2c_stabilized import EZO, RTD_ADDR, PH_ADDR, EC_ADDR
-    rtd = EZO(1, RTD_ADDR, "RTD")
-    ph = EZO(1, PH_ADDR, "pH")
-    ec = EZO(1, EC_ADDR, "EC")
-    
-    # NOTE: NOT calling init_once() - leave devices in continuous mode
-    # This allows read_value() to immediately fetch latest reading without
-    # waiting for on-demand measurement completion
-    
-    _ezo_devices = {"rtd": rtd, "ph": ph, "ec": ec}
-    logger.info("EZO sensors initialized (continuous mode)")
+# No longer using persistent EZO instances - delegates to sensors_core
 
 
 def _read_sensors() -> Dict[str, Any]:
     """
-    Read sensors using persistent EZO instances.
+    Read sensors using sensors_core module (same path as API).
     
     Returns:
         Dict with keys: temp_c, ph, ec_ms_cm, errors
     """
     try:
-        _init_sensors()
-        rtd = _ezo_devices["rtd"]
-        ph = _ezo_devices["ph"]
-        ec = _ezo_devices["ec"]
-        
-        # Read RTD first
-        temp_c = float(rtd.read_value())
-        
-        # Apply temperature compensation
-        for dev in (ph, ec):
-            try:
-                dev.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.06)
-            except Exception:
-                pass
-        
-        # Read pH and EC
-        ph_val = float(ph.read_value())
-        ec_raw = float(ec.read_value())
-        
-        # Convert EC from µS/cm to mS/cm if needed
-        # Heuristic: if value > 10, assume µS/cm and convert to mS/cm
-        ec_val = ec_raw / 1000.0 if ec_raw > 10 else ec_raw
+        from app.sensors_core import read_all_sensors
+        result = read_all_sensors()
         
         return {
-            "temp_c": temp_c,
-            "ph": ph_val,
-            "ec_ms_cm": ec_val,
-            "errors": {}
+            "temp_c": result.get("temperature_c"),
+            "ph": result.get("ph"),
+            "ec_ms_cm": result.get("ec_mscm"),
+            "errors": result.get("errors", {})
         }
     except Exception as e:
         logger.error(f"Sensor read failed: {e}")
