@@ -2335,17 +2335,28 @@ def export_sensors_csv(hours: float = Query(24.0)):
 def _calib_enabled() -> bool:
     return os.environ.get("CALIB_ENABLE", "0") == "1"
 
-def _ph_cmd(cmd: str, settle: float = 0.35):
+def _ph_cmd(cmd: str, settle: float = 0.35, timeout: float = 2.0):
+    """Send a pH command and poll until ready.
+    Returns (status_code, payload_str).
+    Adds structured logging to aid calibration debugging.
+    """
+    import logging
+    log = logging.getLogger("calib")
     try:
         from app.infra.i2c_bus import get_bus as _get_bus
         from app import ezo_i2c as _ezo
         bus = _get_bus()
+        log.info(f"[PH CMD] send='{cmd}' settle={settle}s timeout={timeout}s")
         _ezo._send_cmd(bus, _ezo.ADDR_PH, cmd)
         time.sleep(settle)
-        status, payload = _ezo._poll_until_ready(bus, _ezo.ADDR_PH)
-        return status, (payload or "")
+        status, payload = _ezo._poll_until_ready(bus, _ezo.ADDR_PH, timeout_s=timeout)
+        payload = payload or ""
+        log.info(f"[PH CMD] status={status} payload='{payload}'")
+        return status, payload
     except Exception as ex:
-        return 0, f"error:{type(ex).__name__}"
+        err = f"error:{type(ex).__name__}"
+        logging.getLogger("calib").warning(f"[PH CMD] exception {err}")
+        return 0, err
 
 @app.get("/calib/ph/caps")
 def calib_ph_caps():
@@ -2362,7 +2373,28 @@ def calib_ph_read():
 
 @app.get("/calib/ph/status")
 def calib_ph_status():
-    st, payload = _ph_cmd("Cal,?")
+    import logging
+    import fcntl
+    import time as _time
+    log = logging.getLogger("calib")
+    lock_path = "/tmp/rdwc_calib.lock"
+    lock_fd = None
+    st = 0
+    payload = ""
+    try:
+        lock_fd = open(lock_path, 'w')
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+        _time.sleep(0.6)
+        st, payload = _ph_cmd("Cal,?", settle=1.0, timeout=4.0)
+    except Exception as ex:
+        log.warning(f"[CALIB] status query error: {ex}")
+    finally:
+        if lock_fd:
+            try:
+                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+                lock_fd.close()
+            except Exception:
+                pass
     from app import ezo_i2c as _ezo
     ok = (st == _ezo.EZO_STATUS_SUCCESS)
     flags = []
@@ -2598,20 +2630,86 @@ def calib_ph_clear():
     chk = _require_enabled()
     if chk:
         return chk
-    st, payload = _ph_cmd("Cal,clear")
-    from app import ezo_i2c as _ezo
-    ok = (st == _ezo.EZO_STATUS_SUCCESS)
-    return {"ok": ok, "note": payload or ("Cleared" if ok else "Failed")}
+    # Use same I2C lock and longer timeouts as calibration points
+    import fcntl
+    lock_path = "/tmp/rdwc_calib.lock"
+    lock_fd = None
+    try:
+        lock_fd = open(lock_path, 'w')
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+        time.sleep(1.0)  # allow in-flight reads to finish
+        st, payload = _ph_cmd("Cal,clear", settle=1.2, timeout=4.0)
+        from app import ezo_i2c as _ezo
+        ok = (st == _ezo.EZO_STATUS_SUCCESS)
+        if not ok and st == _ezo.EZO_STATUS_SYNTAX_ERROR:
+            # One retry on syntax error
+            time.sleep(0.5)
+            st, payload = _ph_cmd("Cal,clear", settle=1.6, timeout=5.0)
+            ok = (st == _ezo.EZO_STATUS_SUCCESS)
+        return {"ok": ok, "note": payload or ("Cleared" if ok else f"Status {st}")}
+    finally:
+        if lock_fd:
+            try:
+                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+                lock_fd.close()
+            except Exception:
+                pass
 
 def _apply_point(kind: str, value: float):
+    import logging
+    log = logging.getLogger("calib")
+    log.info(f"[CALIB] apply kind={kind} raw_value={value}")
     chk = _require_enabled()
     if chk:
+        log.warning(f"[CALIB] rejected (disabled): {chk}")
         return chk
     v = max(0.0, min(14.0, float(value)))
-    st, payload = _ph_cmd(f"Cal,{kind},{v:.2f}")
-    from app import ezo_i2c as _ezo
-    ok = (st == _ezo.EZO_STATUS_SUCCESS)
-    return {"ok": ok, "note": payload or (f"Applied {kind} {v:.2f}" if ok else "Failed")}
+    log.info(f"[CALIB] normalized value={v:.2f}")
+    
+    # CRITICAL: Pause sensor polling to avoid I2C bus contention during calibration
+    import fcntl
+    lock_path = "/tmp/rdwc_calib.lock"
+    lock_fd = None
+    try:
+        # Acquire exclusive lock to block sensor polling
+        lock_fd = open(lock_path, 'w')
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+        
+        # Wait for any in-flight sensor read to complete
+        time.sleep(2.0)
+        
+        # Atlas Scientific EZO pH: Cal,mid,7.00 or Cal,low,4.00 or Cal,high,10.00
+        # Calibration commands take 900ms-1600ms, use longer timeout
+        st, payload = _ph_cmd(f"Cal,{kind},{v:.2f}", settle=1.6, timeout=5.0)
+        from app import ezo_i2c as _ezo
+        ok = (st == _ezo.EZO_STATUS_SUCCESS)
+        # Retry once on syntax error (status 2) which can happen if bus had residual bytes
+        if not ok and st == _ezo.EZO_STATUS_SYNTAX_ERROR:
+            log.warning("[CALIB] first attempt syntax error; retrying once with extended settle")
+            time.sleep(0.8)
+            st2, payload2 = _ph_cmd(f"Cal,{kind},{v:.2f}", settle=2.0, timeout=6.0)
+            ok2 = (st2 == _ezo.EZO_STATUS_SUCCESS)
+            if ok2:
+                log.info(f"[CALIB] retry success status={st2} payload='{payload2}'")
+                return {"ok": True, "note": payload2 or f"{kind.title()} calibrated (retry) at {v:.2f}"}
+            else:
+                log.error(f"[CALIB] retry failed status={st2} payload='{payload2}'")
+                return {"ok": False, "note": f"Status {st2}, response: '{payload2}'"}
+        
+        if ok:
+            log.info(f"[CALIB] success kind={kind} value={v:.2f} payload='{payload}'")
+            return {"ok": True, "note": payload or f"{kind.title()} calibrated at {v:.2f}"}
+        else:
+            log.error(f"[CALIB] failure kind={kind} status={st} payload='{payload}'")
+            return {"ok": False, "note": f"Status {st}, response: '{payload}'"}
+    finally:
+        # Always release lock
+        if lock_fd:
+            try:
+                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+                lock_fd.close()
+            except Exception:
+                pass
 
 @app.post("/calib/ph/mid")
 def calib_ph_mid(value: float = 7.00):

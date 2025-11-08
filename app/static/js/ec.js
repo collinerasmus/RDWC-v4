@@ -465,6 +465,14 @@
     el('btnRapidMicro')?.addEventListener('click', ()=> doseUnified('micro', 0.4, 'rapid-test'));
     el('btnRapidBloom')?.addEventListener('click', ()=> doseUnified('bloom', 0.4, 'rapid-test'));
 
+    // Helper to update interval display
+    const updateIntervalDisplay = (val) => {
+      const rapidToggle = document.getElementById('ecRapidTestToggle');
+      if (rapidToggle) {
+        rapidToggle.checked = (val === 10);
+      }
+    };
+
     // Rapid Test Mode toggle
     const rapidToggle = document.getElementById('ecRapidTestToggle');
     rapidToggle?.addEventListener('change', async ()=>{

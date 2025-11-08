@@ -162,13 +162,14 @@
       panel.appendChild(doseWrap);
       panel.appendChild(ecWrap);
 
-      // Wire up pH controls
-      const msg = () => q('#ph-calib-msg');
+      // Wire up pH controls (query from panel, not global document)
+      const qP = (sel) => panel.querySelector(sel);
+      const msg = () => qP('#ph-calib-msg');
       const setMsg = (t, ok=true) => { const el = msg(); if (!el) return; el.textContent = t||''; el.style.color = ok? '#9ca3af' : '#fca5a5'; log(t); };
-      const setCurrent = (v) => { const sp = q('#ph-current'); if (sp) sp.textContent = (v==null? '—' : Number(v).toFixed(2)); };
-      const setBanner = (on) => { const b = q('#ph-calib-banner'); if (b) b.style.display = on? 'block':'none'; const d = q('#dose-calib-banner'); if (d) d.style.display = on? 'block':'none'; };
+      const setCurrent = (v) => { const sp = qP('#ph-current'); if (sp) sp.textContent = (v==null? '—' : Number(v).toFixed(2)); };
+      const setBanner = (on) => { const b = qP('#ph-calib-banner'); if (b) b.style.display = on? 'block':'none'; const d = qP('#dose-calib-banner'); if (d) d.style.display = on? 'block':'none'; };
       const log = (line) => {
-        const box = q('#ph-calib-log'); if (!box) return;
+        const box = qP('#ph-calib-log'); if (!box) return;
         const ts = new Date().toLocaleTimeString();
         const div = document.createElement('div');
         div.textContent = `[${ts}] ${line}`;
@@ -177,8 +178,8 @@
       };
 
       // Default buffer value follows selection
-      const kindSel = q('#ph-buffer-kind');
-      const valInp = q('#ph-buffer-val');
+      const kindSel = qP('#ph-buffer-kind');
+      const valInp = qP('#ph-buffer-val');
       if (kindSel && valInp){
         kindSel.addEventListener('change', ()=>{
           const opt = kindSel.options[kindSel.selectedIndex];
@@ -242,17 +243,17 @@
         }catch(e){ setMsg('Clear failed', false); }
       };
 
-      const bRead = q('#btnPhRead'); if (bRead) bRead.addEventListener('click', read);
-  const bStat = q('#btnPhStatus'); if (bStat) bStat.addEventListener('click', status);
-  const bStab = q('#btnPhStabilize'); if (bStab) bStab.addEventListener('click', stabilize);
-  const bOn = q('#btnLedsOn'); if (bOn) bOn.addEventListener('click', async ()=>{ try{ const r=await (await fetch('/calib/leds/on',{method:'POST'})).json(); setMsg(r.ok? 'LEDs on' : 'LEDs on failed', !!r.ok);}catch(e){ setMsg('LEDs on failed', false);} });
-  const bOff = q('#btnLedsOff'); if (bOff) bOff.addEventListener('click', async ()=>{ try{ const r=await (await fetch('/calib/leds/off',{method:'POST'})).json(); setMsg(r.ok? 'LEDs off' : 'LEDs off failed', !!r.ok);}catch(e){ setMsg('LEDs off failed', false);} });
-  const bBlink = q('#btnLedsBlink'); if (bBlink) bBlink.addEventListener('click', async ()=>{ try{ const r=await (await fetch('/calib/leds/blink',{method:'POST'})).json(); setMsg(r.ok? `Blink x${r.count||''}` : 'Blink failed', !!r.ok);}catch(e){ setMsg('Blink failed', false);} });
-      const bCal  = q('#btnPhCalibrate'); if (bCal) bCal.addEventListener('click', doCal);
-      const bClr  = q('#btnPhClear'); if (bClr) bClr.addEventListener('click', clear);
+      // Wire up button event listeners (qP already defined above)
+      const bRead = qP('#btnPhRead'); if (bRead) bRead.addEventListener('click', read);
+      const bStat = qP('#btnPhStatus'); if (bStat) bStat.addEventListener('click', status);
+      const bStab = qP('#btnPhStabilize'); if (bStab) bStab.addEventListener('click', stabilize);
+      const bOn = qP('#btnLedsOn'); if (bOn) bOn.addEventListener('click', async ()=>{ try{ const r=await (await fetch('/calib/leds/on',{method:'POST'})).json(); setMsg(r.ok? 'LEDs on' : 'LEDs on failed', !!r.ok);}catch(e){ setMsg('LEDs on failed', false);} });
+      const bOff = qP('#btnLedsOff'); if (bOff) bOff.addEventListener('click', async ()=>{ try{ const r=await (await fetch('/calib/leds/off',{method:'POST'})).json(); setMsg(r.ok? 'LEDs off' : 'LEDs off failed', !!r.ok);}catch(e){ setMsg('LEDs off failed', false);} });
+      const bBlink = qP('#btnLedsBlink'); if (bBlink) bBlink.addEventListener('click', async ()=>{ try{ const r=await (await fetch('/calib/leds/blink',{method:'POST'})).json(); setMsg(r.ok? `Blink x${r.count||''}` : 'Blink failed', !!r.ok);}catch(e){ setMsg('Blink failed', false);} });
+      const bCal  = qP('#btnPhCalibrate'); if (bCal) bCal.addEventListener('click', doCal);
+      const bClr  = qP('#btnPhClear'); if (bClr) bClr.addEventListener('click', clear);
 
-  // Dosing wiring (scoped to this panel to work before attach)
-  const qP = (sel) => panel.querySelector(sel);
+  // Dosing wiring (qP already defined above for panel-scoped queries)
   const doseMsgEl = qP('#dose-calib-msg');
   const doseLog = (line)=>{ const box = qP('#dose-calib-log'); if (!box) return; const ts=new Date().toLocaleTimeString(); const div=document.createElement('div'); div.textContent = `[${ts}] ${line}`; box.appendChild(div); box.scrollTop = box.scrollHeight; };
       const setDoseMsg = (t, ok=true)=>{ if (doseMsgEl){ doseMsgEl.textContent = t||''; doseMsgEl.style.color = ok? '#9ca3af' : '#fca5a5'; } doseLog(t); };

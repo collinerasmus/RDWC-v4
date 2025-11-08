@@ -167,6 +167,22 @@ def _read_numeric_token(payload: str) -> Optional[float]:
         return None
 
 def read_single(addr: int, bus_id: int = DEFAULT_I2C_BUS, temp_c: Optional[float] = None) -> Optional[float]:
+    # Check for calibration lock - if calibration is in progress, skip this read
+    import fcntl
+    lock_path = "/tmp/rdwc_calib.lock"
+    try:
+        lock_fd = open(lock_path, 'w')
+        # Try non-blocking lock - if it fails, calibration is happening
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Got lock, release immediately and proceed
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+        lock_fd.close()
+    except (IOError, BlockingIOError):
+        # Calibration in progress, return None to skip this read
+        return None
+    except Exception:
+        pass  # Lock check failed, proceed anyway
+    
     bus = get_bus()
     
     def _attempt_read():

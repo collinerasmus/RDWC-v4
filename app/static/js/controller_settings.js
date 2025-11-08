@@ -13,29 +13,33 @@
         const res = await fetch('/api/settings');
         const settings = await res.json();
         
+        // Helper to safely set element value
+        const setVal = (id, val) => {
+          const el = document.getElementById(id);
+          if (el && val !== undefined) el.value = val;
+        };
+        
         // Target range
-        if (settings.targets && settings.targets.ph_low !== undefined) {
-          document.getElementById('phTargetLow').value = parseFloat(settings.targets.ph_low);
-        }
-        if (settings.targets && settings.targets.ph_high !== undefined) {
-          document.getElementById('phTargetHigh').value = parseFloat(settings.targets.ph_high);
+        if (settings.targets) {
+          setVal('phTargetLow', parseFloat(settings.targets.ph_low));
+          setVal('phTargetHigh', parseFloat(settings.targets.ph_high));
         }
         
         // Dosing parameters
         if (settings.dosing) {
-          if (settings.dosing.pulse_ml_grow !== undefined) document.getElementById('phPulseGrow').value = parseFloat(settings.dosing.pulse_ml_grow);
-          if (settings.dosing.pulse_ml_micro !== undefined) document.getElementById('phPulseMicro').value = parseFloat(settings.dosing.pulse_ml_micro);
-          if (settings.dosing.pulse_ml_bloom !== undefined) document.getElementById('phPulseBloom').value = parseFloat(settings.dosing.pulse_ml_bloom);
-          if (settings.dosing.max_ml_hour_ !== undefined) document.getElementById('phMaxMlHour').value = parseFloat(settings.dosing.max_ml_hour_);
-          if (settings.dosing.max_ml_day_ !== undefined) document.getElementById('phMaxMlDay').value = parseFloat(settings.dosing.max_ml_day_);
-          if (settings.dosing.mix_delay_s !== undefined) document.getElementById('phMixDelay').value = parseInt(settings.dosing.mix_delay_s);
-          if (settings.dosing.ph_up_ml_per_sec !== undefined) document.getElementById('phUpMlPerSec').value = parseFloat(settings.dosing.ph_up_ml_per_sec);
+          setVal('phPulseGrow', parseFloat(settings.dosing.pulse_ml_grow));
+          setVal('phPulseMicro', parseFloat(settings.dosing.pulse_ml_micro));
+          setVal('phPulseBloom', parseFloat(settings.dosing.pulse_ml_bloom));
+          setVal('phMaxMlHour', parseFloat(settings.dosing.max_ml_hour_));
+          setVal('phMaxMlDay', parseFloat(settings.dosing.max_ml_day_));
+          setVal('phMixDelay', parseInt(settings.dosing.mix_delay_s));
+          setVal('phUpMlPerSec', parseFloat(settings.dosing.ph_up_ml_per_sec));
         }
         
         // Alerts
         if (settings.alerts) {
-          if (settings.alerts.ph_lo_alert !== undefined) document.getElementById('phAlertLow').value = parseFloat(settings.alerts.ph_lo_alert);
-          if (settings.alerts.ph_hi_alert !== undefined) document.getElementById('phAlertHigh').value = parseFloat(settings.alerts.ph_hi_alert);
+          setVal('phAlertLow', parseFloat(settings.alerts.ph_lo_alert));
+          setVal('phAlertHigh', parseFloat(settings.alerts.ph_hi_alert));
         }
       } catch(e) {
         console.error('Failed to load pH settings:', e);
@@ -47,9 +51,15 @@
       const btn = document.getElementById('btnSavePhSettings');
       if (!btn) return;
       
+      // Helper to safely get element value
+      const getVal = (id, def = 0) => {
+        const el = document.getElementById(id);
+        return el ? parseFloat(el.value) || def : def;
+      };
+      
       // Validation
-      const phLow = parseFloat(document.getElementById('phTargetLow').value);
-      const phHigh = parseFloat(document.getElementById('phTargetHigh').value);
+      const phLow = getVal('phTargetLow', 5.8);
+      const phHigh = getVal('phTargetHigh', 6.2);
       if (phLow >= phHigh) {
         alert('Error: pH Low must be less than pH High');
         return;
@@ -58,15 +68,15 @@
       const updates = {
         'targets.ph_low': phLow,
         'targets.ph_high': phHigh,
-        'dosing.pulse_ml_grow': parseFloat(document.getElementById('phPulseGrow').value) || 0,
-        'dosing.pulse_ml_micro': parseFloat(document.getElementById('phPulseMicro').value) || 0,
-        'dosing.pulse_ml_bloom': parseFloat(document.getElementById('phPulseBloom').value) || 0,
-        'dosing.max_ml_hour_': parseFloat(document.getElementById('phMaxMlHour').value) || 0,
-        'dosing.max_ml_day_': parseFloat(document.getElementById('phMaxMlDay').value) || 0,
-        'dosing.mix_delay_s': parseInt(document.getElementById('phMixDelay').value) || 0,
-        'dosing.ph_up_ml_per_sec': parseFloat(document.getElementById('phUpMlPerSec').value) || 0.83,
-        'alerts.ph_lo_alert': parseFloat(document.getElementById('phAlertLow').value) || 0,
-        'alerts.ph_hi_alert': parseFloat(document.getElementById('phAlertHigh').value) || 0
+        'dosing.pulse_ml_grow': getVal('phPulseGrow'),
+        'dosing.pulse_ml_micro': getVal('phPulseMicro'),
+        'dosing.pulse_ml_bloom': getVal('phPulseBloom'),
+        'dosing.max_ml_hour_': getVal('phMaxMlHour'),
+        'dosing.max_ml_day_': getVal('phMaxMlDay'),
+        'dosing.mix_delay_s': parseInt(document.getElementById('phMixDelay')?.value) || 0,
+        'dosing.ph_up_ml_per_sec': getVal('phUpMlPerSec', 0.83),
+        'alerts.ph_lo_alert': getVal('phAlertLow'),
+        'alerts.ph_hi_alert': getVal('phAlertHigh')
       };
       
       // Show loading state
@@ -129,13 +139,19 @@
         const res = await fetch('/api/settings');
         const settings = await res.json();
         
+        // Helper to safely set element value
+        const setVal = (id, val) => {
+          const el = document.getElementById(id);
+          if (el && val !== undefined) el.value = val;
+        };
+        
         if (settings.targets) {
-          if (settings.targets.ec_target !== undefined) document.getElementById('ecTarget').value = parseFloat(settings.targets.ec_target) * 1000; // Convert mS/cm to ppm
-          if (settings.targets.ec_tolerance !== undefined) document.getElementById('ecTolerance').value = parseFloat(settings.targets.ec_tolerance) * 1000;
+          setVal('ecTarget', parseFloat(settings.targets.ec_target) * 1000); // Convert mS/cm to ppm
+          setVal('ecTolerance', parseFloat(settings.targets.ec_tolerance) * 1000);
         }
         if (settings.alerts) {
-          if (settings.alerts.ec_lo_alert !== undefined) document.getElementById('ecAlertLow').value = parseFloat(settings.alerts.ec_lo_alert) * 1000;
-          if (settings.alerts.ec_hi_alert !== undefined) document.getElementById('ecAlertHigh').value = parseFloat(settings.alerts.ec_hi_alert) * 1000;
+          setVal('ecAlertLow', parseFloat(settings.alerts.ec_lo_alert) * 1000);
+          setVal('ecAlertHigh', parseFloat(settings.alerts.ec_hi_alert) * 1000);
         }
       } catch(e) {
         console.error('Failed to load EC settings:', e);
@@ -146,14 +162,20 @@
       const btn = document.getElementById('btnSaveEcSettings');
       if (!btn) return;
       
-      const ecTarget = (parseFloat(document.getElementById('ecTarget').value) || 0) / 1000;
-      const ecTolerance = (parseFloat(document.getElementById('ecTolerance').value) || 0) / 1000;
+      // Helper to safely get element value
+      const getVal = (id, def = 0) => {
+        const el = document.getElementById(id);
+        return el ? parseFloat(el.value) || def : def;
+      };
+      
+      const ecTarget = getVal('ecTarget') / 1000;
+      const ecTolerance = getVal('ecTolerance') / 1000;
       
       const updates = {
         'targets.ec_target': ecTarget.toFixed(2),
         'targets.ec_tolerance': ecTolerance.toFixed(2),
-        'alerts.ec_lo_alert': ((parseFloat(document.getElementById('ecAlertLow').value) || 0) / 1000).toFixed(2),
-        'alerts.ec_hi_alert': ((parseFloat(document.getElementById('ecAlertHigh').value) || 0) / 1000).toFixed(2)
+        'alerts.ec_lo_alert': (getVal('ecAlertLow') / 1000).toFixed(2),
+        'alerts.ec_hi_alert': (getVal('ecAlertHigh') / 1000).toFixed(2)
       };
       
       btn.classList.add('btn-loading');
