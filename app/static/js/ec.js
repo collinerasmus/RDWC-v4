@@ -7,9 +7,10 @@
   lastStatus = null;
   let countdownTimer = null;
   let lastPollAt = Date.now();
-  // Recent collapse state
-  let recentCollapsed = true;
-  let recentHeaderBound = false;
+  // Recent doses list removed (was duplicate with Dose Log)
+  // Mode system state (persisted)
+  let currentMode = localStorage.getItem('ec_mode') || 'manual';
+  let modeInitialized = false;
 
   function el(id){ return document.getElementById(id); }
 
@@ -74,8 +75,7 @@
     const ppmVal = el('ec-ppm');
     const band = el('ec-band');
     const guards = el('ec-guards');
-    const recent = el('ec-recent');
-    const resBanner = el('ec-reservoir-banner');
+  const resBanner = el('ec-reservoir-banner');
     const cdPill = el('ec-countdown-pill');
     
     if(ecVal){ ecVal.textContent = (s && s.ec_ms_cm!=null) ? s.ec_ms_cm.toFixed(2) : '—'; }
@@ -116,27 +116,7 @@
       const override = (window.rdwcSettings?.get('safety.maintenance_override')||'false').toLowerCase() === 'true';
       overrideBadge.style.display = override ? 'inline-block' : 'none';
     }
-    if(recent && s){
-      recent.innerHTML = '';
-      (s.recent||[]).forEach(r => {
-        const li = document.createElement('div');
-        li.className = 'muted';
-        const when = r.ts_utc?.replace('T',' ').replace('Z','');
-        const mix = r.mix_ratio || '';
-        li.textContent = `${when} • ${r.action} • ${r.volume_ml||''} ml • ${mix} • ${r.result}${r.reason? ' • '+r.reason: ''}`;
-        recent.appendChild(li);
-      });
-
-      // Bind header click once
-      const hdr = el('ec-recent-header');
-      if (hdr && !recentHeaderBound){
-        recentHeaderBound = true;
-        hdr.addEventListener('click', ()=>{
-          setRecentCollapsed(!recentCollapsed);
-        });
-      }
-      setRecentCollapsed(recentCollapsed);
-    }
+    // (Removed recent list rendering)
     
     // Today total
     const todayEl = el('ec-total-today');
@@ -202,6 +182,8 @@
         learnedBadge.style.display = 'none';
       }
     }
+    // Update controller health chip after status changes
+    updateHealthIndicator();
     
     // Update caps display from settings
     if(window.rdwcSettings){
@@ -446,6 +428,11 @@
     if(s) renderStatus(s);
     startPoll();
     setupMixRatioToggle();
+
+    // Initialize mode after wiring; don't override if user already clicked
+    if (!modeInitialized) {
+      setMode(currentMode);
+    }
 
     // New unified dose buttons (time-based)
     el('btnDoseGrow')?.addEventListener('click', ()=> doseUnified('grow', 0.3, 'manual'));
@@ -802,4 +789,61 @@
   });
 
   window.ecController = { init, fetchStatus, renderStatus, doseEC, toggleAuto };
+  
+  // --- 3-mode header logic ---
+  function setMode(mode){
+    currentMode = mode;
+    modeInitialized = true;
+    try{ localStorage.setItem('ec_mode', mode); }catch(_){/*noop*/}
+    // Buttons
+    const manualBtn = el('ec-mode-manual');
+    const autoBtn = el('ec-mode-auto');
+    const maintBtn = el('ec-mode-maint');
+    if(manualBtn){ manualBtn.classList.toggle('active', mode==='manual'); }
+    if(autoBtn){ autoBtn.classList.toggle('active', mode==='auto'); }
+    if(maintBtn){ maintBtn.classList.toggle('active', mode==='maintenance'); }
+    // Sections
+    const manual = el('ec-manual-content');
+    const auto = el('ec-auto-content');
+    const maintBanner = el('ec-maint-banner');
+    if(manual) manual.style.display = (mode==='manual' || mode==='maintenance') ? 'block' : 'none';
+    if(auto) auto.style.display = (mode==='auto') ? 'block' : 'none';
+    if(maintBanner) maintBanner.style.display = (mode==='maintenance') ? 'block' : 'none';
+    // Health
+    updateHealthIndicator();
+  }
+
+  function updateHealthIndicator(){
+    const chip = el('ec-health-indicator');
+    if(!chip){ return; }
+    if(!lastStatus){
+      chip.textContent = '—';
+      chip.className = 'ui-status-chip neutral';
+      chip.title = 'Loading...';
+      return;
+    }
+    const g = lastStatus.guards || {};
+    const hasHard = !!(g.estop || g.sensor_stale || g.reservoir || g.mix_lock);
+    const hasSoft = !!(g.interval || g.daily_cap);
+    if(hasHard){
+      chip.textContent = 'BLOCKED';
+      chip.className = 'ui-status-chip error';
+      chip.title = 'Hard safety blocks: ' + guardList(g).join(', ');
+    } else if (currentMode === 'maintenance'){
+      chip.textContent = 'MAINT';
+      chip.className = 'ui-status-chip warning';
+      chip.title = 'Maintenance mode active';
+    } else if (currentMode === 'auto' && hasSoft){
+      chip.textContent = 'HOLDING';
+      chip.className = 'ui-status-chip warning';
+      chip.title = 'Automation holding: ' + guardList(g).join(', ');
+    } else {
+      chip.textContent = 'OK';
+      chip.className = 'ui-status-chip success';
+      chip.title = 'Controller healthy';
+    }
+  }
+
+  // Export for inline onclicks
+  window.ecSetMode = setMode;
 })();

@@ -1151,7 +1151,11 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
     <!-- Part 2 polish: meta row (timestamp + targets) -->
     <div class="ui-polish-2025-11b sensor-meta-row">
-      <span id="sensors-updated" title="Last sample time">Updated: —</span>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span id="sensors-updated" title="Last sample time">Updated: —</span>
+        <span id="sensors-age" class="muted" style="font-size:0.8rem;padding:3px 6px;border-radius:6px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.25);">age: —s</span>
+        <button id="btnSensorsReadNow" class="btn-secondary" style="padding:4px 8px;font-size:0.85rem;">Read now</button>
+      </div>
       <div id="sensors-target-hints" title="Grow targets">
         <span>pH 5.8–6.2</span>
         <span>EC 0.8–1.2 mS/cm</span>
@@ -1159,38 +1163,41 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
     </div>
 
-    <!-- Sensors recent readings (ph-style collapsible) -->
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap;">
-      <div id="s-recent-header" class="muted" style="cursor:pointer;user-select:none;">Recent Readings ▸</div>
-      <div>
-        <button id="btnSensorsExport24" class="btn-secondary" title="Download CSV of recent sensor readings (24h)" onclick="exportCsv(24)">Export CSV (24h)</button>
-      </div>
-    </div>
-    <div id="s-recent" class="muted" style="display:none;max-height:140px;overflow-y:auto;padding-right:6px;"></div>
-
-    <!-- controls moved into chart header below -->
-
     <div class="card-body" style="padding-top:12px;">
       <hr class="separator" />
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div class="muted">Sensor History</div>
-        </div>
-        <div class="trend-controls" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-          <button class="btn btn-chip active" data-range="24h">24h</button>
-          <button class="btn btn-chip" data-range="7d">7d</button>
-          <button class="btn btn-chip" data-range="30d">30d</button>
-          <button class="btn btn-chip" data-range="90d">90d</button>
-          <button class="btn btn-chip" data-range="grow">Grow</button>
-          <button class="btn btn-chip" data-range="today">Since 00:00</button>
-          <span class="sep" style="opacity:.5;">|</span>
-          <input type="datetime-local" id="trendFrom">
-          <input type="datetime-local" id="trendTo">
-          <button class="btn btn-secondary" id="trendApply">Apply</button>
-        </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <div class="muted">Sensor History</div>
       </div>
       <canvas id="trendChart" height="120"></canvas>
       <div id="trendEmpty" style="display:none;margin-top:8px;opacity:.7;">No data for selected period.</div>
+      <!-- Graph buttons under the graph -->
+      <div class="trend-controls" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;">
+        <button class="btn btn-chip active" data-range="24h">24h</button>
+        <button class="btn btn-chip" data-range="7d">7d</button>
+        <button class="btn btn-chip" data-range="30d">30d</button>
+        <button class="btn btn-chip" data-range="90d">90d</button>
+        <button class="btn btn-chip" data-range="grow">Grow</button>
+        <button class="btn btn-chip" data-range="today">Since 00:00</button>
+        <span class="sep" style="opacity:.5;">|</span>
+        <input type="datetime-local" id="trendFrom">
+        <input type="datetime-local" id="trendTo">
+        <button class="btn btn-secondary" id="trendApply">Apply</button>
+      </div>
+      <!-- Recent readings under the graph buttons -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px 0;gap:8px;flex-wrap:wrap;">
+        <div id="s-recent-header" class="muted" style="cursor:pointer;user-select:none;">Recent Readings ▸</div>
+        <div>
+          <button id="btnSensorsExport24" class="btn-secondary" title="Download CSV of recent sensor readings (24h)" onclick="exportCsv(24)">Export CSV (24h)</button>
+        </div>
+      </div>
+      <div id="s-recent" class="muted" style="display:none;max-height:140px;overflow-y:auto;padding-right:6px;"></div>
+      <!-- Settings at the bottom -->
+      <details style="margin-top:12px;">
+        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Sensor Settings</summary>
+        <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+          <div class="muted" style="font-size:0.85rem;">Live Sensors are cached by the background poller. Use “Read now” for an immediate sample. Health details are available from the green “OK” badge.</div>
+        </div>
+      </details>
     </div>
   </section>
 
@@ -1469,8 +1476,17 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     <!-- 5. EC Control Card -->
   <section id="ec-card" class="card card-wide tab-section" data-tab="ec" style="display:none;">
           <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-            <div style="display:flex;align-items:center;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <h3 class="card-title" style="margin:0;">EC Control</h3>
+              <!-- 3-mode header buttons (Manual/Auto/Maintenance) -->
+              <div class="ec-mode-buttons" style="display:flex;gap:6px;">
+                <button id="ec-mode-manual" class="btn-chip active" onclick="window.ecSetMode?window.ecSetMode('manual'):alert('Loading...')">Manual</button>
+                <button id="ec-mode-auto" class="btn-chip" onclick="window.ecSetMode?window.ecSetMode('auto'):alert('Loading...')">Auto</button>
+                <button id="ec-mode-maint" class="btn-chip" onclick="window.ecSetMode?window.ecSetMode('maintenance'):alert('Loading...')">Maintenance</button>
+              </div>
+              <!-- Controller Health Indicator -->
+              <span id="ec-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
+              <!-- Existing chips -->
               <span id="ecOverrideBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.85rem;" title="OVERRIDE ON">OVERRIDE ON</span>
               <span id="ecKChip" class="ui-status-chip neutral">K=—</span>
               <span id="ecCalChip" class="ui-status-chip neutral">Cal: —</span>
@@ -1485,21 +1501,6 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             </div>
           </div>
           <div class="card-body">
-            <!-- EC Control v1 additions -->
-            <div class="ec-v1-ui" style="margin-bottom:12px;">
-              <div class="row" style="gap:12px;">
-                <span class="chip nowrap" id="ecV1DeltaWrap">Δ <span id="ecDeltaChip">—</span> mS/cm</span>
-                <label class="muted nowrap" style="display:flex;align-items:center;gap:6px;">Setpoint
-                  <input id="ecSetpoint" type="number" step="0.01" min="0" placeholder="mS/cm" style="width:90px;" />
-                </label>
-                <button id="btnSaveEcSetpoint" class="btn-secondary" title="Save EC setpoint">Save</button>
-                <span id="ecCapsRow" class="muted nowrap" style="padding:4px 8px;border-radius:6px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.25);display:flex;gap:8px;align-items:center;">
-                  <span>Max pulse: <strong id="ecV1CapMaxPress">—</strong></span>
-                  <span>Min off: <strong id="ecV1CapMinOff">—</strong></span>
-                  <span>Daily cap: <strong id="ecV1CapDaily">—</strong></span>
-                </span>
-              </div>
-            </div>
             <div id="ec-reservoir-banner" class="muted" style="display:none;margin-bottom:8px;padding:6px 10px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#fecaca;">
               Reservoir set to 0 L — dosing disabled
             </div>
@@ -1517,6 +1518,21 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <div id="ec-guards" class="muted" title="">—</div>
               <span id="ec-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
             </div>
+            <!-- EC Control v1 additions moved to sit just below KPI row -->
+            <div class="ec-v1-ui" style="margin-bottom:12px;">
+              <div class="row" style="gap:12px;align-items:center;flex-wrap:wrap;">
+                <span class="chip nowrap" id="ecV1DeltaWrap">Δ <span id="ecDeltaChip">—</span> mS/cm</span>
+                <label class="muted nowrap" style="display:flex;align-items:center;gap:6px;">Setpoint
+                  <input id="ecSetpoint" type="number" step="0.01" min="0" placeholder="mS/cm" style="width:90px;" />
+                </label>
+                <button id="btnSaveEcSetpoint" class="btn-secondary" title="Save EC setpoint">Save</button>
+                <span id="ecCapsRow" class="muted nowrap" style="padding:4px 8px;border-radius:6px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.25);display:flex;gap:8px;align-items:center;">
+                  <span>Max pulse: <strong id="ecV1CapMaxPress">—</strong></span>
+                  <span>Min off: <strong id="ecV1CapMinOff">—</strong></span>
+                  <span>Daily cap: <strong id="ecV1CapDaily">—</strong></span>
+                </span>
+              </div>
+            </div>
 
             <!-- Summary pills -->
             <div id="ec-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px 0;">
@@ -1525,19 +1541,12 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <button id="btnEcExport24" class="btn-secondary" title="Download CSV of recent EC doses (24h)">Export CSV (24h)</button>
             </div>
 
-            <div class="tabs" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px 0;">
-              <button class="btn-secondary" onclick="document.getElementById('ec-tab-status').style.display='block';document.getElementById('ec-tab-manual').style.display='none';document.getElementById('ec-tab-auto').style.display='none';">Status</button>
-              <button class="btn-secondary" onclick="document.getElementById('ec-tab-status').style.display='none';document.getElementById('ec-tab-manual').style.display='block';document.getElementById('ec-tab-auto').style.display='none';">Manual</button>
-              <button class="btn-secondary" onclick="document.getElementById('ec-tab-status').style.display='none';document.getElementById('ec-tab-manual').style.display='none';document.getElementById('ec-tab-auto').style.display='block';">Automation</button>
-            </div>
+            <!-- Tabs replaced by 3-mode header; keep recent/status always visible. -->
+            <div class="tabs" style="display:none;gap:10px;flex-wrap:wrap;margin:8px 0 12px 0;"></div>
 
-            <div id="ec-tab-status">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap;">
-                <div id="ec-recent-header" class="muted" style="cursor:pointer;user-select:none;">Recent Doses ▸</div>
-              </div>
-              <div id="ec-recent" class="muted" style="display:none;max-height:140px;overflow-y:auto;padding-right:6px;"></div>
-            </div>
-            <div id="ec-tab-manual" style="display:none;">
+            <!-- Removed duplicate Recent Doses list (Dose Log below already covers recent) -->
+            <!-- Manual Mode Content -->
+            <div id="ec-manual-content" style="display:block;">
               <!-- Rapid Test Mode (client only) -->
               <div style="margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.35);display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;cursor:pointer;">
@@ -1637,7 +1646,8 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <span id="ecMaintBadge" class="muted" style="display:none;margin-left:6px;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.85rem;" title="Bypasses cooldown/daily cap; E-STOP/empty reservoir still enforced.">Maintenance override active</span>
               </div>
             </div>
-            <div id="ec-tab-auto" style="display:none;">
+            <!-- Auto Mode Content -->
+            <div id="ec-auto-content" style="display:none;">
               <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
                 <span id="ecAutoStateBadge" class="countdown-pill" style="display:inline-block;border-color:rgba(148,163,184,.35);">Disabled</span>
                 <span id="ecLearnedBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Learned: —</span>
@@ -1645,8 +1655,36 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <button id="btnEcAutoToggle" class="btn-secondary">Enable automation</button>
             </div>
 
-            <!-- Dose Log -->
-            <div style="margin-top:20px;">
+            <!-- Maintenance Mode Banner (shares manual controls; warning shown when in maintenance) -->
+            <div id="ec-maint-banner" class="muted" style="display:none;margin:12px 0;padding:10px 12px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);color:#fecaca;">
+              ⚠️ <strong>Maintenance Mode Active:</strong> Controller automation disabled. Manual dosing available with reduced safety restrictions (E-STOP and empty reservoir checks still enforced).
+            </div>
+
+            <!-- History chart under KPI + summary; graph buttons under the graph -->
+            <hr class="separator" />
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <div class="muted">Dose History</div>
+            </div>
+            <div id="ec-dose-chart-wrap" class="chart-card">
+              <canvas id="ecDoseChart"></canvas>
+              <div id="ec-dose-empty" class="muted small" style="display:none;padding:8px 0;">
+                No doses recorded in this period.
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+              <button class="btn btn-chip" data-ec-range="24h">24h</button>
+              <button class="btn btn-chip" data-ec-range="7d">7d</button>
+              <button class="btn btn-chip" data-ec-range="30d">30d</button>
+              <button class="btn btn-chip" data-ec-range="90d">90d</button>
+              <button class="btn btn-chip" data-ec-range="grow" title="From grow start date to now">Grow</button>
+              <span style="opacity:.5;">|</span>
+              <input type="datetime-local" id="ecDoseFrom" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
+              <input type="datetime-local" id="ecDoseTo" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
+              <button class="btn btn-secondary" id="ecDoseApply">Apply</button>
+            </div>
+
+            <!-- Dose Log just under the graph controls -->
+            <div style="margin-top:16px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                 <div class="muted" style="font-weight:600;font-size:0.9rem;">📝 Dose Log (Last 20)</div>
                 <button id="btnEcRefreshDoseLog" class="btn-secondary" style="padding:4px 10px;font-size:0.85rem;" title="Refresh dose log">Refresh</button>
@@ -1670,7 +1708,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               </div>
             </div>
 
-            <!-- EC-Specific Settings -->
+            <!-- EC-Specific Settings at the very bottom -->
             <details style="margin-top:12px;">
               <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ EC Settings</summary>
               <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
@@ -1734,33 +1772,6 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <button id="btnSaveEcSettings" class="btn-secondary" style="width:100%;">Save EC Settings</button>
               </div>
             </details>
-
-            <!-- History chart -->
-            <hr class="separator" />
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <div class="muted">Dose History</div>
-                <span id="ec-total-today" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;font-size:0.85rem;">Today: — ml</span>
-                <span id="ec-total-week" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;font-size:0.85rem;">Week: — ml</span>
-              </div>
-              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                <button class="btn btn-chip" data-ec-range="24h">24h</button>
-                <button class="btn btn-chip" data-ec-range="7d">7d</button>
-                <button class="btn btn-chip" data-ec-range="30d">30d</button>
-                <button class="btn btn-chip" data-ec-range="90d">90d</button>
-                <button class="btn btn-chip" data-ec-range="grow" title="From grow start date to now">Grow</button>
-                <span style="opacity:.5;">|</span>
-                <input type="datetime-local" id="ecDoseFrom" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
-                <input type="datetime-local" id="ecDoseTo" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
-                <button class="btn btn-secondary" id="ecDoseApply">Apply</button>
-              </div>
-            </div>
-            <div id="ec-dose-chart-wrap" class="chart-card">
-              <canvas id="ecDoseChart"></canvas>
-              <div id="ec-dose-empty" class="muted small" style="display:none;padding:8px 0;">
-                No doses recorded in this period.
-              </div>
-            </div>
           </div>
   </section>
 

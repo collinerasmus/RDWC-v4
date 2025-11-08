@@ -101,12 +101,17 @@
       setOnline(!!j.online);
       
       const updated = $("sensors-updated");
+      const ageEl = $("sensors-age");
       if (updated) {
-        if (j.ts) {
-          const d = new Date(j.ts);
-          updated.textContent = 'Updated: ' + d.toLocaleTimeString();
-        } else {
-          updated.textContent = 'Updated: ' + new Date().toLocaleTimeString();
+        let ts = j.ts ? new Date(j.ts) : new Date();
+        updated.textContent = 'Updated: ' + ts.toLocaleTimeString();
+        if (ageEl){
+          const age = Math.max(0, Math.round((Date.now() - ts.getTime())/1000));
+          ageEl.textContent = `age: ${age}s`;
+          // color hint
+          if (age < 60){ ageEl.style.borderColor = 'rgba(34,197,94,0.35)'; ageEl.style.color = '#a7f3d0'; ageEl.style.background = 'rgba(34,197,94,0.12)'; }
+          else if (age < 300){ ageEl.style.borderColor = 'rgba(251,191,36,0.35)'; ageEl.style.color = '#fde68a'; ageEl.style.background = 'rgba(251,191,36,0.12)'; }
+          else { ageEl.style.borderColor = 'rgba(239,68,68,0.35)'; ageEl.style.color = '#fecaca'; ageEl.style.background = 'rgba(239,68,68,0.12)'; }
         }
       }
       // Fetch sensor cache health and DB health in parallel (non-blocking)
@@ -134,6 +139,32 @@
       setOnline(false);
     }
   }
+  // Collapsible recent readings (ph-style)
+  function setRecentCollapsed(collapsed){
+    const hdr = $("s-recent-header");
+    const list = $("s-recent");
+    if(hdr){ hdr.textContent = collapsed ? 'Recent Readings ▸' : 'Recent Readings ▾'; }
+    if(list){ list.style.display = collapsed ? 'none' : 'block'; }
+    localStorage.setItem('sensors_recent_collapsed', collapsed? 'true':'false');
+  }
+  async function refreshRecent(){
+    const list = $("s-recent");
+    if(!list) return;
+    try{
+      const r = await fetch('/api/sensors/status', {cache:'no-store'});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const j = await r.json();
+      const rows = j?.recent || [];
+      if(rows.length===0){ list.innerHTML = '<div class="muted" style="padding:4px 0;">No recent readings</div>'; return; }
+      list.innerHTML = rows.slice(0,40).map(e => {
+        const when = e.ts?.replace('T',' ').replace('Z','') || '—';
+        const ph = e.ph!=null? e.ph.toFixed(2):'—';
+        const ec = e.ec_mscm!=null? e.ec_mscm.toFixed(2):'—';
+        const t  = e.temperature_c!=null? e.temperature_c.toFixed(2):'—';
+        return `<div style="padding:2px 0;">${when} • pH ${ph} • EC ${ec} • Temp ${t}°C</div>`;
+      }).join('');
+    }catch(e){ list.innerHTML = '<div style="padding:4px 0;color:#f59e0b;">Load error</div>'; }
+  }
   
   document.addEventListener("DOMContentLoaded", ()=>{
     console.log("[Sensors] Initializing real-time updates");
@@ -141,6 +172,27 @@
     // Respect configurable poll interval (default 5000ms)
     const poll = (window.APP_POLL && window.APP_POLL.sensors) ? (parseInt(window.APP_POLL.sensors,10)||5000) : 5000;
     setInterval(tick, Math.max(1500, poll));
+  // Recent list init
+  const collapsed = localStorage.getItem('sensors_recent_collapsed') !== 'false';
+  setRecentCollapsed(collapsed);
+  refreshRecent();
+  const hdr = $("s-recent-header");
+  if(hdr){ hdr.addEventListener('click', ()=>{ const cur = $("s-recent").style.display==='none'; setRecentCollapsed(!cur); }); }
+  // Periodically refresh recent list (every 45s)
+  setInterval(refreshRecent, 45000);
+    // Read now handler
+    const btn = $("btnSensorsReadNow");
+    if (btn){
+      btn.addEventListener('click', async ()=>{
+        try{
+          btn.disabled = true; btn.textContent = 'Reading...';
+          const r = await fetch('/read_now', {method:'POST'});
+          // Give the poller a moment to commit cache
+          setTimeout(()=>{ tick(); }, 1000);
+        }catch(e){ console.warn('[Sensors] read_now failed', e); }
+        finally{ btn.disabled = false; btn.textContent = 'Read now'; }
+      });
+    }
     // Sensors health popover interactions
     const badge = $("sensors-health-badge");
     const pop = $("sensors-health-popover");
