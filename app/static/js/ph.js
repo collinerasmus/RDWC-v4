@@ -18,7 +18,6 @@
   function el(id){ return document.getElementById(id); }
 
   function setMode(mode) {
-    console.log('[pH] setMode called with:', mode);
     currentMode = mode;
     localStorage.setItem('ph_mode', mode);
     
@@ -29,7 +28,6 @@
         const btnMode = btn.getAttribute('data-mode');
         if (btnMode === mode) {
           btn.classList.add('active');
-          console.log(`[pH] Activated button: ${id}`);
         } else {
           btn.classList.remove('active');
         }
@@ -41,24 +39,9 @@
     const autoContent = el('ph-auto-content');
     const maintContent = el('ph-maint-content');
     
-    console.log('[pH] Content divs found:', {
-      manual: !!manualContent,
-      auto: !!autoContent,
-      maint: !!maintContent
-    });
-    
-    if (manualContent) {
-      manualContent.style.display = (mode === 'manual') ? 'block' : 'none';
-      console.log('[pH] Manual content display:', manualContent.style.display);
-    }
-    if (autoContent) {
-      autoContent.style.display = (mode === 'auto') ? 'block' : 'none';
-      console.log('[pH] Auto content display:', autoContent.style.display);
-    }
-    if (maintContent) {
-      maintContent.style.display = (mode === 'maintenance') ? 'block' : 'none';
-      console.log('[pH] Maint content display:', maintContent.style.display);
-    }
+    if (manualContent) manualContent.style.display = (mode === 'manual') ? 'block' : 'none';
+    if (autoContent) autoContent.style.display = (mode === 'auto') ? 'block' : 'none';
+    if (maintContent) maintContent.style.display = (mode === 'maintenance') ? 'block' : 'none';
     
     // Update health indicator based on mode
     updateHealthIndicator();
@@ -480,9 +463,7 @@
 
   async function wire(){
     const c = document.getElementById('ph-card');
-    if(!c) { console.warn('[pH] ph-card not found'); return; }
-    
-    console.log('[pH] Wiring pH controls...');
+    if(!c) return;
     
     // Mode buttons and dose log header use inline onclick handlers (see HTML)
     // This ensures they work immediately without waiting for event listener binding
@@ -867,14 +848,10 @@
 
   // Initialize when DOM is ready (works even if script loads after DOMContentLoaded)
   async function initPH(){
-    console.log('[pH] Initializing pH Control...');
     await wire();  // This includes wireRangeControls which sets currentRange
     
     // Initialize mode and dose log state AFTER wire() completes
-    console.log('[pH] Setting initial mode:', currentMode);
     setMode(currentMode);
-    
-    console.log('[pH] Setting initial dose log state:', doseLogCollapsed ? 'collapsed' : 'expanded');
     setDoseLogCollapsed(doseLogCollapsed);
     
     tick();
@@ -895,7 +872,6 @@
       }
     }, 250); // run shortly after first render
     // Chart will have been rendered by wireRangeControls → loadRange
-    console.log('[pH] pH Control initialization complete');
   }
 
   if (document.readyState === 'loading') {
