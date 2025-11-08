@@ -18,6 +18,7 @@
   function el(id){ return document.getElementById(id); }
 
   function setMode(mode) {
+    console.log('[pH] setMode called with:', mode);
     currentMode = mode;
     localStorage.setItem('ph_mode', mode);
     
@@ -28,6 +29,7 @@
         const btnMode = btn.getAttribute('data-mode');
         if (btnMode === mode) {
           btn.classList.add('active');
+          console.log(`[pH] Activated button: ${id}`);
         } else {
           btn.classList.remove('active');
         }
@@ -39,9 +41,24 @@
     const autoContent = el('ph-auto-content');
     const maintContent = el('ph-maint-content');
     
-    if (manualContent) manualContent.style.display = (mode === 'manual') ? 'block' : 'none';
-    if (autoContent) autoContent.style.display = (mode === 'auto') ? 'block' : 'none';
-    if (maintContent) maintContent.style.display = (mode === 'maintenance') ? 'block' : 'none';
+    console.log('[pH] Content divs found:', {
+      manual: !!manualContent,
+      auto: !!autoContent,
+      maint: !!maintContent
+    });
+    
+    if (manualContent) {
+      manualContent.style.display = (mode === 'manual') ? 'block' : 'none';
+      console.log('[pH] Manual content display:', manualContent.style.display);
+    }
+    if (autoContent) {
+      autoContent.style.display = (mode === 'auto') ? 'block' : 'none';
+      console.log('[pH] Auto content display:', autoContent.style.display);
+    }
+    if (maintContent) {
+      maintContent.style.display = (mode === 'maintenance') ? 'block' : 'none';
+      console.log('[pH] Maint content display:', maintContent.style.display);
+    }
     
     // Update health indicator based on mode
     updateHealthIndicator();
@@ -463,32 +480,36 @@
 
   async function wire(){
     const c = document.getElementById('ph-card');
-    if(!c) return;
+    if(!c) { console.warn('[pH] ph-card not found'); return; }
+    
+    console.log('[pH] Wiring pH controls...');
     
     // Mode selection buttons
     ['ph-mode-manual', 'ph-mode-auto', 'ph-mode-maint'].forEach(id => {
       const btn = el(id);
       if (btn) {
+        console.log(`[pH] Binding mode button: ${id}`);
         btn.addEventListener('click', () => {
           const mode = btn.getAttribute('data-mode');
+          console.log(`[pH] Mode button clicked: ${mode}`);
           setMode(mode);
         });
+      } else {
+        console.warn(`[pH] Mode button not found: ${id}`);
       }
     });
-    
-    // Initialize mode on load
-    setMode(currentMode);
     
     // Dose log collapsible header
     const doseLogHeader = el('ph-dose-log-header');
     if (doseLogHeader) {
+      console.log('[pH] Binding dose log header');
       doseLogHeader.addEventListener('click', () => {
+        console.log('[pH] Dose log header clicked');
         setDoseLogCollapsed(!doseLogCollapsed);
       });
+    } else {
+      console.warn('[pH] Dose log header not found');
     }
-    
-    // Initialize dose log collapsed state
-    setDoseLogCollapsed(doseLogCollapsed);
     
     // Use new unified endpoints with time-based dosing (Manual mode)
     el('btnPrime')?.addEventListener('click', ()=> doseUnified('ph_up', 0.2, 'prime'));
@@ -870,7 +891,16 @@
 
   // Initialize when DOM is ready (works even if script loads after DOMContentLoaded)
   async function initPH(){
+    console.log('[pH] Initializing pH Control...');
     await wire();  // This includes wireRangeControls which sets currentRange
+    
+    // Initialize mode and dose log state AFTER wire() completes
+    console.log('[pH] Setting initial mode:', currentMode);
+    setMode(currentMode);
+    
+    console.log('[pH] Setting initial dose log state:', doseLogCollapsed ? 'collapsed' : 'expanded');
+    setDoseLogCollapsed(doseLogCollapsed);
+    
     tick();
     schedule();
     refreshSummary();
@@ -889,6 +919,7 @@
       }
     }, 250); // run shortly after first render
     // Chart will have been rendered by wireRangeControls → loadRange
+    console.log('[pH] pH Control initialization complete');
   }
 
   if (document.readyState === 'loading') {
