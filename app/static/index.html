@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251102c"/><!-- Cache-buster: v1.0 finalization -->
+<meta name="version" content="20251109a"/><!-- Cache-buster: tab reorder -->
 <link rel="stylesheet" href="/static/css/app.css" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
@@ -800,14 +800,14 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- Top-level Tabs Navigation -->
   <nav id="tabs-nav" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px 0;padding-bottom:4px;">
     <button class="btn-chip" data-tab="overview">📊 Overview</button>
-    <button class="btn-chip" data-tab="sensors">🔬 Live Sensors</button>
+    <button class="btn-chip" data-tab="sensors">🔬 Sensors</button>
     <button class="btn-chip" data-tab="ph">🧪 pH</button>
     <button class="btn-chip" data-tab="ec">⚡ EC</button>
-    <button class="btn-chip" data-tab="schedule">📅 Schedule</button>
     <button class="btn-chip" data-tab="temp">🌿 Environment</button>
-    <button class="btn-chip" data-tab="lights">💡 Lights</button>
     <button class="btn-chip" data-tab="circulation">🔄 Circulation</button>
-  <button class="btn-chip" data-tab="settings">🛠️ System</button>
+    <button class="btn-chip" data-tab="lights">💡 Lights</button>
+    <button class="btn-chip" data-tab="schedule">� Scheduler</button>
+    <button class="btn-chip" data-tab="settings">🛠️ System</button>
   </nav>
 
   <!-- Progress/Heartbeat widget (enhanced) -->
@@ -935,10 +935,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px;">
         <div class="bop-relay-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:0.95rem;">💡 Lights</div>
-            <span class="bop-status-badge" id="ov-lights">—</span>
+            <div style="font-weight:600;font-size:0.95rem;">❄️ Chiller</div>
+            <span class="bop-status-badge" id="ov-chiller">—</span>
           </div>
-          <div class="muted" style="font-size:0.75rem;">Grow cycle controlled</div>
+          <div class="muted" style="font-size:0.75rem;">Compressor-protected</div>
         </div>
         <div class="bop-relay-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -956,10 +956,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         </div>
         <div class="bop-relay-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:0.95rem;">❄️ Chiller</div>
-            <span class="bop-status-badge" id="ov-chiller">—</span>
+            <div style="font-weight:600;font-size:0.95rem;">💡 Lights</div>
+            <span class="bop-status-badge" id="ov-lights">—</span>
           </div>
-          <div class="muted" style="font-size:0.75rem;">Compressor-protected</div>
+          <div class="muted" style="font-size:0.75rem;">Grow cycle controlled</div>
         </div>
       </div>
       <!-- System mode content sections -->
