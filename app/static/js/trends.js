@@ -24,7 +24,6 @@
 
   const kpiPh   = document.getElementById('kpiPh');
   const kpiEc   = document.getElementById('kpiEc');
-  const kpiEcPpm = document.getElementById('kpiEcPpm');
   const kpiTemp = document.getElementById('kpiTemp');
 
   let trendChart = new Chart(chartEl, {
@@ -418,19 +417,14 @@
   let ec = ecRaw.map(p => ({ x:p.x, y: p.y * ecScale }));
   ec = interpSingles(ec);
 
-    // KPIs (scaled EC)
+    // KPIs
     const last = arr => (arr && arr.length ? arr[arr.length-1].y : null);
-    if (typeof kpiPh   !== 'undefined') kpiPh.textContent   = last(ph)   != null ? Number(last(ph)).toFixed(2) : '—';
-    if (typeof kpiEc   !== 'undefined') {
+    if (kpiPh) kpiPh.textContent = last(ph) != null ? Number(last(ph)).toFixed(2) : '—';
+    if (kpiEc) {
       const ecVal = last(ec);
       kpiEc.textContent = ecVal != null ? Number(ecVal).toFixed(2) : '—';
-      if (typeof kpiEcPpm !== 'undefined' && ecVal != null) {
-        kpiEcPpm.textContent = `(≈ ${Math.round(ecVal * 500)} ppm @500)`;
-      }
     }
-    if (typeof kpiTemp !== 'undefined') kpiTemp.textContent = last(temp) != null ? Number(last(temp)).toFixed(1) : '—';
-    const ecLbl = document.querySelector('.kpi-ec .kpi-label');
-    if (ecLbl) ecLbl.textContent = 'EC (mS/cm)';
+    if (kpiTemp) kpiTemp.textContent = last(temp) != null ? Number(last(temp)).toFixed(1) : '—';
 
     // Preferred grow ranges; we will expand if data is out-of-band
     const PREF = {
@@ -511,7 +505,7 @@
 
     // Empty state toggle
     const hasAny = (ph.length || ec.length || temp.length);
-    if (typeof emptyEl !== 'undefined') emptyEl.style.display = hasAny ? 'none' : 'block';
+    if (emptyEl) emptyEl.style.display = hasAny ? 'none' : 'block';
 
     // Force full chart update with recalculation
     trendChart.update();

@@ -123,18 +123,14 @@
       setOnline(!!j.online);
       
       const updated = $("sensors-updated");
-      const ageEl = $("sensors-age");
       if (updated) {
         let ts = j.ts ? new Date(j.ts) : new Date();
-        updated.textContent = 'Updated: ' + ts.toLocaleTimeString();
-        if (ageEl){
-          const age = Math.max(0, Math.round((Date.now() - ts.getTime())/1000));
-          ageEl.textContent = `age: ${age}s`;
-          // color hint
-          if (age < 60){ ageEl.style.borderColor = 'rgba(34,197,94,0.35)'; ageEl.style.color = '#a7f3d0'; ageEl.style.background = 'rgba(34,197,94,0.12)'; }
-          else if (age < 300){ ageEl.style.borderColor = 'rgba(251,191,36,0.35)'; ageEl.style.color = '#fde68a'; ageEl.style.background = 'rgba(251,191,36,0.12)'; }
-          else { ageEl.style.borderColor = 'rgba(239,68,68,0.35)'; ageEl.style.color = '#fecaca'; ageEl.style.background = 'rgba(239,68,68,0.12)'; }
-        }
+        const age = Math.max(0, Math.round((Date.now() - ts.getTime())/1000));
+        // Show age in updated text with color coding
+        let ageColor = '#22c55e'; // green
+        if (age >= 300) ageColor = '#ef4444'; // red
+        else if (age >= 60) ageColor = '#f59e0b'; // yellow
+        updated.innerHTML = `Updated: ${ts.toLocaleTimeString()} <span style="color:${ageColor};">(${age}s ago)</span>`;
       }
       // Fetch sensor cache health and DB health in parallel (non-blocking)
       fetch('/api/sensors/health', {cache:'no-store'})
@@ -144,16 +140,13 @@
 
       fetchHealthDB().then(health=>{
         const dot = $("sensorsFreshnessDot");
-        const rateEl = $("samplesRate");
         if (health && dot){
           const age = Number(health.age_seconds||0);
           const rows5 = Number(health.recent_rows_5min||0);
-          const rate = rows5/5;
           if (age < 180){ dot.style.background = '#22c55e'; }
           else if (age < 600){ dot.style.background = '#f59e0b'; }
           else { dot.style.background = '#ef4444'; }
-          dot.title = `DB age: ${Math.round(age)}s, last 5m rows: ${rows5}`;
-          if (rateEl){ rateEl.textContent = `${rate.toFixed(1)} samples/min`; rateEl.title = `${rows5} rows in last 5 minutes`; }
+          dot.title = `DB age: ${Math.round(age)}s, last 5m: ${rows5} rows`;
         }
       }).catch(()=>{});
     }catch(err){

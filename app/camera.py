@@ -160,8 +160,26 @@ class CameraManager:
                     jpeg_bytes = buf.getvalue()
                     
                 elif cls.mode == "opencv" and cls._cap is not None and cls._cv2 is not None:
+                    # Check if camera is healthy, reconnect if needed
+                    if not cls._cap.isOpened():
+                        print(f"[Camera] OpenCV camera closed, attempting reconnect...")
+                        try:
+                            cls._cap.release()
+                            cls._cap = cls._cv2.VideoCapture(0)
+                            if cls._cap.isOpened():
+                                print(f"[Camera] OpenCV camera reconnected successfully")
+                            else:
+                                print(f"[Camera] OpenCV camera reconnect failed")
+                                time.sleep(1.0)
+                                continue
+                        except Exception as e:
+                            print(f"[Camera] Reconnect error: {e}")
+                            time.sleep(1.0)
+                            continue
+                    
                     ret, frame = cls._cap.read()
                     if not ret:
+                        print(f"[Camera] Failed to read frame (frame_count={frame_count})")
                         time.sleep(0.2)
                         continue
                     # Log first frame info
