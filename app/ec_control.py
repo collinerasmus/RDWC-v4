@@ -12,7 +12,7 @@ Manual dosing with guards (G/M/B pumps in sequential mix) and dose log table.
 Automation: background controller that raises EC when it falls below the target band.
 It learns dose effect from prior dose logs (ml per 1.0 mS/cm) and respects all guards.
 """
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse, PlainTextResponse
 from typing import Dict, Any, Optional, Tuple, List
 from datetime import datetime, timezone, timedelta
@@ -966,6 +966,28 @@ def set_ec_auto(body: dict = Body(...)):
         pass
     
     return {"ok": True, "enabled": enable}
+
+@router.get("/api/ec/auto/enable")
+def set_ec_auto_get(on: int = Query(0)):
+    """Non-blocking GET toggle fallback when POST hangs.
+    Usage: /api/ec/auto/enable?on=1 to enable, on=0 to disable."""
+    enable = bool(int(on))
+    try:
+        from app.settings import upsert_settings
+        upsert_settings({"ec.auto_enabled": "true" if enable else "false"})
+    except Exception:
+        pass
+    try:
+        if enable:
+            global _auto_enabled_at
+            _auto_enabled_at = time.time()
+            _start_auto_worker()
+        else:
+            _stop_auto_worker()
+            _auto_enabled_at = None
+    except Exception:
+        pass
+    return {"ok": True, "enabled": enable, "method": "GET"}
 
 # --- Learning reset ----------------------------------------------------------
 @router.post("/api/ec/auto/learn/reset")

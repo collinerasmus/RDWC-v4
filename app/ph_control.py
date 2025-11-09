@@ -866,6 +866,22 @@ def ph_auto(body: Dict[str, Any] = Body(...)):
         pass
     return {"ok": True, "enabled": bool(enable)}
 
+@router.get("/api/ph/auto/enable")
+def ph_auto_enable(on: int = Query(0)):
+    """Non-blocking GET toggle for UI fallback when POST hangs.
+    Usage: /api/ph/auto/enable?on=1 (enable) or on=0 (disable)."""
+    enable = bool(int(on))
+    try:
+        from app.settings import set_setting_key
+        set_setting_key("ph.auto_enabled", "true" if enable else "false")
+    except Exception:
+        pass
+    try:
+        _auto_enable(enable)
+    except Exception:
+        pass
+    return {"ok": True, "enabled": enable, "method": "GET"}
+
 
 @router.post("/api/ph/auto/learn/reset")
 def ph_auto_learn_reset():
