@@ -155,3 +155,70 @@ def get_last_temp_comp_state() -> Dict[str, Any]:
         "last_t_set_ts": _last_t_set_ts,
         "time_since_last": time.time() - _last_t_set_ts if _last_t_set_ts > 0 else None
     }
+
+
+def read_sensors_from_db(db_path: str = None, max_age_sec: int = 60) -> Dict[str, Any]:
+    """
+    Read most recent sensor values from database (written by sensor_poller).
+    This is the PREFERRED method for all non-poller consumers (API endpoints, controllers).
+    
+    Args:
+        db_path: Path to rdwc.db (defaults to RDWC_DB env var or data/rdwc.db)
+        max_age_sec: Maximum acceptable age of reading (default 60s)
+        
+    Returns:
+        Dict with temperature_c, ph, ec_mscm, online, ts, age_sec, errors
+        online=False if reading is stale or missing
+    """
+    import sqlite3
+    import datetime as dt
+    from pathlib import Path
+    
+    if db_path is None:
+        db_path = os.environ.get("RDWC_DB", "data/rdwc.db")
+    
+    db_path = Path(db_path)
+    if not db_path.exists():
+        return {
+            "temperature_c": None, "ph": None, "ec_mscm": None,
+            "online": False, "ts": None, "age_sec": None,
+            "errors": {"db": "database not found"}
+        }
+    
+    try:
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        
+        # Get most recent reading
+        row = conn.execute(
+            "SELECT ts, temp_c, ph, ec_ms_cm FROM readings ORDER BY ts DESC LIMIT 1"
+        ).fetchone()
+        conn.close()
+        
+        if not row:
+            return {
+                "temperature_c": None, "ph": None, "ec_mscm": None,
+                "online": False, "ts": None, "age_sec": None,
+                "errors": {"db": "no readings found"}
+            }
+        
+        now_ts = int(time.time())
+        age_sec = now_ts - row["ts"]
+        is_stale = age_sec > max_age_sec
+        
+        return {
+            "temperature_c": row["temp_c"],
+            "ph": row["ph"],
+            "ec_mscm": row["ec_ms_cm"],
+            "online": not is_stale,
+            "ts": dt.datetime.utcfromtimestamp(row["ts"]).isoformat() + "Z",
+            "age_sec": age_sec,
+            "errors": {"stale": f"reading is {age_sec}s old"} if is_stale else {}
+        }
+    except Exception as e:
+        logger.error(f"Failed to read sensors from DB: {e}", exc_info=True)
+        return {
+            "temperature_c": None, "ph": None, "ec_mscm": None,
+            "online": False, "ts": None, "age_sec": None,
+            "errors": {"db": str(e)}
+        }

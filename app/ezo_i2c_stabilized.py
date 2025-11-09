@@ -66,6 +66,18 @@ class EZO:
         return result.split(",")[0].strip()
 
 def read_all(bus_num: int = 1):
+    """
+    Sequential sensor read with explicit waits per Atlas EZO timing specs.
+    
+    Sequence:
+    1. Read RTD (temperature) - 600ms settle
+    2. Write temp compensation to pH - 300ms settle
+    3. Read pH - 900ms poll
+    4. Write temp compensation to EC - 300ms settle  
+    5. Read EC - 900ms poll
+    
+    Total cycle: ~3.0s for full compensated readings
+    """
     rtd, ph, ec = (EZO(bus_num, RTD_ADDR, "RTD"),
                    EZO(bus_num, PH_ADDR,  "pH"),
                    EZO(bus_num, EC_ADDR,  "EC"))
@@ -76,11 +88,27 @@ def read_all(bus_num: int = 1):
     # Allow devices to settle after init (C,0 command)
     sleep(0.3)
 
-    temp_c = float(rtd.read_value())
-    for dev in (ph, ec):
-        try: dev.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.06)
-        except Exception: pass
-
-    ph_val = float(ph.read_value())
-    ec_val = float(ec.read_value())
+    # Step 1: Read temperature (RTD response time: 600ms)
+    temp_c = float(rtd.read_value(timeout=1.2))
+    
+    # Step 2: Write temperature compensation to pH sensor
+    try:
+        ph.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.3)  # 300ms for T command to apply
+    except Exception as e:
+        # Non-fatal: continue with uncompensated read
+        pass
+    
+    # Step 3: Read pH (response time: 900ms)
+    ph_val = float(ph.read_value(timeout=1.5))
+    
+    # Step 4: Write temperature compensation to EC sensor
+    try:
+        ec.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.3)  # 300ms for T command to apply
+    except Exception as e:
+        # Non-fatal: continue with uncompensated read
+        pass
+    
+    # Step 5: Read EC (response time: 900ms)
+    ec_val = float(ec.read_value(timeout=1.5))
+    
     return {"temperature": temp_c, "ph": ph_val, "ec_ms": ec_val}

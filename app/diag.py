@@ -1,7 +1,7 @@
 import re, subprocess
 from fastapi import APIRouter
 from app.ezo_i2c_stabilized import EZO, PH_ADDR, EC_ADDR, RTD_ADDR
-from app.sensors_core import read_all_sensors
+from app.sensors_core import read_sensors_from_db
 
 router = APIRouter(prefix="/diag", tags=["diag"])
 
@@ -16,6 +16,7 @@ def i2c_scan():
 
 @router.get("/identify")
 def diag_identify():
+    """Device identification - safe to run, doesn't interfere with polling"""
     res = {}
     for name, addr in (("ph", PH_ADDR), ("ec", EC_ADDR), ("rtd", RTD_ADDR)):
         try:
@@ -28,4 +29,5 @@ def diag_identify():
 
 @router.get("/probe")
 def diag_probe():
-    return {"data": read_all_sensors()}
+    """Returns most recent sensor reading from DB cache (does NOT perform live I²C read)"""
+    return {"data": read_sensors_from_db(max_age_sec=60)}

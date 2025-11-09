@@ -93,10 +93,10 @@ def _progress_components() -> dict:
     except Exception:
         comps['system'] = False
         comps['lights'] = False
-    # sensors
+    # sensors (read from DB cache, not I²C directly)
     try:
-        from app.sensors_core import read_all_sensors
-        d = read_all_sensors()
+        from app.sensors_core import read_sensors_from_db
+        d = read_sensors_from_db(max_age_sec=15)  # Fresh if <15s old
         comps['sensors'] = bool(d and d.get('online'))
     except Exception:
         comps['sensors'] = False
@@ -2283,51 +2283,30 @@ def api_sensors_read(mode: str = Query(default="db")):
 @app.get("/api/sensors")
 def api_sensors():
     """
-    Compatibility endpoint for static UI expecting /api/sensors.
-    Returns cached readings from background sensor loop (_last).
-    If cache is stale (>60s), falls back to database reading.
-    Never hits I2C directly to avoid bus contention.
+    Sensors endpoint for UI - ALWAYS reads from DB cache (written by sensor_poller).
+    Never hits I²C bus directly to prevent contention.
+    Returns most recent DB reading with online flag based on freshness.
     """
-    from app.services.sensors_fallback import get_last_reading
+    from app.sensors_core import read_sensors_from_db
     
-    # Use cached data from background loop
-    age = time.time() - _last_t
+    # Read from DB cache (max 60s age for 'online' flag)
+    data = read_sensors_from_db(max_age_sec=60)
     
-    # If cache is fresh (<60 seconds), use it
-    if age < 60 and _last.get("temp_c") is not None:
-        j = {
-            "temperature_c": _last.get("temp_c"),
-            "ec_mscm": _last.get("ec_ms_cm"),
-            "ph": _last.get("ph"),
-            "online": True,
-            "temp_comp_applied": _last.get("temp_comp_applied", False),
-            "temp_comp_reason": "cached",
-            "ts": datetime.utcnow().isoformat() + "Z",
-            "errors": _last.get("errors", {})
-        }
-        return j
+    # Add calibration state metadata
+    cal_state = {"temp": {"is_calibrated": False, "detail": "fallback"},
+                 "ec": {"is_calibrated": False, "detail": "fallback"},
+                 "ph": {"is_calibrated": False, "detail": "fallback"}}
     
-    # Cache is stale or empty, try database fallback
-    last = get_last_reading()
-    if last:
-        return {
-            "temperature_c": last.get("temperature_c"),
-            "ec_mscm": last.get("ec_mscm") or last.get("ec"),
-            "ph": last.get("ph"),
-            "ts": last.get("ts"),
-            "online": False,
-            "temp_comp_applied": False,
-            "temp_comp_reason": "fallback-db",
-        }
-    
-    # No data available at all
     return {
-        "temperature_c": None,
-        "ec_mscm": None,
-        "ph": None,
-        "online": False,
-        "temp_comp_applied": False,
-        "temp_comp_reason": "no-data",
+        "temperature_c": data.get("temperature_c"),
+        "ec_mscm": data.get("ec_mscm"),
+        "ph": data.get("ph"),
+        "online": data.get("online", False),
+        "ts": data.get("ts"),
+        "temp_comp_applied": data.get("online", False),  # Poller applies temp comp
+        "temp_comp_reason": "sensor_poller" if data.get("online") else "stale",
+        "cal": cal_state,
+        "errors": data.get("errors", {}
         "ts": datetime.utcnow().isoformat() + "Z",
         "errors": {}
     }
@@ -2336,54 +2315,68 @@ def api_sensors():
 def diag_sensors_once():
     """
     Diagnostic endpoint: read each sensor once with timing.
+    Acquires calibration lock to prevent collision with sensor_poller.
     Returns raw values and millisecond timing for each step.
     """
     import time as _t
     import datetime as _dt
+    import fcntl
     from app import ezo_i2c as _ezo
     
-    t0 = _t.time()
-    steps = {}
+    lock_path = "/tmp/rdwc_calib.lock"
+    lock_fd = None
     
-    def stamp(k):
-        steps[k] = round((_t.time() - t0) * 1000, 1)
-    
-    t, ec, ph = None, None, None
-    
-    # RTD (temperature)
     try:
-        v = _ezo.read_single(0x66)
-        t = float(v) if v is not None else None
-    except Exception:
-        pass
-    stamp("rtd_done_ms")
-    
-    # EC
-    try:
-        v = _ezo.read_single(0x64)
-        if v is not None:
-            v = float(v)
-            # Heuristic: if value > 10, assume µS/cm
-            ec = v / 1000.0 if v > 10 else v
-    except Exception:
-        pass
-    stamp("ec_done_ms")
-    
-    # pH
-    try:
-        v = _ezo.read_single(0x63)
-        ph = float(v) if v is not None else None
-    except Exception:
-        pass
-    stamp("ph_done_ms")
-    
-    return {
-        "temperature_c": t,
-        "ec_mscm": ec,
-        "ph": ph,
-        "ts": _dt.datetime.utcnow().isoformat() + "Z",
-        "steps": steps
-    }
+        # Acquire lock to signal poller to skip
+        lock_fd = open(lock_path, 'w')
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+        
+        t0 = _t.time()
+        steps = {}
+        
+        def stamp(k):
+            steps[k] = round((_t.time() - t0) * 1000, 1)
+        
+        t, ec, ph = None, None, None
+        
+        # RTD (temperature)
+        try:
+            v = _ezo.read_single(0x66)
+            t = float(v) if v is not None else None
+        except Exception:
+            pass
+        stamp("rtd_done_ms")
+        
+        # EC
+        try:
+            v = _ezo.read_single(0x64)
+            if v is not None:
+                v = float(v)
+                # Heuristic: if value > 10, assume µS/cm
+                ec = v / 1000.0 if v > 10 else v
+        except Exception:
+            pass
+        stamp("ec_done_ms")
+        
+        # pH
+        try:
+            v = _ezo.read_single(0x63)
+            ph = float(v) if v is not None else None
+        except Exception:
+            pass
+        stamp("ph_done_ms")
+        
+        return {
+            "temperature_c": t,
+            "ec_mscm": ec,
+            "ph": ph,
+            "ts": _dt.datetime.utcnow().isoformat() + "Z",
+            "steps": steps
+        }
+    finally:
+        if lock_fd:
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+            lock_fd.close()
 
 @app.get("/diag/sensors/leds")
 def diag_sensors_leds(on: int = 1):
@@ -2439,23 +2432,54 @@ def diag_sensors_flash(count: int = 8, period_ms: int = 250):
 
 @app.post("/read_now")
 def read_now():
+    """
+    Force immediate sensor read (bypasses DB cache).
+    WARNING: This temporarily contends with sensor_poller on I²C bus.
+    Use sparingly - prefer /api/sensors for normal reads.
+    """
+    import fcntl
+    lock_path = "/tmp/rdwc_calib.lock"
+    
     try:
-        from app.ezo_i2c_stabilized import read_all
-        data = read_all()
-        return JSONResponse({"ok": True, "data": data})
+        # Acquire calibration lock to signal poller to skip next cycle
+        lock_fd = open(lock_path, 'w')
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+        
+        try:
+            from app.ezo_i2c_stabilized import read_all
+            data = read_all()
+            return JSONResponse({"ok": True, "data": data})
+        finally:
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+            lock_fd.close()
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
 @app.post("/fix_ezo")
 def fix_ezo():
+    """
+    Identify and test all EZO sensors.
+    Acquires calibration lock to prevent collision with sensor_poller.
+    """
+    import fcntl
+    lock_path = "/tmp/rdwc_calib.lock"
+    
     try:
-        from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
-        from app.ezo_i2c_stabilized import read_all
-        id_ph  = identify(addr=ADDR_PH)
-        id_ec  = identify(addr=ADDR_EC)
-        id_rtd = identify(addr=ADDR_RTD)
-        data   = read_all()
-        return JSONResponse({"ok": True, "ids": {"ph": id_ph, "ec": id_ec, "rtd": id_rtd}, "data": data})
+        # Acquire lock
+        lock_fd = open(lock_path, 'w')
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+        
+        try:
+            from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
+            from app.ezo_i2c_stabilized import read_all
+            id_ph  = identify(addr=ADDR_PH)
+            id_ec  = identify(addr=ADDR_EC)
+            id_rtd = identify(addr=ADDR_RTD)
+            data   = read_all()
+            return JSONResponse({"ok": True, "ids": {"ph": id_ph, "ec": id_ec, "rtd": id_rtd}, "data": data})
+        finally:
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+            lock_fd.close()
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
