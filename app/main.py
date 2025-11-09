@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Body, Query
+from fastapi import FastAPI, Body, Query, APIRouter
 from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -65,6 +65,7 @@ def _compute_asset_version() -> str:
 ASSET_VERSION = _compute_asset_version()
 
 app = FastAPI()
+progress_router = APIRouter()
 
 # --- Progress state (in-memory with occasional recompute) ---
 _progress_cache = {
@@ -149,7 +150,7 @@ def _progress_eta(pct: float) -> int | None:
         return int((remain/10.0)*2)  # 2m per 10% block early
     return int((remain/20.0))        # 1m per 20% later
 
-@app.get('/api/progress')
+@progress_router.get('/api/progress')
 def api_progress(force: bool = Query(False)):
     """Server-side progress snapshot consumed by UI/banner.
     Cached for 5s unless force=true to avoid hammering subsystems.
@@ -297,6 +298,7 @@ app.include_router(sensors_router)
 app.include_router(ph_router)
 app.include_router(ec_router)
 app.include_router(schedule_router)
+app.include_router(progress_router)
 
 # Mount static files directory for serving CSS/JS
 static_dir = os.path.join(os.path.dirname(__file__), "static")
