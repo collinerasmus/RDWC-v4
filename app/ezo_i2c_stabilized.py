@@ -1,7 +1,12 @@
 # app/ezo_i2c_stabilized.py
 # Hardened Atlas EZO I²C helper (pH/EC/RTD)
 from time import sleep, monotonic
-from smbus2 import SMBus, i2c_msg
+from smbus2 import SMBus
+try:
+    from smbus2 import i2c_msg
+    HAS_I2C_MSG = True
+except ImportError:
+    HAS_I2C_MSG = False
 
 PH_ADDR  = 0x63
 EC_ADDR  = 0x64
@@ -13,17 +18,36 @@ class EZO:
         self.addr = addr
         self.name = name
         self.bus = SMBus(bus_num)
+        # Detect available I2C methods
+        self.has_i2c_rdwr = hasattr(self.bus, 'i2c_rdwr')
+        self.has_block_io = hasattr(self.bus, 'write_i2c_block_data') and hasattr(self.bus, 'read_i2c_block_data')
 
     def _xfer(self, payload: bytes = b"", read_len: int = 0, tries: int = 5, pause: float = 0.08):
         last = None
         for i in range(tries):
             try:
                 if payload:
-                    self.bus.i2c_rdwr(i2c_msg.write(self.addr, payload))
+                    if self.has_i2c_rdwr and HAS_I2C_MSG:
+                        self.bus.i2c_rdwr(i2c_msg.write(self.addr, payload))
+                    elif self.has_block_io:
+                        # Block write: prepend register 0x00, convert to list
+                        data = [0x00] + list(payload)
+                        self.bus.write_i2c_block_data(self.addr, data[0], data[1:])
+                    else:
+                        raise NotImplementedError("No supported I2C write method available")
+                
                 if read_len:
-                    buf = i2c_msg.read(self.addr, read_len)
-                    self.bus.i2c_rdwr(buf)
-                    return bytes(buf)
+                    if self.has_i2c_rdwr and HAS_I2C_MSG:
+                        buf = i2c_msg.read(self.addr, read_len)
+                        self.bus.i2c_rdwr(buf)
+                        return bytes(buf)
+                    elif self.has_block_io:
+                        # Block read from register 0x00
+                        raw = self.bus.read_i2c_block_data(self.addr, 0x00, read_len)
+                        return bytes(raw)
+                    else:
+                        raise NotImplementedError("No supported I2C read method available")
+                
                 return b""
             except OSError as e:
                 last = e
