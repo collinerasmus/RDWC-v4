@@ -2,6 +2,7 @@ import os
 from time import sleep, time
 from typing import Optional, Tuple, Any
 from .infra.i2c_bus import get_bus
+from smbus2 import i2c_msg
 
 REG = 0x00
 EZO_STATUS_SUCCESS = 1
@@ -39,11 +40,29 @@ def _sleep(s: float) -> None:
         pass
 
 def _send_cmd(bus: Any, addr: int, cmd: str) -> None:
+    """Send a null-terminated ASCII command to an EZO device.
+    Uses write_i2c_block_data when available; falls back to i2c_msg sequence otherwise.
+    """
     data = list(cmd.encode("ascii")) + [0x00]   # null-terminated
-    bus.write_i2c_block_data(addr, REG, data)
+    if hasattr(bus, "write_i2c_block_data"):
+        bus.write_i2c_block_data(addr, REG, data)
+    else:
+        # Fallback: emulate block write with register prefix
+        payload = bytes([REG] + data)
+        bus.i2c_rdwr(i2c_msg.write(addr, payload))
 
 def _read_raw(bus: Any, addr: int, max_len: int = MAX_REPLY_LEN) -> Tuple[int, str]:
-    raw = bus.read_i2c_block_data(addr, REG, max_len)
+    """Read raw payload from EZO device into a buffer of up to max_len bytes.
+    Prefer read_i2c_block_data; fallback to i2c_msg register-then-read if unavailable.
+    """
+    if hasattr(bus, "read_i2c_block_data"):
+        raw = bus.read_i2c_block_data(addr, REG, max_len)
+    else:
+        # Fallback: write register byte 0x00 then read max_len bytes
+        w = i2c_msg.write(addr, bytes([REG]))
+        r = i2c_msg.read(addr, max_len)
+        bus.i2c_rdwr(w, r)
+        raw = list(bytes(r))
     status = raw[0]
     if 0x00 in raw[1:]:
         end = raw[1:].index(0x00) + 1
