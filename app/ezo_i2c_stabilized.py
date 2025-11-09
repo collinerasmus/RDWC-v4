@@ -21,6 +21,10 @@ class EZO:
         # Detect available I2C methods
         self.has_i2c_rdwr = hasattr(self.bus, 'i2c_rdwr')
         self.has_block_io = hasattr(self.bus, 'write_i2c_block_data') and hasattr(self.bus, 'read_i2c_block_data')
+        # Debug: log capabilities
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"EZO {name} (0x{addr:02x}): has_i2c_rdwr={self.has_i2c_rdwr}, has_block_io={self.has_block_io}, HAS_I2C_MSG={HAS_I2C_MSG}")
 
     def _xfer(self, payload: bytes = b"", read_len: int = 0, tries: int = 5, pause: float = 0.08):
         last = None
