@@ -1650,6 +1650,19 @@ def api_system_mode_fast(body: dict = Body(...)):
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": "fast_set_failed", "detail": str(e)})
 
+@app.get("/api/system_mode/set")
+def api_system_mode_set(mode: str = Query("manual")):
+    """GET fallback to set system mode quickly without POST (UI workaround)."""
+    m = (mode or "").lower()
+    if m not in ("auto", "manual"):
+        return JSONResponse(status_code=400, content={"error": "invalid_mode"})
+    try:
+        from app.settings import upsert_settings
+        upsert_settings({"system_mode": m})
+    except Exception:
+        pass
+    return {"mode": m, "ok": True, "method": "GET"}
+
 # Override endpoints
 @app.get("/overrides")
 def get_overrides_api():
