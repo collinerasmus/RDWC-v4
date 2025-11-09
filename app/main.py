@@ -83,12 +83,13 @@ def _progress_components() -> dict:
     comps = {}
     # relays/system mode & estop
     try:
-        from app.relays_core import get_relay_status
-        rs = get_relay_status()
-        # Consider system healthy when we can read relay state and E-STOP is not active
-        comps['system'] = bool(rs and (rs.get('estop') is False))
-        # Lights considered present if the key exists regardless of ON/OFF state
-        comps['lights'] = bool(rs and 'lights' in (rs.get('relays') or {}))
+        from app.relays_core import get_relay_status, get_estop_status
+        rs = get_relay_status()  # Returns {relay_name: {state, ...}}
+        estop = get_estop_status()
+        # System healthy when relays readable and E-STOP not active
+        comps['system'] = bool(rs and (estop is False))
+        # Lights component true if lights relay exists
+        comps['lights'] = bool(rs and 'lights' in rs)
     except Exception:
         comps['system'] = False
         comps['lights'] = False
