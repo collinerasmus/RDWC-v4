@@ -2338,7 +2338,7 @@ def api_sensors():
         "online": data.get("online", False),
         "ts": data.get("ts"),
         "temp_comp_applied": data.get("online", False),  # Poller applies temp comp
-        "temp_comp_reason": "sensor_poller" if data.get("online") else "stale",
+        "temp_comp_reason": "sensor_poller" if data.get("online") else f"stale (age:{data.get('age_sec', '?')}s)",
         "cal": cal_state,
         "errors": data.get("errors", {})
     }

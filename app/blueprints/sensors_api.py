@@ -58,18 +58,21 @@ def _get_sensors_data():
     try:
         last = get_last_reading()
         if last:
+            # Check freshness of DB reading (sensor poller writes every 5s)
+            age_sec = last.get("stale_seconds", 9999)
+            is_fresh = age_sec < 60
             return {
                 "temperature_c": last.get("temperature_c"),
                 "ec_mscm": last.get("ec_mscm"),
                 "ph": last.get("ph"),
-                "online": False,
+                "online": is_fresh,
                 "ts": last.get("ts"),
-                "temp_comp_applied": False,
-                "temp_comp_reason": "fallback-db",
+                "temp_comp_applied": is_fresh,
+                "temp_comp_reason": "sensor_poller" if is_fresh else f"stale-db ({age_sec}s)",
                 "cal": {
-                    "temp": {"is_calibrated": False, "detail": "fallback"},
-                    "ec": {"is_calibrated": False, "detail": "fallback"},
-                    "ph": {"is_calibrated": False, "detail": "fallback"}
+                    "temp": {"is_calibrated": False, "detail": "db"},
+                    "ec": {"is_calibrated": False, "detail": "db"},
+                    "ph": {"is_calibrated": False, "detail": "db"}
                 }
             }
     except Exception as e:

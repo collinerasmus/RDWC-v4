@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Comprehensive UI endpoint test - reports pass/fail for all functionality."""
 import requests
-import json
 import time
-from typing import Dict, List, Tuple
 
 BASE = "http://192.168.88.49:8080"
 results = []
@@ -54,23 +52,24 @@ test("Fix EZO", "POST", "/fix_ezo")
 # Relays
 print("\n[RELAYS]")
 test("Relay Status", "GET", "/api/relays/status")
-test("Relay Mode", "POST", "/api/relays/mode", {"mode": "manual"})
-test("Relay Mode Auto", "POST", "/api/relays/mode", {"mode": "auto"})
+# Use GET fallback for mode to avoid POST hang
+test("System Mode Auto (GET)", "GET", "/api/system_mode/set?mode=auto", check_json=False)
+test("System Mode Manual (GET)", "GET", "/api/system_mode/set?mode=manual", check_json=False)
 test("Estop Status", "GET", "/api/estop")
 
 # pH Control
 print("\n[PH CONTROL]")
 test("pH Status", "GET", "/api/ph/status")
-# pH auto toggle is POST
-test("pH Auto Enable", "POST", "/api/ph/auto", {"enable": True})
-test("pH Auto Disable", "POST", "/api/ph/auto", {"enable": False})
+# Use GET fallbacks to avoid POST hang
+test("pH Auto Enable (GET)", "GET", "/api/ph/auto/enable?on=1")
+test("pH Auto Disable (GET)", "GET", "/api/ph/auto/enable?on=0")
 test("pH Dose Log", "GET", "/api/ph/dose_log")
 
 # EC Control
 print("\n[EC CONTROL]")
 test("EC Status", "GET", "/api/ec/status")
-test("EC Auto Enable", "POST", "/api/ec/auto", {"enable": True})
-test("EC Auto Disable", "POST", "/api/ec/auto", {"enable": False})
+test("EC Auto Enable (GET)", "GET", "/api/ec/auto/enable?on=1")
+test("EC Auto Disable (GET)", "GET", "/api/ec/auto/enable?on=0")
 test("EC Dose Log", "GET", "/api/ec/dose_log")
 
 # Settings

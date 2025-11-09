@@ -28,6 +28,20 @@
     } else {
       fetch('/api/settings', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({'safety.maintenance_override': 'false'})}).catch(()=>{});
     }
+    // Propagate global intent to individual controllers (only auto/manual)
+    try {
+      if (next==='auto' && window.phSetMode) window.phSetMode('auto');
+      if (next==='manual' && window.phSetMode) window.phSetMode('manual');
+    }catch(e){}
+    try {
+      if (next==='auto' && window.ecSetMode) window.ecSetMode('auto');
+      if (next==='manual' && window.ecSetMode) window.ecSetMode('manual');
+    }catch(e){}
+    // Environment (chiller) maps auto/manual; maintenance leaves per-controller specifics to user
+    try {
+      if (next==='auto' && window.envSetMode) window.envSetMode('auto');
+      if (next==='manual' && window.envSetMode) window.envSetMode('manual');
+    }catch(e){}
   }
 
   function updateHealth(){

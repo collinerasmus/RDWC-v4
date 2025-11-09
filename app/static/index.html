@@ -6,9 +6,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta name="version" content="20251102c"/><!-- Cache-buster: v1.0 finalization -->
 <link rel="stylesheet" href="/static/css/app.css" />
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
+<!-- Chart libraries deferred: will be loaded lazily after idle or when chart tabs opened -->
 <style>
 :root{
   --maxw: 1280px;
@@ -99,6 +97,20 @@ h2, h3{
   color: #93c5fd;
   box-shadow: 0 0 8px rgba(59,130,246,0.15);
 }
+.ctrl-health-dot{position:absolute;top:4px;right:6px;width:8px;height:8px;border-radius:50%;background:#475569;box-shadow:0 0 0 2px rgba(0,0,0,.45);transition:background .25s ease, box-shadow .25s ease;}
+.ctrl-health-dot.ok{background:#22c55e;box-shadow:0 0 0 2px rgba(34,197,94,.4),0 0 6px 2px rgba(34,197,94,.35);}
+.ctrl-health-dot.warn{background:#f59e0b;box-shadow:0 0 0 2px rgba(245,158,11,.45),0 0 4px 2px rgba(245,158,11,.35);}
+.ctrl-health-dot.bad{background:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.5),0 0 4px 2px rgba(239,68,68,.4);}
+.ctrl-health-dot.maint{background:#64748b;box-shadow:0 0 0 2px rgba(100,116,139,.45);opacity:.7;}
+/* subtle pulse when state changes */
+@keyframes dotPulse{0%{transform:scale(1);}50%{transform:scale(1.25);}100%{transform:scale(1);}}
+.ctrl-health-dot.changed{animation: dotPulse 0.8s ease-in-out 1;}
+
+/* Refined inline layout for controller buttons */
+.ctrl-with-dot{display:inline-flex;align-items:center;gap:10px;padding-left:14px;padding-right:14px;}
+.ctrl-with-dot .ctrl-label{display:inline-block;line-height:1;}
+.ctrl-with-dot .ctrl-health-dot{position:static;width:8px;height:8px;flex:0 0 8px;border-radius:50%;box-shadow:0 0 0 2px rgba(0,0,0,.45);} 
+.ctrl-with-dot.active .ctrl-health-dot{box-shadow:0 0 0 2px rgba(59,130,246,.35),0 0 4px 1px rgba(59,130,246,.25);} /* subtle highlight when active */
 .btn-chip.active::before{
   content: '';
   position: absolute;
@@ -151,6 +163,8 @@ h2, h3{
   width: 100%;
   margin-bottom: var(--gap);
 }
+/* Screen reader only - status announcements */
+#controllers-status-live{ position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden; }
 
 /* Stack all cards in right column vertically with consistent spacing */
 #right-column-stack{
@@ -744,11 +758,6 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   .ui-status-chip.warning { background: rgba(251,146,60,0.1); color: #fb923c; border-color: rgba(251,146,60,0.3); }
   .ui-status-chip.danger  { background: rgba(239,68,68,0.1); color: #ef4444; border-color: rgba(239,68,68,0.3); }
   .ui-status-chip.error   { background: rgba(239,68,68,0.1); color: #ef4444; border-color: rgba(239,68,68,0.3); }
-  /* UI Polish 2025-11 Part 2 (.ui-polish-2025-11b scope) */
-  .ui-polish-2025-11b .sensor-meta-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:4px;}
-  .ui-polish-2025-11b #sensors-updated{padding:3px 8px;border:1px solid rgba(148,163,184,0.35);border-radius:6px;font-size:0.7rem;background:rgba(148,163,184,0.08);color:#94a3b8;white-space:nowrap;}
-  .ui-polish-2025-11b #sensors-target-hints{font-size:0.7rem;opacity:.75;display:flex;gap:10px;flex-wrap:wrap;}
-  .ui-polish-2025-11b #sensors-target-hints span{background:rgba(17,24,39,0.6);padding:3px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.15);}
   .relay-btn.loading{opacity:.7;position:relative;}
   .relay-btn.loading::after{content:"";position:absolute;top:50%;left:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -788,55 +797,22 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     <h1 style="margin:0;">RDWC v4 — Dashboard</h1>
     <div id="build-banner" class="muted" style="font-size:0.8rem;padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,0.25);background:rgba(148,163,184,0.06);color:#cbd5e1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <span>Build: <span id="build-version">—</span> • <span id="build-status">initializing…</span></span>
-      <span style="opacity:.6;">•</span>
-      <span id="hdr-progress" title="Overall progress">0%</span>
-      <span style="opacity:.6;">•</span>
-      <span id="hdr-hb" title="Heartbeat freshness">HB: —</span>
-      <span style="opacity:.6;">•</span>
-      <span id="hdr-eta" title="Estimated time to completion">ETA: —</span>
     </div>
   </div>
 
   <!-- Top-level Tabs Navigation -->
-  <nav id="tabs-nav" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px 0;padding-bottom:4px;">
-    <button class="btn-chip" data-tab="overview">📊 Overview</button>
-    <button class="btn-chip" data-tab="sensors">🔬 Live Sensors</button>
-    <button class="btn-chip" data-tab="ph">🧪 pH</button>
-    <button class="btn-chip" data-tab="ec">⚡ EC</button>
-    <button class="btn-chip" data-tab="schedule">📅 Schedule</button>
-    <button class="btn-chip" data-tab="temp">🌿 Environment</button>
-    <button class="btn-chip" data-tab="lights">💡 Lights</button>
-    <button class="btn-chip" data-tab="circulation">🔄 Circulation</button>
-  <button class="btn-chip" data-tab="settings">🛠️ System</button>
+  <nav id="tabs-nav" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px 0;padding-bottom:4px;" aria-label="Primary sections">
+    <span id="controllers-status-live" aria-live="polite"></span>
+  <button class="btn-chip ctrl-with-dot" data-tab="overview" aria-label="Overview"><span class="ctrl-label">📊 Overview</span><span class="ctrl-health-dot" data-controller="overview" aria-label="Overview status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="sensors" aria-label="Live Sensors"><span class="ctrl-label">🔬 Live Sensors</span><span class="ctrl-health-dot" data-controller="sensors" aria-label="Sensors status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="ph" aria-label="pH"><span class="ctrl-label">🧪 pH</span><span class="ctrl-health-dot" data-controller="ph" aria-label="pH status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="ec" aria-label="EC"><span class="ctrl-label">⚡ EC</span><span class="ctrl-health-dot" data-controller="ec" aria-label="EC status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="schedule" aria-label="Schedule"><span class="ctrl-label">📅 Schedule</span><span class="ctrl-health-dot" data-controller="schedule" aria-label="Schedule status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="temp" aria-label="Environment"><span class="ctrl-label">🌿 Environment</span><span class="ctrl-health-dot" data-controller="temp" aria-label="Environment status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="lights" aria-label="Lights"><span class="ctrl-label">💡 Lights</span><span class="ctrl-health-dot" data-controller="lights" aria-label="Lights status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="circulation" aria-label="Circulation"><span class="ctrl-label">🔄 Circulation</span><span class="ctrl-health-dot" data-controller="circulation" aria-label="Circulation status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="settings" aria-label="System"><span class="ctrl-label">🛠️ System</span><span class="ctrl-health-dot" data-controller="settings" aria-label="System status"></span></button>
   </nav>
-
-  <!-- Progress/Heartbeat widget (enhanced) -->
-  <div id="progress-widget" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:-8px 0 12px 0;">
-    <style>
-      .pulse{ box-shadow:0 0 0 0 rgba(34,197,94,0.7); animation:pulse 1.6s infinite; }
-      @keyframes pulse{ 0%{ box-shadow:0 0 0 0 rgba(34,197,94,0.7);} 70%{ box-shadow:0 0 0 10px rgba(34,197,94,0);} 100%{ box-shadow:0 0 0 0 rgba(34,197,94,0);} }
-      .chip-mini{ padding:4px 8px; border:1px solid rgba(148,163,184,0.35); border-radius:999px; font-size:.75rem; color:#cbd5e1; background:rgba(148,163,184,0.08); }
-      .chip-mini.ok{ border-color:rgba(34,197,94,0.45); color:#a7f3d0; background:rgba(34,197,94,0.12); }
-      .chip-mini.bad{ border-color:rgba(239,68,68,0.45); color:#fecaca; background:rgba(239,68,68,0.12); }
-    </style>
-    <div id="progress-bar-wrap" style="flex:1;min-width:260px;height:12px;background:rgba(148,163,184,0.15);border:1px solid rgba(148,163,184,0.3);border-radius:999px;overflow:hidden;position:relative;">
-      <div id="progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#22c55e,#3b82f6);transition:width .4s ease;"></div>
-      <div id="progress-label" style="position:absolute;top:-24px;right:8px;font-size:0.9rem;color:#94a3b8;">0% complete</div>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <span id="progress-heartbeat" style="display:inline-block;width:12px;height:12px;border-radius:999px;background:#ef4444;border:1px solid rgba(255,255,255,0.25);"></span>
-      <span id="progress-heartbeat-label" class="muted" style="font-size:0.85rem;min-width:120px;">heartbeat —</span>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <span class="muted" style="font-size:0.85rem;">ETA</span>
-      <span id="progress-eta-label" class="chip-mini">—</span>
-    </div>
-    <div id="progress-components" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-      <!-- filled by progress.js with per-component chips -->
-    </div>
-  </div>
-
-
 
   <!-- Schedule Controller Tab -->
   <section id="schedule-card" class="card card-wide tab-section" data-tab="schedule" style="display:none;">
@@ -853,6 +829,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
         <button id="scheduleSeedBtn" class="btn-secondary" title="Seed default 12-week schedule (non-destructive)">Seed Defaults</button>
+        <button id="header-estop-btn-schedule" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
       </div>
     </div>
     <div class="card-body" style="padding:0;">
@@ -909,6 +886,79 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
   </section>
 
+  <script>
+  // Fallback quick-population for controller Mode labels (runs immediately, before dynamic loader chain)
+  (function(){
+    async function quickModes(){
+      try {
+        const rel = await fetch('/api/relays/status',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(r.status));
+        const mode = (rel && rel.mode) || 'manual';
+        // Quick mode chips for relays
+        var lightsChip = document.getElementById('ov-lights-modechip');
+        if (lightsChip) { lightsChip.textContent = (mode==='manual' ? 'MANUAL' : 'SCHEDULE'); lightsChip.className = 'ui-status-chip ' + (mode==='manual' ? 'neutral':'success'); }
+        var mainPumpChip = document.getElementById('ov-main-pump-modechip');
+        if (mainPumpChip) { mainPumpChip.textContent = (mode==='manual' ? 'MANUAL' : 'PROTECTED'); mainPumpChip.className = 'ui-status-chip ' + (mode==='manual' ? 'neutral':'success'); }
+        var chillerPumpChip = document.getElementById('ov-chiller-pump-modechip');
+        if (chillerPumpChip) { chillerPumpChip.textContent = (mode==='manual' ? 'MANUAL' : 'AUTO-PAIR'); chillerPumpChip.className = 'ui-status-chip ' + (mode==='manual' ? 'neutral':'success'); }
+        try {
+          const ch = await fetch('/api/chiller/status',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(r.status));
+          var chChip = document.getElementById('ov-chiller-modechip');
+          if (chChip) {
+            var autoTxt = ch.auto_enabled ? 'AUTO' : 'MANUAL';
+            var tempTxt = ch.current_temp ? ' '+ch.current_temp.toFixed(1)+'°C' : '';
+            chChip.textContent = autoTxt + tempTxt;
+            chChip.className = 'ui-status-chip ' + (ch.auto_enabled ? 'success':'neutral');
+          }
+        } catch(e){
+          var chChip2 = document.getElementById('ov-chiller-modechip');
+          if (chChip2) { chChip2.textContent = (mode==='manual' ? 'MANUAL' : 'AUTO'); chChip2.className = 'ui-status-chip ' + (mode==='manual' ? 'neutral':'success'); }
+        }
+        // Also pre-populate pH/EC boxes
+        try {
+          const ph = await fetch('/api/ph/status',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(r.status));
+          var phModeChip = document.getElementById('ov-ph-modechip'); if (phModeChip) { phModeChip.textContent = (ph.auto && ph.auto.enabled)?'AUTO':'MANUAL'; phModeChip.className = 'ui-status-chip ' + ((ph.auto && ph.auto.enabled)?'success':'neutral'); }
+          var phGuards = document.getElementById('ov-ph-guards'); if (phGuards) { var g=ph.guards||{}; var boolKeys=['estop','safe_off','sensor_stale','interval','daily_cap','reservoir','ec_baseline_low']; var active=boolKeys.filter(k=>g[k]); phGuards.textContent = 'Guards: ' + (active.length? active.join(', '):'OK'); }
+          var phHealth = document.getElementById('ov-ph-health'); if (phHealth) { var ok = !((ph.guards||{}).estop || (ph.guards||{}).safe_off || (ph.guards||{}).sensor_stale || (ph.guards||{}).reservoir); phHealth.textContent = ok? 'OK':'BLOCKED'; phHealth.className = 'ui-status-chip ' + (ok? 'success':'danger'); var g=ph.guards||{}; var boolKeys=['estop','safe_off','sensor_stale','interval','daily_cap','reservoir','ec_baseline_low']; var active=boolKeys.filter(k=>g[k]); phHealth.title = active.length? ('Guards blocking: '+active.join(', ')) : 'All guards OK'; }
+        } catch(e){ var phHealth = document.getElementById('ov-ph-health'); if (phHealth) { phHealth.textContent='—'; phHealth.className='ui-status-chip neutral'; }}
+        try {
+          const ec = await fetch('/api/ec/status',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(r.status));
+          var ecModeChip = document.getElementById('ov-ec-modechip'); if (ecModeChip) { ecModeChip.textContent = (ec.auto && ec.auto.enabled)?'AUTO':'MANUAL'; ecModeChip.className = 'ui-status-chip ' + ((ec.auto && ec.auto.enabled)?'success':'neutral'); }
+          var ecGuards = document.getElementById('ov-ec-guards'); if (ecGuards) { var g=ec.guards||{}; var boolKeys=['estop','sensor_stale','reservoir','mix_lock','interval','daily_cap']; var active=boolKeys.filter(k=>g[k]); ecGuards.textContent = 'Guards: ' + (active.length? active.join(', '):'OK'); }
+          var ecHealth = document.getElementById('ov-ec-health'); if (ecHealth) { var ok = !((ec.guards||{}).estop || (ec.guards||{}).sensor_stale || (ec.guards||{}).reservoir || (ec.guards||{}).mix_lock); ecHealth.textContent = ok? 'OK':'BLOCKED'; ecHealth.className = 'ui-status-chip ' + (ok? 'success':'danger'); var g=ec.guards||{}; var boolKeys=['estop','sensor_stale','reservoir','mix_lock','interval','daily_cap']; var active=boolKeys.filter(k=>g[k]); ecHealth.title = active.length? ('Guards blocking: '+active.join(', ')) : 'All guards OK'; }
+        } catch(e){ var ecHealth = document.getElementById('ov-ec-health'); if (ecHealth) { ecHealth.textContent='—'; ecHealth.className='ui-status-chip neutral'; }}
+      } catch(e) {
+        /* silent */
+      }
+    }
+    if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', quickModes); else quickModes();
+  })();
+  </script>
+  <script>
+  // Performance instrumentation: mark initial load and overview hydration
+  (function(){
+    try { performance.mark('app-init'); } catch(e){}
+    window.addEventListener('overview-hydrated', function(ev){
+      var ms = ev && ev.detail && ev.detail.ms;
+      if (typeof ms === 'number') {
+        console.log('[Perf] overview-hydrated event detail ms=', ms);
+        var el = document.getElementById('build-status');
+        if (el && !el.dataset.perf){
+          el.dataset.perf = '1';
+          el.title = 'Overview hydrated in ~'+ms+'ms';
+        }
+      }
+    });
+    // Optional: log when charts first requested
+    document.addEventListener('click', function(e){
+      var tab = e.target && e.target.closest('[data-tab]');
+      if (tab && ['ph','ec','trends'].includes(tab.getAttribute('data-tab')) && !window.__chartsFirstClick){
+        window.__chartsFirstClick = performance.now();
+        console.log('[Perf] first chart tab click at ~'+window.__chartsFirstClick.toFixed(0)+'ms');
+      }
+    });
+  })();
+  </script>
+
   <!-- Overview Tab (System Controller) -->
   <section id="overview-card" class="card card-wide tab-section" data-tab="overview">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -919,47 +969,68 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <button id="system-mode-manual" class="btn-chip active" onclick="window.systemSetMode?window.systemSetMode('manual'):0">Manual</button>
           <button id="system-mode-maint" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('maintenance'):0">Maintenance</button>
         </div>
-        <span id="system-health-indicator" class="ui-status-chip success" title="System health">OK</span>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-        <span class="ui-status-chip" id="chip-estop" title="Emergency stop status">—</span>
-        <span class="ui-status-chip" id="chip-sensors" title="Sensor poller status">—</span>
-        <span class="ui-status-chip" id="chip-ph" title="pH controller health">—</span>
-        <span class="ui-status-chip" id="chip-ec" title="EC controller health">—</span>
+        <button id="header-estop-btn" class="btn-secondary" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
       </div>
     </div>
-    <div class="card-body">
-      <div class="muted" style="margin-bottom:12px;padding:8px 12px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;">
-        RDWC circulation required for cooling and sensors. E-STOP overrides all controls.
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px;">
-        <div class="bop-relay-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:0.95rem;">💡 Lights</div>
+      <div class="card-body">
+      <h4 style="margin:0 0 12px 0;font-size:0.9rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;">Controllers</h4>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+        <!-- 1. Sensors -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
+          <div style="font-weight:600;font-size:0.95rem;">📡 Sensors</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <span class="ui-status-chip neutral" id="ov-sensors-health" title="Sensor poller health">—</span>
+          </div>
+        </div>
+        <!-- 2. pH Controller -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
+          <div style="font-weight:600;font-size:0.95rem;">🧪 pH Controller</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <span class="ui-status-chip neutral" id="ov-ph-modechip" title="Mode">—</span>
+            <span class="ui-status-chip neutral" id="ov-ph-health" title="Controller health">—</span>
+          </div>
+        </div>
+        <!-- 3. EC Controller -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
+          <div style="font-weight:600;font-size:0.95rem;">⚡ EC Controller</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <span class="ui-status-chip neutral" id="ov-ec-modechip" title="Mode">—</span>
+            <span class="ui-status-chip neutral" id="ov-ec-health" title="Controller health">—</span>
+          </div>
+        </div>
+        <!-- 4. Schedule -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
+          <div style="font-weight:600;font-size:0.95rem;">📅 Schedule</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <span class="ui-status-chip neutral" title="Schedule status">—</span>
+          </div>
+        </div>
+        <!-- 5. Environment (Chiller + Pumps) -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
+          <div style="font-weight:600;font-size:0.95rem;">❄️ Environment</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <span class="ui-status-chip neutral" id="ov-chiller-modechip" title="Chiller mode">—</span>
+            <span class="bop-status-badge" id="ov-chiller" title="Chiller">—</span>
+            <span class="bop-status-badge" id="ov-chiller-pump" title="Chiller Pump">—</span>
+          </div>
+        </div>
+        <!-- 6. Lights -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
+          <div style="font-weight:600;font-size:0.95rem;">� Lights</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <span class="ui-status-chip neutral" id="ov-lights-modechip" title="Lights mode">—</span>
             <span class="bop-status-badge" id="ov-lights">—</span>
           </div>
-          <div class="muted" style="font-size:0.75rem;">Grow cycle controlled</div>
         </div>
-        <div class="bop-relay-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:0.95rem;">🔄 Main Pump</div>
-            <span class="bop-status-badge" id="ov-main-pump">—</span>
+        <!-- 7. Circulation -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
+          <div style="font-weight:600;font-size:0.95rem;">� Circulation</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <span class="ui-status-chip neutral" id="ov-main-pump-modechip" title="Main pump mode">—</span>
+            <span class="bop-status-badge" id="ov-main-pump" title="Main Pump">—</span>
           </div>
-          <div class="muted" style="font-size:0.75rem;">Critical circulation</div>
-        </div>
-        <div class="bop-relay-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:0.95rem;">🌊 Chiller Pump</div>
-            <span class="bop-status-badge" id="ov-chiller-pump">—</span>
-          </div>
-          <div class="muted" style="font-size:0.75rem;">Pairs with chiller</div>
-        </div>
-        <div class="bop-relay-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:0.95rem;">❄️ Chiller</div>
-            <span class="bop-status-badge" id="ov-chiller">—</span>
-          </div>
-          <div class="muted" style="font-size:0.75rem;">Compressor-protected</div>
         </div>
       </div>
       <!-- System mode content sections -->
@@ -968,20 +1039,11 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           ✓ System automation enabled: Controllers follow programmed logic, schedules active, safety guards enforced.
         </div>
       </div>
-      <div id="system-manual-content" style="display:block;">
-        <div class="muted" style="margin-bottom:12px;padding:8px 12px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;">
-          Manual mode: User controls with safeties active. RDWC circulation required for cooling and sensors. E-STOP overrides all.
-        </div>
-      </div>
+      <div id="system-manual-content" style="display:block;"></div>
       <div id="system-maint-content" style="display:none;">
         <div class="muted" style="margin-bottom:12px;padding:8px 12px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);color:#fecaca;font-size:0.85rem;">
           ⚠️ <strong>Maintenance Mode:</strong> All system safeties bypassed (cooldowns, daily caps, intervals). E-STOP and reservoir checks still enforced.
         </div>
-      </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:8px;">
-        <span id="ov-estop" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);">E-STOP: —</span>
-        <span id="ov-lights-window" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);">Lights Window: —</span>
-        <span id="ov-sensor-poller" class="muted" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);" title="Headless sensor polling status">Sensors: —</span>
       </div>
     </div>
     
@@ -992,7 +1054,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <span id="camera-status-pill">Status: streaming</span>
       </div>
       <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;height:var(--h-camera);">
-        <img id="camera-stream" alt="Camera stream" style="width:100%;height:100%;object-fit:cover;"/>
+        <!-- Use object element - browsers don't cancel these for MJPEG streams -->
+  <object id="camera-object" type="multipart/x-mixed-replace" style="display:none;width:100%;height:100%;" aria-label="Live camera stream"></object>
+  <img id="camera-stream" alt="Camera stream" style="width:100%;height:100%;object-fit:cover;" aria-label="Live camera stream fallback"/>
         <div id="camera-overlay" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">Connecting...</div>
       </div>
     </div>
@@ -1009,6 +1073,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <button id="env-mode-maint" class="btn-chip" onclick="window.envSetMode?window.envSetMode('maintenance'):0">Maintenance</button>
         </div>
         <span id="env-health-indicator" class="ui-status-chip success" title="Environment health">OK</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button id="header-estop-btn-temp" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
       </div>
     </div>
 
@@ -1123,6 +1190,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <div class="muted" id="lights-window-preview" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.35);">Window: —</div>
+        <button id="header-estop-btn-lights" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
       </div>
     </div>
     <div class="card-body">
@@ -1178,6 +1246,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         </div>
         <span id="circ-health-indicator" class="ui-status-chip success" title="Circulation health">OK</span>
       </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button id="header-estop-btn-circ" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
+      </div>
     </div>
     <div class="card-body">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
@@ -1228,15 +1299,16 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <section id="sensors-card" class="card card-wide tab-section" data-tab="sensors" style="display:none;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <h3 class="card-title" style="margin:0;">Sensors Controller</h3>
+        <h3 class="card-title" style="margin:0;">Sensors</h3>
         <div class="sensors-mode-buttons" style="display:flex;gap:6px;">
           <button id="sensors-mode-auto" class="btn-chip active" onclick="window.sensorsSetMode?window.sensorsSetMode('auto'):0">Auto</button>
           <button id="sensors-mode-manual" class="btn-chip" onclick="window.sensorsSetMode?window.sensorsSetMode('manual'):0">Manual</button>
           <button id="sensors-mode-maint" class="btn-chip" onclick="window.sensorsSetMode?window.sensorsSetMode('maintenance'):0">Maintenance</button>
         </div>
-        <span id="sensors-health-indicator" class="ui-status-chip success" title="Sensors health">OK</span>
-        <span id="sensors-grow-day-badge" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;font-weight:500;"></span>
-        <span id="sensorsFreshnessDot" class="fresh-dot" title="DB freshness"></span>
+  <!-- Sensors health chip removed: replaced by global nav dot -->
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button id="header-estop-btn-sensors" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
       </div>
     </div>
 
@@ -1247,29 +1319,24 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <div class="kpi-value" id="kpiPh">—</div>
       </div>
       <div class="kpi kpi-ec">
-        <div class="kpi-label" title="Backend stores mS/cm. ppm shown @500 scale for convenience.">
-          EC (mS/cm)
-        </div>
-        <div class="kpi-value" id="kpiEc" style="white-space: nowrap;">—</div>
-        <div class="kpi-hint" id="kpiEcPpm" style="font-size:0.7rem;color:#999;margin-top:2px;">—</div>
+        <div class="kpi-label">EC (mS/cm)</div>
+        <div class="kpi-value" id="kpiEc">—</div>
       </div>
       <div class="kpi kpi-temp">
         <div class="kpi-label">Temp (°C)</div>
         <div class="kpi-value" id="kpiTemp">—</div>
       </div>
-      <div class="rate-caption" id="samplesRate" style="align-self:center;">—</div>
     </div>
-    <!-- Part 2 polish: meta row (timestamp + targets) -->
-    <div class="ui-polish-2025-11b sensor-meta-row">
+    
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding:6px 0;font-size:0.85rem;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <span id="sensors-updated" title="Last sample time">Updated: —</span>
-        <span id="sensors-age" class="muted" style="font-size:0.8rem;padding:3px 6px;border-radius:6px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.25);">age: —s</span>
-        <button id="btnSensorsReadNow" class="btn-secondary" style="padding:4px 8px;font-size:0.85rem;">Read now</button>
+        <span id="sensors-updated" class="muted">Updated: —</span>
+        <button id="btnSensorsReadNow" class="btn-secondary" style="padding:4px 10px;">Read now</button>
       </div>
-      <div id="sensors-target-hints" title="Grow targets">
+      <div class="muted" style="display:flex;gap:12px;flex-wrap:wrap;">
         <span>pH 5.8–6.2</span>
         <span>EC 0.8–1.2 mS/cm</span>
-        <span>Temp 18–20°C optimal (16–24°C safe)</span>
+        <span>Temp 18–20°C optimal</span>
       </div>
     </div>
 
@@ -1332,6 +1399,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               Maintenance Override
             </label>
             <div class="muted" id="ph-band">Targets 5.8 – 6.2</div>
+            <button id="header-estop-btn-ph" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
           </div>
         </div>
 
@@ -1608,6 +1676,8 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 Maintenance Override
               </label>
               <div class="muted" id="ec-band">Targets 0.8 – 1.2 mS/cm</div>
+              <button id="header-estop-btn-ec" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
+            </div>
             </div>
           </div>
           <div class="card-body">
@@ -2246,6 +2316,7 @@ function toggleRecentReadings(){
 // Camera auto-reconnect with exponential backoff
 (function initCamera() {
   const img = document.getElementById('camera-stream');
+  const objElem = document.getElementById('camera-object');
   const overlay = document.getElementById('camera-overlay');
   const pill = document.getElementById('camera-status-pill');
   
@@ -2256,6 +2327,7 @@ function toggleRecentReadings(){
   let statusCheckTimer = null;
   let watchdogTimer = null;
   const WATCHDOG_INTERVAL = 10000; // 10s
+  let streamMode = 'object'; // 'img' or 'object'
 
   async function refreshStatus() {
     try {
@@ -2287,34 +2359,61 @@ function toggleRecentReadings(){
     if (overlay) overlay.style.display = 'flex';
     if (overlay) overlay.textContent = retryCount === 1 ? 'Connecting...' : `Reconnecting (${retryCount})...`;
 
-    // Cache-busting timestamp + retry count
-    img.src = `/camera/stream?t=${Date.now()}&r=${retryCount}`;
+    const streamUrl = `/camera/stream?t=${Date.now()}&r=${retryCount}`;
 
-    img.onerror = () => {
-      console.warn(`[Camera] Stream error (retry ${retryCount}), retrying in ${retryMs}ms`);
-      img.src = '';  // Clear source to stop errors
-      setTimeout(startStream, retryMs);
-    };
-
-    img.onload = () => {
-      console.log('[Camera] First bytes received, hiding overlay');
-      retryCount = 0;  // Reset on success
-      if (overlay) overlay.style.display = 'none';
+    // Use <object> element for MJPEG - browsers treat these as persistent media resources
+    // and don't cancel them when other requests complete
+    if (streamMode === 'object' && objElem) {
+      console.log('[Camera] Using object element for persistent stream');
+      objElem.style.display = 'block';
+      img.style.display = 'none';
       
-      // Refresh status pill every 30s while streaming
-      if (statusCheckTimer) clearInterval(statusCheckTimer);
-      statusCheckTimer = setInterval(refreshStatus, 30000);
-    };
+      // Object elements maintain their connection independently
+      objElem.data = streamUrl;
+      
+      // Object doesn't fire load events reliably for streams, use timeout
+      setTimeout(() => {
+        console.log('[Camera] Object stream initialized');
+        retryCount = 0;
+        if (overlay) overlay.style.display = 'none';
+        if (statusCheckTimer) clearInterval(statusCheckTimer);
+        statusCheckTimer = setInterval(refreshStatus, 30000);
+      }, 1500);
+      
+    } else {
+      // Fallback: direct img src (can be canceled by browser)
+      if (objElem) objElem.style.display = 'none';
+      img.style.display = 'block';
+      
+      img.src = streamUrl;
+
+      img.onerror = () => {
+        console.warn(`[Camera] Stream error (retry ${retryCount}), retrying in ${retryMs}ms`);
+        img.src = '';
+        setTimeout(startStream, retryMs);
+      };
+
+      img.onload = () => {
+        console.log('[Camera] First bytes received, hiding overlay');
+        retryCount = 0;
+        if (overlay) overlay.style.display = 'none';
+        if (statusCheckTimer) clearInterval(statusCheckTimer);
+        statusCheckTimer = setInterval(refreshStatus, 30000);
+      };
+    }
   }
 
   function stopStream() {
     if (img) img.src = '';
+    if (objElem) objElem.data = '';
     if (statusCheckTimer) clearInterval(statusCheckTimer);
   }
 
   // Initial status check, then start stream if available
   refreshStatus().then(status => {
     if (status.available) {
+      // Use object mode by default (most stable for MJPEG streams)
+      streamMode = 'object';
       startStream();
     } else {
       if (overlay) overlay.textContent = status.note || 'Camera unavailable';
@@ -2434,35 +2533,69 @@ window.CircControl = (function(){
   <script>
   // Dynamically load JS assets with a cache-busting version from /api/version
   (function(){
-    function loadScript(src){
+    function loadScript(src, asyncFlag){
       return new Promise(function(resolve, reject){
         var s = document.createElement('script');
-        s.src = src; s.async = false; s.onload = resolve; s.onerror = reject;
+        s.src = src; s.async = asyncFlag!==false; s.onload = resolve; s.onerror = reject;
         document.body.appendChild(s);
       });
     }
-    function chain(files, v){
+    function seq(baseFiles, version){
       var base = '/static/js/';
-      return files.reduce(function(p, f){
+      return baseFiles.reduce(function(p,f){
         return p.then(function(){
-          var cb = 'cb=' + Date.now();
-          var ver = v ? ('v=' + encodeURIComponent(v)) : null;
-          var qs = ver ? ('?' + ver + '&' + cb) : ('?' + cb);
-          return loadScript(base + f + qs);
+          var cb='cb='+Date.now();
+          var ver = version?('v='+encodeURIComponent(version)):null;
+          var qs = ver?('?'+ver+'&'+cb):('?'+cb);
+          return loadScript(base+f+qs, false);
         });
       }, Promise.resolve());
     }
+    function deferCharts(version){
+      if (window.__charts_deferred) return; window.__charts_deferred=true;
+      var libs = [
+        'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
+        'https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3',
+        'https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3'
+      ];
+      // Chart-related app scripts
+      var chartsApp = ['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js'];
+      var base = '/static/js/';
+      libs.reduce(function(p,src){ return p.then(()=>loadScript(src,true)); }, Promise.resolve())
+        .then(function(){ return chartsApp.reduce(function(p,f){
+          return p.then(function(){
+            var cb='cb='+Date.now();
+            var ver = version?('v='+encodeURIComponent(version)):null;
+            var qs = ver?('?'+ver+'&'+cb):('?'+cb);
+            return loadScript(base+f+qs,true);
+          });
+        }, Promise.resolve()); })
+        .catch(function(e){ console.warn('[Loader] deferred chart load failed', e); });
+    }
+    function scheduleDeferred(version){
+      if (window.requestIdleCallback){ requestIdleCallback(()=>deferCharts(version), {timeout:2500}); }
+      else setTimeout(()=>deferCharts(version), 1500);
+    }
+    // Lazy trigger when user first opens a chart tab
+    document.addEventListener('click', function(e){
+      var t = e.target.closest('[data-tab]');
+      if (!t) return;
+      var tab = t.getAttribute('data-tab');
+      if (['ph','ec','trends'].includes(tab)){ deferCharts(window.__app_version); }
+    });
     fetch('/api/version', {cache:'no-store'})
-      .then(function(r){ return r.json(); })
+      .then(r=>r.json())
       .then(function(j){
-        // Update banner early if possible
-        try{ var vEl=document.getElementById('build-version'); if(vEl) vEl.textContent = (j&&j.version)||'n/a'; }catch(e){}
-  return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_v2.js','chiller.js','schedule.js','sensors.js','system.js','circulation.js','progress.js','overview.js'], j && j.version);
+        window.__app_version = (j&&j.version)||null;
+        try{ var vEl=document.getElementById('build-version'); if(vEl) vEl.textContent = window.__app_version || 'n/a'; }catch(e){}
+        // Critical scripts only for initial interactive dashboard
+  return seq(['tabs.js','global_health.js','overview.js','system.js','sensors.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .catch(function(){
-  return chain(['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','settings.js','controller_settings.js','relays_v2.js','tabs.js','lights_v2.js','chiller.js','schedule.js','sensors.js','system.js','circulation.js','progress.js','overview.js'], (new Date()).toISOString().slice(0,10));
+        window.__app_version = (new Date()).toISOString().slice(0,10);
+  return seq(['tabs.js','global_health.js','overview.js','system.js','sensors.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
-      .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
+      .finally(function(){ scheduleDeferred(window.__app_version); try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();
   </script>
 
