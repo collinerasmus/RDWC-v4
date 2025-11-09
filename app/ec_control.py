@@ -376,8 +376,8 @@ def _check_guards() -> Tuple[bool, Optional[str]]:
     return (True, None)
 
 def _check_interval_guard(now_dt: datetime) -> Tuple[bool, Optional[str]]:
-    """Check min interval since last dose. Returns (ok, reason)."""
-    min_int = _i("dosing.ec_min_interval_s", 300)
+    """Check min interval since last dose. Returns (ok, reason). Default 15min for 2× HRT."""
+    min_int = _i("dosing.ec_min_interval_s", 900)
     last_ts = _last_ok_ts()
     if last_ts:
         elapsed = (now_dt - last_ts).total_seconds()
@@ -425,8 +425,8 @@ def dose_ec(body: dict = Body(...)):
         if seconds < 0.1 or seconds > max_sec:
             return JSONResponse(status_code=400, content={"error": f"seconds must be 0.1–{max_sec}"})
         
-        # Check interval guard (per-pump)
-        min_interval = _i("ec.min_interval_sec", 300)
+        # Check interval guard (per-pump) - 15min default for 2× HRT
+        min_interval = _i("ec.min_interval_sec", 900)
         if not override and min_interval > 0:
             last_ts = _last_ok_ts()
             if last_ts:

@@ -324,9 +324,9 @@ def _compute_guards(now: float) -> Dict[str, Any]:
     ec_baseline_min = _settings_get_float("dosing.ec_baseline_min", 0.2)
     ec_baseline_low = (ec_val is None) or (ec_val < ec_baseline_min)
 
-    # Min interval guard
+    # Min interval guard - 15min default for 2× hydraulic residence time (100L @ 20 LPM)
     last_ok = _last_ok_ts()
-    min_interval = _settings_get_int("dosing.ph_min_interval_s", 300)
+    min_interval = _settings_get_int("dosing.ph_min_interval_s", 900)
     since_last_ok = None
     interval_guard = False
     if last_ok:
