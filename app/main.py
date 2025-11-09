@@ -2306,9 +2306,7 @@ def api_sensors():
         "temp_comp_applied": data.get("online", False),  # Poller applies temp comp
         "temp_comp_reason": "sensor_poller" if data.get("online") else "stale",
         "cal": cal_state,
-        "errors": data.get("errors", {}
-        "ts": datetime.utcnow().isoformat() + "Z",
-        "errors": {}
+        "errors": data.get("errors", {})
     }
 
 @app.get("/diag/sensors/once")
