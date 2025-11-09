@@ -85,7 +85,9 @@ def _progress_components() -> dict:
     try:
         from app.relays_core import get_relay_status
         rs = get_relay_status()
-        comps['system'] = bool(rs and rs.get('mode') and rs.get('estop') is False)
+        # Consider system healthy when we can read relay state and E-STOP is not active
+        comps['system'] = bool(rs and (rs.get('estop') is False))
+        # Lights considered present if the key exists regardless of ON/OFF state
         comps['lights'] = bool(rs and 'lights' in (rs.get('relays') or {}))
     except Exception:
         comps['system'] = False
@@ -127,8 +129,19 @@ def _progress_components() -> dict:
         comps['env'] = bool(ch)
     except Exception:
         comps['env'] = False
-    # tests (placeholder; can be toggled by future background runner)
-    comps['tests'] = bool(os.environ.get('RDWC_TESTS_PASS', '0') == '1')
+    # tests (allow override via env or DB setting key 'tests.pass')
+    try:
+        tests_env = os.environ.get('RDWC_TESTS_PASS', '0')
+        tests_ok = (tests_env == '1')
+        if not tests_ok:
+            try:
+                from app.settings import get_setting_key
+                tests_ok = str(get_setting_key('tests.pass', '0')).lower() in ('1', 'true')
+            except Exception:
+                tests_ok = False
+        comps['tests'] = bool(tests_ok)
+    except Exception:
+        comps['tests'] = False
     return comps
 
 def _progress_percent(comps: dict) -> float:
