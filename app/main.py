@@ -14,6 +14,8 @@ from typing import Optional, Any
 from subprocess import run, PIPE
 from datetime import datetime, timedelta  # Keep global import
 from app.debug import router as debug_router, trace_relay_request
+import logging
+logger = logging.getLogger(__name__)
 # NOTE: Avoid importing EZO/I2C helpers at module import time to prevent
 # accidental /dev/i2c-1 ownership by the web process. Perform lazy imports
 # within endpoints that explicitly request direct hardware access.
@@ -953,7 +955,12 @@ def api_relays_mode(body: dict = Body(...)):
     mode = (body.get("mode") or "").lower()
     if mode not in ("manual", "auto"):
         return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_mode"})
-    return set_system_mode_api({"mode": mode})  # type: ignore[arg-type]
+    # Prefer new fast path endpoint that uses settings upsert (avoids potential DB lock in legacy path).
+    try:
+        return api_system_mode_fast({"mode": mode})  # type: ignore[arg-type]
+    except Exception as e:  # Fallback to legacy if fast path fails
+        logger.warning(f"Fast system_mode set failed, falling back: {e}")
+        return set_system_mode_api({"mode": mode})  # type: ignore[arg-type]
 
 @app.post("/api/relays/estop/toggle")
 def api_relays_estop_toggle():
@@ -1628,6 +1635,20 @@ def set_system_mode_api(body: dict = Body(...)):
             status_code=500,
             content={"error": "Failed to set system mode"}
         )
+
+@app.post("/api/system_mode/fast")
+def api_system_mode_fast(body: dict = Body(...)):
+    """Lightweight system mode setter using settings upsert to avoid long DB locks.
+    Returns {mode, success}. Falls back handled by caller if needed."""
+    from app.settings import upsert_settings
+    mode = (body.get("mode") or "").lower()
+    if mode not in ("auto", "manual"):
+        return JSONResponse(status_code=400, content={"error": "invalid_mode"})
+    try:
+        upsert_settings({"system_mode": mode})
+        return {"mode": mode, "success": True, "fast": True}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": "fast_set_failed", "detail": str(e)})
 
 # Override endpoints
 @app.get("/overrides")
