@@ -106,7 +106,7 @@ def set_setting(db_path, key: str, value: str):
         conn.commit()
 
 
-def test_ph_auto_status_fields(db_path):
+def test_ph_auto_status_fields(db_path, client):
     """Test that /api/ph/status includes auto.enabled, auto.holding_reason, auto.learned_ml_per_pH."""
     # Insert current reading (pH good, EC good)
     insert_reading(db_path, ph=5.9, ec=1.8)
@@ -134,13 +134,13 @@ def test_ph_auto_status_fields(db_path):
     # (or could be None when disabled)
 
 
-def test_ph_auto_holds_on_ec_baseline_low(db_path, monkeypatch):
+def test_ph_auto_holds_on_ec_baseline_low(db_path, client, monkeypatch):
     """Test that automation holds when EC is below baseline threshold."""
     # Mock relays to avoid GPIO
     def mock_set_dosing_ph_up(state, reason=None, force=False):
         return {"changed": True, "state": state, "reason": reason}
     
-    monkeypatch.setattr("app.ph_control.set_dosing_ph_up", mock_set_dosing_ph_up)
+    monkeypatch.setattr("app.relays_core.set_dosing_ph_up", mock_set_dosing_ph_up)
     
     # Set EC baseline minimum
     set_setting(db_path, "dosing.ec_baseline_min", "0.2")
@@ -163,13 +163,13 @@ def test_ph_auto_holds_on_ec_baseline_low(db_path, monkeypatch):
     assert data["auto"]["holding_reason"] == "ec_baseline_low"
 
 
-def test_ph_auto_learning_applied(db_path, monkeypatch):
+def test_ph_auto_learning_applied(db_path, client, monkeypatch):
     """Test that learning estimator uses historical doses and is exported in status."""
     # Mock relays
     def mock_set_dosing_ph_up(state, reason=None, force=False):
         return {"changed": True, "state": state, "reason": reason}
     
-    monkeypatch.setattr("app.ph_control.set_dosing_ph_up", mock_set_dosing_ph_up)
+    monkeypatch.setattr("app.relays_core.set_dosing_ph_up", mock_set_dosing_ph_up)
     
     # Seed valid historical doses
     # Dose 1: 2.0 ml raised pH from 5.7 to 5.9 (ΔpH = 0.2)
@@ -203,13 +203,13 @@ def test_ph_auto_learning_applied(db_path, monkeypatch):
     assert abs(learned - expected) < 2.0
 
 
-def test_worker_idempotent_toggle(db_path, monkeypatch):
+def test_worker_idempotent_toggle(db_path, client, monkeypatch):
     """Test that double-enable creates only one thread, and disable/re-enable works."""
     # Mock relays
     def mock_set_dosing_ph_up(state, reason=None, force=False):
         return {"changed": True, "state": state, "reason": reason}
     
-    monkeypatch.setattr("app.ph_control.set_dosing_ph_up", mock_set_dosing_ph_up)
+    monkeypatch.setattr("app.relays_core.set_dosing_ph_up", mock_set_dosing_ph_up)
     
     # Current reading
     insert_reading(db_path, ph=5.9, ec=1.8)
@@ -250,7 +250,7 @@ def test_worker_idempotent_toggle(db_path, monkeypatch):
     ph_control._auto_enable(False)
 
 
-def test_nonblocking_lock(db_path, monkeypatch):
+def test_nonblocking_lock(db_path, client, monkeypatch):
     """Test that while dose lock is held, auto cycle reports holding (cooldown) and does not double-dose."""
     # Mock relays with artificial delay
     dose_count = {"count": 0}
@@ -261,7 +261,7 @@ def test_nonblocking_lock(db_path, monkeypatch):
             time.sleep(0.2)  # Simulate actuation time
         return {"changed": True, "state": state, "reason": reason}
     
-    monkeypatch.setattr("app.ph_control.set_dosing_ph_up", mock_set_dosing_ph_up)
+    monkeypatch.setattr("app.relays_core.set_dosing_ph_up", mock_set_dosing_ph_up)
     
     # Setup: pH below band, EC good
     set_setting(db_path, "targets.ph_low", "5.8")
@@ -294,7 +294,7 @@ def test_nonblocking_lock(db_path, monkeypatch):
     assert dose_count["count"] == 1
 
 
-def test_reset_learner_endpoint(db_path):
+def test_reset_learner_endpoint(db_path, client):
     """Test that POST /api/ph/auto/learn/reset clears learned value."""
     # Seed dose history
     ts1 = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
@@ -328,7 +328,7 @@ def test_reset_learner_endpoint(db_path):
     assert learned_after == 50.0
 
 
-def test_debug_endpoint(db_path):
+def test_debug_endpoint(db_path, client):
     """Test that GET /api/ph/auto/debug returns expected structure."""
     # Insert reading
     insert_reading(db_path, ph=5.9, ec=1.8)

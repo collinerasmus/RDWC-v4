@@ -5,15 +5,16 @@ Fast, minimal tests that don't require special hardware mocking.
 Run with: pytest -m smoke tests/test_ph_auto_smoke.py
 """
 import pytest
-import requests
+from fastapi.testclient import TestClient
+from app.main import app
 
-API_BASE = "http://127.0.0.1:8080"
+client = TestClient(app)
 
 
 @pytest.mark.smoke
 def test_status_auto_keys_present():
     """Verify /api/ph/status contains required auto fields."""
-    resp = requests.get(f"{API_BASE}/api/ph/status", timeout=5)
+    resp = client.get("/api/ph/status")
     assert resp.status_code == 200
     
     data = resp.json()
@@ -42,13 +43,13 @@ def test_status_auto_keys_present():
 def test_reset_endpoint_works():
     """Verify /api/ph/auto/learn/reset returns ok and resets learned value."""
     # Get initial learned value
-    resp1 = requests.get(f"{API_BASE}/api/ph/status", timeout=5)
+    resp1 = client.get("/api/ph/status")
     assert resp1.status_code == 200
     learned_before = resp1.json()["auto"]["learned_ml_per_pH"]
     print(f"Learned before reset: {learned_before}")
     
     # Call reset endpoint
-    resp2 = requests.post(f"{API_BASE}/api/ph/auto/learn/reset", timeout=5)
+    resp2 = client.post("/api/ph/auto/learn/reset")
     assert resp2.status_code == 200
     
     reset_data = resp2.json()
@@ -57,7 +58,7 @@ def test_reset_endpoint_works():
     assert "message" in reset_data, "Missing 'message' in reset response"
     
     # Verify learned value is now default (50.0)
-    resp3 = requests.get(f"{API_BASE}/api/ph/status", timeout=5)
+    resp3 = client.get("/api/ph/status")
     assert resp3.status_code == 200
     learned_after = resp3.json()["auto"]["learned_ml_per_pH"]
     print(f"Learned after reset: {learned_after}")
@@ -72,7 +73,7 @@ def test_reset_endpoint_works():
 @pytest.mark.smoke
 def test_debug_endpoint_structure():
     """Verify /api/ph/auto/debug returns expected structure."""
-    resp = requests.get(f"{API_BASE}/api/ph/auto/debug", timeout=5)
+    resp = client.get("/api/ph/auto/debug")
     assert resp.status_code == 200
     
     data = resp.json()

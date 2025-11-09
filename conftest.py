@@ -11,6 +11,9 @@ os.environ.setdefault("GPIOZERO_PIN_NUMBERING", "BCM")
 def reset_relays_between_tests():
     try:
         from app import relays_core as rc
+        from app import relay_guard
+        # Initialize relay_guard to prevent REJECTED errors
+        relay_guard.init_safe()
         rc.initialize_all_safe_off()
         # Clear anti-flap and backdate last change to avoid MIN_OFF blocking first ON
         rc._antiflap_until.clear()
