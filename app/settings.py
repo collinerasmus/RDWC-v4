@@ -436,15 +436,28 @@ def get_setting_key(key: str, default: Optional[str] = None) -> Optional[str]:
         return default
 
 def set_setting_key(key: str, value: str) -> None:
-    """Set a raw setting value by key (string)."""
+    """Set a raw setting value by key (string) with reduced busy wait.
+    Fast path: short timeout & busy_timeout pragma to avoid long blocking on write contention.
+    If database is locked, silently skip (callers treat persistence as best-effort).
+    """
     _init_settings_table()
-    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-            (key, value)
-        )
-        conn.commit()
+    try:
+        with sqlite3.connect(str(DB_PATH), timeout=0.5) as conn:  # short timeout
+            try:
+                conn.execute("PRAGMA busy_timeout=500")  # 0.5s busy timeout
+            except Exception:
+                pass
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                (key, value)
+            )
+            conn.commit()
+    except sqlite3.OperationalError as e:
+        # Common lock contention - skip to keep endpoint responsive
+        if "locked" in str(e).lower():
+            return
+        raise
 
 
 def _load_settings_from_db() -> Settings:

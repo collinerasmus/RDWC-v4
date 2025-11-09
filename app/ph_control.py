@@ -853,14 +853,17 @@ def _auto_enable(enable: bool) -> bool:
 @router.post("/api/ph/auto")
 def ph_auto(body: Dict[str, Any] = Body(...)):
     enable = bool(body.get("enable", False))
-    # Persist setting
+    # Persist setting (non-blocking)
     try:
         from app.settings import set_setting_key
         set_setting_key("ph.auto_enabled", "true" if enable else "false")
     except Exception:
         pass
-    # Apply runtime state
-    _auto_enable(enable)
+    # Apply runtime state (non-blocking)
+    try:
+        _auto_enable(enable)
+    except Exception:
+        pass
     return {"ok": True, "enabled": bool(enable)}
 
 

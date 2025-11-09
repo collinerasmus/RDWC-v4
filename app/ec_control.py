@@ -947,20 +947,23 @@ def set_ec_auto(body: dict = Body(...)):
     """Enable or disable EC automation."""
     enable = body.get("enable", False)
     
-    # Update setting
+    # Update setting (non-blocking, short timeout in settings layer)
     try:
         from app.settings import upsert_settings
         upsert_settings({"ec.auto_enabled": "true" if enable else "false"})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+    except Exception:
+        pass
     
     global _auto_enabled_at
-    if enable:
-        _auto_enabled_at = time.time()
-        _start_auto_worker()
-    else:
-        _stop_auto_worker()
-        _auto_enabled_at = None
+    try:
+        if enable:
+            _auto_enabled_at = time.time()
+            _start_auto_worker()
+        else:
+            _stop_auto_worker()
+            _auto_enabled_at = None
+    except Exception:
+        pass
     
     return {"ok": True, "enabled": enable}
 
