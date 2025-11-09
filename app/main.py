@@ -64,6 +64,8 @@ def _compute_asset_version() -> str:
 # Asset version for cache-busting of static JS/CSS assets (used by /api/version and loader)
 ASSET_VERSION = _compute_asset_version()
 
+app = FastAPI()
+
 # --- Progress state (in-memory with occasional recompute) ---
 _progress_cache = {
     "last_compute_ts": 0.0,
@@ -173,7 +175,7 @@ def api_progress(force: bool = Query(False)):
         'computed_ts': _progress_cache['last_compute_ts'],
     }
 
-app = FastAPI()
+ 
 
 # --- Startup hook: ensure sensor LEDs honor persistent setting (default ON) ---
 @app.on_event("startup")
