@@ -1,12 +1,30 @@
-"""Stabilized Atlas EZO I2C helper for minimal smbus2 environments.
+"""Stabilized Atlas EZO I2C helper.
 
-Only uses byte/byte_data primitives (no i2c_rdwr / block ops). Adds optional
-debug logging of status bytes via RDWC_EZO_DEBUG=1.
+Tries to prefer system smbus2 (with i2c_rdwr + block I/O). If unavailable,
+falls back to minimal byte/byte_data primitives.
 """
 
 from time import sleep, monotonic
-from smbus2 import SMBus
 import logging
+import sys
+from pathlib import Path
+
+# Prefer system smbus2 over any vendored copy in the repo
+_repo_root = Path(__file__).resolve().parents[1]
+_removed = False
+if str(_repo_root) in sys.path:
+    sys.path.remove(str(_repo_root))
+    _removed = True
+try:
+    from smbus2 import SMBus, i2c_msg
+    _HAS_I2C_MSG = True
+except Exception:  # pragma: no cover
+    from smbus2 import SMBus  # type: ignore
+    i2c_msg = None  # type: ignore
+    _HAS_I2C_MSG = False
+finally:
+    if _removed:
+        sys.path.insert(0, str(_repo_root))
 
 PH_ADDR = 0x63
 EC_ADDR = 0x64
@@ -21,8 +39,8 @@ class EZO:
         self.addr = addr
         self.name = name
         self.bus = SMBus(bus_num)
-        # Capability flags (we won't use advanced ones but log them)
-        self.has_i2c_rdwr = hasattr(self.bus, 'i2c_rdwr')
+        # Capability flags
+        self.has_i2c_rdwr = hasattr(self.bus, 'i2c_rdwr') and (i2c_msg is not None)
         self.has_block_io = hasattr(self.bus, 'write_i2c_block_data') and hasattr(self.bus, 'read_i2c_block_data')
         logger.debug(
             f"EZO {name} (0x{addr:02x}): has_i2c_rdwr={self.has_i2c_rdwr}, "
@@ -37,9 +55,17 @@ class EZO:
             sleep(0.0015)
 
     def _read(self, n: int) -> bytes:
+        # Prefer block read if available
+        if self.has_i2c_rdwr and i2c_msg is not None:
+            rx = i2c_msg.read(self.addr, n)
+            self.bus.i2c_rdwr(rx)
+            return bytes(rx)
+        if self.has_block_io:
+            return bytes(self.bus.read_i2c_block_data(self.addr, 0x00, n))
+        # Fallback: byte-by-byte from 0x00 (status only reliable)
         out = []
         for _ in range(n):
-            out.append(self.bus.read_byte_data(self.addr, 0x00))  # type: ignore[attr-defined]
+            out.append(self.bus.read_byte_data(self.addr, 0x00))
         return bytes(out)
 
     def cmd(self, cmd: str, read_len: int = 32, settle: float = 0.3) -> str:
