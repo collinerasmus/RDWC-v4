@@ -7,7 +7,6 @@ debug logging of status bytes via RDWC_EZO_DEBUG=1.
 from time import sleep, monotonic
 from smbus2 import SMBus
 import logging
-import os
 
 PH_ADDR = 0x63
 EC_ADDR = 0x64
@@ -55,9 +54,9 @@ class EZO:
         status = raw[0]
         data_bytes = raw[1:].rstrip(b"\x00")
         data = data_bytes.decode('ascii', errors='ignore').strip()
+        # Always log non-ready status for diagnostics (RTD timeout investigation)
         if status != 1:
-            if os.getenv("RDWC_EZO_DEBUG", "0") == "1":
-                logger.debug(f"EZO {self.name} status={status} raw={raw!r} partial='{data}'")
+            logger.debug(f"EZO {self.name} status={status} raw_len={len(raw)} raw_head={raw[:8]!r} partial='{data}'")
             return ""
         return data
 
