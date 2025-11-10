@@ -32,122 +32,6 @@ body{
   margin:0;
 }
 
-/* Ensure predictable box model everywhere */
-*, *::before, *::after{ box-sizing: border-box; }
-.container{
-  margin: 0 auto;
-  padding: var(--gap);
-  max-width: var(--maxw);
-}
-h1{font-weight:700;font-size:22px;margin:0 0 14px;color:#fafafa;}
-h2, h3{
-  color:#fafafa;
-  font-size:1.1rem;
-  font-weight:600;
-  margin:0 0 12px 0;
-}
-.card-header{
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(148,163,184,0.1);
-}
-.card-title{
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: #f0f9ff;
-}
-.card{
-  background:#111827;
-  border:1px solid #1f2937;
-  border-radius:var(--radius);
-  padding:var(--pad);
-  box-shadow: 0 2px 12px rgba(0,0,0,.25);
-  box-sizing: border-box;
-  position: relative;
-  transition: box-shadow 0.3s ease;
-}
-.card:hover{
-  box-shadow: 0 0 12px rgba(0,255,255,0.05), 0 2px 12px rgba(0,0,0,.25);
-}
-.card + .card{ margin-top: var(--gap); }
-.card-wide{ width: 100%; box-sizing: border-box; }
-
-/* Buttons: chip-style tabs and secondary actions */
-.btn-chip{
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 1px solid #334155; /* slate-700 */
-  background: #0f172a;       /* slate-900 */
-  color: #cbd5e1;            /* slate-300 */
-  font-weight: 600;
-  font-size: 0.9rem;
-  cursor: pointer;
-  flex: 0 0 auto;
-  transition: all 0.2s ease;
-  position: relative;
-}
-.btn-chip:hover{
-  background: rgba(59,130,246,.08);
-  border-color: rgba(59,130,246,.3);
-  transform: translateY(-1px);
-}
-.btn-chip.active{
-  background: rgba(59,130,246,.18); /* blue-500/20 */
-  border-color: rgba(59,130,246,.5);
-  color: #93c5fd;
-  box-shadow: 0 0 8px rgba(59,130,246,0.15);
-}
-.ctrl-health-dot{position:absolute;top:4px;right:6px;width:8px;height:8px;border-radius:50%;background:#475569;box-shadow:0 0 0 2px rgba(0,0,0,.45);transition:background .25s ease, box-shadow .25s ease;}
-.ctrl-health-dot.ok{background:#22c55e;box-shadow:0 0 0 2px rgba(34,197,94,.4),0 0 6px 2px rgba(34,197,94,.35);}
-.ctrl-health-dot.warn{background:#f59e0b;box-shadow:0 0 0 2px rgba(245,158,11,.45),0 0 4px 2px rgba(245,158,11,.35);}
-.ctrl-health-dot.bad{background:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.5),0 0 4px 2px rgba(239,68,68,.4);}
-.ctrl-health-dot.maint{background:#64748b;box-shadow:0 0 0 2px rgba(100,116,139,.45);opacity:.7;}
-/* subtle pulse when state changes */
-@keyframes dotPulse{0%{transform:scale(1);}50%{transform:scale(1.25);}100%{transform:scale(1);}}
-.ctrl-health-dot.changed{animation: dotPulse 0.8s ease-in-out 1;}
-
-/* Refined inline layout for controller buttons */
-.ctrl-with-dot{display:inline-flex;align-items:center;gap:10px;padding-left:14px;padding-right:14px;}
-.ctrl-with-dot .ctrl-label{display:inline-block;line-height:1;}
-.ctrl-with-dot .ctrl-health-dot{position:static;width:8px;height:8px;flex:0 0 8px;border-radius:50%;box-shadow:0 0 0 2px rgba(0,0,0,.45);} 
-.ctrl-with-dot.active .ctrl-health-dot{box-shadow:0 0 0 2px rgba(59,130,246,.35),0 0 4px 1px rgba(59,130,246,.25);} /* subtle highlight when active */
-.btn-chip.active::before{
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 60%;
-  height: 2px;
-  background: #3b82f6;
-  border-radius: 2px;
-}
-.btn-secondary{
-  padding: 8px 14px;
-  border-radius: 8px;
-  border: 1px solid #374151; /* gray-700 */
-  background: #1f2937;       /* gray-800 */
-  color: #e5e7eb;            /* gray-200 */
-  font-weight: 600;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-}
-.btn-secondary:hover{
-  background: #374151;
-  border-color: #4b5563;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-.btn-secondary:active{
-  transform: translateY(0);
-}
-.btn-secondary:disabled{
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
 .btn-secondary:disabled:hover{
   background: #1f2937;
   border-color: #374151;
@@ -803,15 +687,14 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- Top-level Tabs Navigation -->
   <nav id="tabs-nav" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px 0;padding-bottom:4px;" aria-label="Primary sections">
     <span id="controllers-status-live" aria-live="polite"></span>
-  <button class="btn-chip ctrl-with-dot" data-tab="calibration" aria-label="Calibration"><span class="ctrl-label">🎯 Calibration</span><span class="ctrl-health-dot" data-controller="calibration" aria-label="Calibration status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="ph" aria-label="pH"><span class="ctrl-label">🧪 pH</span><span class="ctrl-health-dot" data-controller="ph" aria-label="pH status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="ec" aria-label="EC"><span class="ctrl-label">⚡ EC</span><span class="ctrl-health-dot" data-controller="ec" aria-label="EC status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="schedule" aria-label="Scheduler"><span class="ctrl-label">📅 Scheduler</span><span class="ctrl-health-dot" data-controller="schedule" aria-label="Schedule status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="overview" aria-label="Overview"><span class="ctrl-label">📊 Overview</span><span class="ctrl-health-dot" data-controller="overview" aria-label="Overview status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="sensors" aria-label="Sensors"><span class="ctrl-label">🔬 Sensors</span><span class="ctrl-health-dot" data-controller="sensors" aria-label="Sensors status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="ph" aria-label="pH"><span class="ctrl-label">🧪 pH</span><span class="ctrl-health-dot" data-controller="ph" aria-label="pH status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="ec" aria-label="EC"><span class="ctrl-label">⚡ EC</span><span class="ctrl-health-dot" data-controller="ec" aria-label="EC status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="temp" aria-label="Environment"><span class="ctrl-label">🌿 Environment</span><span class="ctrl-health-dot" data-controller="temp" aria-label="Environment status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="circulation" aria-label="Circulation"><span class="ctrl-label">🔄 Circulation</span><span class="ctrl-health-dot" data-controller="circulation" aria-label="Circulation status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="lights" aria-label="Lights"><span class="ctrl-label">💡 Lights</span><span class="ctrl-health-dot" data-controller="lights" aria-label="Lights status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="schedule" aria-label="Scheduler"><span class="ctrl-label">📅 Scheduler</span><span class="ctrl-health-dot" data-controller="schedule" aria-label="Schedule status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="settings" aria-label="System"><span class="ctrl-label">🛠️ System</span><span class="ctrl-health-dot" data-controller="settings" aria-label="System status"></span></button>
   </nav>
 
@@ -2114,7 +1997,6 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       <button class="btn btn-chip" data-tab="safety">Safety</button>
       <button class="btn btn-chip" data-tab="alerts">Alerts</button>
       <button class="btn btn-chip" data-tab="ui">UI</button>
-      <button class="btn btn-chip" data-tab="calibration">Calibration</button>
     </div>
     <div id="settings-panels" style="margin-top:10px;"></div>
     <div id="settings-note" class="muted" style="margin-top:8px;font-size:12px;">Changes apply immediately unless noted; relays never energize on save.</div>
@@ -2705,11 +2587,11 @@ window.CircControl = (function(){
         window.__app_version = (j&&j.version)||null;
         try{ var vEl=document.getElementById('build-version'); if(vEl) vEl.textContent = window.__app_version || 'n/a'; }catch(e){}
         // Critical scripts only for initial interactive dashboard
-  return seq(['tabs.js','global_health.js','overview.js','system.js','sensors.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js','calibration.js'], window.__app_version);
+  return seq(['tabs.js','global_health.js','overview.js','system.js','sensors.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .catch(function(){
         window.__app_version = (new Date()).toISOString().slice(0,10);
-  return seq(['tabs.js','global_health.js','overview.js','system.js','sensors.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js','calibration.js'], window.__app_version);
+  return seq(['tabs.js','global_health.js','overview.js','system.js','sensors.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .finally(function(){ scheduleDeferred(window.__app_version); try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();
