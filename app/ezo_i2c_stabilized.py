@@ -63,13 +63,13 @@ class EZO:
             sleep(0.0015)
 
     def _read(self, n: int) -> bytes:
-        # Prefer block read if available; else i2c_msg; else byte-by-byte
-        if self.has_block_io:
-            return bytes(self.bus.read_i2c_block_data(self.addr, 0x00, n))  # type: ignore[attr-defined]
+        # Prefer i2c_rdwr read (more faithful), then block I/O, then byte-by-byte
         if self.has_i2c_rdwr and i2c_msg is not None:
             rx = i2c_msg.read(self.addr, n)
             self.bus.i2c_rdwr(rx)
             return bytes(rx)
+        if self.has_block_io:
+            return bytes(self.bus.read_i2c_block_data(self.addr, 0x00, n))  # type: ignore[attr-defined]
         out = []
         for _ in range(n):
             out.append(self.bus.read_byte_data(self.addr, 0x00))  # type: ignore[attr-defined]
