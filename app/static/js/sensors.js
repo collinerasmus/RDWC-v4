@@ -32,6 +32,23 @@
   
   // Initialize mode buttons on load
   sensorsSetMode(sensorsMode);
+
+  // Demo mode shortcut: populate synthetic readings & skip network traffic
+  if (window.UI_DEMO){
+    console.warn('[Sensors] UI_DEMO active: using simulated data');
+    let t=22.4, e=1.40, p=5.90; // base values
+    const drift=()=> (Math.random()*0.06-0.03);
+    setInterval(()=>{
+      t = t + drift(); e = e + drift()*0.2; p = p + drift()*0.1;
+      setMetric($("kpiTemp"), t, classify("temp", t));
+      setMetric($("kpiEc"),   e, classify("ec", e));
+      setMetric($("kpiPh"),   p, classify("ph", p));
+      const updated = $("sensors-updated");
+      if (updated){ updated.innerHTML = 'Updated: '+new Date().toLocaleTimeString()+ ' <span style="color:#22c55e;">(demo)</span>'; }
+      setOnline(true);
+    }, 3000);
+    return; // Abort real wiring
+  }
   
   const setMetric = (el, val, classes) => {
     if (!el) return;

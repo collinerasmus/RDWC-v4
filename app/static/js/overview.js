@@ -149,7 +149,26 @@
       } catch(_){}
     }
   }
-  function init(){ refresh(); setInterval(refresh, 3000); bindEstopBtn(); }
+  function init(){
+    if (window.UI_DEMO){
+      console.warn('[Overview] UI_DEMO active: simulating overview chips');
+      const set = (id, text, cls)=>{ const el=q(id); if(el){ el.textContent=text; el.className='ui-status-chip '+cls; }};
+      const b = (id, on)=>{ const el=q(id); if(el){ el.className='bop-status-badge '+(on?'on':'off'); }};
+      // Simulate stable healthy system
+      set('#ov-ph-modechip','MANUAL','neutral'); set('#ov-ph-health','GUARDED','warning');
+      set('#ov-ec-modechip','MANUAL','neutral'); set('#ov-ec-health','GUARDED','warning');
+      set('#ov-chiller-modechip','AUTO 19.8°C','success');
+      set('#ov-main-pump-modechip','PROTECTED','success');
+      set('#ov-lights-modechip','SCHEDULE','success');
+      set('#ov-schedule-chip','ENABLED','success');
+      set('#ov-system-modechip','MANUAL','neutral'); set('#ov-system-health','OK','success');
+      const el=q('#ov-sensors-health'); if(el){ el.textContent='ONLINE'; el.className='ui-status-chip success'; }
+      b('#ov-lights', true); b('#ov-main-pump', true); b('#ov-chiller-pump', true); b('#ov-chiller', true);
+      bindEstopBtn();
+      return; // Skip network refresh in demo
+    }
+    refresh(); setInterval(refresh, 3000); bindEstopBtn();
+  }
   function bindEstopBtn(){
     // Bind all E-STOP buttons across all tabs
     const btns = document.querySelectorAll('.header-estop-btn, #estop-btn');

@@ -4,8 +4,20 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251110g"/><!-- Cache-buster: sensors fallback chain -->
+<meta name="version" content="20251110h"/><!-- Cache-buster: add UI demo mode -->
 <link rel="stylesheet" href="/static/css/app.css" />
+  <script>
+    // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
+    (function(){
+      try{
+        const params = new URLSearchParams(window.location.search);
+        const q = params.get('demo');
+        if (q === '1' || q === 'true') localStorage.setItem('ui_demo','1');
+        if (q === '0' || q === 'false') localStorage.removeItem('ui_demo');
+        window.UI_DEMO = localStorage.getItem('ui_demo') === '1';
+      }catch(_){ window.UI_DEMO = false; }
+    })();
+  </script>
 <!-- Chart libraries deferred: will be loaded lazily after idle or when chart tabs opened -->
 <style>
 :root{
