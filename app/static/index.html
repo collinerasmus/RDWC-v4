@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251110a"/><!-- Cache-buster: theming + estop styling -->
+<meta name="version" content="20251110b"/><!-- Cache-buster: header normalization -->
 <link rel="stylesheet" href="/static/css/app.css" />
 <!-- Chart libraries deferred: will be loaded lazily after idle or when chart tabs opened -->
 <style>
@@ -803,15 +803,17 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <button id="schedule-mode-manual" class="btn-chip" onclick="window.scheduleSetMode?window.scheduleSetMode('manual'):0">Manual</button>
           <button id="schedule-mode-maint" class="btn-chip" onclick="window.scheduleSetMode?window.scheduleSetMode('maintenance'):0">Maintenance</button>
         </div>
-        <span id="schedule-health-indicator" class="ui-status-chip success" title="Schedule health">OK</span>
-        <span id="schedule-current-week-pill" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.10);border:1px solid rgba(59,130,246,0.35);font-size:0.75rem;">Week —</span>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-  <button id="scheduleSeedBtn" class="btn-secondary primary" title="Seed default 12-week schedule (non-destructive)">Seed Defaults</button>
-  <button id="header-estop-btn-schedule" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
+        <button id="header-estop-btn-schedule" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
     <div class="card-body" style="padding:0;">
+      <div id="schedule-meta" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 12px 4px 12px;">
+        <span id="schedule-health-indicator" class="ui-status-chip success" title="Schedule health">OK</span>
+        <span id="schedule-current-week-pill" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.10);border:1px solid rgba(59,130,246,0.35);font-size:0.75rem;">Week —</span>
+        <button id="scheduleSeedBtn" class="btn-secondary primary" title="Seed default 12-week schedule (non-destructive)">Seed Defaults</button>
+      </div>
       <div id="schedule-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;padding:12px;">
         <!-- Timeline Card -->
         <div id="schedule-timeline" class="card" style="margin:0;min-height:220px;display:flex;flex-direction:column;">
@@ -1168,17 +1170,19 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <section id="temp-card" class="card card-wide tab-section" data-tab="temp" style="display:none;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-  <h3 class="card-title" style="margin:0;">Chiller Controller</h3>
+        <h3 class="card-title" style="margin:0;">Chiller Controller</h3>
         <div class="env-mode-buttons" style="display:flex;gap:6px;">
           <button id="env-mode-auto" class="btn-chip" onclick="window.envSetMode?window.envSetMode('auto'):0">Auto</button>
           <button id="env-mode-manual" class="btn-chip active" onclick="window.envSetMode?window.envSetMode('manual'):0">Manual</button>
           <button id="env-mode-maint" class="btn-chip" onclick="window.envSetMode?window.envSetMode('maintenance'):0">Maintenance</button>
         </div>
-  <span id="env-health-indicator" class="ui-status-chip success" title="Chiller health">OK</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
-  <button id="header-estop-btn-temp" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
+        <button id="header-estop-btn-temp" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
+    </div>
+    <div id="env-meta" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 8px 0;">
+      <span id="env-health-indicator" class="ui-status-chip success" title="Chiller health">OK</span>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px;">
@@ -1288,12 +1292,14 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <button id="lights-mode-auto" class="btn-chip" onclick="window.lightsSetMode?window.lightsSetMode('auto'):0">Auto</button>
           <button id="lights-mode-maint" class="btn-chip" onclick="window.lightsSetMode?window.lightsSetMode('maintenance'):0">Maintenance</button>
         </div>
-        <span id="lights-health-indicator" class="ui-status-chip neutral" title="Controller health">—</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div class="muted" id="lights-window-preview" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.35);">Window: —</div>
-  <button id="header-estop-btn-lights" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
+        <button id="header-estop-btn-lights" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
+    </div>
+    <div id="lights-meta" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 8px 0;">
+      <span id="lights-health-indicator" class="ui-status-chip neutral" title="Controller health">—</span>
+      <div class="muted" id="lights-window-preview" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.35);">Window: —</div>
     </div>
     <div class="card-body">
       <!-- KPI style row (current state + schedule status) -->
@@ -1346,11 +1352,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <button id="circ-mode-manual" class="btn-chip active" onclick="window.circSetMode?window.circSetMode('manual'):0">Manual</button>
           <button id="circ-mode-maint" class="btn-chip" onclick="window.circSetMode?window.circSetMode('maintenance'):0">Maintenance</button>
         </div>
-        <span id="circ-health-indicator" class="ui-status-chip success" title="Circulation health">OK</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
-  <button id="header-estop-btn-circ" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
+        <button id="header-estop-btn-circ" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
+    </div>
+    <div id="circ-meta" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 8px 0;">
+      <span id="circ-health-indicator" class="ui-status-chip success" title="Circulation health">OK</span>
     </div>
     <div class="card-body">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
@@ -1486,23 +1494,23 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
             <h3 class="card-title" style="margin:0;">pH Control</h3>
-            <!-- Mode Selection Buttons -->
             <div class="ph-mode-buttons" style="display:flex;gap:6px;">
               <button id="ph-mode-manual" class="btn-chip active" onclick="window.phSetMode?window.phSetMode('manual'):alert('Loading...')">Manual</button>
               <button id="ph-mode-auto" class="btn-chip" onclick="window.phSetMode?window.phSetMode('auto'):alert('Loading...')">Auto</button>
               <button id="ph-mode-maint" class="btn-chip" onclick="window.phSetMode?window.phSetMode('maintenance'):alert('Loading...')">Maintenance</button>
             </div>
-            <!-- Controller Health Indicator -->
-            <span id="ph-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
           </div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <label class="muted" title="Controller outputs are inhibited; manual dosing allowed. Hard safety interlocks still enforced." style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.06);color:#fecaca;font-size:0.85rem;">
-              <input id="ph-maint-toggle" type="checkbox" style="accent-color:#ef4444;" />
-              Maintenance Override
-            </label>
-            <div class="muted" id="ph-band">Targets 5.8 – 6.2</div>
             <button id="header-estop-btn-ph" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
           </div>
+        </div>
+        <div id="ph-meta" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 8px 0;">
+          <span id="ph-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
+          <label class="muted" title="Controller outputs are inhibited; manual dosing allowed. Hard safety interlocks still enforced." style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.06);color:#fecaca;font-size:0.75rem;">
+            <input id="ph-maint-toggle" type="checkbox" style="accent-color:#ef4444;" />
+            Maint Override
+          </label>
+          <div class="muted" id="ph-band" style="font-size:0.75rem;">Targets 5.8 – 6.2</div>
         </div>
 
         <div class="card-body">
@@ -1758,29 +1766,27 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <h3 class="card-title" style="margin:0;">EC Control</h3>
-              <!-- 3-mode header buttons (Manual/Auto/Maintenance) -->
               <div class="ec-mode-buttons" style="display:flex;gap:6px;">
                 <button id="ec-mode-manual" class="btn-chip active" onclick="window.ecSetMode?window.ecSetMode('manual'):alert('Loading...')">Manual</button>
                 <button id="ec-mode-auto" class="btn-chip" onclick="window.ecSetMode?window.ecSetMode('auto'):alert('Loading...')">Auto</button>
                 <button id="ec-mode-maint" class="btn-chip" onclick="window.ecSetMode?window.ecSetMode('maintenance'):alert('Loading...')">Maintenance</button>
               </div>
-              <!-- Controller Health Indicator -->
-              <span id="ec-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
-              <!-- Existing chips -->
-              <span id="ecOverrideBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.85rem;" title="OVERRIDE ON">OVERRIDE ON</span>
-              <span id="ecKChip" class="ui-status-chip neutral">K=—</span>
-              <span id="ecCalChip" class="ui-status-chip neutral">Cal: —</span>
-              <button id="btnEcDebug" class="btn-text" style="padding:4px 8px;font-size:0.85rem;opacity:0.6;" title="EC scale diagnostics">🔍 Debug</button>
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-              <label class="muted" title="Controller outputs are inhibited; manual dosing allowed. Hard safety interlocks still enforced." style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.06);color:#fecaca;font-size:0.85rem;">
-                <input id="ec-maint-toggle" type="checkbox" style="accent-color:#ef4444;" />
-                Maintenance Override
-              </label>
-              <div class="muted" id="ec-band">Targets 0.8 – 1.2 mS/cm</div>
               <button id="header-estop-btn-ec" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
             </div>
-            </div>
+          </div>
+          <div id="ec-meta" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 8px 0;">
+            <span id="ec-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
+            <span id="ecOverrideBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.75rem;" title="OVERRIDE ON">OVERRIDE ON</span>
+            <span id="ecKChip" class="ui-status-chip neutral">K=—</span>
+            <span id="ecCalChip" class="ui-status-chip neutral">Cal: —</span>
+            <button id="btnEcDebug" class="btn-text" style="padding:4px 8px;font-size:0.75rem;opacity:0.6;" title="EC scale diagnostics">🔍 Debug</button>
+            <label class="muted" title="Controller outputs are inhibited; manual dosing allowed. Hard safety interlocks still enforced." style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.06);color:#fecaca;font-size:0.75rem;">
+              <input id="ec-maint-toggle" type="checkbox" style="accent-color:#ef4444;" />
+              Maint Override
+            </label>
+            <div class="muted" id="ec-band" style="font-size:0.75rem;">Targets 0.8 – 1.2 mS/cm</div>
           </div>
           <div class="card-body">
             <div id="ec-reservoir-banner" class="muted" style="display:none;margin-bottom:8px;padding:6px 10px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#fecaca;">
@@ -2059,24 +2065,26 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- 6. System (Settings + Relays consolidated) -->
   <section id="settings-card" class="card card-wide tab-section" data-tab="settings" style="display:none;">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <h3 class="card-title" style="margin:0;">System</h3>
-        <div class="mode-toggle" style="display:flex;gap:8px;align-items:center;">
-          <button id="mode-manual" class="mode-btn">Manual</button>
-          <button id="mode-auto" class="mode-btn">Auto</button>
-          <span style="opacity:.35;">|</span>
-          <button id="estop-btn" class="estop-btn" title="Emergency Stop: forces all relays OFF and blocks ON until released">E‑STOP</button>
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h3 class="card-title" style="margin:0;">System Settings</h3>
+        <div class="system-mode-buttons" style="display:flex;gap:6px;">
+          <button id="mode-auto" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('auto'):0">Auto</button>
+          <button id="mode-manual" class="btn-chip active" onclick="window.systemSetMode?window.systemSetMode('manual'):0">Manual</button>
+          <button id="mode-maint" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('maintenance'):0">Maintenance</button>
         </div>
-        <span id="system-relays-health" class="ui-status-chip neutral" title="Relays status">—</span>
       </div>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-        <button id="btnExportSettings" class="btn-secondary">Export JSON</button>
-        <label class="btn-secondary" style="cursor:pointer;">
-          Import JSON <input id="importFile" type="file" accept=".json,application/json" style="display:none;"/>
-        </label>
-        <button id="btnSaveSettings" class="btn-secondary" disabled>Save</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <button id="estop-btn" class="btn-secondary danger" title="Emergency Stop: forces all relays OFF and blocks ON until released">E‑STOP</button>
       </div>
+    </div>
+    <div id="system-meta" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 12px 0;">
+      <span id="system-relays-health" class="ui-status-chip neutral" title="Relays status">—</span>
+      <button id="btnExportSettings" class="btn-secondary" style="margin-left:auto;">Export JSON</button>
+      <label class="btn-secondary" style="cursor:pointer;">
+        Import JSON <input id="importFile" type="file" accept=".json,application/json" style="display:none;"/>
+      </label>
+      <button id="btnSaveSettings" class="btn-secondary" disabled>Save</button>
     </div>
     <!-- System Status Engineering Panel -->
     <div style="margin-bottom:24px;padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;">
