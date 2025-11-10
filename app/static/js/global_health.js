@@ -29,9 +29,10 @@
     if(!status) return {state:'bad', title:'No status'};
     const age = status.last_sample_ts ? (Date.now()/1000 - status.last_sample_ts) : Infinity;
     const running = !!status.running;
+    // Overview logic: online = running && age < 60. Age >=60 treated same as offline.
     if(!running) return {state:'offline', title:'Offline'};
-    if(age >= 60) return {state:'warn', title:`Stale ${Math.round(age)}s`};
-    return {state:'ok', title:'Fresh'};
+    if(age >= 60) return {state:'offline', title:`Offline (stale ${Math.round(age)}s)`};
+    return {state:'ok', title:`Fresh ${Math.round(age)}s`};
   }
 
   function classifyPh(ph){
@@ -83,8 +84,10 @@
     if(!relays) return {state:'bad', title:'No relays'};
     if(relays.estop) return {state:'bad', title:'E-STOP'};
     const mp = relays.relays && relays.relays.main_pump;
-    if(mp && mp.is_on) return {state:'ok', title:'Main pump on'};
-    return {state:'warn', title:'Main pump off'}; // typically should be on
+    const isOn = !!(mp && mp.is_on);
+    // In MANUAL mode, off is acceptable; warn only in AUTO when expected on
+    if(relays.mode === 'manual') return {state:'ok', title: isOn ? 'Main pump on' : 'Main pump off'};
+    return isOn ? {state:'ok', title:'Main pump on'} : {state:'warn', title:'Main pump off'};
   }
 
   function classifySchedule(relays){
