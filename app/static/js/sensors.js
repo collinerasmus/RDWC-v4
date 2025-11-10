@@ -156,6 +156,40 @@
     }catch(err){
       console.error("[Sensors] Fetch error:", err);
       setOnline(false);
+      // Fallback: attempt /api/sensors/status then /api/sensors/read (db mode)
+      try {
+        const statusR = await fetch('/api/sensors/status',{cache:'no-store'});
+        if (statusR.ok){
+          const statusJ = await statusR.json();
+          if (Array.isArray(statusJ.recent) && statusJ.recent.length){
+            const row = statusJ.recent[0];
+            const t = row.temperature_c ?? row.temp_c ?? null;
+            const e = row.ec_mscm ?? row.ec_ms_cm ?? null;
+            const p = row.ph ?? null;
+            setMetric($("kpiTemp"), t, classify("temp", t));
+            setMetric($("kpiEc"),   e, classify("ec", e));
+            setMetric($("kpiPh"),   p, classify("ph", p));
+            const updated = $("sensors-updated");
+            if (updated && row.ts){
+              const ts = new Date(row.ts * 1000);
+              const age = Math.max(0, Math.round((Date.now() - ts.getTime())/1000));
+              updated.innerHTML = `Updated: ${ts.toLocaleTimeString()} <span style="color:${age>=300?'#ef4444':age>=60?'#f59e0b':'#22c55e'};">(${age}s ago)</span>`;
+            }
+            return; // Fallback satisfied
+          }
+        }
+        // Secondary fallback: /api/sensors/read (db)
+        const lastR = await fetch('/api/sensors/read',{cache:'no-store'});
+        if (lastR.ok){
+          const lastJ = await lastR.json();
+          const t = lastJ.temperature_c ?? null;
+          const e = lastJ.ec_mscm ?? null;
+          const p = lastJ.ph ?? null;
+          setMetric($("kpiTemp"), t, classify("temp", t));
+          setMetric($("kpiEc"),   e, classify("ec", e));
+          setMetric($("kpiPh"),   p, classify("ph", p));
+        }
+      } catch(_) { /* swallow fallback errors */ }
     }
   }
   // Collapsible recent readings (ph-style)
