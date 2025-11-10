@@ -102,22 +102,38 @@ class EZO:
             pass
 
     def read_value(self, request: str = "R", timeout: float = 1.8, poll: float = 0.15) -> str:
+        """Issue a single measurement command and poll until ready or timeout.
+
+        Atlas EZO timing (approx): RTD ~600-650ms, pH/EC ~900-950ms. We give
+        a generous first wait then poll with shorter intervals. We rely on
+        i2c_rdwr when available to ensure proper repeated-start framing.
+        """
         start = monotonic()
-        # Send request with minimal settle; we'll do explicit first wait appropriate to sensor type
+        # Send command (no immediate read)
         self.cmd(request, read_len=0, settle=0.0)
-        initial_wait = 0.6 if self.name == "RTD" else 0.9  # Atlas timing spec
+        initial_wait = 0.65 if self.name == "RTD" else 0.95
         sleep(initial_wait)
-        result = self.cmd("", read_len=32, settle=0.05)
-        if not result:
-            # Additional polling window
-            while monotonic() - start < timeout:
-                result = self.cmd("", read_len=32, settle=0.05)
-                if result:
-                    break
+
+        # Poll loop: one read per attempt, break on status=1
+        while monotonic() - start < timeout:
+            raw = self._read(32)
+            if not raw:
                 sleep(poll)
-        if not result:
-            raise TimeoutError(f"{self.name} no data")
-        return result.split(",")[0].strip()
+                continue
+            status = raw[0]
+            if status == 1:  # success
+                data_bytes = raw[1:].replace(b"\xff", b"\x00").rstrip(b"\x00")
+                data = data_bytes.decode('ascii', errors='ignore').strip()
+                if not data:
+                    break
+                return data.split(",")[0].strip()
+            elif status == 2:
+                # Device error frame
+                raise RuntimeError(f"{self.name} sensor error frame")
+            # 254/255/0 => processing / not ready; wait then retry
+            sleep(poll if poll < 0.08 else 0.08)
+
+        raise TimeoutError(f"{self.name} no data")
 
 
 def read_all(bus_num: int = 1):
