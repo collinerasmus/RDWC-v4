@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251110c"/><!-- Cache-buster: header normalization + right-align controls -->
+<meta name="version" content="20251110d"/><!-- Cache-buster: overview header fix -->
 <link rel="stylesheet" href="/static/css/app.css" />
 <!-- Chart libraries deferred: will be loaded lazily after idle or when chart tabs opened -->
 <style>
@@ -1056,15 +1056,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- Overview Tab (System Controller) -->
   <section id="overview-card" class="card card-wide tab-section" data-tab="overview">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <h3 class="card-title" style="margin:0;">System Controller</h3>
+      <h3 class="card-title" style="margin:0;">System Controller</h3>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <div class="system-mode-buttons" style="display:flex;gap:6px;">
           <button id="system-mode-auto" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('auto'):0">Auto</button>
           <button id="system-mode-manual" class="btn-chip active" onclick="window.systemSetMode?window.systemSetMode('manual'):0">Manual</button>
           <button id="system-mode-maint" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('maintenance'):0">Maintenance</button>
         </div>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
         <button id="header-estop-btn" class="btn-secondary danger" title="Emergency stop">E-STOP</button>
       </div>
     </div>
