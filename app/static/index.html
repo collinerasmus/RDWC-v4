@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251110b"/><!-- Cache-buster: header normalization -->
+<meta name="version" content="20251110c"/><!-- Cache-buster: header normalization + right-align controls -->
 <link rel="stylesheet" href="/static/css/app.css" />
 <!-- Chart libraries deferred: will be loaded lazily after idle or when chart tabs opened -->
 <style>
@@ -796,15 +796,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- Schedule Controller Tab -->
   <section id="schedule-card" class="card card-wide tab-section" data-tab="schedule" style="display:none;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <h3 class="card-title" style="margin:0;">Schedule Controller</h3>
+      <h3 class="card-title" style="margin:0;">Schedule Controller</h3>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <div class="schedule-mode-buttons" style="display:flex;gap:6px;">
           <button id="schedule-mode-auto" class="btn-chip active" onclick="window.scheduleSetMode?window.scheduleSetMode('auto'):0">Auto</button>
           <button id="schedule-mode-manual" class="btn-chip" onclick="window.scheduleSetMode?window.scheduleSetMode('manual'):0">Manual</button>
           <button id="schedule-mode-maint" class="btn-chip" onclick="window.scheduleSetMode?window.scheduleSetMode('maintenance'):0">Maintenance</button>
         </div>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
         <button id="header-estop-btn-schedule" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
@@ -1169,15 +1167,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- Chiller (Water Temperature) Tab -->
   <section id="temp-card" class="card card-wide tab-section" data-tab="temp" style="display:none;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <h3 class="card-title" style="margin:0;">Chiller Controller</h3>
+      <h3 class="card-title" style="margin:0;">Chiller Controller</h3>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <div class="env-mode-buttons" style="display:flex;gap:6px;">
           <button id="env-mode-auto" class="btn-chip" onclick="window.envSetMode?window.envSetMode('auto'):0">Auto</button>
           <button id="env-mode-manual" class="btn-chip active" onclick="window.envSetMode?window.envSetMode('manual'):0">Manual</button>
           <button id="env-mode-maint" class="btn-chip" onclick="window.envSetMode?window.envSetMode('maintenance'):0">Maintenance</button>
         </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;">
         <button id="header-estop-btn-temp" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
@@ -1285,15 +1281,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- Light Control Tab (standardized header + mode + health) -->
   <section id="lights-card" class="card card-wide tab-section" data-tab="lights" style="display:none;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <h3 class="card-title" style="margin:0;">Lights Control</h3>
+      <h3 class="card-title" style="margin:0;">Lights Control</h3>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <div class="lights-mode-buttons" style="display:flex;gap:6px;">
           <button id="lights-mode-manual" class="btn-chip active" onclick="window.lightsSetMode?window.lightsSetMode('manual'):0">Manual</button>
           <button id="lights-mode-auto" class="btn-chip" onclick="window.lightsSetMode?window.lightsSetMode('auto'):0">Auto</button>
           <button id="lights-mode-maint" class="btn-chip" onclick="window.lightsSetMode?window.lightsSetMode('maintenance'):0">Maintenance</button>
         </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <button id="header-estop-btn-lights" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
@@ -1345,15 +1339,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- Circulation Controller Tab -->
   <section id="circ-card" class="card card-wide tab-section" data-tab="circulation" style="display:none;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <h3 class="card-title" style="margin:0;">Circulation Controller</h3>
+      <h3 class="card-title" style="margin:0;">Circulation Controller</h3>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <div class="circ-mode-buttons" style="display:flex;gap:6px;">
           <button id="circ-mode-auto" class="btn-chip" onclick="window.circSetMode?window.circSetMode('auto'):0">Auto</button>
           <button id="circ-mode-manual" class="btn-chip active" onclick="window.circSetMode?window.circSetMode('manual'):0">Manual</button>
           <button id="circ-mode-maint" class="btn-chip" onclick="window.circSetMode?window.circSetMode('maintenance'):0">Maintenance</button>
         </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;">
         <button id="header-estop-btn-circ" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
@@ -1408,17 +1400,14 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- 3. Sensors Card with Chart.js -->
   <section id="sensors-card" class="card card-wide tab-section" data-tab="sensors" style="display:none;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <h3 class="card-title" style="margin:0;">Sensors</h3>
+      <h3 class="card-title" style="margin:0;">Sensors</h3>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <div class="sensors-mode-buttons" style="display:flex;gap:6px;">
           <button id="sensors-mode-auto" class="btn-chip active" onclick="window.sensorsSetMode?window.sensorsSetMode('auto'):0">Auto</button>
           <button id="sensors-mode-manual" class="btn-chip" onclick="window.sensorsSetMode?window.sensorsSetMode('manual'):0">Manual</button>
           <button id="sensors-mode-maint" class="btn-chip" onclick="window.sensorsSetMode?window.sensorsSetMode('maintenance'):0">Maintenance</button>
         </div>
-  <!-- Sensors health chip removed: replaced by global nav dot -->
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-  <button id="header-estop-btn-sensors" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
+        <button id="header-estop-btn-sensors" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
 
@@ -1492,15 +1481,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <section id="ph-card" class="card card-wide tab-section" data-tab="ph" style="display:none;">
         <!-- 1. Header: Mode buttons, health indicator, maintenance override, targets -->
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <h3 class="card-title" style="margin:0;">pH Control</h3>
+          <h3 class="card-title" style="margin:0;">pH Control</h3>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <div class="ph-mode-buttons" style="display:flex;gap:6px;">
               <button id="ph-mode-manual" class="btn-chip active" onclick="window.phSetMode?window.phSetMode('manual'):alert('Loading...')">Manual</button>
               <button id="ph-mode-auto" class="btn-chip" onclick="window.phSetMode?window.phSetMode('auto'):alert('Loading...')">Auto</button>
               <button id="ph-mode-maint" class="btn-chip" onclick="window.phSetMode?window.phSetMode('maintenance'):alert('Loading...')">Maintenance</button>
             </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
             <button id="header-estop-btn-ph" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
           </div>
         </div>
@@ -1764,15 +1751,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     <!-- 5. EC Control Card -->
   <section id="ec-card" class="card card-wide tab-section" data-tab="ec" style="display:none;">
           <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+            <h3 class="card-title" style="margin:0;">EC Control</h3>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <h3 class="card-title" style="margin:0;">EC Control</h3>
               <div class="ec-mode-buttons" style="display:flex;gap:6px;">
                 <button id="ec-mode-manual" class="btn-chip active" onclick="window.ecSetMode?window.ecSetMode('manual'):alert('Loading...')">Manual</button>
                 <button id="ec-mode-auto" class="btn-chip" onclick="window.ecSetMode?window.ecSetMode('auto'):alert('Loading...')">Auto</button>
                 <button id="ec-mode-maint" class="btn-chip" onclick="window.ecSetMode?window.ecSetMode('maintenance'):alert('Loading...')">Maintenance</button>
               </div>
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
               <button id="header-estop-btn-ec" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
             </div>
           </div>
@@ -2066,15 +2051,13 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- 6. System (Settings + Relays consolidated) -->
   <section id="settings-card" class="card card-wide tab-section" data-tab="settings" style="display:none;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <h3 class="card-title" style="margin:0;">System Settings</h3>
+      <h3 class="card-title" style="margin:0;">System Settings</h3>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <div class="system-mode-buttons" style="display:flex;gap:6px;">
           <button id="mode-auto" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('auto'):0">Auto</button>
           <button id="mode-manual" class="btn-chip active" onclick="window.systemSetMode?window.systemSetMode('manual'):0">Manual</button>
           <button id="mode-maint" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('maintenance'):0">Maintenance</button>
         </div>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
         <button id="estop-btn" class="btn-secondary danger" title="Emergency Stop: forces all relays OFF and blocks ON until released">E‑STOP</button>
       </div>
     </div>
