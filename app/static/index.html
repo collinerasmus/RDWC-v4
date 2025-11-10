@@ -803,14 +803,15 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- Top-level Tabs Navigation -->
   <nav id="tabs-nav" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px 0;padding-bottom:4px;" aria-label="Primary sections">
     <span id="controllers-status-live" aria-live="polite"></span>
-  <button class="btn-chip ctrl-with-dot" data-tab="overview" aria-label="Overview"><span class="ctrl-label">📊 Overview</span><span class="ctrl-health-dot" data-controller="overview" aria-label="Overview status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="sensors" aria-label="Sensors"><span class="ctrl-label">🔬 Sensors</span><span class="ctrl-health-dot" data-controller="sensors" aria-label="Sensors status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="calibration" aria-label="Calibration"><span class="ctrl-label">🎯 Calibration</span><span class="ctrl-health-dot" data-controller="calibration" aria-label="Calibration status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="ph" aria-label="pH"><span class="ctrl-label">🧪 pH</span><span class="ctrl-health-dot" data-controller="ph" aria-label="pH status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="ec" aria-label="EC"><span class="ctrl-label">⚡ EC</span><span class="ctrl-health-dot" data-controller="ec" aria-label="EC status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="schedule" aria-label="Scheduler"><span class="ctrl-label">📅 Scheduler</span><span class="ctrl-health-dot" data-controller="schedule" aria-label="Schedule status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="overview" aria-label="Overview"><span class="ctrl-label">📊 Overview</span><span class="ctrl-health-dot" data-controller="overview" aria-label="Overview status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="sensors" aria-label="Sensors"><span class="ctrl-label">🔬 Sensors</span><span class="ctrl-health-dot" data-controller="sensors" aria-label="Sensors status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="temp" aria-label="Environment"><span class="ctrl-label">🌿 Environment</span><span class="ctrl-health-dot" data-controller="temp" aria-label="Environment status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="circulation" aria-label="Circulation"><span class="ctrl-label">🔄 Circulation</span><span class="ctrl-health-dot" data-controller="circulation" aria-label="Circulation status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="lights" aria-label="Lights"><span class="ctrl-label">💡 Lights</span><span class="ctrl-health-dot" data-controller="lights" aria-label="Lights status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="schedule" aria-label="Scheduler"><span class="ctrl-label">📅 Scheduler</span><span class="ctrl-health-dot" data-controller="schedule" aria-label="Schedule status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="settings" aria-label="System"><span class="ctrl-label">🛠️ System</span><span class="ctrl-health-dot" data-controller="settings" aria-label="System status"></span></button>
   </nav>
 
@@ -885,6 +886,121 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
     </div>
   </section>
+
+    <!-- Calibration Tab -->
+    <section id="calibration-card" class="card card-wide tab-section" data-tab="calibration" style="display:none;">
+      <div class="card-header">
+        <h3 class="card-title">🎯 Calibration</h3>
+        <div class="muted" style="margin-top:8px;font-size:0.85rem;">
+          Calibrate sensors and dosing pumps for accurate control
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="calib-banner" class="muted" style="display:none;margin-bottom:16px;padding:10px 14px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:#fecaca;font-size:0.9rem;">
+          ⚠️ Writes are disabled. Set CALIB_ENABLE=1 and restart service to enable calibration commands.
+        </div>
+
+        <!-- pH Probe Calibration -->
+        <details open style="margin-bottom:20px;">
+          <summary style="font-weight:600;cursor:pointer;padding:10px 12px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+            🧪 pH Probe Calibration
+          </summary>
+          <div style="padding:16px 12px;">
+            <div style="margin-bottom:12px;padding:10px 12px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <label style="font-size:0.9rem;">Current pH:</label>
+                <span id="ph-current-calib" style="font-weight:600;color:#93c5fd;font-size:1.1rem;">—</span>
+                <button id="btnPhRead" class="btn-secondary" style="padding:6px 12px;">Read</button>
+                <button id="btnPhStabilize" class="btn-secondary" style="padding:6px 12px;" title="Read until stable or timeout">Stabilize</button>
+                <button id="btnPhStatus" class="btn-secondary" style="padding:6px 12px;">Status</button>
+              </div>
+            </div>
+            <div style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+                <label style="font-size:0.9rem;font-weight:500;">Buffer Solution:</label>
+                <select id="ph-buffer-kind" style="padding:6px 10px;border-radius:6px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;font-size:0.9rem;">
+                  <option value="mid" data-default="7.00">Mid (7.00)</option>
+                  <option value="low" data-default="4.00">Low (4.00)</option>
+                  <option value="high" data-default="10.00">High (10.00)</option>
+                </select>
+                <input id="ph-buffer-val" type="number" step="0.01" min="0" max="14" value="7.00" style="width:100px;padding:6px 10px;border-radius:6px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;font-size:0.9rem;" />
+              </div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button id="btnPhCalibrate" class="btn-secondary" style="padding:8px 16px;">Calibrate</button>
+                <button id="btnPhClear" class="btn-secondary" style="padding:8px 16px;">Clear Calibration</button>
+              </div>
+            </div>
+            <div style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+              <label style="display:block;font-size:0.9rem;font-weight:500;margin-bottom:10px;">Probe LEDs:</label>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button id="btnLedsOn" class="btn-secondary" style="padding:6px 12px;" title="Turn LEDs on (all probes)">On</button>
+                <button id="btnLedsOff" class="btn-secondary" style="padding:6px 12px;" title="Turn LEDs off (all probes)">Off</button>
+                <button id="btnLedsBlink" class="btn-secondary" style="padding:6px 12px;" title="Blink LEDs to locate probes">Blink</button>
+              </div>
+            </div>
+            <div id="ph-calib-msg" class="muted" style="padding:10px 12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:50px;font-size:0.85rem;"></div>
+            <div id="ph-calib-log" class="muted" style="margin-top:10px;max-height:160px;overflow:auto;font-family:ui-monospace,monospace;font-size:11px;border-top:1px dashed rgba(148,163,184,0.2);padding-top:10px;"></div>
+          </div>
+        </details>
+
+        <!-- EC Probe Calibration -->
+        <details style="margin-bottom:20px;">
+          <summary style="font-weight:600;cursor:pointer;padding:10px 12px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+            ⚡ EC Probe Calibration
+          </summary>
+          <div style="padding:16px 12px;">
+            <div style="margin-bottom:12px;padding:10px 12px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <label style="font-size:0.9rem;">Current EC:</label>
+                <span id="ec-current-calib" style="font-weight:600;color:#93c5fd;font-size:1.1rem;">—</span>
+                <button id="btnEcStatus" class="btn-secondary" style="padding:6px 12px;">Status</button>
+              </div>
+            </div>
+            <div style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+              <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+                <button id="btnEcCalClear" class="btn-secondary" style="padding:8px 16px;">Clear Calibration</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+                <label style="font-size:0.9rem;font-weight:500;">Low Point (1413 µS/cm):</label>
+                <button id="btnEcCalLow" class="btn-secondary" style="padding:6px 12px;">Calibrate Low</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <label style="font-size:0.9rem;font-weight:500;">High Point (12,880 µS/cm):</label>
+                <button id="btnEcCalHigh" class="btn-secondary" style="padding:6px 12px;">Calibrate High</button>
+              </div>
+            </div>
+            <div style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+              <label style="display:block;font-size:0.9rem;font-weight:500;margin-bottom:10px;">Probe Constant (K):</label>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <select id="ec-k-select" style="padding:6px 10px;border-radius:6px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;font-size:0.9rem;">
+                  <option value="0.1">K=0.1</option>
+                  <option value="1.0" selected>K=1.0</option>
+                  <option value="10.0">K=10.0</option>
+                </select>
+                <button id="btnEcSetK" class="btn-secondary" style="padding:6px 12px;">Set K</button>
+              </div>
+            </div>
+            <div id="ec-calib-msg" class="muted" style="padding:10px 12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:50px;font-size:0.85rem;"></div>
+          </div>
+        </details>
+
+        <!-- Dosing Pump Calibration -->
+        <details style="margin-bottom:20px;">
+          <summary style="font-weight:600;cursor:pointer;padding:10px 12px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+            💧 Dosing Pump Calibration
+          </summary>
+          <div style="padding:16px 12px;">
+            <div class="muted" style="margin-bottom:12px;padding:10px 12px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);font-size:0.85rem;">
+              ℹ️ Run each pump for a known duration, measure output volume, then commit to save ml/s rates.
+            </div>
+            <div id="dose-calib-pumps" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+              <!-- Pump cards will be injected here by JS -->
+            </div>
+            <div id="dose-calib-msg" class="muted" style="margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:40px;font-size:0.85rem;"></div>
+          </div>
+        </details>
+      </div>
+    </section>
 
   <script>
   // Fallback quick-population for controller Mode labels (runs immediately, before dynamic loader chain)
@@ -2589,11 +2705,11 @@ window.CircControl = (function(){
         window.__app_version = (j&&j.version)||null;
         try{ var vEl=document.getElementById('build-version'); if(vEl) vEl.textContent = window.__app_version || 'n/a'; }catch(e){}
         // Critical scripts only for initial interactive dashboard
-  return seq(['tabs.js','global_health.js','overview.js','system.js','sensors.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
+  return seq(['tabs.js','global_health.js','overview.js','system.js','sensors.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js','calibration.js'], window.__app_version);
       })
       .catch(function(){
         window.__app_version = (new Date()).toISOString().slice(0,10);
-  return seq(['tabs.js','global_health.js','overview.js','system.js','sensors.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
+  return seq(['tabs.js','global_health.js','overview.js','system.js','sensors.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js','calibration.js'], window.__app_version);
       })
       .finally(function(){ scheduleDeferred(window.__app_version); try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();
