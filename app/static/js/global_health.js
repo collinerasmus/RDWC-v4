@@ -33,10 +33,12 @@
   function classifyPh(ph){
     if(!ph) return {state:'bad', title:'No status'};
     if(ph.guards){
-      const hard = ['estop','reservoir'];
-      if(hard.some(k=>ph.guards[k])) return {state:'bad', title:'Hard guard active'};
-      const soft = Object.keys(ph.guards).filter(k=>ph.guards[k]).length;
-      if(soft) return {state:'warn', title:`${soft} guard(s)`};
+      const hardKeys = ['estop','reservoir'];
+      const softKeys = ['safe_off','sensor_stale','interval','daily_cap','ec_baseline_low'];
+      const hardActive = hardKeys.some(k => !!ph.guards[k]);
+      const softActive = softKeys.some(k => !!ph.guards[k]);
+      if(hardActive) return {state:'bad', title:'Hard guard active'};
+      if(softActive) return {state:'warn', title:'Soft guard(s)'};
     }
     if(ph.auto && ph.auto.enabled){ return {state:'ok', title:'Auto'}; }
     return {state:'ok', title:'Manual'};
@@ -45,10 +47,12 @@
   function classifyEc(ec){
     if(!ec) return {state:'bad', title:'No status'};
     if(ec.guards){
-      const hard = ['estop','reservoir'];
-      if(hard.some(k=>ec.guards[k])) return {state:'bad', title:'Hard guard active'};
-      const soft = Object.keys(ec.guards).filter(k=>ec.guards[k]).length;
-      if(soft) return {state:'warn', title:`${soft} guard(s)`};
+      const hardKeys = ['estop','reservoir'];
+      const softKeys = ['sensor_stale','mix_lock','interval','daily_cap'];
+      const hardActive = hardKeys.some(k => !!ec.guards[k]);
+      const softActive = softKeys.some(k => !!ec.guards[k]);
+      if(hardActive) return {state:'bad', title:'Hard guard active'};
+      if(softActive) return {state:'warn', title:'Soft guard(s)'};
     }
     if(ec.auto && ec.auto.enabled){ return {state:'ok', title:'Auto'}; }
     return {state:'ok', title:'Manual'};
