@@ -23,10 +23,14 @@
   // offline => poller not running / sensors.online false (distinct neutral-failure gray)
   // warn => stale cache (age exceeded freshness window)
   // ok   => fresh sample & online
-  function classifySensors(sensors, health){
-    if(!sensors){ return {state:'bad', title:'No data'}; }
-    if(!sensors.online){ return {state:'offline', title:'Offline'}; }
-    if(health && health.cache_fresh === false){ return {state:'warn', title:`Stale ${Math.round(health.cache_age_s||0)}s`}; }
+  // Classify sensors using the same source as Overview: /api/sensors/status
+  // running && age<60 => ok; running && age>=60 => warn; !running => offline; null => bad
+  function classifySensorsFromStatus(status){
+    if(!status) return {state:'bad', title:'No status'};
+    const age = status.last_sample_ts ? (Date.now()/1000 - status.last_sample_ts) : Infinity;
+    const running = !!status.running;
+    if(!running) return {state:'offline', title:'Offline'};
+    if(age >= 60) return {state:'warn', title:`Stale ${Math.round(age)}s`};
     return {state:'ok', title:'Fresh'};
   }
 
@@ -98,15 +102,14 @@
 
   async function poll(){
     try {
-      const relaysP = fetch('/api/relays/status',{cache:'no-store'}).then(r=>r.ok?r.json():null);
-      const sensorsP = fetch('/api/sensors',{cache:'no-store'}).then(r=>r.ok?r.json():null);
-      const sensorsHealthP = fetch('/api/sensors/health',{cache:'no-store'}).then(r=>r.ok?r.json():null);
+  const relaysP = fetch('/api/relays/status',{cache:'no-store'}).then(r=>r.ok?r.json():null);
+  const sensorsStatusP = fetch('/api/sensors/status',{cache:'no-store'}).then(r=>r.ok?r.json():null);
       const phP = fetch('/api/ph/status',{cache:'no-store'}).then(r=>r.ok?r.json():null);
       const ecP = fetch('/api/ec/status',{cache:'no-store'}).then(r=>r.ok?r.json():null);
       const chillerP = fetch('/api/chiller/status',{cache:'no-store'}).then(r=>r.ok?r.json():null);
-      const [relays, sensors, sensorsHealth, ph, ec, chiller] = await Promise.all([relaysP,sensorsP,sensorsHealthP,phP,ecP,chillerP]);
+  const [relays, sensorsStatus, ph, ec, chiller] = await Promise.all([relaysP,sensorsStatusP,phP,ecP,chillerP]);
 
-      const sSensors = classifySensors(sensors, sensorsHealth);
+  const sSensors = classifySensorsFromStatus(sensorsStatus);
       const sPh = classifyPh(ph);
       const sEc = classifyEc(ec);
       const sEnv = classifyEnv(relays, chiller);
