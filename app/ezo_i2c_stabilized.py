@@ -31,50 +31,44 @@ class EZO:
         for i in range(tries):
             try:
                 if payload:
-                    # Try i2c_msg method first if available (works with i2c_rdwr)
+                    # Method 1: i2c_rdwr with i2c_msg (full-featured smbus2)
                     if HAS_I2C_MSG and self.has_i2c_rdwr:
                         self.bus.i2c_rdwr(i2c_msg.write(self.addr, payload))
-                    # Fallback to block I/O
+                    # Method 2: Block I/O
                     elif self.has_block_io:
-                        # Block write: prepend register 0x00, convert to list
                         data = [0x00] + list(payload)
                         self.bus.write_i2c_block_data(self.addr, data[0], data[1:])
-                    # Last resort: try i2c_msg even if i2c_rdwr detection failed
-                    elif HAS_I2C_MSG:
-                        try:
-                            self.bus.i2c_rdwr(i2c_msg.write(self.addr, payload))
-                        except AttributeError:
-                            raise NotImplementedError("No supported I2C write method available")
+                    # Method 3: Basic byte-level write (minimal smbus2)
                     else:
-                        raise NotImplementedError("No supported I2C write method available")
+                        # Write payload byte-by-byte
+                        for byte in payload:
+                            self.bus.write_byte(self.addr, byte)
                 
                 if read_len:
-                    # Try i2c_msg method first if available
+                    # Method 1: i2c_rdwr with i2c_msg (full-featured smbus2)
                     if HAS_I2C_MSG and self.has_i2c_rdwr:
                         buf = i2c_msg.read(self.addr, read_len)
                         self.bus.i2c_rdwr(buf)
                         return bytes(buf)
-                    # Fallback to block I/O
+                    # Method 2: Block I/O
                     elif self.has_block_io:
-                        # Block read from register 0x00
                         raw = self.bus.read_i2c_block_data(self.addr, 0x00, read_len)
                         return bytes(raw)
-                    # Last resort: try i2c_msg even if i2c_rdwr detection failed
-                    elif HAS_I2C_MSG:
-                        try:
-                            buf = i2c_msg.read(self.addr, read_len)
-                            self.bus.i2c_rdwr(buf)
-                            return bytes(buf)
-                        except AttributeError:
-                            raise NotImplementedError("No supported I2C read method available")
+                    # Method 3: Basic byte-level read (minimal smbus2)
                     else:
-                        raise NotImplementedError("No supported I2C read method available")
+                        # Read byte-by-byte from register 0x00
+                        result = []
+                        for _ in range(read_len):
+                            result.append(self.bus.read_byte_data(self.addr, 0x00))
+                        return bytes(result)
                 
                 return b""
             except OSError as e:
                 last = e
                 sleep(pause * (1 + i))
-        raise last
+        if last:
+            raise last
+        return b""
 
     def cmd(self, cmd: str, read_len: int = 32, settle: float = 0.3):
         self._xfer(cmd.encode("ascii"), read_len=0)
