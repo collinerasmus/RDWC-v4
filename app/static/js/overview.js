@@ -91,15 +91,25 @@
       if (Date.now() - last.sensors > 6000) {
         try{
           const ps = await getJSON('/api/sensors/status');
-          const age = ps.last_sample_ts ? (Date.now()/1000 - ps.last_sample_ts) : 999;
+          const age = ps.last_sample_ts ? (Date.now()/1000 - ps.last_sample_ts) : 9e9;
           const online = ps.running && age < 60;
+          // Derive a softer state using DB/cache age when poller is down
+          let stale = false;
+          try {
+            const s = await getJSON('/api/sensors');
+            if (s && s.ts) {
+              const tsAge = Math.max(0, Math.round((Date.now() - new Date(s.ts).getTime())/1000));
+              stale = !online && tsAge < 600; // show STALE if we have recent DB/cache within 10min
+            }
+          } catch(_) { /* ignore */ }
           const sensorHealthEl = q('#ov-sensors-health');
           if (sensorHealthEl) {
-            const dot = online ? '🟢' : '🔴';
             const ageStr = age < 60 ? `${Math.round(age)}s` : age < 3600 ? `${Math.round(age/60)}m` : `${Math.round(age/3600)}h`;
-            sensorHealthEl.textContent = online ? 'ONLINE' : 'OFFLINE';
-            sensorHealthEl.className = 'ui-status-chip ' + (online ? 'success' : 'danger');
-            sensorHealthEl.title = `Headless poller • Last sample: ${ageStr} ago • Polls: ${ps.poll_count || 0}`;
+            sensorHealthEl.textContent = online ? 'ONLINE' : (stale ? 'STALE' : 'OFFLINE');
+            sensorHealthEl.className = 'ui-status-chip ' + (online ? 'success' : (stale ? 'warning' : 'danger'));
+            sensorHealthEl.title = online
+              ? `Headless poller • Last sample: ${ageStr} ago • Polls: ${ps.poll_count || 0}`
+              : (stale ? 'Poller down; showing recent DB/cache values (<10m old)' : 'Poller down; no recent data');
           }
           last.sensors = Date.now();
         }catch(e){ console.warn('[Overview] sensor poller status unavailable', e); }
