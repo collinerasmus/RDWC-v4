@@ -50,6 +50,9 @@
     return; // Abort real wiring
   }
   
+  // Runtime timers for network vs simulation
+  let netTimer = null, simTimer = null, ready = false;
+
   const setMetric = (el, val, classes) => {
     if (!el) return;
     el.textContent = (val===null || Number.isNaN(val)) ? "--" : String(val.toFixed ? val.toFixed(2) : val);
@@ -93,6 +96,34 @@
     el.classList.add(ok ? "online" : "offline");
   };
 
+  // --- Simulation support (Maintenance mode) ---
+  let sim = { t: 22.4, e: 1.40, p: 5.90 };
+  const simDrift = () => (Math.random()*0.06 - 0.03);
+  function simulateStep(label){
+    sim.t = sim.t + simDrift();
+    sim.e = sim.e + simDrift()*0.2;
+    sim.p = sim.p + simDrift()*0.1;
+    setMetric($("kpiTemp"), sim.t, classify("temp", sim.t));
+    setMetric($("kpiEc"),   sim.e, classify("ec", sim.e));
+    setMetric($("kpiPh"),   sim.p, classify("ph", sim.p));
+    const updated = $("sensors-updated");
+    if (updated){ updated.innerHTML = 'Updated: '+new Date().toLocaleTimeString()+ (label?` <span style="color:#22c55e;">(${label})</span>`:''); }
+    setOnline(true);
+  }
+
+  function stopTimers(){ if (netTimer){ clearInterval(netTimer); netTimer=null; } if (simTimer){ clearInterval(simTimer); simTimer=null; } }
+  function ensurePolling(){
+    stopTimers();
+    if (sensorsMode === 'maintenance'){
+      simulateStep('maint');
+      simTimer = setInterval(()=>simulateStep('maint'), 3000);
+    } else {
+      tick();
+      const poll = (window.APP_POLL && window.APP_POLL.sensors) ? (parseInt(window.APP_POLL.sensors,10)||5000) : 5000;
+      netTimer = setInterval(tick, Math.max(1500, poll));
+    }
+  }
+
   async function fetchHealthDB(){
     try{
       const r = await fetch('/health/db', {cache:'no-store'});
@@ -122,6 +153,7 @@
   }
   
   async function tick(){
+    if (sensorsMode === 'maintenance') { return; }
     try{
       const r = await fetch("/api/sensors", {cache:"no-store"});
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -238,10 +270,8 @@
   
   document.addEventListener("DOMContentLoaded", ()=>{
     console.log("[Sensors] Initializing real-time updates");
-    tick(); // Initial fetch
-    // Respect configurable poll interval (default 5000ms)
-    const poll = (window.APP_POLL && window.APP_POLL.sensors) ? (parseInt(window.APP_POLL.sensors,10)||5000) : 5000;
-    setInterval(tick, Math.max(1500, poll));
+    ready = true;
+    ensurePolling();
   // Recent list init
   const collapsed = localStorage.getItem('sensors_recent_collapsed') !== 'false';
   setRecentCollapsed(collapsed);
@@ -255,10 +285,13 @@
     if (btn){
       btn.addEventListener('click', async ()=>{
         try{
-          btn.disabled = true; btn.textContent = 'Reading...';
-          const r = await fetch('/read_now', {method:'POST'});
-          // Give the poller a moment to commit cache
-          setTimeout(()=>{ tick(); }, 1000);
+          btn.disabled = true; btn.textContent = (sensorsMode==='maintenance')?'Simulating...':'Reading...';
+          if (sensorsMode==='maintenance'){
+            simulateStep('manual');
+          } else {
+            const r = await fetch('/read_now', {method:'POST'});
+            setTimeout(()=>{ tick(); }, 1000);
+          }
         }catch(e){ console.warn('[Sensors] read_now failed', e); }
         finally{ btn.disabled = false; btn.textContent = 'Read now'; }
       });
