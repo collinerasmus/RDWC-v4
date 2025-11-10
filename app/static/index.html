@@ -61,8 +61,14 @@ body{
 #tabs-nav .btn-chip.active{ background:#2563eb; border-color:#3b82f6; color:#fff; }
 /* Health dots next to each controller */
 .ctrl-with-dot .ctrl-health-dot{
-  width:9px; height:9px; border-radius:50%; background:#4b5563; display:inline-block; box-shadow:0 0 0 2px rgba(0,0,0,0.4); flex-shrink:0;
+  width:9px; height:9px; border-radius:50%; background:#4b5563; display:inline-block; box-shadow:0 0 0 2px rgba(0,0,0,0.4); flex-shrink:0; transition:background .2s ease, transform .2s ease;
 }
+.ctrl-health-dot.changed{ transform:scale(1.4); }
+.ctrl-health-dot.ok{ background:#10b981; }
+.ctrl-health-dot.warn{ background:#f59e0b; }
+.ctrl-health-dot.bad{ background:#ef4444; }
+.ctrl-health-dot.maint{ background:#6366f1; }
+.ctrl-health-dot.offline{ background:#374151; opacity:.5; }
 .ctrl-with-dot[data-health="green"] .ctrl-health-dot{ background:#10b981; }
 .ctrl-with-dot[data-health="yellow"] .ctrl-health-dot{ background:#f59e0b; }
 .ctrl-with-dot[data-health="red"] .ctrl-health-dot{ background:#ef4444; }
@@ -727,7 +733,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <button class="btn-chip ctrl-with-dot" data-tab="sensors" aria-label="Sensors"><span class="ctrl-label">🔬 Sensors</span><span class="ctrl-health-dot" data-controller="sensors" aria-label="Sensors status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="ph" aria-label="pH"><span class="ctrl-label">🧪 pH</span><span class="ctrl-health-dot" data-controller="ph" aria-label="pH status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="ec" aria-label="EC"><span class="ctrl-label">⚡ EC</span><span class="ctrl-health-dot" data-controller="ec" aria-label="EC status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="temp" aria-label="Chiller"><span class="ctrl-label">❄️ Chiller</span><span class="ctrl-health-dot" data-controller="temp" aria-label="Chiller status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="temp" aria-label="Chiller"><span class="ctrl-label">🧊 Chiller</span><span class="ctrl-health-dot" data-controller="temp" aria-label="Chiller status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="circulation" aria-label="Circulation"><span class="ctrl-label">🔄 Circulation</span><span class="ctrl-health-dot" data-controller="circulation" aria-label="Circulation status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="lights" aria-label="Lights"><span class="ctrl-label">💡 Lights</span><span class="ctrl-health-dot" data-controller="lights" aria-label="Lights status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="schedule" aria-label="Scheduler"><span class="ctrl-label">📅 Scheduler</span><span class="ctrl-health-dot" data-controller="schedule" aria-label="Schedule status"></span></button>
@@ -1037,7 +1043,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         </div>
   <!-- 4. Chiller (Water Temperature + Pumps) -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
-          <div style="font-weight:600;font-size:0.95rem;">❄️ Chiller</div>
+          <div style="font-weight:600;font-size:0.95rem;">🧊 Chiller</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <span class="ui-status-chip neutral" id="ov-chiller-modechip" title="Chiller mode">—</span>
             <span class="bop-status-badge" id="ov-chiller" title="Chiller">—</span>
