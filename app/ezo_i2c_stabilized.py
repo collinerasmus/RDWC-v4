@@ -52,7 +52,8 @@ class EZO:
         if not raw:
             return ""
         status = raw[0]
-        data_bytes = raw[1:].rstrip(b"\x00")
+        # Treat 0xFF as padding (observed on minimal reads) same as 0x00
+        data_bytes = raw[1:].replace(b"\xff", b"\x00").rstrip(b"\x00")
         data = data_bytes.decode('ascii', errors='ignore').strip()
         # Always log non-ready status for diagnostics (RTD timeout investigation)
         if status != 1:
@@ -69,13 +70,18 @@ class EZO:
 
     def read_value(self, request: str = "R", timeout: float = 1.8, poll: float = 0.15) -> str:
         start = monotonic()
-        self.cmd(request, read_len=0, settle=0.02)
-        result = ""
-        while monotonic() - start < timeout:
-            result = self.cmd("", read_len=32, settle=0.06)
-            if result:
-                break
-            sleep(poll)
+        # Send request with minimal settle; we'll do explicit first wait appropriate to sensor type
+        self.cmd(request, read_len=0, settle=0.0)
+        initial_wait = 0.6 if self.name == "RTD" else 0.9  # Atlas timing spec
+        sleep(initial_wait)
+        result = self.cmd("", read_len=32, settle=0.05)
+        if not result:
+            # Additional polling window
+            while monotonic() - start < timeout:
+                result = self.cmd("", read_len=32, settle=0.05)
+                if result:
+                    break
+                sleep(poll)
         if not result:
             raise TimeoutError(f"{self.name} no data")
         return result.split(",")[0].strip()
