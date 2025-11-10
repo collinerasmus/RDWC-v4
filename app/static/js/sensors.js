@@ -5,6 +5,7 @@
     console.log("[Sensors.js] Another sensors poller active; skipping.");
     return;
   }
+  window.__RDWC_SENSORS_POLL_RUNNING__ = true;
   const $ = (id)=>document.getElementById(id);
   
   // Mode management for Sensors Controller
@@ -28,6 +29,9 @@
   }
   
   window.sensorsSetMode = sensorsSetMode;
+  
+  // Initialize mode buttons on load
+  sensorsSetMode(sensorsMode);
   
   const setMetric = (el, val, classes) => {
     if (!el) return;
