@@ -47,13 +47,13 @@ class EZO:
             f"has_block_io={self.has_block_io}")
 
     def _write(self, payload: bytes):
-        # Prefer block write if available; else i2c_msg; else byte-by-byte
-        if self.has_block_io:
-            self.bus.write_i2c_block_data(self.addr, 0x00, list(payload))  # type: ignore[attr-defined]
-            return
+        # Prefer i2c_rdwr transaction; else block write; else byte-by-byte
         if self.has_i2c_rdwr and i2c_msg is not None:
             msg = i2c_msg.write(self.addr, payload)
             self.bus.i2c_rdwr(msg)
+            return
+        if self.has_block_io:
+            self.bus.write_i2c_block_data(self.addr, 0x00, list(payload))  # type: ignore[attr-defined]
             return
         for b in payload:
             if hasattr(self.bus, 'write_byte_data'):
