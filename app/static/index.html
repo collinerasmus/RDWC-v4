@@ -729,15 +729,42 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- Top-level Tabs Navigation -->
   <nav id="tabs-nav" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px 0;padding-bottom:4px;" aria-label="Primary sections">
     <span id="controllers-status-live" aria-live="polite"></span>
-  <button class="btn-chip ctrl-with-dot" data-tab="overview" aria-label="Overview"><span class="ctrl-label">📊 Overview</span><span class="ctrl-health-dot" data-controller="overview" aria-label="Overview status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="sensors" aria-label="Sensors"><span class="ctrl-label">🔬 Sensors</span><span class="ctrl-health-dot" data-controller="sensors" aria-label="Sensors status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="ph" aria-label="pH"><span class="ctrl-label">🧪 pH</span><span class="ctrl-health-dot" data-controller="ph" aria-label="pH status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="ec" aria-label="EC"><span class="ctrl-label">⚡ EC</span><span class="ctrl-health-dot" data-controller="ec" aria-label="EC status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="temp" aria-label="Chiller"><span class="ctrl-label">🧊 Chiller</span><span class="ctrl-health-dot" data-controller="temp" aria-label="Chiller status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="circulation" aria-label="Circulation"><span class="ctrl-label">🔄 Circulation</span><span class="ctrl-health-dot" data-controller="circulation" aria-label="Circulation status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="lights" aria-label="Lights"><span class="ctrl-label">💡 Lights</span><span class="ctrl-health-dot" data-controller="lights" aria-label="Lights status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="schedule" aria-label="Scheduler"><span class="ctrl-label">📅 Scheduler</span><span class="ctrl-health-dot" data-controller="schedule" aria-label="Schedule status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="settings" aria-label="System"><span class="ctrl-label">🛠️ System</span><span class="ctrl-health-dot" data-controller="settings" aria-label="System status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="overview" aria-label="Overview">
+    <span class="ctrl-label">📊 Overview</span>
+    <span class="ctrl-health-dot" data-controller="overview" aria-label="Overview status"></span>
+  </button>
+  <button class="btn-chip ctrl-with-dot" data-tab="sensors" aria-label="Sensors">
+    <span class="ctrl-label">🔬 Sensors</span>
+    <span class="ctrl-health-dot" data-controller="sensors" aria-label="Sensors status"></span>
+  </button>
+  <button class="btn-chip ctrl-with-dot" data-tab="ph" aria-label="pH">
+    <span class="ctrl-label">🧪 pH</span>
+    <span class="ctrl-health-dot" data-controller="ph" aria-label="pH status"></span>
+  </button>
+  <button class="btn-chip ctrl-with-dot" data-tab="ec" aria-label="EC">
+    <span class="ctrl-label">⚡ EC</span>
+    <span class="ctrl-health-dot" data-controller="ec" aria-label="EC status"></span>
+  </button>
+  <button class="btn-chip ctrl-with-dot" data-tab="temp" aria-label="Chiller">
+    <span class="ctrl-label">🧊 Chiller</span>
+    <span class="ctrl-health-dot" data-controller="temp" aria-label="Chiller status"></span>
+  </button>
+  <button class="btn-chip ctrl-with-dot" data-tab="circulation" aria-label="Circulation">
+    <span class="ctrl-label">🔄 Circulation</span>
+    <span class="ctrl-health-dot" data-controller="circulation" aria-label="Circulation status"></span>
+  </button>
+  <button class="btn-chip ctrl-with-dot" data-tab="lights" aria-label="Lights">
+    <span class="ctrl-label">💡 Lights</span>
+    <span class="ctrl-health-dot" data-controller="lights" aria-label="Lights status"></span>
+  </button>
+  <button class="btn-chip ctrl-with-dot" data-tab="schedule" aria-label="Scheduler">
+    <span class="ctrl-label">📅 Scheduler</span>
+    <span class="ctrl-health-dot" data-controller="schedule" aria-label="Schedule status"></span>
+  </button>
+  <button class="btn-chip ctrl-with-dot" data-tab="settings" aria-label="System">
+    <span class="ctrl-label">🛠️ System</span>
+    <span class="ctrl-health-dot" data-controller="settings" aria-label="System status"></span>
+  </button>
   </nav>
 
   <!-- Schedule Controller Tab -->
@@ -1070,7 +1097,15 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
           <div style="font-weight:600;font-size:0.95rem;">📅 Schedule</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <span class="ui-status-chip neutral" title="Schedule status">—</span>
+            <span class="ui-status-chip neutral" id="ov-schedule-chip" title="Schedule status">—</span>
+          </div>
+        </div>
+        <!-- 8. System -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
+          <div style="font-weight:600;font-size:0.95rem;">🛠️ System</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <span class="ui-status-chip neutral" id="ov-system-modechip" title="System mode">—</span>
+            <span class="ui-status-chip neutral" id="ov-system-health" title="System health">—</span>
           </div>
         </div>
       </div>
@@ -2017,6 +2052,34 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <button id="btnSaveSettings" class="btn-secondary" disabled>Save</button>
       </div>
     </div>
+    <!-- System Status Engineering Panel -->
+    <div style="margin-bottom:24px;padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;">
+      <h4 style="margin:0 0 12px 0;font-size:0.95rem;font-weight:600;">System Status</h4>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+        <div>
+          <div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Mode</div>
+          <div id="sys-mode-display" style="font-weight:600;font-size:1.1rem;">—</div>
+        </div>
+        <div>
+          <div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">E-STOP</div>
+          <div id="sys-estop-display" style="font-weight:600;font-size:1.1rem;">—</div>
+        </div>
+        <div>
+          <div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Sensor Poller</div>
+          <div id="sys-sensors-display" style="font-weight:600;font-size:1.1rem;">—</div>
+        </div>
+        <div>
+          <div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">API Service</div>
+          <div id="sys-api-display" style="font-weight:600;font-size:1.1rem;">—</div>
+        </div>
+      </div>
+      <hr style="margin:12px 0;border:none;border-top:1px solid rgba(55,65,81,0.5);"/>
+      <h4 style="margin:12px 0 8px 0;font-size:0.85rem;font-weight:600;color:#9ca3af;">Raspberry Pi Stats</h4>
+      <div id="sys-pi-stats" style="font-size:0.85rem;color:#d1d5db;line-height:1.6;">
+        <div>Loading system information...</div>
+      </div>
+    </div>
+
     <!-- Relays Panel (migrated from former Relays tab) -->
     <div style="margin-bottom:18px;">
       <div id="estop-banner" class="estop-banner hidden" style="margin-bottom:10px;">

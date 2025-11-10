@@ -104,6 +104,28 @@
           last.sensors = Date.now();
         }catch(e){ console.warn('[Overview] sensor poller status unavailable', e); }
       }
+      // System status (mode + health)
+      const systemModeChip = q('#ov-system-modechip');
+      const systemHealthChip = q('#ov-system-health');
+      if (systemModeChip && wrap) {
+        const mode = wrap.mode || 'manual';
+        const modeText = mode === 'manual' ? 'MANUAL' : mode === 'maintenance' ? 'MAINT' : 'AUTO';
+        systemModeChip.textContent = modeText;
+        systemModeChip.className = 'ui-status-chip ' + (mode === 'manual' ? 'neutral' : mode === 'maintenance' ? 'warning' : 'success');
+      }
+      if (systemHealthChip && wrap) {
+        const estop = !!wrap.estop;
+        systemHealthChip.textContent = estop ? 'E-STOP' : 'OK';
+        systemHealthChip.className = 'ui-status-chip ' + (estop ? 'danger' : 'success');
+        systemHealthChip.title = estop ? 'Emergency stop active' : 'System nominal';
+      }
+      // Schedule status
+      const scheduleChip = q('#ov-schedule-chip');
+      if (scheduleChip && wrap) {
+        const enabled = wrap.mode === 'auto';
+        scheduleChip.textContent = enabled ? 'ENABLED' : 'DISABLED';
+        scheduleChip.className = 'ui-status-chip ' + (enabled ? 'success' : 'neutral');
+      }
     }catch(e){ console.warn('[Overview] refresh failed', e); }
     // Performance hydration mark (first successful pass)
     if (!window.__overviewHydrated){
