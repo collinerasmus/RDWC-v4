@@ -28,6 +28,10 @@ def db_path(tmp_path):
     db_file = tmp_path / "test_rdwc.db"
     ph_control.DB_PATH = db_file
     
+    # Also set app.settings DB_PATH so get_setting_key reads from test DB
+    from app import settings
+    settings.DB_PATH = db_file
+    
     # Initialize tables
     with sqlite3.connect(str(db_file)) as conn:
         conn.execute("""

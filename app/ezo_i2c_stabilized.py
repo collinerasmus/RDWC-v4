@@ -9,7 +9,7 @@ import logging
 import sys
 from pathlib import Path
 
-# Prefer system smbus2 over any vendored copy in the repo
+# Prefer system smbus2 over any vendored copy in the repo (Linux/Pi only)
 _repo_root = Path(__file__).resolve().parents[1]
 _removed = False
 if str(_repo_root) in sys.path:
@@ -18,10 +18,13 @@ if str(_repo_root) in sys.path:
 try:
     from smbus2 import SMBus, i2c_msg
     _HAS_I2C_MSG = True
+    _HAS_SMBUS = True
 except Exception:  # pragma: no cover
-    from smbus2 import SMBus  # type: ignore
+    # Windows/dev: smbus2 unavailable (no fcntl); use mock
+    SMBus = None  # type: ignore
     i2c_msg = None  # type: ignore
     _HAS_I2C_MSG = False
+    _HAS_SMBUS = False
 finally:
     if _removed:
         sys.path.insert(0, str(_repo_root))
@@ -38,6 +41,8 @@ class EZO:
         self.bus_num = bus_num
         self.addr = addr
         self.name = name
+        if SMBus is None:
+            raise RuntimeError("SMBus not available (Windows/dev environment)")
         self.bus = SMBus(bus_num)
         # Capability flags
         self.has_i2c_rdwr = hasattr(self.bus, 'i2c_rdwr') and (i2c_msg is not None)
