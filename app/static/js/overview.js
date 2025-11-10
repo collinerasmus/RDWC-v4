@@ -103,6 +103,8 @@
             }
           } catch(_) { /* ignore */ }
           const sensorHealthEl = q('#ov-sensors-health');
+          const sensorStatusEl = q('#ov-sensors-status');
+          const sensorModeEl = q('#ov-sensors-modechip');
           if (sensorHealthEl) {
             const ageStr = age < 60 ? `${Math.round(age)}s` : age < 3600 ? `${Math.round(age/60)}m` : `${Math.round(age/3600)}h`;
             sensorHealthEl.textContent = online ? 'ONLINE' : (stale ? 'STALE' : 'OFFLINE');
@@ -111,17 +113,29 @@
               ? `Headless poller • Last sample: ${ageStr} ago • Polls: ${ps.poll_count || 0}`
               : (stale ? 'Poller down; showing recent DB/cache values (<10m old)' : 'Poller down; no recent data');
           }
+          if (sensorStatusEl) {
+            sensorStatusEl.textContent = online ? 'ACTIVE' : (stale ? 'RECENT' : 'OFF');
+            sensorStatusEl.className = 'ui-status-chip ' + (online ? 'success' : (stale ? 'warning' : 'danger'));
+            sensorStatusEl.title = online ? 'Sensor poller active' : (stale ? 'Recent DB/cache fallback' : 'No sensor data');
+          }
+          if (sensorModeEl) {
+            sensorModeEl.textContent = wrap && wrap.mode ? wrap.mode.toUpperCase() : 'MANUAL';
+            sensorModeEl.className = 'ui-status-chip ' + ((wrap && wrap.mode === 'auto') ? 'success' : 'neutral');
+            sensorModeEl.title = 'Sensors mode';
+          }
           last.sensors = Date.now();
         }catch(e){ console.warn('[Overview] sensor poller status unavailable', e); }
       }
-      // System status (mode + health)
+      // System status (mode + health + status)
       const systemModeChip = q('#ov-system-modechip');
       const systemHealthChip = q('#ov-system-health');
+      const systemStatusChip = q('#ov-system-status');
       if (systemModeChip && wrap) {
         const mode = wrap.mode || 'manual';
         const modeText = mode === 'manual' ? 'MANUAL' : mode === 'maintenance' ? 'MAINT' : 'AUTO';
         systemModeChip.textContent = modeText;
         systemModeChip.className = 'ui-status-chip ' + (mode === 'manual' ? 'neutral' : mode === 'maintenance' ? 'warning' : 'success');
+        systemModeChip.title = 'System mode';
       }
       if (systemHealthChip && wrap) {
         const estop = !!wrap.estop;
@@ -129,12 +143,30 @@
         systemHealthChip.className = 'ui-status-chip ' + (estop ? 'danger' : 'success');
         systemHealthChip.title = estop ? 'Emergency stop active' : 'System nominal';
       }
-      // Schedule status
+      if (systemStatusChip && wrap) {
+        systemStatusChip.textContent = wrap.estop ? 'BLOCKED' : 'ACTIVE';
+        systemStatusChip.className = 'ui-status-chip ' + (wrap.estop ? 'danger' : 'success');
+        systemStatusChip.title = wrap.estop ? 'System blocked by E-STOP' : 'System active';
+      }
+      // Schedule status (mode + status)
       const scheduleChip = q('#ov-schedule-chip');
+      const scheduleStatusChip = q('#ov-schedule-status');
+      const scheduleModeChip = q('#ov-schedule-modechip');
       if (scheduleChip && wrap) {
         const enabled = wrap.mode === 'auto';
         scheduleChip.textContent = enabled ? 'ENABLED' : 'DISABLED';
         scheduleChip.className = 'ui-status-chip ' + (enabled ? 'success' : 'neutral');
+        scheduleChip.title = 'Schedule status';
+      }
+      if (scheduleStatusChip && wrap) {
+        scheduleStatusChip.textContent = wrap.mode === 'auto' ? 'ACTIVE' : 'OFF';
+        scheduleStatusChip.className = 'ui-status-chip ' + (wrap.mode === 'auto' ? 'success' : 'neutral');
+        scheduleStatusChip.title = 'Schedule activity';
+      }
+      if (scheduleModeChip && wrap) {
+        scheduleModeChip.textContent = wrap.mode ? wrap.mode.toUpperCase() : 'MANUAL';
+        scheduleModeChip.className = 'ui-status-chip ' + (wrap.mode === 'auto' ? 'success' : 'neutral');
+        scheduleModeChip.title = 'Schedule mode';
       }
     }catch(e){ console.warn('[Overview] refresh failed', e); }
     // Performance hydration mark (first successful pass)

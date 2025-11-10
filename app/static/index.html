@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251110i"/><!-- Cache-buster: sensors maintenance-mode simulation -->
+<meta name="version" content="20251111a"/><!-- Cache-buster: complete controller status chips -->
 <link rel="stylesheet" href="/static/css/app.css" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
@@ -1085,63 +1085,76 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
           <div style="font-weight:600;font-size:0.95rem;">📡 Sensors</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <span class="ui-status-chip neutral" id="ov-sensors-health" title="Sensor poller health">—</span>
+            <span class="ui-status-chip neutral" id="ov-sensors-health" title="Sensor poller health">Health</span>
+            <span class="ui-status-chip neutral" id="ov-sensors-status" title="Sensor status">Status</span>
+            <span class="ui-status-chip neutral" id="ov-sensors-modechip" title="Sensors mode">Mode</span>
           </div>
         </div>
         <!-- 2. pH Controller -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
           <div style="font-weight:600;font-size:0.95rem;">🧪 pH Controller</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <span class="ui-status-chip neutral" id="ov-ph-modechip" title="Mode">—</span>
-            <span class="ui-status-chip neutral" id="ov-ph-health" title="Controller health">—</span>
+            <span class="ui-status-chip neutral" id="ov-ph-health" title="Controller health">Health</span>
+            <span class="ui-status-chip neutral" id="ov-ph-status" title="Controller status">Status</span>
+            <span class="ui-status-chip neutral" id="ov-ph-modechip" title="Mode">Mode</span>
           </div>
         </div>
         <!-- 3. EC Controller -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
           <div style="font-weight:600;font-size:0.95rem;">⚡ EC Controller</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <span class="ui-status-chip neutral" id="ov-ec-modechip" title="Mode">—</span>
-            <span class="ui-status-chip neutral" id="ov-ec-health" title="Controller health">—</span>
+            <span class="ui-status-chip neutral" id="ov-ec-health" title="Controller health">Health</span>
+            <span class="ui-status-chip neutral" id="ov-ec-status" title="Controller status">Status</span>
+            <span class="ui-status-chip neutral" id="ov-ec-modechip" title="Mode">Mode</span>
           </div>
         </div>
   <!-- 4. Chiller (Water Temperature + Pumps) -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
           <div style="font-weight:600;font-size:0.95rem;">🧊 Chiller</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <span class="ui-status-chip neutral" id="ov-chiller-modechip" title="Chiller mode">—</span>
-            <span class="bop-status-badge" id="ov-chiller" title="Chiller">—</span>
-            <span class="bop-status-badge" id="ov-chiller-pump" title="Chiller Pump">—</span>
+            <span class="bop-status-badge" id="ov-chiller" title="Chiller" aria-label="Chiller">Chiller</span>
+            <span class="bop-status-badge" id="ov-chiller-pump" title="Chiller Pump" aria-label="Chiller Pump">Pump</span>
+            <span class="ui-status-chip neutral" id="ov-chiller-health" title="Chiller health">Health</span>
+            <span class="ui-status-chip neutral" id="ov-chiller-status" title="Chiller status">Status</span>
+            <span class="ui-status-chip neutral" id="ov-chiller-modechip" title="Chiller mode">Mode</span>
           </div>
         </div>
         <!-- 5. Circulation -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
           <div style="font-weight:600;font-size:0.95rem;">🔁 Circulation</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <span class="ui-status-chip neutral" id="ov-main-pump-modechip" title="Main pump mode">—</span>
-            <span class="bop-status-badge" id="ov-main-pump" title="Main Pump">—</span>
+            <span class="bop-status-badge" id="ov-main-pump" title="Main Pump" aria-label="Main Pump">Pump</span>
+            <span class="ui-status-chip neutral" id="ov-main-pump-health" title="Main pump health">Health</span>
+            <span class="ui-status-chip neutral" id="ov-main-pump-status" title="Main pump status">Status</span>
+            <span class="ui-status-chip neutral" id="ov-main-pump-modechip" title="Main pump mode">Mode</span>
           </div>
         </div>
         <!-- 6. Lights -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
           <div style="font-weight:600;font-size:0.95rem;">💡 Lights</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <span class="ui-status-chip neutral" id="ov-lights-modechip" title="Lights mode">—</span>
-            <span class="bop-status-badge" id="ov-lights">—</span>
+            <span class="bop-status-badge" id="ov-lights" aria-label="Lights">Lights</span>
+            <span class="ui-status-chip neutral" id="ov-lights-health" title="Lights health">Health</span>
+            <span class="ui-status-chip neutral" id="ov-lights-status" title="Lights status">Status</span>
+            <span class="ui-status-chip neutral" id="ov-lights-modechip" title="Lights mode">Mode</span>
           </div>
         </div>
         <!-- 7. Schedule -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
           <div style="font-weight:600;font-size:0.95rem;">📅 Schedule</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <span class="ui-status-chip neutral" id="ov-schedule-chip" title="Schedule status">—</span>
+            <span class="ui-status-chip neutral" id="ov-schedule-chip" title="Schedule status">Status</span>
+            <span class="ui-status-chip neutral" id="ov-schedule-status" title="Schedule activity">Health</span>
+            <span class="ui-status-chip neutral" id="ov-schedule-modechip" title="Schedule mode">Mode</span>
           </div>
         </div>
         <!-- 8. System -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
           <div style="font-weight:600;font-size:0.95rem;">🛠️ System</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <span class="ui-status-chip neutral" id="ov-system-modechip" title="System mode">—</span>
-            <span class="ui-status-chip neutral" id="ov-system-health" title="System health">—</span>
+            <span class="ui-status-chip neutral" id="ov-system-health" title="System health">Health</span>
+            <span class="ui-status-chip neutral" id="ov-system-status" title="System status">Status</span>
+            <span class="ui-status-chip neutral" id="ov-system-modechip" title="System mode">Mode</span>
           </div>
         </div>
       </div>
