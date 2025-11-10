@@ -691,7 +691,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <button class="btn-chip ctrl-with-dot" data-tab="sensors" aria-label="Sensors"><span class="ctrl-label">🔬 Sensors</span><span class="ctrl-health-dot" data-controller="sensors" aria-label="Sensors status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="ph" aria-label="pH"><span class="ctrl-label">🧪 pH</span><span class="ctrl-health-dot" data-controller="ph" aria-label="pH status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="ec" aria-label="EC"><span class="ctrl-label">⚡ EC</span><span class="ctrl-health-dot" data-controller="ec" aria-label="EC status"></span></button>
-  <button class="btn-chip ctrl-with-dot" data-tab="temp" aria-label="Environment"><span class="ctrl-label">🌿 Environment</span><span class="ctrl-health-dot" data-controller="temp" aria-label="Environment status"></span></button>
+  <button class="btn-chip ctrl-with-dot" data-tab="temp" aria-label="Chiller"><span class="ctrl-label">❄️ Chiller</span><span class="ctrl-health-dot" data-controller="temp" aria-label="Chiller status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="circulation" aria-label="Circulation"><span class="ctrl-label">🔄 Circulation</span><span class="ctrl-health-dot" data-controller="circulation" aria-label="Circulation status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="lights" aria-label="Lights"><span class="ctrl-label">💡 Lights</span><span class="ctrl-health-dot" data-controller="lights" aria-label="Lights status"></span></button>
   <button class="btn-chip ctrl-with-dot" data-tab="schedule" aria-label="Scheduler"><span class="ctrl-label">📅 Scheduler</span><span class="ctrl-health-dot" data-controller="schedule" aria-label="Schedule status"></span></button>
@@ -999,9 +999,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <span class="ui-status-chip neutral" id="ov-ec-health" title="Controller health">—</span>
           </div>
         </div>
-        <!-- 4. Environment (Chiller + Pumps) -->
+  <!-- 4. Chiller (Water Temperature + Pumps) -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
-          <div style="font-weight:600;font-size:0.95rem;">❄️ Environment</div>
+          <div style="font-weight:600;font-size:0.95rem;">❄️ Chiller</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <span class="ui-status-chip neutral" id="ov-chiller-modechip" title="Chiller mode">—</span>
             <span class="bop-status-badge" id="ov-chiller" title="Chiller">—</span>
@@ -1061,17 +1061,17 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
   </section>
 
-  <!-- Environment (Temperature/Chiller) Tab -->
+  <!-- Chiller (Water Temperature) Tab -->
   <section id="temp-card" class="card card-wide tab-section" data-tab="temp" style="display:none;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <h3 class="card-title" style="margin:0;">Environment Controller</h3>
+  <h3 class="card-title" style="margin:0;">Chiller Controller</h3>
         <div class="env-mode-buttons" style="display:flex;gap:6px;">
           <button id="env-mode-auto" class="btn-chip" onclick="window.envSetMode?window.envSetMode('auto'):0">Auto</button>
           <button id="env-mode-manual" class="btn-chip active" onclick="window.envSetMode?window.envSetMode('manual'):0">Manual</button>
           <button id="env-mode-maint" class="btn-chip" onclick="window.envSetMode?window.envSetMode('maintenance'):0">Maintenance</button>
         </div>
-        <span id="env-health-indicator" class="ui-status-chip success" title="Environment health">OK</span>
+  <span id="env-health-indicator" class="ui-status-chip success" title="Chiller health">OK</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
         <button id="header-estop-btn-temp" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
