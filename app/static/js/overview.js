@@ -52,13 +52,19 @@
         try {
           const ph = await getJSON('/api/ph/status');
           const phGuards = ph.guards || {};
-          const boolKeys = ['estop','safe_off','sensor_stale','interval','daily_cap','reservoir','ec_baseline_low'];
-          const active = boolKeys.filter(k => !!phGuards[k]);
-          const phHealth = active.length ? 'BLOCKED' : 'OK';
-          setChip('#ov-ph-health', phHealth, phHealth==='OK' ? 'success' : 'danger');
+          const hardKeys = ['estop','reservoir'];
+          const softKeys = ['safe_off','sensor_stale','interval','daily_cap','ec_baseline_low'];
+          const hardActive = hardKeys.some(k => !!phGuards[k]);
+          const softActive = softKeys.some(k => !!phGuards[k]);
+          let phHealthText = 'OK';
+          let phHealthClass = 'success';
+          if (hardActive){ phHealthText = 'BLOCKED'; phHealthClass = 'danger'; }
+          else if (softActive){ phHealthText = 'GUARDED'; phHealthClass = 'warning'; }
+          setChip('#ov-ph-health', phHealthText, phHealthClass);
           const phModeChip = q('#ov-ph-modechip'); if (phModeChip) { phModeChip.textContent = (ph.auto && ph.auto.enabled)?'AUTO':'MANUAL'; phModeChip.className = 'ui-status-chip ' + ((ph.auto && ph.auto.enabled)?'success':'neutral'); }
           // Tooltip summarizing guards
-          const phHealthEl = q('#ov-ph-health'); if (phHealthEl) phHealthEl.title = active.length? ('Guards blocking: '+active.join(', ')) : 'All guards OK';
+          const allActive = [...hardKeys.filter(k=>!!phGuards[k]), ...softKeys.filter(k=>!!phGuards[k])];
+          const phHealthEl = q('#ov-ph-health'); if (phHealthEl) phHealthEl.title = allActive.length? ('Active guards: '+allActive.join(', ')) : 'All guards OK';
           last.ph = now2;
         } catch(e){ setChip('#ov-ph-health', '—', 'neutral'); }
       }
@@ -66,12 +72,18 @@
         try {
           const ec = await getJSON('/api/ec/status');
           const ecGuards = ec.guards || {};
-          const boolKeys = ['estop','sensor_stale','reservoir','mix_lock','interval','daily_cap'];
-          const active = boolKeys.filter(k => !!ecGuards[k]);
-          const ecHealth = active.length ? 'BLOCKED' : 'OK';
-          setChip('#ov-ec-health', ecHealth, ecHealth==='OK' ? 'success' : 'danger');
+          const hardKeys = ['estop','reservoir'];
+          const softKeys = ['sensor_stale','mix_lock','interval','daily_cap'];
+          const hardActive = hardKeys.some(k => !!ecGuards[k]);
+          const softActive = softKeys.some(k => !!ecGuards[k]);
+          let ecHealthText = 'OK';
+          let ecHealthClass = 'success';
+          if (hardActive){ ecHealthText = 'BLOCKED'; ecHealthClass = 'danger'; }
+          else if (softActive){ ecHealthText = 'GUARDED'; ecHealthClass = 'warning'; }
+          setChip('#ov-ec-health', ecHealthText, ecHealthClass);
           const ecModeChip = q('#ov-ec-modechip'); if (ecModeChip) { ecModeChip.textContent = (ec.auto && ec.auto.enabled)?'AUTO':'MANUAL'; ecModeChip.className = 'ui-status-chip ' + ((ec.auto && ec.auto.enabled)?'success':'neutral'); }
-          const ecHealthEl = q('#ov-ec-health'); if (ecHealthEl) ecHealthEl.title = active.length? ('Guards blocking: '+active.join(', ')) : 'All guards OK';
+          const allActive = [...hardKeys.filter(k=>!!ecGuards[k]), ...softKeys.filter(k=>!!ecGuards[k])];
+          const ecHealthEl = q('#ov-ec-health'); if (ecHealthEl) ecHealthEl.title = allActive.length? ('Active guards: '+allActive.join(', ')) : 'All guards OK';
           last.ec = now2;
         } catch(e){ setChip('#ov-ec-health', '—', 'neutral'); }
       }

@@ -18,10 +18,15 @@
     prevStates[controller] = state;
   }
 
+  // Sensors classification aligns visual state with true condition:
+  // bad  => data object missing entirely (critical)
+  // offline => poller not running / sensors.online false (distinct neutral-failure gray)
+  // warn => stale cache (age exceeded freshness window)
+  // ok   => fresh sample & online
   function classifySensors(sensors, health){
     if(!sensors){ return {state:'bad', title:'No data'}; }
+    if(!sensors.online){ return {state:'offline', title:'Offline'}; }
     if(health && health.cache_fresh === false){ return {state:'warn', title:`Stale ${Math.round(health.cache_age_s||0)}s`}; }
-    if(!sensors.online){ return {state:'bad', title:'Offline'}; }
     return {state:'ok', title:'Fresh'};
   }
 
@@ -114,11 +119,13 @@
       setDot('circulation', sCirc.state, sCirc.title);
       setDot('schedule', sSchedule.state, sSchedule.title);
       setDot('settings', sSystem.state, sSystem.title);
-      // Overview dot summarises worst state severity excluding maintenance
-      const sev = ['bad','warn','ok'];
-      const states = [sSensors.state,sPh.state,sEc.state,sEnv.state,sLights.state,sCirc.state,sSchedule.state,sSystem.state].filter(x=>x!=='maint');
+      // Overview dot summarises worst state severity excluding maintenance using unified precedence
+      // Precedence: bad > offline > warn > ok
+      const states = [sSensors.state,sPh.state,sEc.state,sEnv.state,sLights.state,sCirc.state,sSchedule.state,sSystem.state]
+        .filter(x=>x!=='maint');
       let overviewState = 'ok';
       if(states.includes('bad')) overviewState='bad';
+      else if(states.includes('offline')) overviewState='offline';
       else if(states.includes('warn')) overviewState='warn';
       setDot('overview', overviewState, 'Summary');
 
