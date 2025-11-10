@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251111a"/><!-- Cache-buster: complete controller status chips -->
+<meta name="version" content="20251111h"/><!-- Cache-buster: dynamic camera height -->
 <link rel="stylesheet" href="/static/css/app.css" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
@@ -37,18 +37,25 @@
   --control-fg: #e0e0e0;      /* gray-200 */
   --control-radius: 6px;
 }
+html, body{
+  height: 100%;
+}
 body{
   background:#0b0f14;
   color:#e0e0e0;
   font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   margin:0;
+  display:flex;
+  flex-direction:column;
+  min-height:100vh;
 }
-/* Constrain overall app width and center */
+/* Constrain overall app width and center; allow body flex to push footer space */
 .container{
   max-width: var(--maxw);
   margin: 0 auto;
-  padding: 0 16px 40px 16px;
+  padding: 0 16px 16px 16px;
   box-sizing: border-box;
+  flex:1 0 auto;
 }
 @media (max-width: 1400px){
   :root{ --maxw: 100%; }
@@ -1178,10 +1185,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       <div class="muted" style="font-size:0.75rem;margin-top:-6px;margin-bottom:8px;">
         <span id="camera-status-pill">Status: streaming</span>
       </div>
-      <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;height:var(--h-camera);">
+      <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;height:var(--h-camera);max-height:calc(100vh - 520px);overflow:hidden;width:100%;">
         <!-- Use object element - browsers don't cancel these for MJPEG streams -->
-  <object id="camera-object" type="multipart/x-mixed-replace" style="display:none;width:100%;height:100%;" aria-label="Live camera stream"></object>
-  <img id="camera-stream" alt="Camera stream" style="width:100%;height:100%;object-fit:cover;" aria-label="Live camera stream fallback"/>
+  <object id="camera-object" type="multipart/x-mixed-replace" style="display:none;width:100%;height:100%;max-height:100%;object-fit:fill;" aria-label="Live camera stream"></object>
+  <img id="camera-stream" alt="Camera stream" style="width:100%;height:100%;max-height:100%;object-fit:fill;display:block;" aria-label="Live camera stream fallback"/>
         <div id="camera-overlay" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">Connecting...</div>
       </div>
     </div>
@@ -2471,6 +2478,22 @@ function toggleRecentReadings(){
   let watchdogTimer = null;
   const WATCHDOG_INTERVAL = 10000; // 10s
   let streamMode = 'object'; // 'img' or 'object'
+
+  // Dynamically size the camera to avoid page scrollbars
+  const frame = document.querySelector('#overview-card .camera-frame');
+  function adjustCameraFrameHeight(){
+    if (!frame) return;
+    // Measure available viewport space from the top of the frame
+    const rect = frame.getBoundingClientRect();
+    const margin = 16; // small breathing room at bottom
+    const available = Math.max(180, Math.floor(window.innerHeight - rect.top - margin));
+    frame.style.height = available + 'px';
+  }
+  // Run after layout, on resize, and after small delay to catch font/layout shifts
+  window.addEventListener('load', adjustCameraFrameHeight);
+  window.addEventListener('resize', adjustCameraFrameHeight);
+  document.addEventListener('visibilitychange', () => setTimeout(adjustCameraFrameHeight, 50));
+  setTimeout(adjustCameraFrameHeight, 150);
 
   async function refreshStatus() {
     try {

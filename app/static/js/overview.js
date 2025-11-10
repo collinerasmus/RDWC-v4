@@ -1,7 +1,7 @@
 (function(){
   const q = (s)=>document.querySelector(s);
   const getJSON = async (u)=>{ const r = await fetch(u,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); };
-  function setBadge(id, on){ const el = q(id); if (!el) return; el.textContent = ''; el.className = 'bop-status-badge '+(on?'on':'off'); el.setAttribute('role','status'); el.setAttribute('aria-live','polite'); el.setAttribute('aria-label', (id.replace('#','')+' '+(on?'on':'off')).replace(/[-_]/g,' ')); }
+  function setBadge(id, on){ const el = q(id); if (!el) return; el.className = 'bop-status-badge '+(on?'on':'off'); el.setAttribute('role','status'); el.setAttribute('aria-live','polite'); el.setAttribute('aria-label', (id.replace('#','')+' '+(on?'on':'off')).replace(/[-_]/g,' ')); }
   function setChip(id, text, cls){ const el = q(id); if (!el) return; el.textContent = text; el.className = 'ui-status-chip ' + cls; el.setAttribute('role','status'); el.setAttribute('aria-live','polite'); el.setAttribute('aria-label', (id.replace('#','')+' '+text).replace(/[-_]/g,' ')); }
   const last = { chiller: 0, ph: 0, ec: 0, settings: 0, sensors: 0 };
   async function refresh(){
