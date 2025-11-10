@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251102c"/><!-- Cache-buster: v1.0 finalization -->
+<meta name="version" content="20251110a"/><!-- Cache-buster: theming + estop styling -->
 <link rel="stylesheet" href="/static/css/app.css" />
 <!-- Chart libraries deferred: will be loaded lazily after idle or when chart tabs opened -->
 <style>
@@ -256,17 +256,43 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   border-color: #3b82f6;
 }
 .btn-secondary{
-  padding: 6px 12px;
-  background: #374151;
-  color: #e5e7eb;
-  border: 1px solid #4b5563;
-  border-radius: 6px;
+  padding: 6px 14px;
+  background: #111827; /* unify with chip base */
+  color: #e0e0e0;
+  border: 1px solid #1f2937;
+  border-radius: 999px; /* pill shape */
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
+  font-weight:600;
+  letter-spacing:.25px;
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .12s ease;
 }
-.btn-secondary:hover{
-  background: #4b5563;
+.btn-secondary:hover{ background:#1f2937; }
+.btn-secondary:active{ transform:translateY(1px); }
+.btn-secondary.primary{ background:#2563eb; border-color:#3b82f6; color:#fff; }
+.btn-secondary.primary:hover{ background:#1d4ed8; }
+.btn-secondary.danger{ background:rgba(239,68,68,0.15); color:#fecaca; border-color:rgba(239,68,68,0.45); font-weight:700; letter-spacing:.4px; }
+.btn-secondary.danger:hover{ background:rgba(239,68,68,0.25); }
+.btn-secondary.danger.active{ background:rgba(239,68,68,0.85); border-color:rgba(239,68,68,1); color:#111827; }
+
+/* Base chip button (used across controllers) */
+.btn-chip{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  background:#111827;
+  border:1px solid #1f2937;
+  color:#e0e0e0;
+  padding:6px 12px;
+  border-radius:999px;
+  font-size:0.75rem;
+  font-weight:600;
+  position:relative;
+  cursor:pointer;
+  transition:background .15s ease,border-color .15s ease;
 }
+.btn-chip:hover{ background:#1f2937; }
+.btn-chip.active{ background:#2563eb; border-color:#3b82f6; color:#fff; }
 
 /* KPI badges */
 .kpi{ 
@@ -781,8 +807,8 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <span id="schedule-current-week-pill" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.10);border:1px solid rgba(59,130,246,0.35);font-size:0.75rem;">Week —</span>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-        <button id="scheduleSeedBtn" class="btn-secondary" title="Seed default 12-week schedule (non-destructive)">Seed Defaults</button>
-        <button id="header-estop-btn-schedule" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
+  <button id="scheduleSeedBtn" class="btn-secondary primary" title="Seed default 12-week schedule (non-destructive)">Seed Defaults</button>
+  <button id="header-estop-btn-schedule" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
     <div class="card-body" style="padding:0;">
@@ -1039,7 +1065,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-        <button id="header-estop-btn" class="btn-secondary" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
+        <button id="header-estop-btn" class="btn-secondary danger" title="Emergency stop">E-STOP</button>
       </div>
     </div>
       <div class="card-body">
@@ -1079,7 +1105,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         </div>
         <!-- 5. Circulation -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
-          <div style="font-weight:600;font-size:0.95rem;">� Circulation</div>
+          <div style="font-weight:600;font-size:0.95rem;">🔁 Circulation</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <span class="ui-status-chip neutral" id="ov-main-pump-modechip" title="Main pump mode">—</span>
             <span class="bop-status-badge" id="ov-main-pump" title="Main Pump">—</span>
@@ -1087,7 +1113,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         </div>
         <!-- 6. Lights -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:8px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);">
-          <div style="font-weight:600;font-size:0.95rem;">� Lights</div>
+          <div style="font-weight:600;font-size:0.95rem;">💡 Lights</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <span class="ui-status-chip neutral" id="ov-lights-modechip" title="Lights mode">—</span>
             <span class="bop-status-badge" id="ov-lights">—</span>
@@ -1151,7 +1177,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <span id="env-health-indicator" class="ui-status-chip success" title="Chiller health">OK</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
-        <button id="header-estop-btn-temp" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
+  <button id="header-estop-btn-temp" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
 
@@ -1266,7 +1292,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <div class="muted" id="lights-window-preview" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(148,163,184,0.35);">Window: —</div>
-        <button id="header-estop-btn-lights" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
+  <button id="header-estop-btn-lights" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
     <div class="card-body">
@@ -1323,7 +1349,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <span id="circ-health-indicator" class="ui-status-chip success" title="Circulation health">OK</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
-        <button id="header-estop-btn-circ" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
+  <button id="header-estop-btn-circ" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
     <div class="card-body">
@@ -1384,7 +1410,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
   <!-- Sensors health chip removed: replaced by global nav dot -->
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
-        <button id="header-estop-btn-sensors" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
+  <button id="header-estop-btn-sensors" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
 
@@ -1475,7 +1501,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               Maintenance Override
             </label>
             <div class="muted" id="ph-band">Targets 5.8 – 6.2</div>
-            <button id="header-estop-btn-ph" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
+            <button id="header-estop-btn-ph" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
           </div>
         </div>
 
@@ -1752,7 +1778,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 Maintenance Override
               </label>
               <div class="muted" id="ec-band">Targets 0.8 – 1.2 mS/cm</div>
-              <button id="header-estop-btn-ec" class="btn-secondary header-estop-btn" style="padding:6px 12px;font-size:0.8rem;" title="Emergency stop">E-STOP</button>
+              <button id="header-estop-btn-ec" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
             </div>
             </div>
           </div>
