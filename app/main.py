@@ -2331,12 +2331,28 @@ def api_sensors():
                  "ec": {"is_calibrated": False, "detail": "fallback"},
                  "ph": {"is_calibrated": False, "detail": "fallback"}}
     
+    # Compute freshness fields
+    age_sec = data.get("age_sec")
+    stale = bool(age_sec is not None and age_sec > 60)
+    online = data.get("online", False)
+    
+    # Health state: green (<60s & online), yellow (60-300s & online), red (>=300s or offline)
+    if online and age_sec is not None and age_sec < 60:
+        health_state = "green"
+    elif online and age_sec is not None and age_sec < 300:
+        health_state = "yellow"
+    else:
+        health_state = "red"
+    
     return {
         "temperature_c": data.get("temperature_c"),
         "ec_mscm": data.get("ec_mscm"),
         "ph": data.get("ph"),
-        "online": data.get("online", False),
+        "online": online,
         "ts": data.get("ts"),
+        "age_seconds": age_sec,
+        "stale": stale,
+        "health_state": health_state,
         "temp_comp_applied": data.get("online", False),  # Poller applies temp comp
         "temp_comp_reason": "sensor_poller" if data.get("online") else f"stale (age:{data.get('age_sec', '?')}s)",
         "cal": cal_state,

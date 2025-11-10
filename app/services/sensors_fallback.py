@@ -13,12 +13,14 @@ DB_PATH = os.environ.get(
 )
 
 def _row_to_out(row):
+    import time
     if not row:
         return None
     ts = row["ts"]
     if isinstance(ts, (int, float)):  # epoch
         ts_iso = dt.datetime.utcfromtimestamp(ts).isoformat() + "Z"
-        age = max(0, int(dt.datetime.utcnow().timestamp() - ts))
+        # Use time.time() for consistent UTC epoch comparison
+        age = max(0, int(time.time() - ts))
     else:
         # assume ISO8601
         ts_iso = str(ts)

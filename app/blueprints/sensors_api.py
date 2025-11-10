@@ -35,14 +35,19 @@ def _get_sensors_data():
     """
     try:
         from app.main import _last, _last_t
-        age = (datetime.datetime.now(datetime.UTC).timestamp() - _last_t)
-        if age < 60 and _last.get("temp_c") is not None:
+        age_sec = (datetime.datetime.now(datetime.UTC).timestamp() - _last_t)
+        if age_sec < 60 and _last.get("temp_c") is not None:
+            # Health state: green (<60s), yellow (60-300s), red (>=300s or offline)
+            health_state = "green" if age_sec < 60 else ("yellow" if age_sec < 300 else "red")
             return {
                 "temperature_c": _last.get("temp_c"),
                 "ec_mscm": _last.get("ec_ms_cm"),
                 "ph": _last.get("ph"),
                 "online": True,
                 "ts": datetime.datetime.now(datetime.UTC).isoformat() + "Z",
+                "age_seconds": age_sec,
+                "stale": bool(age_sec > 60),
+                "health_state": health_state,
                 "temp_comp_applied": False,
                 "temp_comp_reason": "cached",
                 "cal": {
@@ -61,12 +66,22 @@ def _get_sensors_data():
             # Check freshness of DB reading (sensor poller writes every 5s)
             age_sec = last.get("stale_seconds", 9999)
             is_fresh = age_sec < 60
+            # Health state: green (<60s), yellow (60-300s), red (>=300s)
+            if age_sec < 60:
+                health_state = "green"
+            elif age_sec < 300:
+                health_state = "yellow"
+            else:
+                health_state = "red"
             return {
                 "temperature_c": last.get("temperature_c"),
                 "ec_mscm": last.get("ec_mscm"),
                 "ph": last.get("ph"),
                 "online": is_fresh,
                 "ts": last.get("ts"),
+                "age_seconds": age_sec,
+                "stale": bool(age_sec > 60),
+                "health_state": health_state,
                 "temp_comp_applied": is_fresh,
                 "temp_comp_reason": "sensor_poller" if is_fresh else f"stale-db ({age_sec}s)",
                 "cal": {
@@ -85,6 +100,9 @@ def _get_sensors_data():
         "ph": None,
         "online": False,
         "ts": datetime.datetime.now(datetime.UTC).isoformat() + "Z",
+        "age_seconds": None,
+        "stale": True,
+        "health_state": "red",
         "temp_comp_applied": False,
         "temp_comp_reason": "no-data",
         "cal": {
