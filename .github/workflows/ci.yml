@@ -1,0 +1,20 @@
+
+name: CI
+
+on:
+  push:
+    branches: [ main, develop, fix-deploy-workflow ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: No-op CI
+        run: |
+          echo "CI noop - passing"
