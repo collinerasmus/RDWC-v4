@@ -9,9 +9,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: deploy
-      url: ${{ secrets.PI_HOST || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
