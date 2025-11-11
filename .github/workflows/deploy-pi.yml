@@ -1,0 +1,30 @@
+name: Deploy to Raspberry Pi
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: deploy
+      url: ${{ secrets.PI_HOST || '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.6.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Rsync files to Pi
+        run: |
+          rsync -avz --delete --exclude '.git' ./ ${{ secrets.PI_USER }}@${{ secrets.PI_HOST }}:/home/${{ secrets.PI_USER }}/rdwc
+
+      - name: Remote restart service
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.PI_USER }}@${{ secrets.PI_HOST }} 'sudo systemctl restart rdwc.service || true'

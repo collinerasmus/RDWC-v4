@@ -1,0 +1,5 @@
+# Require reviews from the repo owner or specific teams for critical paths
+/app/relays_core.py @collinerasmus
+/app/ph_control.py @collinerasmus
+/app/ec_control.py @collinerasmus
+/docs/ @collinerasmus
