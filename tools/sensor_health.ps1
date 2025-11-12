@@ -4,6 +4,7 @@ param(
 
 if (-not $PiHost) { Write-Error "PI_HOST not set. Pass -PiHost or set env."; exit 1 }
 
+Write-Host "PiHost param: '$PiHost'" -ForegroundColor Yellow
 $base = "http://$PiHost:8080"
 Write-Host "Checking $base/api/sensors ..." -ForegroundColor Cyan
 
