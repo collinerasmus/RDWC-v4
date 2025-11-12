@@ -253,7 +253,6 @@ def poll_once() -> Dict[str, Any]:
     
     readings = _read_sensors()
     # Reset skip counter on successful attempt
-    global _calib_skip_count
     _calib_skip_count = 0
     now = time.time()
     
