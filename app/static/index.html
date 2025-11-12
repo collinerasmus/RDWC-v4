@@ -1476,18 +1476,23 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
       <canvas id="trendChart" height="120"></canvas>
       <div id="trendEmpty" style="display:none;margin-top:8px;opacity:.7;">No data for selected period.</div>
-      <!-- Graph buttons under the graph -->
-      <div class="trend-controls" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;">
-        <button class="btn btn-chip active" data-range="24h">24h</button>
-        <button class="btn btn-chip" data-range="7d">7d</button>
-        <button class="btn btn-chip" data-range="30d">30d</button>
-        <button class="btn btn-chip" data-range="90d">90d</button>
-        <button class="btn btn-chip" data-range="grow">Grow</button>
-        <button class="btn btn-chip" data-range="today">Since 00:00</button>
-        <span class="sep" style="opacity:.5;">|</span>
-        <input type="datetime-local" id="trendFrom">
-        <input type="datetime-local" id="trendTo">
-        <button class="btn btn-secondary" id="trendApply">Apply</button>
+      <!-- Time range selector -->
+      <div class="trend-controls" style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+        <select id="trendRangeSelect" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;cursor:pointer;min-width:120px;">
+          <option value="24h" selected>Last 24 Hours</option>
+          <option value="7d">Last 7 Days</option>
+          <option value="30d">Last 30 Days</option>
+          <option value="90d">Last 90 Days</option>
+          <option value="grow">Entire Grow</option>
+          <option value="today">Since Midnight</option>
+          <option value="custom">Custom Range...</option>
+        </select>
+        <div id="trendCustomInputs" style="display:none;gap:8px;align-items:center;">
+          <input type="datetime-local" id="trendFrom" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;">
+          <span style="opacity:0.5;">to</span>
+          <input type="datetime-local" id="trendTo" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid#374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;">
+          <button class="btn btn-secondary" id="trendApply" style="height:32px;padding:0 12px;font-size:0.85rem;">Apply</button>
+        </div>
       </div>
       <!-- Recent readings under the graph buttons -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px 0;gap:8px;flex-wrap:wrap;">

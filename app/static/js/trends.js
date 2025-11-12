@@ -88,7 +88,8 @@
   });
 
   const emptyEl = document.getElementById('trendEmpty');
-  const btns = document.querySelectorAll('#sensors-card .btn-chip, #trends-card .btn-chip');
+  const selectEl = document.getElementById('trendRangeSelect');
+  const customInputsEl = document.getElementById('trendCustomInputs');
   const fromEl = document.getElementById('trendFrom');
   const toEl = document.getElementById('trendTo');
   const applyEl = document.getElementById('trendApply');
@@ -557,38 +558,44 @@
     await fetchDoseEvents(); // Fetch dose markers
     const data = await fetchTrends(new Date(start).toISOString(), new Date(end).toISOString(), gran, max);
     render(data);
-    markActive(preset);
     scheduleAutoRefresh();
-  }
-  
-  function markActive(preset){ 
-    btns.forEach(b => b.classList.toggle('active', b.dataset.range === preset)); 
   }
 
-  btns.forEach(b => b.addEventListener('click', async () => {
-    const preset = b.dataset.range;
-    if (preset === 'grow') {
-      await loadGrow();
-      markActive('grow');
-    } else {
-      await loadPreset(preset);
-    }
-  }));
+  // Dropdown change handler
+  if (selectEl) {
+    selectEl.addEventListener('change', async () => {
+      const val = selectEl.value;
+      if (val === 'custom') {
+        // Show custom inputs
+        if (customInputsEl) customInputsEl.style.display = 'flex';
+      } else {
+        // Hide custom inputs and load preset
+        if (customInputsEl) customInputsEl.style.display = 'none';
+        if (val === 'grow') {
+          await loadGrow();
+        } else {
+          await loadPreset(val);
+        }
+      }
+    });
+  }
   
-  applyEl.addEventListener('click', async () => {
-    if(!fromEl.value || !toEl.value) return;
-    const startMs = new Date(fromEl.value).getTime();
-    const endMs = new Date(toEl.value).getTime();
-    state.window = { start: startMs, end: endMs };
-    const fromISO = new Date(startMs).toISOString();
-    const toISO = new Date(endMs).toISOString();
-    const {gran, max} = presetParams('custom');
-    await fetchDoseEvents(); // Fetch dose markers
-    const data = await fetchTrends(fromISO, toISO, gran, max);
-    render(data);
-    markActive('');
-    scheduleAutoRefresh();
-  });
+  // Custom range apply button
+  if (applyEl) {
+    applyEl.addEventListener('click', async () => {
+      if(!fromEl.value || !toEl.value) return;
+      const startMs = new Date(fromEl.value).getTime();
+      const endMs = new Date(toEl.value).getTime();
+      state.window = { start: startMs, end: endMs };
+      const fromISO = new Date(startMs).toISOString();
+      const toISO = new Date(endMs).toISOString();
+      const {gran, max} = presetParams('custom');
+      await fetchDoseEvents(); // Fetch dose markers
+      const data = await fetchTrends(fromISO, toISO, gran, max);
+      render(data);
+      scheduleAutoRefresh();
+    });
+  }
 
   // Initial: 24h (changed to match user preference for full window demo)
   loadPreset('24h').catch(err => {
@@ -613,16 +620,16 @@ try{
         }
       });
     }
-    // Also hook into preset buttons to update global window after load
-    const btns = document.querySelectorAll('#sensors-card .btn-chip, #trends-card .btn-chip');
-    btns.forEach(b=>{
-      b.addEventListener('click', ()=>{
+    // Also hook into dropdown to update global window after load
+    const sel = document.getElementById('trendRangeSelect');
+    if (sel){
+      sel.addEventListener('change', ()=>{
         const fromEl = document.getElementById('trendFrom');
         const toEl = document.getElementById('trendTo');
         if (fromEl && toEl && fromEl.value && toEl.value){
           _set(new Date(fromEl.value).getTime(), new Date(toEl.value).getTime());
         }
       });
-    });
+    }
   })();
 }catch(e){ /* ignore */ }
