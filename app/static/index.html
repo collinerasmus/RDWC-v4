@@ -545,52 +545,31 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     color: #cbd5e1;
   }
 
-  /* Collapsible details styling */
+  /* Collapsible details styling - minimal, no emphasis */
   details {
-    transition: all 0.3s ease;
-    border: 1px solid rgba(148,163,184,0.15);
-    border-radius: 10px;
-    background: rgba(15,23,42,0.5);
-    padding: 4px;
+    border: none;
+    background: none;
+    padding: 0;
   }
   details summary {
     cursor: pointer;
     user-select: none;
-    padding: 10px 14px;
-    border-radius: 8px;
-    transition: all 0.2s ease;
     list-style: none;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 500;
+    transition: opacity 0.2s ease;
   }
   details summary::-webkit-details-marker {
     display: none;
   }
   details summary::before {
-    content: '▸';
-    display: inline-block;
-    font-size: 0.9rem;
-    transition: transform 0.2s ease;
-    color: #94a3b8;
+    content: '▸ ';
+    display: inline;
+    transition: transform 0.15s ease;
   }
   details[open] summary::before {
-    transform: rotate(90deg);
-    color: #3b82f6;
+    content: '▾ ';
   }
   details summary:hover {
-    background: rgba(148,163,184,0.08);
-  }
-  details[open] summary {
-    background: rgba(59,130,246,0.08);
-    color: #93c5fd;
-    margin-bottom: 12px;
-    border-bottom: 1px solid rgba(59,130,246,0.2);
-  }
-  details[open] {
-    border-color: rgba(59,130,246,0.3);
-    background: rgba(15,23,42,0.8);
+    opacity: 0.8;
   }
   
   /* Success feedback animation */
