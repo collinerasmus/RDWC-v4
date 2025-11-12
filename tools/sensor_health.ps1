@@ -1,10 +1,10 @@
 param(
-  [string]$Host = $env:PI_HOST
+  [string]$PiHost = $env:PI_HOST
 )
 
-if (-not $Host) { Write-Error "PI_HOST not set. Pass -Host or set env."; exit 1 }
+if (-not $PiHost) { Write-Error "PI_HOST not set. Pass -PiHost or set env."; exit 1 }
 
-$base = "http://$Host:8080"
+$base = "http://$PiHost:8080"
 Write-Host "Checking $base/api/sensors ..." -ForegroundColor Cyan
 
 try {
