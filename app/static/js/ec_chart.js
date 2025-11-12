@@ -333,40 +333,57 @@
     loadRangeAndRender({ start: range.start, end: range.end });
   }
 
-  async function bindRangeButtons(){
-    const buttons = document.querySelectorAll('[data-ec-range]');
-    buttons.forEach(btn => {
-      if (btn.__bound) return;
-      btn.__bound = true;
-      const preset = btn.getAttribute('data-ec-range');
-      btn.addEventListener('click', () => {
-        if (!btn.disabled) selectPreset(preset);
-      });
-    });
-    
-    // Wire custom range selector
+  function toggleCustomInputs(enabled){
     const fromEl = document.getElementById('ecDoseFrom');
     const toEl = document.getElementById('ecDoseTo');
     const applyEl = document.getElementById('ecDoseApply');
-    
-    if (applyEl && fromEl && toEl && window.rdwcRange) {
-      applyEl.addEventListener('click', () => {
-        const start = fromEl.value;
-        const end = toEl.value;
-        if (start && end) {
+    if(!fromEl || !toEl || !applyEl) return;
+    fromEl.disabled = !enabled; toEl.disabled = !enabled; applyEl.disabled = !enabled;
+    fromEl.style.opacity = enabled ? '1' : '0.55';
+    toEl.style.opacity = enabled ? '1' : '0.55';
+  }
+
+  async function wireRangeControls(){
+    // Restore last preset
+    const savedPreset = window.rdwcRange?.getLastPreset('rdwc.ec.range') || '24h';
+    currentRange.preset = savedPreset;
+    const selectEl = document.getElementById('ecDoseRangeSelect');
+    if(selectEl){
+      // Disable grow if no start date
+      const growDate = window.rdwcSettings?.get('general.grow_start_date');
+      if(!growDate){
+        const opt = selectEl.querySelector('option[value="grow"]');
+        if(opt){ opt.disabled = true; opt.textContent = 'Entire Grow (set start date)'; }
+        if(savedPreset==='grow') currentRange.preset='24h';
+      }
+      selectEl.value = currentRange.preset;
+      selectEl.addEventListener('change', ()=>{
+        const val = selectEl.value;
+        selectPreset(val);
+        toggleCustomInputs(val==='custom');
+      });
+      toggleCustomInputs(selectEl.value==='custom');
+    }
+    // Custom range apply
+    const fromEl = document.getElementById('ecDoseFrom');
+    const toEl = document.getElementById('ecDoseTo');
+    const applyEl = document.getElementById('ecDoseApply');
+    if(applyEl && fromEl && toEl){
+      applyEl.addEventListener('click', ()=>{
+        const start = fromEl.value; const end = toEl.value;
+        if(start && end){
           window.rdwcRange.saveCustomRange('rdwc.ec.range', start, end);
           selectPreset('custom');
+          if(selectEl) selectEl.value='custom';
+          toggleCustomInputs(true);
         }
       });
     }
-    
-    // Load saved preset or default to 24h
-    const savedPreset = window.rdwcRange?.getLastPreset('rdwc.ec.range') || '24h';
-    await loadRange(savedPreset);
+    await loadRange(currentRange.preset);
   }
 
   async function init(){
-    bindRangeButtons();
+    wireRangeControls();
   }
 
   // Export small API for other modules (ec.js calls refresh after dosing)
@@ -382,7 +399,15 @@
       }
     },
     render: loadRangeAndRender,
-    init
+    init,
+    getRange: function(){ return {start: currentRange.start, end: currentRange.end, preset: currentRange.preset}; },
+    exportCSV: function(){
+      let start = currentRange.start, end = currentRange.end;
+      if(!start || !end){ window.open('/api/ec/dose_log.csv?hours=24','_blank'); return; }
+      const startISO = new Date(start).toISOString();
+      const endISO = new Date(end).toISOString();
+      window.open(`/api/ec/dose_log.csv?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=5000`, '_blank');
+    }
   };
 
   if (document.readyState === 'loading') {

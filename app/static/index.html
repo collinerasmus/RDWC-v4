@@ -1959,15 +1959,22 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               </div>
             </div>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;">
-              <button class="btn btn-chip" data-ec-range="24h">24h</button>
-              <button class="btn btn-chip" data-ec-range="7d">7d</button>
-              <button class="btn btn-chip" data-ec-range="30d">30d</button>
-              <button class="btn btn-chip" data-ec-range="90d">90d</button>
-              <button class="btn btn-chip" data-ec-range="grow" title="From grow start date to now">Grow</button>
-              <span style="opacity:.5;">|</span>
-              <input type="datetime-local" id="ecDoseFrom" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
-              <input type="datetime-local" id="ecDoseTo" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
-              <button class="btn btn-secondary" id="ecDoseApply">Apply</button>
+              <select id="ecDoseRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.8rem;cursor:pointer;min-width:110px;">
+                <option value="24h" selected>Last 24 Hours</option>
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+                <option value="90d">Last 90 Days</option>
+                <option value="grow">Entire Grow</option>
+                <option value="today">Since Midnight</option>
+                <option value="custom">Custom Range...</option>
+              </select>
+              <div id="ecDoseCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
+                <input type="datetime-local" id="ecDoseFrom" style="height:28px;padding:0 4px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.75rem;width:140px;" />
+                <span style="opacity:0.5;font-size:0.75rem;">to</span>
+                <input type="datetime-local" id="ecDoseTo" style="height:28px;padding:0 4px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.75rem;width:140px;" />
+                <button class="btn btn-secondary" id="ecDoseApply" style="height:28px;padding:0 8px;font-size:0.75rem;white-space:nowrap;">Apply</button>
+              </div>
+              <button id="btnEcExport" class="btn-secondary" title="Export displayed EC dose history to CSV" style="height:28px;padding:0 10px;font-size:0.75rem;white-space:nowrap;margin-left:auto;">Export CSV</button>
             </div>
 
             <!-- Dose Log just under the graph controls -->

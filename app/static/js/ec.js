@@ -484,7 +484,11 @@
       if(ml > 0) doseEC(ml);
     });
     el('btnEcAutoToggle')?.addEventListener('click', toggleAuto);
-    el('btnEcExport24')?.addEventListener('click', exportCSV24h);
+    // Export uses displayed window range
+    el('btnEcExport')?.addEventListener('click', ()=>{
+      if(window.ecChart && window.ecChart.exportCSV){ window.ecChart.exportCSV(); }
+      else exportCSV24h(); // fallback
+    });
     
     // Dose log refresh
     el('btnEcRefreshDoseLog')?.addEventListener('click', refreshDoseLog);
