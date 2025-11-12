@@ -11,22 +11,22 @@ $Target = "$PiUser@$PiHost"
 Write-Host "Refreshing RDWC-v4 on $Target..." -ForegroundColor Cyan
 
 $cmd = @(
-  'set -euxo pipefail',
+  'set -e',
   'cd ~/RDWC-v4',
-  'echo "[remote] git fetch"',
+  'echo REMOTE git_fetch',
   'git fetch origin',
-  'echo "[remote] git reset"',
+  'echo REMOTE git_reset',
   'git reset --hard origin/main',
-  'echo "[remote] clearing calib lock"',
+  'echo REMOTE clear_calib_lock',
   'sudo rm -f /tmp/rdwc_calib.lock || true',
-  'echo "[remote] restart rdwc.service"',
+  'echo REMOTE restart_rdwc',
   'sudo systemctl restart rdwc.service',
-  'echo "[remote] restart rdwc-sensors.service"',
+  'echo REMOTE restart_poller',
   'sudo systemctl restart rdwc-sensors.service',
   'sleep 2',
-  'echo "[remote] rdwc-sensors status (first lines)"',
-  'sudo systemctl status rdwc-sensors.service --no-pager -l | sed -n "1,20p"',
-  'echo "[remote] recent logs"',
+  'echo REMOTE status_head',
+  'sudo systemctl status rdwc-sensors.service --no-pager -l | head -n 20',
+  'echo REMOTE recent_logs',
   'sudo journalctl -u rdwc-sensors.service -n 40 --no-pager'
 ) -join ' ; '
 
