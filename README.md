@@ -10,6 +10,7 @@ Automated RDWC (Recirculating Deep Water Culture) hydroponic controller with pH/
 
 1. **Hardware Setup**: Connect sensors and relays per hardware map below
 2. **Install**: `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
+  - Dev tools (optional): `pip install -r requirements-dev.txt`
 3. **Configure**: Copy `.env.example` to `.env`, set Pi IP, sensor addresses
 4. **Deploy**: `./deploy_pi.sh` (from dev machine) or `systemctl start rdwc.service` (on Pi)
 5. **Access**: http://192.168.88.49:8080
