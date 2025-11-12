@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -1493,20 +1493,15 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <input type="datetime-local" id="trendTo" style="height:28px;padding:0 4px;background:#1f2937;border:1px solid#374151;color:#e0e0e0;border-radius:4px;font-size:0.75rem;width:140px;">
           <button class="btn btn-secondary" id="trendApply" style="height:28px;padding:0 8px;font-size:0.75rem;white-space:nowrap;">Apply</button>
         </div>
+        <button id="btnSensorsExport" class="btn-secondary" title="Export displayed graph data to CSV" onclick="exportCsv()" style="height:28px;padding:0 10px;font-size:0.75rem;white-space:nowrap;margin-left:auto;">Export CSV</button>
       </div>
-      <!-- Recent readings under the graph buttons -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px 0;gap:8px;flex-wrap:wrap;">
-        <div id="s-recent-header" class="muted" style="cursor:pointer;user-select:none;">Recent Readings ▸</div>
-        <div>
-          <button id="btnSensorsExport24" class="btn-secondary" title="Download CSV of recent sensor readings (24h)" onclick="exportCsv(24)">Export CSV (24h)</button>
-        </div>
-      </div>
-      <div id="s-recent" class="muted" style="display:none;max-height:140px;overflow-y:auto;padding-right:6px;"></div>
-      <!-- Settings at the bottom -->
-      <details style="margin-top:12px;">
-        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Sensor Settings</summary>
-        <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-          <div class="muted" style="font-size:0.85rem;">Live Sensors are cached by the background poller. Use “Read now” for an immediate sample. Health details are available from the green “OK” badge.</div>
+      <!-- Settings with recent readings moved inside -->
+      <details style="margin-top:16px;">
+        <summary class="muted" style="cursor:pointer;font-size:0.85rem;padding:4px 0;">Settings & Recent Readings</summary>
+        <div style="margin-top:8px;">
+          <div class="muted" style="font-size:0.8rem;margin-bottom:12px;opacity:0.7;">Live Sensors are cached by the background poller. Use "Read now" for an immediate sample. Health details are available from the green "OK" badge.</div>
+          <div class="muted" style="font-size:0.75rem;font-weight:600;margin-bottom:4px;opacity:0.8;">Recent Readings (last 5)</div>
+          <div id="s-recent" class="muted" style="font-size:0.7rem;opacity:0.8;"></div>
         </div>
       </details>
     </div>

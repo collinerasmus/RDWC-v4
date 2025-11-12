@@ -241,14 +241,7 @@
       } catch(_) { /* swallow fallback errors */ }
     }
   }
-  // Collapsible recent readings (ph-style)
-  function setRecentCollapsed(collapsed){
-    const hdr = $("s-recent-header");
-    const list = $("s-recent");
-    if(hdr){ hdr.textContent = collapsed ? 'Recent Readings ▸' : 'Recent Readings ▾'; }
-    if(list){ list.style.display = collapsed ? 'none' : 'block'; }
-    localStorage.setItem('sensors_recent_collapsed', collapsed? 'true':'false');
-  }
+  // Recent readings now embedded in settings details (always visible when expanded)
   async function refreshRecent(){
     const list = $("s-recent");
     if(!list) return;
@@ -257,29 +250,26 @@
       if(!r.ok) throw new Error('HTTP '+r.status);
       const j = await r.json();
       const rows = j?.recent || [];
-      if(rows.length===0){ list.innerHTML = '<div class="muted" style="padding:4px 0;">No recent readings</div>'; return; }
-      list.innerHTML = rows.slice(0,40).map(e => {
+      if(rows.length===0){ list.innerHTML = '<div style="padding:2px 0;">No recent readings</div>'; return; }
+      // Take first 5 (already sorted newest first by API)
+      list.innerHTML = rows.slice(0,5).map(e => {
         const when = e.ts?.replace('T',' ').replace('Z','') || '—';
         const ph = e.ph!=null? e.ph.toFixed(2):'—';
         const ec = e.ec_mscm!=null? e.ec_mscm.toFixed(2):'—';
         const t  = e.temperature_c!=null? e.temperature_c.toFixed(2):'—';
         return `<div style="padding:2px 0;">${when} • pH ${ph} • EC ${ec} • Temp ${t}°C</div>`;
       }).join('');
-    }catch(e){ list.innerHTML = '<div style="padding:4px 0;color:#f59e0b;">Load error</div>'; }
+    }catch(e){ list.innerHTML = '<div style="padding:2px 0;color:#f59e0b;">Load error</div>'; }
   }
   
   document.addEventListener("DOMContentLoaded", ()=>{
     console.log("[Sensors] Initializing real-time updates");
     ready = true;
     ensurePolling();
-  // Recent list init
-  const collapsed = localStorage.getItem('sensors_recent_collapsed') !== 'false';
-  setRecentCollapsed(collapsed);
-  refreshRecent();
-  const hdr = $("s-recent-header");
-  if(hdr){ hdr.addEventListener('click', ()=>{ const cur = $("s-recent").style.display==='none'; setRecentCollapsed(!cur); }); }
-  // Periodically refresh recent list (every 45s)
-  setInterval(refreshRecent, 45000);
+    // Initialize recent readings list
+    refreshRecent();
+    // Periodically refresh recent list (every 45s)
+    setInterval(refreshRecent, 45000);
     // Read now handler
     const btn = $("btnSensorsReadNow");
     if (btn){
