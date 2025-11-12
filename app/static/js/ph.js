@@ -543,8 +543,7 @@
     await wireRangeControls();
     
   // CSV export uses current range (support both legacy and new ids)
-  el('ph-dose-csv')?.addEventListener('click', ()=>{ exportCSV(); });
-  el('btnPhExport24')?.addEventListener('click', ()=>{ exportCSV(); });
+  el('btnPhExport')?.addEventListener('click', ()=>{ exportCSV(); });
 
     // pH Calibration event handlers (for inline calibration in pH Settings)
     const msgEl = el('ph-calib-msg-inline');
