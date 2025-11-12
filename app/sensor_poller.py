@@ -224,11 +224,10 @@ def poll_once() -> Dict[str, Any]:
     Returns:
         Dict containing sensor readings and metadata
     """
-    global _last_sample_ts, _last_heartbeat_ts, _poll_count
+    global _last_sample_ts, _last_heartbeat_ts, _poll_count, _calib_skip_count
     
     # Check for calibration activity - skip polling if calibration is in progress
     if _calib_lock_held():
-        global _calib_skip_count
         _calib_skip_count += 1
         logger.debug("Calibration lock held, skipping sensor poll to avoid I²C contention")
         # If we've skipped for a long time (>5 min @5s interval) assume stale lock and remove it
