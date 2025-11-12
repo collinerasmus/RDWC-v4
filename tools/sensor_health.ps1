@@ -5,11 +5,11 @@ param(
 if (-not $PiHost) { Write-Error "PI_HOST not set. Pass -PiHost or set env."; exit 1 }
 
 Write-Host "PiHost param: '$PiHost'" -ForegroundColor Yellow
-$base = "http://$PiHost:8080"
-Write-Host "Checking $base/api/sensors ..." -ForegroundColor Cyan
+$uri = 'http://{0}:8080/api/sensors' -f $PiHost
+Write-Host ("Checking {0} ..." -f $uri) -ForegroundColor Cyan
 
 try {
-  $resp = Invoke-RestMethod -Uri "$base/api/sensors" -Method GET -TimeoutSec 8
+  $resp = Invoke-RestMethod -Uri $uri -Method GET -TimeoutSec 8
 } catch {
   Write-Error "Request failed: $_"; exit 2
 }
