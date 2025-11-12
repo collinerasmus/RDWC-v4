@@ -565,12 +565,15 @@
   if (selectEl) {
     selectEl.addEventListener('change', async () => {
       const val = selectEl.value;
-      if (val === 'custom') {
-        // Show custom inputs
-        if (customInputsEl) customInputsEl.style.display = 'flex';
-      } else {
-        // Hide custom inputs and load preset
-        if (customInputsEl) customInputsEl.style.display = 'none';
+      const isCustom = (val === 'custom');
+      
+      // Enable/disable inputs based on selection
+      if (fromEl) fromEl.disabled = !isCustom;
+      if (toEl) toEl.disabled = !isCustom;
+      if (applyEl) applyEl.disabled = !isCustom;
+      
+      if (!isCustom) {
+        // Load preset and populate inputs with resulting timeframe
         if (val === 'grow') {
           await loadGrow();
         } else {
