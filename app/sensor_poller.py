@@ -39,6 +39,8 @@ _poller_running = False
 _last_sample_ts: Optional[float] = None
 _last_heartbeat_ts: Optional[float] = None
 _poll_count = 0
+# Track consecutive calibration skips to detect stale lock
+_calib_skip_count = 0
 
 
 class PollerLockError(Exception):
@@ -126,18 +128,25 @@ def _get_db_conn() -> sqlite3.Connection:
 
 
 def _update_system_state(key: str, value: str) -> None:
-    """Update a key-value pair in system_state table"""
-    try:
-        conn = _get_db_conn()
-        now = int(time.time())
-        conn.execute(
-            "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES (?, ?, ?)",
-            (key, value, now)
-        )
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        logger.error(f"Failed to update system_state[{key}]: {e}")
+    """Update a key-value pair in system_state table with small retry on transient DB open issues."""
+    for attempt in range(3):
+        try:
+            conn = _get_db_conn()
+            now = int(time.time())
+            conn.execute(
+                "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES (?, ?, ?)",
+                (key, value, now)
+            )
+            conn.commit()
+            conn.close()
+            return
+        except Exception as e:
+            msg = str(e).lower()
+            if "unable to open database file" in msg and attempt < 2:
+                time.sleep(0.25)
+                continue
+            logger.error(f"Failed to update system_state[{key}] (attempt {attempt+1}): {e}")
+            break
 
 
 # No longer using persistent EZO instances - delegates to sensors_core
@@ -191,15 +200,18 @@ def _calib_lock_held() -> bool:
     """Check if calibration lock is currently held by another process"""
     import fcntl
     lock_path = "/tmp/rdwc_calib.lock"
+    # If lock file doesn't exist, no calibration is in progress
+    if not Path(lock_path).exists():
+        return False
     try:
-        fd = open(lock_path, 'w')
+        fd = open(lock_path, 'r')  # Open read-only to check lock status
         # Try non-blocking exclusive lock
         fcntl.flock(fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         # If we got the lock, release it immediately
         fcntl.flock(fd.fileno(), fcntl.LOCK_UN)
         fd.close()
         return False  # Lock was available, no calibration in progress
-    except (IOError, OSError):
+    except (IOError, OSError, BlockingIOError):
         # Lock is held by another process
         return True
 
@@ -216,7 +228,19 @@ def poll_once() -> Dict[str, Any]:
     
     # Check for calibration activity - skip polling if calibration is in progress
     if _calib_lock_held():
+        global _calib_skip_count
+        _calib_skip_count += 1
         logger.debug("Calibration lock held, skipping sensor poll to avoid I²C contention")
+        # If we've skipped for a long time (>5 min @5s interval) assume stale lock and remove it
+        if _calib_skip_count >= (60):  # 60 * 5s ≈ 5 minutes
+            stale_lock = Path("/tmp/rdwc_calib.lock")
+            if stale_lock.exists():
+                try:
+                    stale_lock.unlink()
+                    logger.warning("Stale calibration lock removed after prolonged skip period")
+                    _calib_skip_count = 0
+                except OSError as e:
+                    logger.error(f"Failed to remove stale calibration lock: {e}")
         # Still update heartbeat so we don't appear dead
         now = time.time()
         _last_heartbeat_ts = now
@@ -229,6 +253,9 @@ def poll_once() -> Dict[str, Any]:
         }
     
     readings = _read_sensors()
+    # Reset skip counter on successful attempt
+    global _calib_skip_count
+    _calib_skip_count = 0
     now = time.time()
     
     # Log to database (NULLs allowed for offline sensors)
