@@ -738,30 +738,31 @@
     // Restore last preset or default to 24h
     const lastPreset = window.rdwcRange.getLastPreset('rdwc.ph.range', '24h');
     currentRange.preset = lastPreset;
-    
-    // Wire preset buttons
-    const btns = document.querySelectorAll('#ph-card .btn-chip[data-range]');
-    btns.forEach(btn => {
-      const preset = btn.getAttribute('data-range');
-      if (preset === currentRange.preset) btn.classList.add('active');
-      
-      // Disable Grow if no grow_start_date
-      if (preset === 'grow') {
-        const growDate = window.rdwcSettings?.get('general.grow_start_date');
-        if (!growDate) {
-          btn.disabled = true;
-          btn.title = 'Set Grow start date in Settings';
-          btn.style.opacity = '0.5';
-          btn.style.cursor = 'not-allowed';
+    // Wire dropdown (standardized template)
+    const selectEl = el('phDoseRangeSelect');
+    if (selectEl){
+      // Disable Grow option if no grow_start_date
+      const growDate = window.rdwcSettings?.get('general.grow_start_date');
+      if (!growDate){
+        const growOpt = selectEl.querySelector('option[value="grow"]');
+        if (growOpt){
+          growOpt.disabled = true;
+          growOpt.textContent = 'Entire Grow (set start date)';
         }
+        if (lastPreset === 'grow') currentRange.preset = '24h';
       }
-      
-      btn.addEventListener('click', () => {
-        if (!btn.disabled) selectPreset(preset);
+      selectEl.value = currentRange.preset;
+      selectEl.addEventListener('change', ()=>{
+        const val = selectEl.value;
+        selectPreset(val);
+        // Enable/disable custom inputs
+        toggleCustomInputs(val === 'custom');
       });
-    });
-    
-    // Wire custom range
+      // Initial custom inputs state
+      toggleCustomInputs(selectEl.value === 'custom');
+    }
+
+    // Wire custom range apply
     const fromEl = el('phDoseFrom');
     const toEl = el('phDoseTo');
     const applyEl = el('phDoseApply');
@@ -773,6 +774,8 @@
         if (start && end) {
           window.rdwcRange.saveCustomRange('rdwc.ph.range', start, end);
           selectPreset('custom');
+          const selectEl2 = el('phDoseRangeSelect');
+          if (selectEl2) selectEl2.value = 'custom';
         }
       });
     }
@@ -784,12 +787,9 @@
   async function selectPreset(preset){
     currentRange.preset = preset;
     window.rdwcRange.saveLastPreset('rdwc.ph.range', preset);
-    
-    // Update button states
-    const btns = document.querySelectorAll('#ph-card .btn-chip[data-range]');
-    btns.forEach(btn => {
-      btn.classList.toggle('active', btn.getAttribute('data-range') === preset);
-    });
+    // Update dropdown value (if present)
+    const selectEl = el('phDoseRangeSelect');
+    if (selectEl && selectEl.value !== preset){ selectEl.value = preset; }
     
     // Load range
     await loadRange(preset);
@@ -833,11 +833,31 @@
       };
       fromEl.value = formatForInput(range.start);
       toEl.value = formatForInput(range.end);
+      // Disable inputs unless custom preset selected
+      const isCustom = currentRange.preset === 'custom';
+      fromEl.disabled = !isCustom;
+      toEl.disabled = !isCustom;
+      const applyEl = el('phDoseApply');
+      if (applyEl) applyEl.disabled = !isCustom;
+      // Dim disabled inputs for clarity
+      const dimStyle = 'opacity:0.55;';
+      fromEl.style.opacity = isCustom ? '1' : '0.55';
+      toEl.style.opacity = isCustom ? '1' : '0.55';
     }
     
     // Refresh chart and summary
     await refreshDoseChart();
     await refreshSummary();
+  }
+
+  function toggleCustomInputs(enabled){
+    const fromEl = el('phDoseFrom');
+    const toEl = el('phDoseTo');
+    const applyEl = el('phDoseApply');
+    if(!fromEl || !toEl || !applyEl) return;
+    fromEl.disabled = !enabled; toEl.disabled = !enabled; applyEl.disabled = !enabled;
+    fromEl.style.opacity = enabled ? '1' : '0.55';
+    toEl.style.opacity = enabled ? '1' : '0.55';
   }
   
   function exportCSV(){
