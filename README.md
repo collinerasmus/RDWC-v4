@@ -14,6 +14,14 @@ Automated RDWC (Recirculating Deep Water Culture) hydroponic controller with pH/
 4. **Deploy**: `./deploy_pi.sh` (from dev machine) or `systemctl start rdwc.service` (on Pi)
 5. **Access**: http://192.168.88.49:8080
 
+## Ops: No-Pytest Health Checks
+
+- Refresh services on the Pi and view logs:
+  - `./deploy/refresh_poller.ps1 -Host $env:PI_HOST -User $env:PI_USER`
+- Verify sensors are fresh (<60s):
+  - `./tools/sensor_health.ps1 -Host $env:PI_HOST`
+
+VS Code is configured to disable local test discovery to reduce noise. Use the scripts above for runtime checks.
 ## Hardware Map
 
 ### I²C Sensors (Atlas Scientific EZO)
@@ -54,12 +62,6 @@ Web UI organized by function (http://192.168.88.49:8080):
 
 ## How it works
 
-- One FastAPI app under systemd, using a Python venv.
-- Central relay core enforces idempotency, active-low driving, cooldowns (MIN_ON/OFF), and anti-flap.
-- Lights scheduling is edge-only: exactly two edges per day (ON at start, OFF after duration) with small guards; no periodic catch-up loops.
-- Sensors use an RTD-first read and throttle temperature-compensation writes to pH/EC (ΔT ≥ 0.2°C or ≥ 60s).
-- Chiller override has explicit modes (auto | force_on | force_off). AUTO does not thermostat in software; hardware thermostat remains in control.
-- Alerts are OFF by default (opt-in via .env).
 
 ## Headless Sensor Poller (24/7 Logging)
 
