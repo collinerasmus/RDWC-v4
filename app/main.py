@@ -817,8 +817,22 @@ def api_health():
 
 @app.get("/api/version")
 def asset_version():
-    """Expose a simple asset version token for cache-busting (ASSET_VERSION env or today's date)."""
-    return {"version": ASSET_VERSION}
+    """Expose asset version and build commit marker for cache-busting and deployment verification."""
+    build_commit = None
+    idx = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    try:
+        with open(idx, 'r', encoding='utf-8', errors='ignore') as f:
+            head = f.read(600)
+        marker_prefix = "BUILD_COMMIT:";
+        for line in head.splitlines():
+            if marker_prefix in line:
+                parts = line.strip().split(marker_prefix)
+                if len(parts) > 1:
+                    build_commit = parts[1].split('-->')[0].strip()
+                break
+    except Exception:
+        pass
+    return {"version": ASSET_VERSION, "build_commit": build_commit, "ts": int(time.time())}
 
 @app.get("/api/relays/status")
 def api_relays_status():
@@ -1248,7 +1262,23 @@ def dose_recent(limit: int = Query(50), hours: Optional[int] = Query(None)):
 @app.get("/")
 def ui():
     path = os.path.join(os.path.dirname(__file__), "static", "index.html")
-    return FileResponse(path, media_type="text/html", headers={"Cache-Control":"no-store, must-revalidate"})
+    build_commit = None
+    try:
+        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            head = f.read(600)
+        marker_prefix = "BUILD_COMMIT:";
+        for line in head.splitlines():
+            if marker_prefix in line:
+                parts = line.strip().split(marker_prefix)
+                if len(parts) > 1:
+                    build_commit = parts[1].split('-->')[0].strip()
+                break
+    except Exception:
+        pass
+    headers = {"Cache-Control":"no-store, must-revalidate"}
+    if build_commit:
+        headers["X-Build-Commit"] = build_commit
+    return FileResponse(path, media_type="text/html", headers=headers)
 
 @app.get("/history")
 def history(limit: int = 100):
