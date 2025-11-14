@@ -25,13 +25,7 @@
   // Always use unified EC dosing endpoint
   async function detectDoseMode(){ return 'ec_unified_v1'; }
 
-  async function fetchHealthDB(){
-    try{
-      const r = await fetch('/health/db', {cache: 'no-store'});
-      if(!r.ok) return null;
-      return await r.json();
-    }catch(e){ return null; }
-  }
+  // Health DB fetch removed from EC header (redundant with global health chip)
 
   function guardActive(g){
     if(!g) return false;
@@ -93,22 +87,7 @@
     if(resBanner && s){ resBanner.style.display = s.guards?.reservoir ? 'block' : 'none'; }
 
     // Freshness indicator
-    const health = await fetchHealthDB();
-    const dot = el('ecFreshnessDot');
-    if(dot && health){
-      const age = health.age_seconds || 0;
-      const rows = health.row_count || 0;
-      if(age < 180){
-        dot.style.background = '#22c55e'; // green
-        dot.title = `Fresh (${Math.round(age)}s, ${rows} rows)`;
-      }else if(age < 600){
-        dot.style.background = '#f59e0b'; // amber
-        dot.title = `Stale (${Math.round(age)}s, ${rows} rows)`;
-      }else{
-        dot.style.background = '#ef4444'; // red
-        dot.title = `Very stale (${Math.round(age)}s, ${rows} rows)`;
-      }
-    }
+    // Removed freshness dot in EC header (uses global health indicator)
 
     // Override badge in header
     const overrideBadge = el('ecOverrideBadge');
@@ -640,13 +619,7 @@
     _origRender(s);
     try{
       // Age seconds display
-      const ageEl = document.getElementById('ec-age');
-      if(ageEl && s){
-        if(s.ec_ts){
-          const age = Math.max(0, Math.round((Date.now()/1000) - s.ec_ts));
-          ageEl.textContent = `age: ${age}s`;
-        } else { ageEl.textContent = 'age: —s'; }
-      }
+      // Age chip removed
       const sp = parseFloat(el('ecSetpoint')?.value||'');
       if(s && s.ec_ms_cm!=null && !isNaN(sp)){
         const d = s.ec_ms_cm - sp;

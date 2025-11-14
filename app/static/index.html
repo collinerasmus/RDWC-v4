@@ -1804,11 +1804,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <div class="kpi-label">Guards</div>
                 <div class="kpi-value" id="ec-guards">—</div>
               </div>
-              <span id="ec-age" class="pill-muted">age: —s</span>
-              <span id="ecFreshnessDot" class="dot" title="Data freshness"></span>
+              <!-- age chip and freshness dot removed (header health indicator is sufficient) -->
               <span id="ecOverrideBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.75rem;" title="OVERRIDE ON">OVERRIDE ON</span>
-              <span id="ecKChip" class="pill-muted nowrap">K=—</span>
-              <span id="ecCalChip" class="pill-muted nowrap">Cal: —</span>
+              
               <button id="btnEcDebug" class="btn-text" title="EC scale diagnostics">🔍 Debug</button>
               <span id="ec-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
             </div>
@@ -1899,10 +1897,6 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
               <!-- Volume-based dosing with mix ratio -->
               <div style="margin-bottom:12px;">
-                <div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                  <span class="muted" style="font-size:0.7rem;">Last three doses:</span>
-                  <div id="ec-last-three" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-                </div>
                 <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Mix Ratio (Volume-based)</label>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                   <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
@@ -1988,7 +1982,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <div style="margin-top:16px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                 <div class="muted" style="font-weight:600;font-size:0.9rem;">📝 Dose Log (Last 20)</div>
-                <button id="btnEcRefreshDoseLog" class="btn-secondary" style="padding:4px 10px;font-size:0.85rem;" title="Refresh dose log">Refresh</button>
+                <button id="btnEcRefreshDoseLog" class="btn-secondary btn-small" title="Refresh dose log">Refresh</button>
               </div>
               <div style="max-height:200px;overflow-y:auto;border-radius:6px;border:1px solid rgba(148,163,184,0.1);">
                 <table style="width:100%;font-size:0.85rem;">
@@ -2015,6 +2009,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
                 <div class="muted" style="font-size:0.75rem;margin-bottom:12px;opacity:0.75;">
                   Configure EC targets, dosing parameters, and alert thresholds.
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+                  <span class="pill-muted nowrap" id="ecKChip">K=—</span>
+                  <span class="pill-muted nowrap" id="ecCalChip">Cal: —</span>
                 </div>
                 <div style="margin-bottom:16px;">
                   <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Target Range</div>
