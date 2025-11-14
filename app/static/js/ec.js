@@ -66,17 +66,12 @@
     lastStatus = s;
     lastPollAt = Date.now();
     const ecVal = el('ec-current');
-    const ppmVal = el('ec-ppm');
     const band = el('ec-band');
     const guards = el('ec-guards');
   const resBanner = el('ec-reservoir-banner');
     const cdPill = el('ec-countdown-pill');
     
     if(ecVal){ ecVal.textContent = (s && s.ec_ms_cm!=null) ? s.ec_ms_cm.toFixed(2) : '—'; }
-    if(ppmVal){ 
-      const ppm = (s && s.ec_ms_cm!=null) ? Math.round(s.ec_ms_cm * 500) : null;
-      ppmVal.textContent = ppm!=null ? ppm : '—'; 
-    }
     if(band && s){ band.textContent = `Targets ${s.targets.low} – ${s.targets.high} mS/cm`; }
     if(guards && s){
       const list = guardList(s.guards);
@@ -115,10 +110,6 @@
     ['btnEcDose10','btnEcDose50','btnEcDose100','btnEcDoseCustom','ecCustomMl'].forEach(id=>{
       const e = el(id); if(e){ e.disabled = disabled; e.title = disabled ? 'Blocked by guard(s)' : ''; }
     });
-
-    // Maintenance override badge in manual tab
-    const badge = el('ecMaintBadge');
-    if (badge) badge.style.display = maint ? 'inline-block' : 'none';
 
     // Automation toggle button
     const autoBtn = el('btnEcAutoToggle');
@@ -225,15 +216,20 @@
   }
 
   async function doseEC(ml){
-    const mix = document.querySelector('input[name="ecMixRatio"]:checked')?.value || 'schedule';
-    const body = { ml, mix_ratio: mix, reason: 'manual' };
-    if (mix === 'custom') {
+    // Mix ratio managed via Settings (dosing.ec_mix_ratio, dosing.ec_custom_*)
+    // Backend reads these settings; UI just passes ml and reason
+    const mix_ratio = window.rdwcSettings?.get('dosing.ec_mix_ratio') || 'schedule';
+    const body = { ml, mix_ratio, reason: 'manual' };
+    
+    // If custom, include custom ratios from settings
+    if (mix_ratio === 'custom') {
       body.custom = {
-        grow: parseFloat(el('ecCustomGrow')?.value || 0),
-        micro: parseFloat(el('ecCustomMicro')?.value || 0),
-        bloom: parseFloat(el('ecCustomBloom')?.value || 0)
+        grow: parseFloat(window.rdwcSettings?.get('dosing.ec_custom_grow') || 0),
+        micro: parseFloat(window.rdwcSettings?.get('dosing.ec_custom_micro') || 0),
+        bloom: parseFloat(window.rdwcSettings?.get('dosing.ec_custom_bloom') || 0)
       };
     }
+    
     try{
       const r = await fetch('/api/ec/dose', {
         method: 'POST',
@@ -286,16 +282,8 @@
     window.open('/api/ec/dose_log.csv?hours=24', '_blank');
   }
 
-  // Custom ratio toggle
-  function setupMixRatioToggle(){
-    const radios = document.querySelectorAll('input[name="ecMixRatio"]');
-    const customDiv = el('ec-custom-ratio');
-    radios.forEach(r => {
-      r.addEventListener('change', ()=>{
-        if(customDiv) customDiv.style.display = (r.value === 'custom' && r.checked) ? 'block' : 'none';
-      });
-    });
-  }
+  // Custom mix ratio UI removed (managed in Settings); stub retained for safety.
+  function setupMixRatioToggle(){ /* no-op */ }
 
   // --- Unified dosing ---
   async function doseUnified(pump, seconds, reason='ui-manual'){

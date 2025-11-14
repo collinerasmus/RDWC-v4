@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251111h"/><!-- Cache-buster: dynamic camera height -->
+<meta name="version" content="20251114a"/><!-- Cache-buster: EC cleanup -->
 <link rel="stylesheet" href="/static/css/theme_v4.css?v=5" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
@@ -1413,6 +1413,96 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <button id="btnSaveCircSettings" class="btn-secondary" style="width:100%;">Save Circulation Settings</button>
         </div>
       </details>
+
+      <!-- EC Direct Pump Control (Time-based) -->
+      <details style="margin-top:12px;">
+        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ EC Direct Pump Control (Time-based)</summary>
+        <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+          <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Press and hold pattern for individual nutrient pumps. Safety caps enforced.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div>
+              <button id="btnDoseGrow" class="btn-secondary" style="width:100%;" title="Dose Grow for 0.3s">Grow (0.3s)</button>
+              <div class="ec-v1-ui row" style="margin-top:6px;">
+                <button id="btnDoseGrow05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
+                <button id="btnDoseGrow10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
+                <input id="ecGrowCustomSec" type="number" step="0.1" min="0" placeholder="sec" style="width:70px;" />
+                <button id="btnPulseGrowCustom" class="btn-mini" title="Custom seconds">Pulse</button>
+              </div>
+            </div>
+            <div>
+              <button id="btnDoseMicro" class="btn-secondary" style="width:100%;" title="Dose Micro for 0.3s">Micro (0.3s)</button>
+              <div class="ec-v1-ui row" style="margin-top:6px;">
+                <button id="btnDoseMicro05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
+                <button id="btnDoseMicro10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
+                <input id="ecMicroCustomSec" type="number" step="0.1" min="0" placeholder="sec" style="width:70px;" />
+                <button id="btnPulseMicroCustom" class="btn-mini" title="Custom seconds">Pulse</button>
+              </div>
+            </div>
+            <div>
+              <button id="btnDoseBloom" class="btn-secondary" style="width:100%;" title="Dose Bloom for 0.3s">Bloom (0.3s)</button>
+              <div class="ec-v1-ui row" style="margin-top:6px;">
+                <button id="btnDoseBloom05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
+                <button id="btnDoseBloom10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
+                <input id="ecBloomCustomSec" type="number" step="0.1" min="0" placeholder="sec" style="width:70px;" />
+                <button id="btnPulseBloomCustom" class="btn-mini" title="Custom seconds">Pulse</button>
+              </div>
+            </div>
+          </div>
+          <div class="muted" style="font-size:0.75rem;margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(148,163,184,0.05);">
+            Max per press: <span id="ecCapMaxPress">1.5s</span> • Daily cap: <span id="ecCapDaily">120s</span> • Min off: <span id="ecCapMinOff">2s</span>
+          </div>
+          <!-- Quick Test Row -->
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <span class="muted" style="font-size:0.7rem;">Rapid 0.4s test:</span>
+            <button id="btnRapidGrow" class="btn-mini" title="Grow 0.4s">Grow 0.4s</button>
+            <button id="btnRapidMicro" class="btn-mini" title="Micro 0.4s">Micro 0.4s</button>
+            <button id="btnRapidBloom" class="btn-mini" title="Bloom 0.4s">Bloom 0.4s</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- EC Manual Dosing (ML-based) -->
+      <details style="margin-top:12px;">
+        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ EC Manual Dosing (ML-based)</summary>
+        <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+          <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Dose EC nutrients by volume (ml). System calculates pump time based on calibrated flow rates.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button id="btnEcDose10" class="btn-secondary">+10 ml</button>
+            <button id="btnEcDose50" class="btn-secondary">+50 ml</button>
+            <button id="btnEcDose100" class="btn-secondary">+100 ml</button>
+            <input id="ecCustomMl" type="number" min="0.1" step="1" placeholder="Custom ml" style="width:110px;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
+            <button id="btnEcDoseCustom" class="btn-secondary">Dose</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- EC Dose Log (Last 20) -->
+      <details style="margin-top:12px;">
+        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">📝 EC Dose Log (Last 20)</summary>
+        <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div class="muted" style="font-weight:600;font-size:0.9rem;">Recent EC Doses</div>
+            <button id="btnEcRefreshDoseLog" class="btn-secondary btn-small" title="Refresh dose log">Refresh</button>
+          </div>
+          <div style="max-height:200px;overflow-y:auto;border-radius:6px;border:1px solid rgba(148,163,184,0.1);">
+            <table style="width:100%;font-size:0.85rem;">
+              <thead style="position:sticky;top:0;background:#111827;border-bottom:1px solid rgba(148,163,184,0.2);">
+                <tr>
+                  <th style="padding:6px 8px;text-align:left;">Time</th>
+                  <th style="padding:6px 8px;text-align:left;">Pump</th>
+                  <th style="padding:6px 8px;text-align:right;">Seconds</th>
+                  <th style="padding:6px 8px;text-align:right;">EC Before</th>
+                  <th style="padding:6px 8px;text-align:right;">EC After</th>
+                  <th style="padding:6px 8px;text-align:left;">Note</th>
+                </tr>
+              </thead>
+              <tbody id="ecDoseLogTable" class="muted">
+                <tr><td colspan="6" style="padding:12px;text-align:center;">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
     </div>
   </section>
 
@@ -1433,8 +1523,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
     </div>
 
-    <!-- KPI badges -->
-    <div class="kpi-row" style="display:flex;gap:12px;flex-wrap:wrap;padding:8px 0;">
+    <div class="card-body">
+      <!-- KPI badges -->
+      <div class="kpi-row" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
       <div class="kpi kpi-ph">
         <div class="kpi-label">pH</div>
         <div class="kpi-value" id="kpiPh">—</div>
@@ -1447,11 +1538,8 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <div class="kpi-label">Temp (°C)</div>
         <div class="kpi-value" id="kpiTemp">—</div>
       </div>
-    </div>
-    
-
-
-    <div class="card-body" style="padding-top:12px;">
+      </div>
+      
       <hr class="separator" />
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
         <div class="muted">Sensor History</div>
@@ -1527,10 +1615,6 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <div class="kpi-label">Targets</div>
               <div class="kpi-value" id="ph-band">5.8–6.2</div>
             </div>
-            <div class="kpi kpi-ph" style="min-width:140px;">
-              <div class="kpi-label">In Range</div>
-              <div class="kpi-value" id="ph-in-range">—</div>
-            </div>
             <span id="ph-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
           </div>
 
@@ -1567,11 +1651,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <!-- 3. Graph (Dose History Chart) -->
           <hr class="separator" style="margin:20px 0;" />
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <div class="muted">Dose History</div>
-              <div id="ph-total-today" class="kpi"><div class="kpi-label">Today</div><div class="kpi-value">— ml</div></div>
-              <div id="ph-total-week" class="kpi"><div class="kpi-label">Week</div><div class="kpi-value">— ml</div></div>
-            </div>
+            <div class="muted">Dose History</div>
           </div>
           <div id="ph-dose-chart-wrap" class="chart-card">
             <canvas id="phDoseChart"></canvas>
@@ -1791,45 +1871,20 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <div class="kpi-label">EC</div>
                 <div class="kpi-value" id="ec-current">—</div>
               </div>
-              <div class="kpi kpi-ppm">
-                <div class="kpi-label">PPM</div>
-                <div class="kpi-value" id="ec-ppm">—</div>
+              <!-- PPM KPI removed (EC controller reads EC only) -->
+              <div class="kpi kpi-ec" style="min-width:140px;">
+                <div class="kpi-label">Guards</div>
+                <div class="kpi-value" id="ec-guards">—</div>
               </div>
               <div class="kpi kpi-ec" style="min-width:110px;">
                 <div class="kpi-label">Targets</div>
                 <div class="kpi-value" id="ec-band">0.8–1.2 mS/cm</div>
               </div>
-              <div class="kpi kpi-ec" style="min-width:140px;">
-                <div class="kpi-label">Guards</div>
-                <div class="kpi-value" id="ec-guards">—</div>
-              </div>
               <!-- age chip and freshness dot removed (header health indicator is sufficient) -->
               <span id="ecOverrideBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.75rem;" title="OVERRIDE ON">OVERRIDE ON</span>
               
-              <button id="btnEcDebug" class="btn-text" title="EC scale diagnostics">🔍 Debug</button>
+              <!-- Debug button removed (unused in production UI) -->
               <span id="ec-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
-            </div>
-            <!-- EC Control v1 additions moved to sit just below KPI row -->
-            <div class="ec-v1-ui" style="margin-bottom:12px;">
-              <div class="row" style="gap:12px;align-items:center;flex-wrap:wrap;">
-                <span class="pill-muted nowrap" id="ecV1DeltaWrap">Δ <span id="ecDeltaChip">—</span> mS/cm</span>
-                <label class="muted nowrap" style="display:flex;align-items:center;gap:6px;">Setpoint
-                  <input id="ecSetpoint" type="number" step="0.01" min="0" placeholder="mS/cm" style="width:90px;" />
-                </label>
-                <button id="btnSaveEcSetpoint" class="btn-secondary" title="Save EC setpoint">Save</button>
-                <span id="ecCapsRow" class="pill-muted nowrap" style="display:flex;gap:8px;align-items:center;">
-                  <span>Max pulse: <strong id="ecV1CapMaxPress">—</strong></span>
-                  <span>Min off: <strong id="ecV1CapMinOff">—</strong></span>
-                  <span>Daily cap: <strong id="ecV1CapDaily">—</strong></span>
-                </span>
-              </div>
-            </div>
-
-            <!-- Summary pills -->
-            <div id="ec-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px 0;">
-              <div id="ec-total-today" class="kpi"><div class="kpi-label">Today</div><div class="kpi-value">— ml</div></div>
-              <div id="ec-total-week" class="kpi"><div class="kpi-label">Week</div><div class="kpi-value">— ml</div></div>
-              <button id="btnEcExport24" class="btn-secondary btn-small" title="Download CSV of recent EC doses (24h)">Export CSV (24h)</button>
             </div>
 
             <!-- Tabs replaced by 3-mode header; keep recent/status always visible. -->
@@ -1838,100 +1893,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <!-- Removed duplicate Recent Doses list (Dose Log below already covers recent) -->
             <!-- Manual Mode Content -->
             <div id="ec-manual-content" style="display:block;">
-              <!-- Rapid Test Mode (client only) -->
-              <div style="margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.35);display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
-                <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;cursor:pointer;">
-                  <input type="checkbox" id="ecRapidTestToggle" style="accent-color:#22c55e;" /> Rapid test mode (10s interval)
-                </label>
-                <span class="muted" style="font-size:0.7rem;">Current interval: <strong id="ecIntervalDisplay">—s</strong></span>
-                <span class="muted" style="font-size:0.7rem;">(Restores to 300s when off)</span>
-              </div>
-              <!-- Direct pump control (time-based) -->
-              <div style="margin-bottom:16px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
-                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">⏱️ Direct Pump Control (Time-based)</div>
-                <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Press and hold pattern for individual nutrient pumps. Safety caps enforced.</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-                  <div>
-                    <button id="btnDoseGrow" class="btn-secondary" style="width:100%;" title="Dose Grow for 0.3s">Grow (0.3s)</button>
-                    <div class="ec-v1-ui row" style="margin-top:6px;">
-                      <button id="btnDoseGrow05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
-                      <button id="btnDoseGrow10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
-                      <input id="ecGrowCustomSec" type="number" step="0.1" min="0" placeholder="sec" style="width:70px;" />
-                      <button id="btnPulseGrowCustom" class="btn-mini" title="Custom seconds">Pulse</button>
-                    </div>
-                  </div>
-                  <div>
-                    <button id="btnDoseMicro" class="btn-secondary" style="width:100%;" title="Dose Micro for 0.3s">Micro (0.3s)</button>
-                    <div class="ec-v1-ui row" style="margin-top:6px;">
-                      <button id="btnDoseMicro05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
-                      <button id="btnDoseMicro10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
-                      <input id="ecMicroCustomSec" type="number" step="0.1" min="0" placeholder="sec" style="width:70px;" />
-                      <button id="btnPulseMicroCustom" class="btn-mini" title="Custom seconds">Pulse</button>
-                    </div>
-                  </div>
-                  <div>
-                    <button id="btnDoseBloom" class="btn-secondary" style="width:100%;" title="Dose Bloom for 0.3s">Bloom (0.3s)</button>
-                    <div class="ec-v1-ui row" style="margin-top:6px;">
-                      <button id="btnDoseBloom05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
-                      <button id="btnDoseBloom10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
-                      <input id="ecBloomCustomSec" type="number" step="0.1" min="0" placeholder="sec" style="width:70px;" />
-                      <button id="btnPulseBloomCustom" class="btn-mini" title="Custom seconds">Pulse</button>
-                    </div>
-                  </div>
-                </div>
-                <div class="muted" style="font-size:0.75rem;margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(148,163,184,0.05);">
-                  Max per press: <span id="ecCapMaxPress">1.5s</span> • Daily cap: <span id="ecCapDaily">120s</span> • Min off: <span id="ecCapMinOff">2s</span>
-                </div>
-                <!-- Quick Test Row -->
-                <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                  <span class="muted" style="font-size:0.7rem;">Rapid 0.4s test:</span>
-                  <button id="btnRapidGrow" class="btn-mini" title="Grow 0.4s">Grow 0.4s</button>
-                  <button id="btnRapidMicro" class="btn-mini" title="Micro 0.4s">Micro 0.4s</button>
-                  <button id="btnRapidBloom" class="btn-mini" title="Bloom 0.4s">Bloom 0.4s</button>
-                </div>
-              </div>
-
-              <!-- Separator -->
-              <div style="border-top:1px solid rgba(148,163,184,0.1);margin:16px 0;"></div>
-
-              <!-- Volume-based dosing with mix ratio -->
-              <div style="margin-bottom:12px;">
-                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Mix Ratio (Volume-based)</label>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                  <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
-                    <input type="radio" name="ecMixRatio" value="schedule" checked style="accent-color:#3b82f6;" />
-                    <span class="muted" style="font-size:0.9rem;">Schedule (Grow/Micro/Bloom)</span>
-                  </label>
-                  <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
-                    <input type="radio" name="ecMixRatio" value="custom" style="accent-color:#3b82f6;" />
-                    <span class="muted" style="font-size:0.9rem;">Custom</span>
-                  </label>
-                </div>
-              </div>
-              <div id="ec-custom-ratio" style="display:none;margin-bottom:12px;padding:10px;border-radius:6px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-                  <div>
-                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Grow</label>
-                    <input id="ecCustomGrow" type="number" min="0" step="0.1" placeholder="0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
-                  </div>
-                  <div>
-                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Micro</label>
-                    <input id="ecCustomMicro" type="number" min="0" step="0.1" placeholder="0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
-                  </div>
-                  <div>
-                    <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Bloom</label>
-                    <input id="ecCustomBloom" type="number" min="0" step="0.1" placeholder="0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
-                  </div>
-                </div>
-              </div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                <button id="btnEcDose10" class="btn-secondary">+10 ml</button>
-                <button id="btnEcDose50" class="btn-secondary">+50 ml</button>
-                <button id="btnEcDose100" class="btn-secondary">+100 ml</button>
-                <input id="ecCustomMl" type="number" min="0.1" step="1" placeholder="Custom ml" style="width:110px;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
-                <button id="btnEcDoseCustom" class="btn-secondary">Dose</button>
-                <span id="ecMaintBadge" class="muted" style="display:none;margin-left:6px;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.85rem;" title="Bypasses cooldown/daily cap; E-STOP/empty reservoir still enforced.">Maintenance override active</span>
-              </div>
+              <!-- ML-based dosing moved to Settings → EC Manual Dosing -->
             </div>
             <!-- Auto Mode Content -->
             <div id="ec-auto-content" style="display:none;">
@@ -1958,7 +1920,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 No doses recorded in this period.
               </div>
             </div>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+            <div class="trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
               <select id="ecDoseRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.8rem;cursor:pointer;min-width:110px;">
                 <option value="24h" selected>Last 24 Hours</option>
                 <option value="7d">Last 7 Days</option>
@@ -1977,30 +1939,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <button id="btnEcExport" class="btn-secondary btn-small" title="Export displayed EC dose history to CSV" style="margin-left:auto;">Export CSV</button>
             </div>
 
-            <!-- Dose Log just under the graph controls -->
-            <div style="margin-top:16px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <div class="muted" style="font-weight:600;font-size:0.9rem;">📝 Dose Log (Last 20)</div>
-                <button id="btnEcRefreshDoseLog" class="btn-secondary btn-small" title="Refresh dose log">Refresh</button>
-              </div>
-              <div style="max-height:200px;overflow-y:auto;border-radius:6px;border:1px solid rgba(148,163,184,0.1);">
-                <table style="width:100%;font-size:0.85rem;">
-                  <thead style="position:sticky;top:0;background:#111827;border-bottom:1px solid rgba(148,163,184,0.2);">
-                    <tr>
-                      <th style="padding:6px 8px;text-align:left;">Time</th>
-                      <th style="padding:6px 8px;text-align:left;">Pump</th>
-                      <th style="padding:6px 8px;text-align:right;">Seconds</th>
-                      <th style="padding:6px 8px;text-align:right;">EC Before</th>
-                      <th style="padding:6px 8px;text-align:right;">EC After</th>
-                      <th style="padding:6px 8px;text-align:left;">Note</th>
-                    </tr>
-                  </thead>
-                  <tbody id="ecDoseLogTable" class="muted">
-                    <tr><td colspan="6" style="padding:12px;text-align:center;">Loading...</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <!-- Dose Log moved to Settings → EC Dose Log -->
 
             <!-- EC-Specific Settings at the very bottom -->
             <details style="margin-top:12px;">
