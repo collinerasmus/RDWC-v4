@@ -120,7 +120,11 @@
     
     // Today total
     const todayEl = el('ec-total-today');
-    if(todayEl && s){ todayEl.textContent = `Today: ${(s.today_ml||0).toFixed(1)} ml`; }
+    if(todayEl && s){ 
+      const valEl = todayEl.querySelector('.kpi-value');
+      if (valEl) valEl.textContent = `${(s.today_ml||0).toFixed(1)} ml`;
+      else todayEl.textContent = `Today: ${(s.today_ml||0).toFixed(1)} ml`;
+    }
 
     // Determine disabled state
     const g = s?.guards || {};
@@ -574,8 +578,18 @@
       };
       const todayMl = await calc(24);
       const weekMl = await calc(24*7);
-      const tEl = el('ec-total-today'); if (tEl) tEl.textContent = todayMl>0 ? `Today: ${todayMl.toFixed(1)} ml` : 'Today: — ml';
-      const wEl = el('ec-total-week'); if (wEl) wEl.textContent = weekMl>0 ? `Week: ${weekMl.toFixed(1)} ml` : 'Week: — ml';
+      const tEl = el('ec-total-today'); 
+      if (tEl) {
+        const valEl = tEl.querySelector('.kpi-value');
+        if (valEl) valEl.textContent = todayMl>0 ? `${todayMl.toFixed(1)} ml` : '— ml';
+        else tEl.textContent = todayMl>0 ? `Today: ${todayMl.toFixed(1)} ml` : 'Today: — ml';
+      }
+      const wEl = el('ec-total-week'); 
+      if (wEl) {
+        const valEl = wEl.querySelector('.kpi-value');
+        if (valEl) valEl.textContent = weekMl>0 ? `${weekMl.toFixed(1)} ml` : '— ml';
+        else wEl.textContent = weekMl>0 ? `Week: ${weekMl.toFixed(1)} ml` : 'Week: — ml';
+      }
     }catch(e){ /* noop */ }
   }
 

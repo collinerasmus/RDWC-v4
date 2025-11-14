@@ -960,9 +960,17 @@
       }
       
       const tEl = document.getElementById('ph-total-today'); 
-      if (tEl) tEl.textContent = todayMl > 0 ? `Today: ${todayMl.toFixed(1)} ml` : `Today: — ml`;
+      if (tEl) {
+        const valEl = tEl.querySelector('.kpi-value');
+        if (valEl) valEl.textContent = todayMl > 0 ? `${todayMl.toFixed(1)} ml` : `— ml`;
+        else tEl.textContent = todayMl > 0 ? `Today: ${todayMl.toFixed(1)} ml` : `Today: — ml`;
+      }
       const wEl = document.getElementById('ph-total-week'); 
-      if (wEl) wEl.textContent = weekMl > 0 ? `Week: ${weekMl.toFixed(1)} ml` : `Week: — ml`;
+      if (wEl) {
+        const valEl = wEl.querySelector('.kpi-value');
+        if (valEl) valEl.textContent = weekMl > 0 ? `${weekMl.toFixed(1)} ml` : `— ml`;
+        else wEl.textContent = weekMl > 0 ? `Week: ${weekMl.toFixed(1)} ml` : `Week: — ml`;
+      }
       
       // Calibration banner: show only when legacy events exist + all null + invalid rate
       const banner = document.getElementById('ph-calib-banner');
