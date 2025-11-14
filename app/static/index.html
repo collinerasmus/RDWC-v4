@@ -1476,7 +1476,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <input type="datetime-local" id="trendTo" style="height:28px;padding:0 4px;background:#1f2937;border:1px solid#374151;color:#e0e0e0;border-radius:4px;font-size:0.75rem;width:140px;">
           <button class="btn btn-secondary" id="trendApply" style="height:28px;padding:0 8px;font-size:0.75rem;white-space:nowrap;">Apply</button>
         </div>
-        <button id="btnSensorsExport" class="btn-secondary" title="Export displayed graph data to CSV" onclick="exportCsv()" style="height:28px;padding:0 10px;font-size:0.75rem;white-space:nowrap;margin-left:auto;">Export CSV</button>
+        <button id="btnSensorsExport" class="btn-secondary btn-small" title="Export displayed graph data to CSV" onclick="exportCsv()" style="margin-left:auto;">Export CSV</button>
       </div>
       <!-- Settings with recent readings moved inside -->
       <details class="minimal-settings" style="margin-top:16px;">
@@ -1597,7 +1597,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <input type="datetime-local" id="phDoseTo" style="height:28px;padding:0 4px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.75rem;width:140px;" />
               <button class="btn btn-secondary" id="phDoseApply" style="height:28px;padding:0 8px;font-size:0.75rem;white-space:nowrap;">Apply</button>
             </div>
-            <button id="btnPhExport" class="btn-secondary" title="Export displayed pH dose history to CSV" style="height:28px;padding:0 10px;font-size:0.75rem;white-space:nowrap;margin-left:auto;">Export CSV</button>
+            <button id="btnPhExport" class="btn-secondary btn-small" title="Export displayed pH dose history to CSV" style="margin-left:auto;">Export CSV</button>
           </div>
 
           <!-- 5. Settings -->
@@ -1829,7 +1829,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <div id="ec-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px 0;">
               <span id="ec-total-today" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#a7f3d0;">Today: — ml</span>
               <span id="ec-total-week" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Week: — ml</span>
-              <button id="btnEcExport24" class="btn-secondary" title="Download CSV of recent EC doses (24h)">Export CSV (24h)</button>
+              <button id="btnEcExport24" class="btn-secondary btn-small" title="Download CSV of recent EC doses (24h)">Export CSV (24h)</button>
             </div>
 
             <!-- Tabs replaced by 3-mode header; keep recent/status always visible. -->
@@ -1978,7 +1978,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <input type="datetime-local" id="ecDoseTo" style="height:28px;padding:0 4px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.75rem;width:140px;" />
                 <button class="btn btn-secondary" id="ecDoseApply" style="height:28px;padding:0 8px;font-size:0.75rem;white-space:nowrap;">Apply</button>
               </div>
-              <button id="btnEcExport" class="btn-secondary" title="Export displayed EC dose history to CSV" style="height:28px;padding:0 10px;font-size:0.75rem;white-space:nowrap;margin-left:auto;">Export CSV</button>
+              <button id="btnEcExport" class="btn-secondary btn-small" title="Export displayed EC dose history to CSV" style="margin-left:auto;">Export CSV</button>
             </div>
 
             <!-- Dose Log just under the graph controls -->

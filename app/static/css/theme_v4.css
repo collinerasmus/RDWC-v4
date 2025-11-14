@@ -26,6 +26,47 @@
 
 body { background: var(--bg-root); color: var(--fg-primary); }
 
+/* Card header unified spacing (remove per-inline margin-bottom duplication) */
+.card-header { margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
+
+/* Standard KPI blocks */
+.kpi {
+  background: var(--bg-pill);
+  border:1px solid var(--border-muted);
+  border-radius:8px;
+  padding:10px 12px;
+  min-width:120px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.kpi .kpi-label {
+  font-size:var(--font-xs);
+  letter-spacing:0.05em;
+  text-transform:uppercase;
+  color:var(--fg-muted);
+}
+.kpi .kpi-value {
+  font-size:0.95rem;
+  font-weight:600;
+}
+
+/* Compact button utility for small action buttons */
+.btn-small {
+  padding:4px 10px;
+  height:28px;
+  font-size:var(--font-xs);
+  white-space:nowrap;
+}
+
+/* Minimal settings container vertical rhythm */
+.minimal-settings > div + div { margin-top:16px; }
+details.minimal-settings { margin-top:16px; }
+details.minimal-settings[open] { padding-bottom:4px; }
+
+/* Remove default summary marker for all summaries (already done above but reassert) */
+details > summary { list-style:none; }
+
 /* Summary headers (collapsibles) */
 details summary.minimal, summary.minimal {
   cursor:pointer;
