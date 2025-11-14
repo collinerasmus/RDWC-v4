@@ -1182,7 +1182,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- Chiller (Water Temperature) Tab -->
   <section id="temp-card" class="card card-wide tab-section" data-tab="temp" style="display:none;">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <div class="card-header">
       <div style="display:flex;align-items:center;gap:8px;">
         <h3 class="card-title" style="margin:0;">Chiller Controller</h3>
         <span id="env-health-indicator" class="ui-status-chip success" title="Chiller health">OK</span>
@@ -1296,7 +1296,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- Light Control Tab (standardized header + mode + health) -->
   <section id="lights-card" class="card card-wide tab-section" data-tab="lights" style="display:none;">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <div class="card-header">
       <div style="display:flex;align-items:center;gap:8px;">
         <h3 class="card-title" style="margin:0;">Lights Control</h3>
         <span id="lights-health-indicator" class="ui-status-chip neutral" title="Controller health">—</span>
@@ -1357,7 +1357,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- Circulation Controller Tab -->
   <section id="circ-card" class="card card-wide tab-section" data-tab="circulation" style="display:none;">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <div class="card-header">
       <div style="display:flex;align-items:center;gap:8px;">
         <h3 class="card-title" style="margin:0;">Circulation Controller</h3>
         <span id="circ-health-indicator" class="ui-status-chip success" title="Circulation health">OK</span>
@@ -1419,7 +1419,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- 3. Sensors Card with Chart.js -->
   <section id="sensors-card" class="card card-wide tab-section" data-tab="sensors" style="display:none;">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <div class="card-header">
       <div style="display:flex;align-items:center;gap:8px;">
         <h3 class="card-title" style="margin:0;">Sensors</h3>
         <span id="sensors-health-indicator" class="ui-status-chip success" title="Sensor poller health">OK</span>
@@ -1471,9 +1471,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <option value="custom">Custom Range...</option>
         </select>
         <div id="trendCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
-          <input type="datetime-local" id="trendFrom" style="height:28px;padding:0 4px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.75rem;width:140px;">
+          <input type="datetime-local" id="trendFrom" class="dt-input">
           <span style="opacity:0.5;font-size:0.75rem;">to</span>
-          <input type="datetime-local" id="trendTo" style="height:28px;padding:0 4px;background:#1f2937;border:1px solid#374151;color:#e0e0e0;border-radius:4px;font-size:0.75rem;width:140px;">
+          <input type="datetime-local" id="trendTo" class="dt-input">
           <button class="btn btn-secondary" id="trendApply" style="height:28px;padding:0 8px;font-size:0.75rem;white-space:nowrap;">Apply</button>
         </div>
         <button id="btnSensorsExport" class="btn-secondary btn-small" title="Export displayed graph data to CSV" onclick="exportCsv()" style="margin-left:auto;">Export CSV</button>
@@ -1496,7 +1496,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- 4. pH Control Card -->
   <section id="ph-card" class="card card-wide tab-section" data-tab="ph" style="display:none;">
-        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="card-header">
           <div style="display:flex;align-items:center;gap:8px;">
             <h3 class="card-title" style="margin:0;">pH Control</h3>
             <span id="ph-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
@@ -1570,8 +1570,8 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
             <div style="display:flex;align-items:center;gap:8px;">
               <div class="muted">Dose History</div>
-              <span id="ph-total-today" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#a7f3d0;font-size:0.85rem;">Today: — ml</span>
-              <span id="ph-total-week" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;">Week: — ml</span>
+              <div id="ph-total-today" class="kpi"><div class="kpi-label">Today</div><div class="kpi-value">— ml</div></div>
+              <div id="ph-total-week" class="kpi"><div class="kpi-label">Week</div><div class="kpi-value">— ml</div></div>
             </div>
           </div>
           <div id="ph-dose-chart-wrap" class="chart-card">
@@ -1592,9 +1592,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <option value="custom">Custom Range...</option>
             </select>
             <div id="phDoseCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
-              <input type="datetime-local" id="phDoseFrom" style="height:28px;padding:0 4px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.75rem;width:140px;" />
+              <input type="datetime-local" id="phDoseFrom" class="dt-input" />
               <span style="opacity:0.5;font-size:0.75rem;">to</span>
-              <input type="datetime-local" id="phDoseTo" style="height:28px;padding:0 4px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.75rem;width:140px;" />
+              <input type="datetime-local" id="phDoseTo" class="dt-input" />
               <button class="btn btn-secondary" id="phDoseApply" style="height:28px;padding:0 8px;font-size:0.75rem;white-space:nowrap;">Apply</button>
             </div>
             <button id="btnPhExport" class="btn-secondary btn-small" title="Export displayed pH dose history to CSV" style="margin-left:auto;">Export CSV</button>
@@ -1768,7 +1768,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
     <!-- 5. EC Control Card -->
   <section id="ec-card" class="card card-wide tab-section" data-tab="ec" style="display:none;">
-          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <div class="card-header">
             <div style="display:flex;align-items:center;gap:8px;">
               <h3 class="card-title" style="margin:0;">EC Control</h3>
               <span id="ec-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
@@ -1827,8 +1827,8 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
             <!-- Summary pills -->
             <div id="ec-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px 0;">
-              <span id="ec-total-today" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#a7f3d0;">Today: — ml</span>
-              <span id="ec-total-week" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Week: — ml</span>
+              <div id="ec-total-today" class="kpi"><div class="kpi-label">Today</div><div class="kpi-value">— ml</div></div>
+              <div id="ec-total-week" class="kpi"><div class="kpi-label">Week</div><div class="kpi-value">— ml</div></div>
               <button id="btnEcExport24" class="btn-secondary btn-small" title="Download CSV of recent EC doses (24h)">Export CSV (24h)</button>
             </div>
 
@@ -1973,9 +1973,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <option value="custom">Custom Range...</option>
               </select>
               <div id="ecDoseCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
-                <input type="datetime-local" id="ecDoseFrom" style="height:28px;padding:0 4px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.75rem;width:140px;" />
+                <input type="datetime-local" id="ecDoseFrom" class="dt-input" />
                 <span style="opacity:0.5;font-size:0.75rem;">to</span>
-                <input type="datetime-local" id="ecDoseTo" style="height:28px;padding:0 4px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.75rem;width:140px;" />
+                <input type="datetime-local" id="ecDoseTo" class="dt-input" />
                 <button class="btn btn-secondary" id="ecDoseApply" style="height:28px;padding:0 8px;font-size:0.75rem;white-space:nowrap;">Apply</button>
               </div>
               <button id="btnEcExport" class="btn-secondary btn-small" title="Export displayed EC dose history to CSV" style="margin-left:auto;">Export CSV</button>
@@ -2075,7 +2075,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- 6. System (Settings + Relays consolidated) -->
   <section id="settings-card" class="card card-wide tab-section" data-tab="settings" style="display:none;">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <div class="card-header">
       <div style="display:flex;align-items:center;gap:8px;">
         <h3 class="card-title" style="margin:0;">System Settings</h3>
         <span id="system-relays-health" class="ui-status-chip neutral" title="Relays status">—</span>

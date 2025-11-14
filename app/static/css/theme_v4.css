@@ -59,6 +59,30 @@ body { background: var(--bg-root); color: var(--fg-primary); }
   white-space:nowrap;
 }
 
+/* Date/time input unified style */
+.dt-input {
+  height:28px;
+  padding:0 6px;
+  background:#1f2937;
+  border:1px solid #374151;
+  color:var(--fg-primary);
+  border-radius:4px;
+  font-size:var(--font-sm);
+  width:140px;
+}
+
+/* Muted pill (legacy small stat replaced by .kpi where possible) */
+.pill-muted {
+  padding:4px 8px;
+  border-radius:6px;
+  background:rgba(148,163,184,0.08);
+  border:1px solid rgba(148,163,184,0.25);
+  font-size:var(--font-xs);
+  display:inline-flex;
+  gap:4px;
+  align-items:center;
+}
+
 /* Minimal settings container vertical rhythm */
 .minimal-settings > div + div { margin-top:16px; }
 details.minimal-settings { margin-top:16px; }
