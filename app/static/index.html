@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251114b"/><!-- Cache-buster: Sensors spacing parity -->
+<meta name="version" content="20251114c"/><!-- Cache-buster: Remove duplicate system banner -->
 <link rel="stylesheet" href="/static/css/theme_v4.css?v=5" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
@@ -1151,11 +1151,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         </div>
       </div>
       <!-- System mode content sections -->
-      <div id="system-auto-content" style="display:none;">
-        <div class="muted" style="margin-bottom:12px;padding:8px 12px;border-radius:8px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);color:#a7f3d0;font-size:0.85rem;">
-          ✓ System automation enabled: Controllers follow programmed logic, schedules active, safety guards enforced.
-        </div>
-      </div>
+      <div id="system-auto-content" style="display:none;"></div>
       <div id="system-manual-content" style="display:block;"></div>
       <div id="system-maint-content" style="display:none;">
         <div class="muted" style="margin-bottom:12px;padding:8px 12px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);color:#fecaca;font-size:0.85rem;">
