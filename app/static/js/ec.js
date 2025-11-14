@@ -416,14 +416,14 @@
       if(!r.ok) throw new Error('HTTP '+r.status);
       const j = await r.json();
       const events = (j.events||[]);
-      if(events.length===0){ wrap.innerHTML = '<span class="muted" style="font-size:0.7rem;">No recent doses</span>'; return; }
+      if(events.length===0){ wrap.innerHTML = '<span class="muted small">No recent doses</span>'; return; }
       wrap.innerHTML = events.map(e => {
         const t = e.ts_iso ? new Date(e.ts_iso).toLocaleTimeString() : '—';
         const pump = (e.pump||'').toUpperCase();
         const sec = e.seconds!=null ? e.seconds.toFixed(1) : '?';
-        return `<span style="padding:4px 8px;border:1px solid rgba(148,163,184,0.25);border-radius:6px;font-size:0.7rem;background:rgba(148,163,184,0.08);white-space:nowrap;">[${pump} • ${sec}s] ${t}</span>`;
+        return `<span class="pill-muted nowrap">[${pump} • ${sec}s] ${t}</span>`;
       }).join(' ');
-    }catch(err){ wrap.innerHTML = '<span class="muted" style="font-size:0.7rem;">Load error</span>'; }
+    }catch(err){ wrap.innerHTML = '<span class="muted small">Load error</span>'; }
   }
 
   // Initialize
