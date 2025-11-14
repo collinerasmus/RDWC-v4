@@ -39,6 +39,11 @@ body { background: var(--bg-root); color: var(--fg-primary); }
   display:flex;
   flex-direction:column;
   gap:4px;
+  /* Neutralize any legacy overrides */
+  box-shadow:none;
+}
+/* Higher specificity fallback to override stray old .kpi rules */
+body .kpi { background: var(--bg-pill); border:1px solid var(--border-muted); padding:10px 12px; border-radius:8px; }
 }
 .kpi .kpi-label {
   font-size:var(--font-xs);
@@ -96,6 +101,16 @@ body { background: var(--bg-root); color: var(--fg-primary); }
   display:inline-flex;
   gap:4px;
   align-items:center;
+}
+
+/* Moved from deprecated app.css */
+.estop-banner {
+  background: rgba(239,68,68,.12);
+  border: 1px solid rgba(239,68,68,.45);
+  color: #fecaca;
+  padding: .5rem .75rem;
+  border-radius: .5rem;
+  margin-bottom: .5rem;
 }
 
 /* Minimal settings container vertical rhythm */
