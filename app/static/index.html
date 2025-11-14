@@ -1800,24 +1800,27 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <div class="kpi-label">Targets</div>
                 <div class="kpi-value" id="ec-band">0.8–1.2 mS/cm</div>
               </div>
-              <span class="muted" id="ec-age" style="font-size:0.7rem;padding:4px 6px;border-radius:6px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.25);">age: —s</span>
-              <span id="ecFreshnessDot" title="Data freshness" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6b7280;"></span>
+              <div class="kpi kpi-ec" style="min-width:140px;">
+                <div class="kpi-label">Guards</div>
+                <div class="kpi-value" id="ec-guards">—</div>
+              </div>
+              <span id="ec-age" class="pill-muted">age: —s</span>
+              <span id="ecFreshnessDot" class="dot" title="Data freshness"></span>
               <span id="ecOverrideBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.75rem;" title="OVERRIDE ON">OVERRIDE ON</span>
               <span id="ecKChip" class="ui-status-chip neutral">K=—</span>
               <span id="ecCalChip" class="ui-status-chip neutral">Cal: —</span>
-              <button id="btnEcDebug" class="btn-text" style="padding:4px 8px;font-size:0.75rem;opacity:0.6;" title="EC scale diagnostics">🔍 Debug</button>
-              <div id="ec-guards" class="muted" title="">—</div>
+              <button id="btnEcDebug" class="btn-text" title="EC scale diagnostics">🔍 Debug</button>
               <span id="ec-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
             </div>
             <!-- EC Control v1 additions moved to sit just below KPI row -->
             <div class="ec-v1-ui" style="margin-bottom:12px;">
               <div class="row" style="gap:12px;align-items:center;flex-wrap:wrap;">
-                <span class="chip nowrap" id="ecV1DeltaWrap">Δ <span id="ecDeltaChip">—</span> mS/cm</span>
+                <span class="pill-muted nowrap" id="ecV1DeltaWrap">Δ <span id="ecDeltaChip">—</span> mS/cm</span>
                 <label class="muted nowrap" style="display:flex;align-items:center;gap:6px;">Setpoint
                   <input id="ecSetpoint" type="number" step="0.01" min="0" placeholder="mS/cm" style="width:90px;" />
                 </label>
                 <button id="btnSaveEcSetpoint" class="btn-secondary" title="Save EC setpoint">Save</button>
-                <span id="ecCapsRow" class="muted nowrap" style="padding:4px 8px;border-radius:6px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.25);display:flex;gap:8px;align-items:center;">
+                <span id="ecCapsRow" class="pill-muted nowrap" style="display:flex;gap:8px;align-items:center;">
                   <span>Max pulse: <strong id="ecV1CapMaxPress">—</strong></span>
                   <span>Min off: <strong id="ecV1CapMinOff">—</strong></span>
                   <span>Daily cap: <strong id="ecV1CapDaily">—</strong></span>

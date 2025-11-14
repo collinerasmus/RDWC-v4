@@ -51,6 +51,21 @@ body { background: var(--bg-root); color: var(--fg-primary); }
   font-weight:600;
 }
 
+/* Subtle text button */
+.btn-text { 
+  background: transparent; 
+  border: none; 
+  color: var(--fg-muted); 
+  font-size: var(--font-xs);
+  padding: 4px 8px; 
+  cursor: pointer; 
+  opacity: 0.8; 
+}
+.btn-text:hover { opacity: 1; color: var(--fg-primary); }
+
+/* Small status dot */
+.dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:#6b7280; }
+
 /* Compact button utility for small action buttons */
 .btn-small {
   padding:4px 10px;
