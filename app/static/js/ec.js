@@ -842,7 +842,7 @@
       chip.className = 'ui-status-chip warning';
       chip.title = 'Automation holding: ' + guardList(g).join(', ');
     } else {
-      chip.textContent = 'OK';
+      chip.textContent = (currentMode || 'manual').toUpperCase();
       chip.className = 'ui-status-chip success';
       chip.title = 'Controller healthy';
     }

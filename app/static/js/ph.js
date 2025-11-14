@@ -92,7 +92,7 @@
       indicator.className = 'ui-status-chip warning';
       indicator.title = 'Maintenance mode active';
     } else {
-      indicator.textContent = 'OK';
+      indicator.textContent = (currentMode || 'manual').toUpperCase();
       indicator.className = 'ui-status-chip success';
       indicator.title = 'Controller healthy';
     }

@@ -7,6 +7,8 @@
   }
   window.__RDWC_SENSORS_POLL_RUNNING__ = true;
   const $ = (id)=>document.getElementById(id);
+  let __lastSensorsOnline = null;
+  let __lastSensorsHealth = null;
   
   // Mode management for Sensors Controller
   let sensorsMode = localStorage.getItem('sensors_mode') || 'auto';
@@ -23,9 +25,14 @@
   function updateSensorsHealth(){
     const ind = $('sensors-health-indicator');
     if (!ind) return;
-    if (sensorsMode==='maintenance'){ ind.textContent='MAINT'; ind.className='ui-status-chip warning'; ind.title='Maintenance mode: simulated data'; }
-    else if (sensorsMode==='auto'){ ind.textContent='OK'; ind.className='ui-status-chip success'; ind.title='Live poller feed'; }
-    else { ind.textContent='OK'; ind.className='ui-status-chip success'; ind.title='Manual/simulated readings'; }
+    if (sensorsMode==='maintenance'){ ind.textContent='MAINT'; ind.className='ui-status-chip warning'; ind.title='Maintenance mode: simulated data'; return; }
+    // derive from latest health/online flags
+    const h = __lastSensorsHealth;
+    const online = __lastSensorsOnline;
+    if (online === false){ ind.textContent='OFFLINE'; ind.className='ui-status-chip error'; ind.title='Poller offline'; return; }
+    if (h && h.cache_has_data === false){ ind.textContent='OFFLINE'; ind.className='ui-status-chip error'; ind.title='No cache data'; return; }
+    if (h && h.cache_fresh === false){ ind.textContent='STALE'; ind.className='ui-status-chip warning'; ind.title=`Cache age ${Math.round(h.cache_age_s||0)}s`; return; }
+    ind.textContent='OK'; ind.className='ui-status-chip success'; ind.title='Live poller feed';
   }
   
   window.sensorsSetMode = sensorsSetMode;
@@ -162,6 +169,7 @@
       const t = j.temperature_c ?? null;
       const e = j.ec_mscm ?? null;
       const p = j.ph ?? null;
+      __lastSensorsOnline = !!j.online;
       
   // Adapted: use KPI elements directly (ids kpiTemp/kpiEc/kpiPh)
   setMetric($("kpiTemp"), t, classify("temp", t));
@@ -188,7 +196,7 @@
       // Fetch sensor cache health and DB health in parallel (non-blocking)
       fetch('/api/sensors/health', {cache:'no-store'})
         .then(r=>r.ok?r.json():null)
-        .then(h=>h && renderHealthBadge(h))
+        .then(h=>{ if (h){ __lastSensorsHealth = h; renderHealthBadge(h); updateSensorsHealth(); } })
         .catch(()=>{});
 
       fetchHealthDB().then(health=>{
@@ -205,6 +213,8 @@
     }catch(err){
       console.error("[Sensors] Fetch error:", err);
       setOnline(false);
+      __lastSensorsOnline = false;
+      updateSensorsHealth();
       // Fallback: attempt /api/sensors/status then /api/sensors/read (db mode)
       try {
         const statusR = await fetch('/api/sensors/status',{cache:'no-store'});
@@ -270,10 +280,25 @@
     refreshRecent();
     // Periodically refresh recent list (every 45s)
     setInterval(refreshRecent, 45000);
-    // Read now handler
+    // Read now handler (only enabled in Manual/Maintenance mode)
     const btn = $("btnSensorsReadNow");
     if (btn){
+      const updateBtnState = ()=>{
+        if (sensorsMode === 'auto'){
+          btn.disabled = true;
+          btn.title = 'Read now is only available in Manual or Maintenance mode';
+        } else {
+          btn.disabled = false;
+          btn.title = 'Trigger immediate sensor read';
+        }
+      };
+      updateBtnState();
+      // Re-check whenever mode changes
+      const origSetMode = window.sensorsSetMode;
+      window.sensorsSetMode = (m)=>{ origSetMode(m); updateBtnState(); };
+      
       btn.addEventListener('click', async ()=>{
+        if (sensorsMode === 'auto') return; // safety guard
         try{
           btn.disabled = true; btn.textContent = (sensorsMode==='maintenance')?'Simulating...':'Reading...';
           if (sensorsMode==='maintenance'){
@@ -283,7 +308,7 @@
             setTimeout(()=>{ tick(); }, 1000);
           }
         }catch(e){ console.warn('[Sensors] read_now failed', e); }
-        finally{ btn.disabled = false; btn.textContent = 'Read now'; }
+        finally{ updateBtnState(); btn.textContent = 'Read now'; }
       });
     }
     // Sensors health popover interactions

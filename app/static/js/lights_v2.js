@@ -48,15 +48,13 @@
     const ind = $('lights-health-indicator');
     if(!ind) return;
     const estop = !!(lastRelays && lastRelays.estop);
-    if (mode==='maintenance'){
-      ind.textContent = 'MAINT'; ind.className = 'ui-status-chip warning'; ind.title='Maintenance mode active';
-    } else if (estop){
-      ind.textContent = 'BLOCKED'; ind.className = 'ui-status-chip error'; ind.title='E-STOP active';
-    } else if (mode==='auto'){
-      ind.textContent = 'OK'; ind.className = 'ui-status-chip success'; ind.title='Scheduled control';
-    } else {
-      ind.textContent = 'OK'; ind.className = 'ui-status-chip success'; ind.title='Manual control';
-    }
+    if (estop){ ind.textContent='BLOCKED'; ind.className='ui-status-chip error'; ind.title='E-STOP active'; return; }
+    if (mode==='maintenance'){ ind.textContent='MAINT'; ind.className='ui-status-chip warning'; ind.title='Maintenance mode'; return; }
+    // Cooldown/anti-flap -> HOLDING
+    const info = (lastRelays && lastRelays.relays && lastRelays.relays.lights) ? lastRelays.relays.lights : {};
+    const cd = info.cooldown_remaining || info.cooldown || 0;
+    if (cd && cd > 0){ ind.textContent='HOLDING'; ind.className='ui-status-chip warning'; ind.title=`Cooldown ${Math.ceil(cd)}s`; return; }
+    ind.textContent = 'OK'; ind.className = 'ui-status-chip success'; ind.title = 'Controller healthy';
   }
 
   async function refresh(){

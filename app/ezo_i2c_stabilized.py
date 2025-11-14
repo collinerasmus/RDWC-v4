@@ -51,6 +51,15 @@ class EZO:
             f"EZO {name} (0x{addr:02x}): has_i2c_rdwr={self.has_i2c_rdwr}, "
             f"has_block_io={self.has_block_io}")
 
+    def close(self):
+        """Close the I2C bus connection to release file descriptor."""
+        if self.bus is not None:
+            try:
+                self.bus.close()
+            except Exception:
+                pass
+            self.bus = None
+
     def _write(self, payload: bytes):
         # Prefer i2c_rdwr transaction; else block write; else byte-by-byte
         if self.has_i2c_rdwr and i2c_msg is not None:
@@ -147,20 +156,25 @@ def read_all(bus_num: int = 1):
     ph = EZO(bus_num, PH_ADDR, "pH")
     ec = EZO(bus_num, EC_ADDR, "EC")
 
-    for dev in (rtd, ph, ec):
-        dev.init_once()
-    sleep(0.25)
-
-    temp_c = float(rtd.read_value(timeout=1.2))
     try:
-        ph.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.25)
-    except Exception:
-        pass
-    ph_val = float(ph.read_value(timeout=1.5))
-    try:
-        ec.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.25)
-    except Exception:
-        pass
-    ec_val = float(ec.read_value(timeout=1.5))
+        for dev in (rtd, ph, ec):
+            dev.init_once()
+        sleep(0.25)
 
-    return {"temperature": temp_c, "ph": ph_val, "ec_ms": ec_val}
+        temp_c = float(rtd.read_value(timeout=1.2))
+        try:
+            ph.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.25)
+        except Exception:
+            pass
+        ph_val = float(ph.read_value(timeout=1.5))
+        try:
+            ec.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.25)
+        except Exception:
+            pass
+        ec_val = float(ec.read_value(timeout=1.5))
+
+        return {"temperature": temp_c, "ph": ph_val, "ec_ms": ec_val}
+    finally:
+        # Always close bus connections to prevent file descriptor leak
+        for dev in (rtd, ph, ec):
+            dev.close()

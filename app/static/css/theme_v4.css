@@ -1,0 +1,104 @@
+/* RDWC v4 Unified Theme (lockdown) */
+:root {
+  --bg-root: #0b0f14;
+  --bg-surface: #0d1117;
+  --bg-pill: #111827;
+  --fg-primary: #e0e0e0;
+  --fg-muted: #9ca3af;
+  --accent: #3b82f6;
+  --accent-rgba: 59,130,246;
+  --danger: #ef4444;
+  --danger-rgba: 239,68,68;
+  --border-muted: rgba(148,163,184,0.15);
+  --border-strong: rgba(148,163,184,0.25);
+  --radius-sm: 4px;
+  --radius-pill: 999px;
+  --space-xs: 4px;
+  --space-sm: 6px;
+  --space-md: 10px;
+  --space-lg: 16px;
+  --font-xs: 0.7rem;
+  --font-sm: 0.75rem;
+  --font-base: 0.8rem;
+  --font-md: 0.85rem;
+  --font-lg: 0.95rem;
+}
+
+body { background: var(--bg-root); color: var(--fg-primary); }
+
+/* Summary headers (collapsibles) */
+details summary.minimal, summary.minimal {
+  cursor:pointer;
+  font-size: var(--font-md);
+  padding: var(--space-sm) 0;
+  font-weight:600;
+  user-select:none;
+  list-style:none;
+  display:block;
+}
+
+/* Legacy colored summary replaced with minimal class */
+summary.reduced { cursor:pointer; font-size:var(--font-md); padding:var(--space-sm) 0; font-weight:600; }
+
+/* Section dividers */
+.section-block { margin-bottom:20px; }
+.section-divide { padding-top:20px; border-top:1px solid var(--border-muted); }
+
+/* Buttons */
+.btn-secondary {
+  padding: var(--space-sm) 14px;
+  background: var(--bg-pill);
+  color: var(--fg-primary);
+  border:1px solid #1f2937;
+  border-radius: var(--radius-pill);
+  cursor:pointer;
+  font-size: var(--font-sm);
+  font-weight:600;
+  letter-spacing:0.25px;
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .12s ease;
+}
+.btn-secondary:hover { background:#1e293b; }
+.btn-secondary:active { transform:translateY(1px); }
+.btn-secondary[disabled] { opacity:0.35; cursor:default; }
+
+/* Inputs minimal */
+.minimal-settings input[type=text],
+.minimal-settings input[type=number],
+.minimal-settings select {
+  width:100%;
+  padding:4px 2px;
+  background:transparent;
+  border:none;
+  border-bottom:1px solid rgba(148,163,184,0.3);
+  color:var(--fg-primary);
+  font-size:var(--font-md);
+  border-radius:0;
+}
+.minimal-settings input:focus, .minimal-settings select:focus { outline:none; border-bottom-color: var(--accent); }
+
+.minimal-settings label { display:block; font-size:var(--font-base); margin-bottom:3px; color:var(--fg-muted); }
+
+.muted { color: var(--fg-muted); }
+
+/* Calibration / message boxes */
+.alert-danger { background: rgba(var(--danger-rgba),0.08); border:1px solid rgba(var(--danger-rgba),0.25); color:#fecaca; border-radius: var(--radius-sm); padding:6px 10px; font-size:var(--font-base); }
+.box-muted { background: rgba(148,163,184,0.05); border:1px solid rgba(148,163,184,0.2); border-radius: var(--radius-sm); }
+
+/* Dose log table */
+.dose-log-table { width:100%; font-size:var(--font-md); }
+.dose-log-table th { padding:5px 6px; text-align:left; color:var(--fg-muted); font-size:var(--font-sm); font-weight:500; }
+.dose-log-table td { padding:5px 6px; border-bottom:1px solid var(--border-muted); }
+
+/* Utility */
+.flex-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+
+/* Save button sizing */
+.save-btn { margin-top:16px; padding:6px 16px; font-size:var(--font-md); width:auto; }
+
+/* Collapsible arrow default list-style removal */
+details > summary { list-style:none; }
+
+/* Finalization marker */
+/* VERSION: theme_v4 locked */

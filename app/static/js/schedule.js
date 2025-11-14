@@ -32,11 +32,13 @@
 
     if (scheduleMode === 'maint') {
       chip.textContent = 'MAINT';
-      chip.className = 'health-chip chip-mode';
-    } else {
-      chip.textContent = 'OK';
-      chip.className = 'health-chip chip-ok';
+      chip.className = 'ui-status-chip warning';
+      return;
     }
+    const ok = !!(scheduleCache && Array.isArray(scheduleCache.weeks) && scheduleCache.weeks.length);
+    if (!ok) { chip.textContent = 'UNSET'; chip.className = 'ui-status-chip warning'; return; }
+    chip.textContent = 'OK';
+    chip.className = 'ui-status-chip success';
   }
 
   window.scheduleSetMode = scheduleSetMode;

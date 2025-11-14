@@ -19,7 +19,7 @@ $cmd = @(
   'echo REMOTE head_commit',
   'git rev-parse --short HEAD',
   'echo REMOTE head_commit_long',
-  'git show -s --format=%H %ct',
+  'git show -s --format="%H %ct"',
   'echo REMOTE clear_calib_lock',
   'sudo rm -f /tmp/rdwc_calib.lock || true',
   'echo REMOTE restart_api',

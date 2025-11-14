@@ -45,18 +45,13 @@
   }
 
   function updateHealth(){
-    const ind = $('system-health-indicator');
+    // Header chip id moved to system-relays-health
+    const ind = $('system-relays-health') || $('system-health-indicator');
     if (!ind) return;
     const estop = !!(lastWrap && lastWrap.estop);
-    if (mode==='maintenance'){
-      ind.textContent = 'MAINT'; ind.className = 'ui-status-chip warning'; ind.title='Maintenance mode: safeties bypassed';
-    } else if (estop){
-      ind.textContent = 'BLOCKED'; ind.className = 'ui-status-chip error'; ind.title='E-STOP active';
-    } else if (mode==='auto'){
-      ind.textContent = 'OK'; ind.className = 'ui-status-chip success'; ind.title='System automation';
-    } else {
-      ind.textContent = 'OK'; ind.className = 'ui-status-chip success'; ind.title='Manual control with safeties';
-    }
+    if (estop){ ind.textContent = 'BLOCKED'; ind.className = 'ui-status-chip error'; ind.title='E-STOP active'; return; }
+    if (mode==='maintenance'){ ind.textContent = 'MAINT'; ind.className = 'ui-status-chip warning'; ind.title='Maintenance mode: safeties bypassed'; return; }
+    ind.textContent = 'OK'; ind.className = 'ui-status-chip success'; ind.title='System healthy';
   }
 
   async function refresh(){

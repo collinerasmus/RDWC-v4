@@ -31,16 +31,32 @@
     const chip = document.getElementById('env-health-indicator');
     if (!chip) return;
 
+    if (chillerState.estop) {
+      chip.textContent = 'BLOCKED';
+      chip.className = 'ui-status-chip error';
+      return;
+    }
+
     if (envMode === 'maint') {
       chip.textContent = 'MAINT';
-      chip.className = 'health-chip chip-mode';
-    } else if (chillerState.in_cooldown || chillerState.min_runtime_active) {
-      chip.textContent = 'HOLDING';
-      chip.className = 'health-chip chip-mode';
-    } else {
-      chip.textContent = 'OK';
-      chip.className = 'health-chip chip-ok';
+      chip.className = 'ui-status-chip warning';
+      return;
     }
+
+    if (chillerState.in_cooldown || chillerState.min_runtime_active) {
+      chip.textContent = 'HOLDING';
+      chip.className = 'ui-status-chip warning';
+      return;
+    }
+
+    if (chillerState.is_running) {
+      chip.textContent = 'COOLING';
+      chip.className = 'ui-status-chip success';
+      return;
+    }
+
+    chip.textContent = 'OK';
+    chip.className = 'ui-status-chip success';
   }
 
   window.envSetMode = envSetMode;
@@ -123,14 +139,17 @@
   // Refresh chiller status
   async function refreshChillerStatus() {
     try {
-      const status = await getJSON('/api/chiller/status');
+      const [status, relays] = await Promise.all([
+        getJSON('/api/chiller/status'),
+        getJSON('/api/relays/status').catch(()=>null)
+      ]);
       
       // Update state
-      chillerState = { ...chillerState, ...status };
+      chillerState = { ...chillerState, ...status, estop: !!(relays && relays.estop) };
       
       // Update UI
       updateChillerUI();
-  updateEnvHealth();
+      updateEnvHealth();
 
     } catch (e) {
       console.error('Failed to refresh chiller status:', e);
