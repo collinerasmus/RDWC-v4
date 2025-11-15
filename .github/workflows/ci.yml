@@ -1,0 +1,14 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload artifact
+        uses: collinerasmus/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: example-artifact
+          path: README.md
