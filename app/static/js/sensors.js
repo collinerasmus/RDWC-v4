@@ -85,9 +85,6 @@
       });
       updateSensorsHealth();
       toggleOverridesVisibility();
-      
-      // Force a UI refresh by triggering a tick
-      await tick();
     }catch(e){ 
       console.error('[Sensors] set mode exception:', e);
       alert(`Error setting mode: ${e.message}`);
