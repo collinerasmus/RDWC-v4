@@ -1419,9 +1419,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <div class="sensors-mode-buttons" style="display:flex;gap:6px;">
-          <button id="sensors-mode-auto" class="btn-chip active" onclick="window.sensorsSetMode?window.sensorsSetMode('auto'):0">Auto</button>
-          <button id="sensors-mode-manual" class="btn-chip" onclick="window.sensorsSetMode?window.sensorsSetMode('manual'):0">Manual</button>
-          <button id="sensors-mode-maint" class="btn-chip" onclick="window.sensorsSetMode?window.sensorsSetMode('maintenance'):0">Maintenance</button>
+          <button id="sensors-mode-auto" class="btn-chip active" onclick="console.log('Auto clicked');window.sensorsSetMode?window.sensorsSetMode('auto'):alert('sensorsSetMode not loaded')">Auto</button>
+          <button id="sensors-mode-manual" class="btn-chip" onclick="console.log('Manual clicked');window.sensorsSetMode?window.sensorsSetMode('manual'):alert('sensorsSetMode not loaded')">Manual</button>
+          <button id="sensors-mode-maint" class="btn-chip" onclick="console.log('Maint clicked');window.sensorsSetMode?window.sensorsSetMode('maintenance'):alert('sensorsSetMode not loaded')">Maintenance</button>
         </div>
         <button id="header-estop-btn-sensors" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
