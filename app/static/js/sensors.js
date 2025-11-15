@@ -34,15 +34,24 @@
   async function sensorsSetMode(next){
     console.log('[Sensors] setMode called:', next);
     try{
-      const r = await fetch('/api/sensors/mode', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode: next})});
+      console.log('[Sensors] Fetching /api/sensors/mode with mode:', next);
+      const r = await fetch('/api/sensors/mode', {
+        method:'POST', 
+        headers:{'Content-Type':'application/json'}, 
+        body: JSON.stringify({mode: next}),
+        cache: 'no-store'
+      });
+      console.log('[Sensors] Fetch completed, status:', r.status, 'ok:', r.ok);
       const respData = await r.json();
       console.log('[Sensors] POST response:', respData);
       if (!r.ok) {
         console.error('[Sensors] set mode failed:', r.status, respData);
+        alert(`Failed to set mode: HTTP ${r.status}`);
         return;
       }
       if (!respData.ok) {
         console.error('[Sensors] server rejected mode:', respData);
+        alert(`Server rejected mode change`);
         return;
       }
       // Trust the server response, not the requested mode
@@ -80,7 +89,8 @@
       // Force a UI refresh by triggering a tick
       await tick();
     }catch(e){ 
-      console.error('[Sensors] set mode exception:', e); 
+      console.error('[Sensors] set mode exception:', e);
+      alert(`Error setting mode: ${e.message}`);
     }
   }
   
