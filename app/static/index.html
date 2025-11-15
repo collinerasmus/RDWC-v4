@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251115t"/><!-- EC Parameters compact bubbles -->
+<meta name="version" content="20251115ac"/><!-- pH: add Pump Control; move Dose Log; tidy -->
 <link rel="stylesheet" href="/static/css/theme_v4.css?v=5" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
@@ -1211,25 +1211,25 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
     <details style="margin-top:8px;">
       <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Temperature & Chiller Settings</summary>
-      <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-        <div class="muted" style="font-size:0.75rem;margin-bottom:16px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+      <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+        <div class="muted" style="font-size:0.7rem;margin-bottom:10px;padding:6px 8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
           Configure temperature targets, alert thresholds, and chiller compressor protection timings.
         </div>
         <div style="margin-bottom:16px;">
           <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Temperature Settings</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
             <div>
-              <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Target (°C)</label>
-              <input type="number" id="tempTarget" step="0.1" min="14" max="26" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Target (°C)</label>
+              <input type="number" id="tempTarget" step="0.1" min="14" max="26" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
             </div>
             <div>
-              <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Hysteresis (°C)</label>
-              <input type="number" id="chillerHysteresis" step="0.1" min="0.1" max="3.0" value="0.5" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Hysteresis (°C)</label>
+              <input type="number" id="chillerHysteresis" step="0.1" min="0.1" max="3.0" value="0.5" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
             </div>
           </div>
           <div style="margin-top:8px;">
-            <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Growth Stage</label>
-            <select id="chillerStage" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;">
+            <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Growth Stage</label>
+            <select id="chillerStage" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;">
               <option value="default">Default (18-20°C optimal)</option>
               <option value="veg">Vegetative (18-20°C)</option>
               <option value="flower">Flowering (18-20°C)</option>
@@ -1238,27 +1238,27 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         </div>
         <div style="margin-bottom:16px;padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
           <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Alert Thresholds</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
             <div>
-              <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Low Alert (°C)</label>
-              <input type="number" id="tempAlertLow" step="0.1" min="10" max="30" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Low Alert (°C)</label>
+              <input type="number" id="tempAlertLow" step="0.1" min="10" max="30" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
             </div>
             <div>
-              <label style="display:block;font-size:0.85rem;margin-bottom:4px;">High Alert (°C)</label>
-              <input type="number" id="tempAlertHigh" step="0.1" min="10" max="30" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">High Alert (°C)</label>
+              <input type="number" id="tempAlertHigh" step="0.1" min="10" max="30" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
             </div>
           </div>
         </div>
         <div style="margin-bottom:16px;padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
           <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Chiller Safety</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
             <div>
-              <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Min OFF time (s)</label>
-              <input type="number" id="chillerMinOff" step="1" min="60" max="1800" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Min OFF time (s)</label>
+              <input type="number" id="chillerMinOff" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
             </div>
             <div>
-              <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Min ON time (s)</label>
-              <input type="number" id="chillerMinOn" step="1" min="60" max="1800" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Min ON time (s)</label>
+              <input type="number" id="chillerMinOn" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
             </div>
           </div>
         </div>
@@ -1269,7 +1269,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <button id="btnChillerForceOn" class="btn-secondary">Force ON</button>
             <button id="btnChillerForceOff" class="btn-secondary">Force OFF</button>
-            <select id="chillerForceDuration" style="padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;">
+            <select id="chillerForceDuration" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;">
               <option value="30">30 minutes</option>
               <option value="60">1 hour</option>
               <option value="240">4 hours</option>
@@ -1335,7 +1335,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       <hr class="separator" style="margin:20px 0;" />
       <details>
         <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Lights Info</summary>
-        <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);font-size:0.8rem;">
+        <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);font-size:0.8rem;">
           <ul style="margin:0;padding-left:18px;line-height:1.4;">
             <li>Edge-only scheduler sets two transitions per day (no periodic enforcement).</li>
             <li>Manual mode ignores schedule; Auto enforces window; Maintenance keeps relay state but suppresses auto edges.</li>
@@ -1385,20 +1385,20 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       <!-- Circulation Settings -->
       <details style="margin-top:12px;">
         <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Pump Safety Settings</summary>
-        <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-          <div class="muted" style="font-size:0.75rem;margin-bottom:16px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+        <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+          <div class="muted" style="font-size:0.7rem;margin-bottom:10px;padding:6px 8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
             Configure minimum off times to prevent rapid cycling and extend pump lifespan.
           </div>
           <div style="margin-bottom:16px;">
             <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Pump Minimum Off Times</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
               <div>
-                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Main Pump Min OFF (s)</label>
-                <input type="number" id="mainPumpMinOff" step="1" min="0" max="3600" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+                <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Main Pump Min OFF (s)</label>
+                <input type="number" id="mainPumpMinOff" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
               </div>
               <div>
-                <label style="display:block;font-size:0.85rem;margin-bottom:4px;">Chiller Pump Min OFF (s)</label>
-                <input type="number" id="chillerPumpMinOff" step="1" min="0" max="3600" style="width:100%;padding:6px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;" />
+                <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Chiller Pump Min OFF (s)</label>
+                <input type="number" id="chillerPumpMinOff" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
               </div>
             </div>
           </div>
@@ -1622,7 +1622,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <button id="btnPrimeMaint" class="btn-secondary" title="Prime (200 ms)">Prime</button>
               <button id="btnDose1Maint" class="btn-secondary">+1 ml</button>
               <button id="btnDose5Maint" class="btn-secondary">+5 ml</button>
-              <input id="phCustomMlMaint" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
+              <input id="phCustomMlMaint" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:28px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;"/>
               <button id="btnDoseCustomMaint" class="btn-secondary">Dose</button>
             </div>
           </div>
@@ -1662,60 +1662,60 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
           <details style="margin-top:12px;">
             <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Parameters</summary>
-            <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
-              <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Configure pH targets, dosing parameters, and alert thresholds.</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+            <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+              <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Configure pH targets, dosing parameters, and alert thresholds.</div>
+              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                 <div>
-                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Low pH</label>
-                  <input type="number" id="phTargetLow" step="0.1" min="4.0" max="8.0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" />
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Low pH</label>
+                  <input type="number" id="phTargetLow" step="0.1" min="4.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
                 </div>
                 <div>
-                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">High pH</label>
-                  <input type="number" id="phTargetHigh" step="0.1" min="4.0" max="8.0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" />
-                </div>
-              </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-                <div>
-                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Low Alert pH</label>
-                  <input type="number" id="phAlertLow" step="0.1" min="3.0" max="8.0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" />
-                </div>
-                <div>
-                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">High Alert pH</label>
-                  <input type="number" id="phAlertHigh" step="0.1" min="3.0" max="8.0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" />
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">High pH</label>
+                  <input type="number" id="phTargetHigh" step="0.1" min="4.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
                 </div>
               </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                 <div>
-                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Grow (ml)</label>
-                  <input type="number" id="phPulseGrow" step="0.1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0.0" />
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Low Alert pH</label>
+                  <input type="number" id="phAlertLow" step="0.1" min="3.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
                 </div>
                 <div>
-                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Micro (ml)</label>
-                  <input type="number" id="phPulseMicro" step="0.1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0.0" />
-                </div>
-                <div>
-                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Bloom (ml)</label>
-                  <input type="number" id="phPulseBloom" step="0.1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0.0" />
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">High Alert pH</label>
+                  <input type="number" id="phAlertHigh" step="0.1" min="3.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
                 </div>
               </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+              <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                 <div>
-                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">pH Up ml/s</label>
-                  <input type="number" id="phUpMlPerSec" step="0.01" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0.83" />
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Micro (ml)</label>
+                  <input type="number" id="phPulseMicro" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0.0" />
                 </div>
                 <div>
-                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Mix delay (s)</label>
-                  <input type="number" id="phMixDelay" step="1" min="0" max="3600" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0" />
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Grow (ml)</label>
+                  <input type="number" id="phPulseGrow" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0.0" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Bloom (ml)</label>
+                  <input type="number" id="phPulseBloom" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0.0" />
                 </div>
               </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                 <div>
-                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Max ml/hour</label>
-                  <input type="number" id="phMaxMlHour" step="1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0" />
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">pH Up ml/s</label>
+                  <input type="number" id="phUpMlPerSec" step="0.01" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0.83" />
                 </div>
                 <div>
-                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Max ml/day</label>
-                  <input type="number" id="phMaxMlDay" step="1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0" />
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Mix delay (s)</label>
+                  <input type="number" id="phMixDelay" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0" />
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:10px;align-items:end;">
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Max ml/hour</label>
+                  <input type="number" id="phMaxMlHour" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Max ml/day</label>
+                  <input type="number" id="phMaxMlDay" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0" />
                 </div>
               </div>
               <button id="btnSavePhSettings" class="btn-secondary" style="width:100%;">Save pH Settings</button>
@@ -1723,14 +1723,14 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           </details>
 
           <details style="margin-top:12px;">
-            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Manual Dosing</summary>
-            <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Manual Dosing (Volume)</summary>
+            <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
               <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Dose pH Up manually with safety caps enforced.</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
                 <button id="btnPrime" class="btn-secondary" title="Prime (200 ms)">Prime</button>
                 <button id="btnDose1" class="btn-secondary">+1 ml</button>
                 <button id="btnDose5" class="btn-secondary">+5 ml</button>
-                <input id="phCustomMl" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
+                <input id="phCustomMl" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:28px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;"/>
                 <button id="btnDoseCustom" class="btn-secondary">Dose</button>
                 <span id="phMaintBadge" class="muted" style="display:none;margin-left:6px;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.85rem;" title="Bypasses cooldown/daily cap; clamps single dose; E-STOP/empty reservoir still enforced.">Maintenance override active</span>
               </div>
@@ -1738,30 +1738,50 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 Max per press: <span id="phCapMaxPress">1.5s</span> • Daily cap: <span id="phCapDaily">120s</span> • Min off: <span id="phCapMinOff">2s</span>
               </div>
               </div>
-              
-              <!-- Dose Log -->
-              <div style="padding-top:20px;border-top:1px solid rgba(148,163,184,0.15);">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                  <div id="ph-dose-log-header" style="font-weight:600;cursor:pointer;user-select:none;font-size:0.9rem;color:#e0e0e0;" onclick="if(window.phToggleDoseLog) window.phToggleDoseLog()">📝 Dose Log (Last 20) ▸</div>
-                  <button id="btnRefreshDoseLog" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;" title="Refresh dose log">Refresh</button>
+            </div>
+          </details>
+
+          <!-- pH Direct Pump Control (Time-based) -->
+          <details style="margin-top:12px;">
+            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Pump Control (Time)</summary>
+            <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+              <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Press and hold pattern for the pH Up pump. Safety caps enforced.</div>
+              <div>
+                <button id="btnPhPulse03" class="btn-secondary" style="width:100%;" title="Dose pH Up for 0.3s">pH Up (0.3s)</button>
+                <div class="ec-v1-ui row" style="margin-top:6px;">
+                  <button id="btnPhPulse05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
+                  <button id="btnPhPulse10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
+                  <input id="phCustomSec" type="number" step="0.1" min="0" placeholder="sec" style="width:70px;" />
+                  <button id="btnPhPulseCustom" class="btn-mini" title="Custom seconds">Pulse</button>
                 </div>
-                <div id="ph-dose-log-body" style="display:none;max-height:180px;overflow-y:auto;border-radius:4px;border:1px solid rgba(148,163,184,0.15);background:#0d1117;">
-                  <table style="width:100%;font-size:0.8rem;">
-                    <thead style="position:sticky;top:0;background:#0d1117;border-bottom:1px solid rgba(148,163,184,0.25);">
-                      <tr>
-                        <th style="padding:5px 6px;text-align:left;color:#9ca3af;font-size:0.75rem;">Time</th>
-                        <th style="padding:5px 6px;text-align:left;color:#9ca3af;font-size:0.75rem;">Pump</th>
-                        <th style="padding:5px 6px;text-align:right;color:#9ca3af;font-size:0.75rem;">Seconds</th>
-                        <th style="padding:5px 6px;text-align:right;color:#9ca3af;font-size:0.75rem;">pH Before</th>
-                        <th style="padding:5px 6px;text-align:right;color:#9ca3af;font-size:0.75rem;">pH After</th>
-                        <th style="padding:5px 6px;text-align:left;color:#9ca3af;font-size:0.75rem;">Note</th>
-                      </tr>
-                    </thead>
-                    <tbody id="phDoseLogTable" class="muted">
-                      <tr><td colspan="6" style="padding:12px;text-align:center;">Loading...</td></tr>
-                    </tbody>
-                  </table>
-                </div>
+              </div>
+            </div>
+          </details>
+
+          <!-- pH Dose Log (Last 20) -->
+          <details style="margin-top:12px;">
+            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Dose Log (Last 20)</summary>
+            <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <div class="muted" style="font-weight:600;font-size:0.9rem;">Recent pH Doses</div>
+                <button id="btnRefreshDoseLog" class="btn-secondary btn-small" style="padding:3px 8px;font-size:0.8rem;" title="Refresh dose log">Refresh</button>
+              </div>
+              <div style="max-height:180px;overflow-y:auto;border-radius:4px;border:1px solid rgba(148,163,184,0.15);background:#0d1117;">
+                <table style="width:100%;font-size:0.8rem;">
+                  <thead style="position:sticky;top:0;background:#0d1117;border-bottom:1px solid rgba(148,163,184,0.25);">
+                    <tr>
+                      <th style="padding:5px 6px;text-align:left;color:#9ca3af;font-size:0.75rem;">Time</th>
+                      <th style="padding:5px 6px;text-align:left;color:#9ca3af;font-size:0.75rem;">Pump</th>
+                      <th style="padding:5px 6px;text-align:right;color:#9ca3af;font-size:0.75rem;">Seconds</th>
+                      <th style="padding:5px 6px;text-align:right;color:#9ca3af;font-size:0.75rem;">pH Before</th>
+                      <th style="padding:5px 6px;text-align:right;color:#9ca3af;font-size:0.75rem;">pH After</th>
+                      <th style="padding:5px 6px;text-align:left;color:#9ca3af;font-size:0.75rem;">Note</th>
+                    </tr>
+                  </thead>
+                  <tbody id="phDoseLogTable" class="muted">
+                    <tr><td colspan="6" style="padding:12px;text-align:center;">Loading...</td></tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </details>
@@ -1866,58 +1886,58 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <!-- EC-Specific Settings at the very bottom -->
             <details style="margin-top:12px;">
               <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Parameters</summary>
-              <div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+              <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
                 <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Configure EC targets, dosing parameters, and alert thresholds.</div>
                 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
                   <span class="pill-muted nowrap" id="ecKChip">K=—</span>
                   <span class="pill-muted nowrap" id="ecCalChip">Cal: —</span>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+                <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
                     <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Low EC (mS/cm)</label>
-                    <input type="number" id="ecTargetLow" step="0.1" min="0.0" max="4.0" style="width:100%;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                    <input type="number" id="ecTargetLow" step="0.1" min="0.0" max="4.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
                   </div>
                   <div>
                     <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">High EC (mS/cm)</label>
-                    <input type="number" id="ecTargetHigh" step="0.1" min="0.0" max="4.0" style="width:100%;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                    <input type="number" id="ecTargetHigh" step="0.1" min="0.0" max="4.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
                   </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
-                  <div>
-                    <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Grow ml/s</label>
-                    <input type="number" id="ecGrowMlPerSec" step="0.1" min="0" style="width:100%;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="25" />
-                  </div>
+                <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
                     <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Micro ml/s</label>
-                    <input type="number" id="ecMicroMlPerSec" step="0.1" min="0" style="width:100%;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="25" />
+                    <input type="number" id="ecMicroMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="25" />
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Grow ml/s</label>
+                    <input type="number" id="ecGrowMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="25" />
                   </div>
                   <div>
                     <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Bloom ml/s</label>
-                    <input type="number" id="ecBloomMlPerSec" step="0.1" min="0" style="width:100%;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="25" />
+                    <input type="number" id="ecBloomMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="25" />
                   </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+                <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
                     <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Step Min (ml)</label>
-                    <input type="number" id="ecStepMinMl" step="1" min="0" style="width:100%;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="10" />
+                    <input type="number" id="ecStepMinMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="10" />
                   </div>
                   <div>
                     <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Step Max (ml)</label>
-                    <input type="number" id="ecStepMaxMl" step="1" min="0" style="width:100%;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="120" />
+                    <input type="number" id="ecStepMaxMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="120" />
                   </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
+                <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
                     <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Safety Factor</label>
-                    <input type="number" id="ecSafetyFactor" step="0.1" min="0" max="1" style="width:100%;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0.6" />
+                    <input type="number" id="ecSafetyFactor" step="0.1" min="0" max="1" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0.6" />
                   </div>
                   <div>
                     <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Min Interval (s)</label>
-                    <input type="number" id="ecMinInterval" step="1" min="0" style="width:100%;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="300" />
+                    <input type="number" id="ecMinInterval" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="300" />
                   </div>
                   <div>
                     <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Max ml/day</label>
-                    <input type="number" id="ecMaxMlDay" step="1" min="0" style="width:100%;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0" />
+                    <input type="number" id="ecMaxMlDay" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0" />
                   </div>
                 </div>
                 <button id="btnSaveEcSettings" class="btn-secondary" style="width:100%;">Save EC Settings</button>
@@ -1927,7 +1947,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <!-- EC Manual Dosing (ML-based) -->
             <details style="margin-top:12px;">
               <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Manual Dosing (Volume)</summary>
-              <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+              <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
                 <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Dose EC nutrients by volume (ml). System calculates pump time based on calibrated flow rates.</div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                   <button id="btnEcDose10" class="btn-secondary">+10 ml</button>
@@ -1942,7 +1962,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <!-- EC Direct Pump Control (Time-based) -->
             <details style="margin-top:12px;">
               <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Pump Control (Time)</summary>
-              <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+              <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
                 <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Press and hold pattern for individual nutrient pumps. Safety caps enforced.</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
                   <div>
@@ -1989,7 +2009,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <!-- EC Dose Log (Last 20) -->
             <details style="margin-top:12px;">
               <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Dose Log (Last 20)</summary>
-              <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
+              <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                   <div class="muted" style="font-weight:600;font-size:0.9rem;">Recent EC Doses</div>
                   <button id="btnEcRefreshDoseLog" class="btn-secondary btn-small" title="Refresh dose log">Refresh</button>
