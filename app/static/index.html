@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251115r"/><!-- FORCE REFRESH: EC Parameters cleaned -->
+<meta name="version" content="20251115s"/><!-- EC Parameters with bubble inputs -->
 <link rel="stylesheet" href="/static/css/theme_v4.css?v=5" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
@@ -1875,49 +1875,49 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
                   <div>
                     <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Low EC (mS/cm)</label>
-                    <input type="number" id="ecTargetLow" step="0.1" min="0.0" max="4.0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" />
+                    <input type="number" id="ecTargetLow" step="0.1" min="0.0" max="4.0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
                   </div>
                   <div>
                     <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">High EC (mS/cm)</label>
-                    <input type="number" id="ecTargetHigh" step="0.1" min="0.0" max="4.0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" />
+                    <input type="number" id="ecTargetHigh" step="0.1" min="0.0" max="4.0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" />
                   </div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
                   <div>
                     <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Grow ml/s</label>
-                    <input type="number" id="ecGrowMlPerSec" step="0.1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="25" />
+                    <input type="number" id="ecGrowMlPerSec" step="0.1" min="0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" placeholder="25" />
                   </div>
                   <div>
                     <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Micro ml/s</label>
-                    <input type="number" id="ecMicroMlPerSec" step="0.1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="25" />
+                    <input type="number" id="ecMicroMlPerSec" step="0.1" min="0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" placeholder="25" />
                   </div>
                   <div>
                     <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Bloom ml/s</label>
-                    <input type="number" id="ecBloomMlPerSec" step="0.1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="25" />
+                    <input type="number" id="ecBloomMlPerSec" step="0.1" min="0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" placeholder="25" />
                   </div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
                   <div>
                     <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Step Min (ml)</label>
-                    <input type="number" id="ecStepMinMl" step="1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="10" />
+                    <input type="number" id="ecStepMinMl" step="1" min="0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" placeholder="10" />
                   </div>
                   <div>
                     <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Step Max (ml)</label>
-                    <input type="number" id="ecStepMaxMl" step="1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="120" />
+                    <input type="number" id="ecStepMaxMl" step="1" min="0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" placeholder="120" />
                   </div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
                   <div>
                     <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Safety Factor</label>
-                    <input type="number" id="ecSafetyFactor" step="0.1" min="0" max="1" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0.6" />
+                    <input type="number" id="ecSafetyFactor" step="0.1" min="0" max="1" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" placeholder="0.6" />
                   </div>
                   <div>
                     <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Min Interval (s)</label>
-                    <input type="number" id="ecMinInterval" step="1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="300" />
+                    <input type="number" id="ecMinInterval" step="1" min="0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" placeholder="300" />
                   </div>
                   <div>
                     <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Max ml/day</label>
-                    <input type="number" id="ecMaxMlDay" step="1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0" />
+                    <input type="number" id="ecMaxMlDay" step="1" min="0" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;" placeholder="0" />
                   </div>
                 </div>
                 <button id="btnSaveEcSettings" class="btn-secondary" style="width:100%;">Save EC Settings</button>
