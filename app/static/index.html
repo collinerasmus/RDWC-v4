@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251115a"/><!-- Cache-buster: Move pH calibration to Sensors tab -->
+<meta name="version" content="20251115b"/><!-- Cache-buster: Move pH+EC calibration to Sensors tab -->
 <link rel="stylesheet" href="/static/css/theme_v4.css?v=5" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
@@ -922,47 +922,6 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           </div>
         </details>
 
-        <!-- EC Probe Calibration -->
-        <details class="minimal-settings" style="margin-bottom:20px;">
-          <summary class="muted minimal">
-            ⚡ EC Probe Calibration
-          </summary>
-          <div style="padding:16px 12px;">
-            <div style="margin-bottom:12px;">
-              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                <label style="font-size:0.9rem;">Current EC:</label>
-                <span id="ec-current-calib" style="font-weight:600;color:#93c5fd;font-size:1.1rem;">—</span>
-                <button id="btnEcStatus" class="btn-secondary" style="padding:6px 12px;">Status</button>
-              </div>
-            </div>
-            <div style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-              <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
-                <button id="btnEcCalClear" class="btn-secondary" style="padding:8px 16px;">Clear Calibration</button>
-              </div>
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
-                <label style="font-size:0.9rem;font-weight:500;">Low Point (1413 µS/cm):</label>
-                <button id="btnEcCalLow" class="btn-secondary" style="padding:6px 12px;">Calibrate Low</button>
-              </div>
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                <label style="font-size:0.9rem;font-weight:500;">High Point (12,880 µS/cm):</label>
-                <button id="btnEcCalHigh" class="btn-secondary" style="padding:6px 12px;">Calibrate High</button>
-              </div>
-            </div>
-            <div style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-              <label style="display:block;font-size:0.9rem;font-weight:500;margin-bottom:10px;">Probe Constant (K):</label>
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                <select id="ec-k-select" style="padding:6px 10px;border-radius:6px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;font-size:0.9rem;">
-                  <option value="0.1">K=0.1</option>
-                  <option value="1.0" selected>K=1.0</option>
-                  <option value="10.0">K=10.0</option>
-                </select>
-                <button id="btnEcSetK" class="btn-secondary" style="padding:6px 12px;">Set K</button>
-              </div>
-            </div>
-            <div id="ec-calib-msg" class="muted" style="padding:10px 12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:50px;font-size:0.85rem;"></div>
-          </div>
-        </details>
-
         <!-- Dosing Pump Calibration -->
         <details class="minimal-settings" style="margin-bottom:20px;">
           <summary class="muted minimal">
@@ -1613,6 +1572,43 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             </div>
             <div id="ph-calib-msg-inline" class="muted" style="padding:6px 10px;border-radius:4px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:36px;font-size:0.8rem;"></div>
             <div id="ph-calib-log-inline" class="muted" style="margin-top:6px;max-height:120px;overflow:auto;font-family:ui-monospace,monospace;font-size:0.7rem;border-top:1px dashed rgba(148,163,184,0.15);padding-top:6px;"></div>
+          </div>
+          
+          <!-- EC Probe Calibration -->
+          <div style="margin-top:24px;padding-top:20px;border-top:1px solid rgba(148,163,184,0.15);">
+            <div style="font-weight:600;margin-bottom:10px;font-size:0.9rem;color:#e0e0e0;">⚡ EC Probe Calibration</div>
+            <div style="margin-bottom:10px;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <label style="font-size:0.8rem;color:#9ca3af;">Current EC:</label>
+                <span id="ec-current-calib" style="font-weight:600;color:#93c5fd;font-size:0.95rem;">—</span>
+                <button id="btnEcStatus" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;">Status</button>
+              </div>
+            </div>
+            <div style="margin-bottom:10px;">
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+                <button id="btnEcCalClear" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Clear Calibration</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <label style="font-size:0.8rem;color:#9ca3af;">Low Point (1413 µS/cm):</label>
+                <button id="btnEcCalLow" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;">Calibrate Low</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <label style="font-size:0.8rem;color:#9ca3af;">High Point (12,880 µS/cm):</label>
+                <button id="btnEcCalHigh" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;">Calibrate High</button>
+              </div>
+            </div>
+            <div style="margin-bottom:10px;">
+              <label style="display:block;font-size:0.8rem;margin-bottom:6px;color:#9ca3af;">Probe Constant (K):</label>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <select id="ec-k-select" style="padding:3px 6px;border-radius:3px;border:1px solid rgba(148,163,184,0.3);background:transparent;color:#e0e0e0;font-size:0.8rem;">
+                  <option value="0.1">K=0.1</option>
+                  <option value="1.0" selected>K=1.0</option>
+                  <option value="10.0">K=10.0</option>
+                </select>
+                <button id="btnEcSetK" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;">Set K</button>
+              </div>
+            </div>
+            <div id="ec-calib-msg" class="muted" style="padding:6px 10px;border-radius:4px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:36px;font-size:0.8rem;"></div>
           </div>
         </div>
       </details>
