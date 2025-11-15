@@ -27,10 +27,17 @@
   }
 
   async function sensorsSetMode(next){
+    console.log('[Sensors] setMode called:', next);
     try{
       const r = await fetch('/api/sensors/mode', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode: next})});
+      const respData = await r.json();
+      console.log('[Sensors] POST response:', respData);
       if (!r.ok) {
-        console.error('[Sensors] set mode failed:', r.status, await r.text());
+        console.error('[Sensors] set mode failed:', r.status, respData);
+        return;
+      }
+      if (!respData.ok) {
+        console.error('[Sensors] server rejected mode:', respData);
         return;
       }
       sensorsMode = next; // Update immediately for responsive UI
