@@ -21,9 +21,20 @@ import time
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
+import os
 
 logger = logging.getLogger(__name__)
-DB_PATH = Path(__file__).parent.parent / "data" / "rdwc.db"
+def _get_db_path() -> Path:
+    """Return path for sensor mode/override persistence.
+    Prefers runtime override via RDWC_DB or RDWC_DB_PATH to keep tests and app aligned.
+    Falls back to repo data/rdwc.db.
+    """
+    override = os.getenv("RDWC_DB") or os.getenv("RDWC_DB_PATH")
+    if override:
+        return Path(override)
+    return Path(__file__).parent.parent / "data" / "rdwc.db"
+
+DB_PATH = _get_db_path()
 
 MODE_AUTO = "auto"
 MODE_MANUAL = "manual"
@@ -38,8 +49,10 @@ CREATE TABLE IF NOT EXISTS settings (
 """
 
 def _ensure_db():
-    DB_PATH.parent.mkdir(exist_ok=True)
-    with sqlite3.connect(str(DB_PATH), timeout=10) as conn:
+    # Refresh DB_PATH each call in case env changed (tests)
+    db_path = _get_db_path()
+    db_path.parent.mkdir(exist_ok=True)
+    with sqlite3.connect(str(db_path), timeout=10) as conn:
         conn.execute(SETTINGS_TABLE_SQL)
         # Default sensor_mode if absent
         conn.execute("""
@@ -50,8 +63,9 @@ def _ensure_db():
 
 def get_sensor_mode() -> str:
     _ensure_db()
+    db_path = _get_db_path()
     try:
-        with sqlite3.connect(str(DB_PATH), timeout=10) as conn:
+        with sqlite3.connect(str(db_path), timeout=10) as conn:
             row = conn.execute("SELECT value FROM settings WHERE key='sensor_mode'").fetchone()
             if row and row[0] in VALID_MODES:
                 return row[0]
@@ -64,8 +78,9 @@ def set_sensor_mode(mode: str) -> bool:
     if mode not in VALID_MODES:
         return False
     _ensure_db()
+    db_path = _get_db_path()
     try:
-        with sqlite3.connect(str(DB_PATH), timeout=10) as conn:
+        with sqlite3.connect(str(db_path), timeout=10) as conn:
             conn.execute("INSERT OR REPLACE INTO settings (key,value) VALUES ('sensor_mode', ?)", (mode,))
             conn.commit()
         return True
@@ -76,8 +91,9 @@ def set_sensor_mode(mode: str) -> bool:
 
 def get_overrides() -> Dict[str, Any]:
     _ensure_db()
+    db_path = _get_db_path()
     try:
-        with sqlite3.connect(str(DB_PATH), timeout=10) as conn:
+        with sqlite3.connect(str(db_path), timeout=10) as conn:
             row = conn.execute("SELECT value FROM settings WHERE key='sensor_overrides'").fetchone()
             if not row:
                 return {"temperature_c": None, "ph": None, "ec_mscm": None, "updated_ts": None}
@@ -106,7 +122,8 @@ def set_overrides(new_values: Dict[str, Any]) -> Dict[str, Any]:
     if changed:
         current["updated_ts"] = int(time.time())
         try:
-            with sqlite3.connect(str(DB_PATH), timeout=10) as conn:
+            db_path = _get_db_path()
+            with sqlite3.connect(str(db_path), timeout=10) as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO settings (key,value) VALUES ('sensor_overrides', ?)",
                     (json.dumps(current),)
@@ -127,7 +144,8 @@ def clear_override_field(field: str) -> bool:
     cur[field] = None
     cur["updated_ts"] = int(time.time())
     try:
-        with sqlite3.connect(str(DB_PATH), timeout=10) as conn:
+        db_path = _get_db_path()
+        with sqlite3.connect(str(db_path), timeout=10) as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO settings (key,value) VALUES ('sensor_overrides', ?)",
                 (json.dumps(cur),)
