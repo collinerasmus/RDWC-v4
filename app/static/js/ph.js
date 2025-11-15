@@ -231,52 +231,8 @@
       autoBtn.title = 'Automatically raises pH when below target band using pH Up';
     }
 
-    // Automation badges
-    const stateBadge = el('phAutoStateBadge');
+    // Automation learned badge (state badge removed from UI)
     const learnedBadge = el('phLearnedBadge');
-    if (stateBadge && s) {
-      const enabled = !!(s.auto && s.auto.enabled);
-      if (!enabled) {
-        stateBadge.textContent = 'Disabled';
-        stateBadge.style.borderColor = 'rgba(148,163,184,.35)';
-        stateBadge.style.color = '#cbd5e1';
-        stateBadge.style.background = 'rgba(148,163,184,.08)';
-        stateBadge.title = '';
-      } else {
-        const reason = s.auto?.holding_reason;
-        if (reason) {
-          // Human-readable labels
-          const reasonLabels = {
-            'ec_baseline_low': 'EC too low to trust pH',
-            'stale': 'Sensor is stale',
-            'interval': 'Cooldown between doses',
-            'daily_cap': 'Daily cap reached',
-            'estop': 'E-STOP active',
-            'reservoir': 'Reservoir empty',
-            'safe_off': 'System in safe-off',
-            'above_high': 'pH above high target (pH Up can\'t lower)',
-            'cooldown': 'Cooldown between doses'
-          };
-          const displayReason = reasonLabels[reason] || reason.replace(/_/g,' ');
-          stateBadge.textContent = 'Holding: ' + displayReason;
-          stateBadge.style.borderColor = 'rgba(245,158,11,.45)';
-          stateBadge.style.color = '#f59e0b';
-          stateBadge.style.background = 'rgba(245,158,11,.15)';
-          // EC baseline tooltip
-          if (reason === 'ec_baseline_low') {
-            stateBadge.title = 'EC below baseline; pH readings can be misleading in low ionic strength.';
-          } else {
-            stateBadge.title = '';
-          }
-        } else {
-          stateBadge.textContent = 'Ready';
-          stateBadge.style.borderColor = 'rgba(34,197,94,.45)';
-          stateBadge.style.color = '#16a34a';
-          stateBadge.style.background = 'rgba(34,197,94,.15)';
-          stateBadge.title = '';
-        }
-      }
-    }
     if (learnedBadge && s) {
       const learned = s.auto?.learned_ml_per_pH;
       if (typeof learned === 'number' && isFinite(learned)) {
