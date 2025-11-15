@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251115L"/><!-- Cache-buster: Standardize settings sections with accurate headings -->
+<meta name="version" content="20251115k"/><!-- Cache-buster: Remove pH/EC automation badges for clean layout -->
 <link rel="stylesheet" href="/static/css/theme_v4.css?v=5" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
@@ -1210,7 +1210,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
     </div>
 
     <details style="margin-top:8px;">
-      <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Temperature Configuration</summary>
+      <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Temperature & Chiller Settings</summary>
       <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
         <div class="muted" style="font-size:0.75rem;margin-bottom:16px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
           Configure temperature targets, alert thresholds, and chiller compressor protection timings.
@@ -1333,8 +1333,8 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       <div id="lights-auto-content" style="display:none;" class="muted">Automation follows the configured on/off window. Manual toggles disabled.</div>
       <div id="lights-maint-content" style="display:none;" class="muted">Maintenance mode: schedule paused; manual toggle available with safety guards.</div>
       <hr class="separator" style="margin:20px 0;" />
-      <details style="margin-top:12px;">
-        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">💡 Lights Information</summary>
+      <details>
+        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Lights Info</summary>
         <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);font-size:0.8rem;">
           <ul style="margin:0;padding-left:18px;line-height:1.4;">
             <li>Edge-only scheduler sets two transitions per day (no periodic enforcement).</li>
@@ -1384,7 +1384,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
       <!-- Circulation Settings -->
       <details style="margin-top:12px;">
-        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Pump Configuration</summary>
+        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Pump Safety Settings</summary>
         <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
           <div class="muted" style="font-size:0.75rem;margin-bottom:16px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
             Configure minimum off times to prevent rapid cycling and extend pump lifespan.
@@ -1471,7 +1471,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
       <!-- Settings with recent readings moved inside -->
       <details class="minimal-settings" style="margin-top:16px;">
-        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Sensor Configuration</summary>
+        <summary class="muted minimal" style="cursor:pointer;font-size:0.85rem;padding:4px 0;">Settings</summary>
         <div style="margin-top:8px;">
           <div class="muted" style="font-size:0.8rem;margin-bottom:12px;opacity:0.7;">Live Sensors are cached by the background poller. Use "Read now" for an immediate sample (only available in Manual/Maintenance mode). Health details are available from the green "OK" badge.</div>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
@@ -1661,7 +1661,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <!-- 5. Settings -->
 
           <details class="minimal-settings" style="margin-top:12px;">
-            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ pH Configuration</summary>
+            <summary class="muted minimal" style="cursor:pointer;font-size:0.85rem;padding:4px 0;">Settings</summary>
             <div style="padding:20px 16px;">
               <!-- Target Range -->
               <div style="margin-bottom:20px;">
@@ -1876,7 +1876,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
             <!-- EC-Specific Settings at the very bottom -->
             <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ EC Configuration</summary>
+              <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ EC Settings</summary>
               <div style="margin-top:12px;">
                 <div class="muted" style="font-size:0.75rem;margin-bottom:12px;opacity:0.75;">
                   Configure EC targets, dosing parameters, and alert thresholds.
@@ -1946,7 +1946,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
             <!-- EC Manual Dosing (ML-based) -->
             <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:0.9rem;">💧 Manual Dosing (Volume)</summary>
+              <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ EC Manual Dosing (ML-based)</summary>
               <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
                 <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Dose EC nutrients by volume (ml). System calculates pump time based on calibrated flow rates.</div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -1961,7 +1961,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
             <!-- EC Direct Pump Control (Time-based) -->
             <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⏱️ Direct Pump Control (Time)</summary>
+              <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ EC Direct Pump Control (Time-based)</summary>
               <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
                 <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Press and hold pattern for individual nutrient pumps. Safety caps enforced.</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
