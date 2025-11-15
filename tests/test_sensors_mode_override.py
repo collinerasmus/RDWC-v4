@@ -4,8 +4,7 @@ Focus: maintenance overrides alter effective values; manual mode sets mode field
 import time
 import sqlite3
 import pytest
-import httpx
-from httpx import ASGITransport
+from fastapi.testclient import TestClient
 
 @pytest.fixture
 def temp_db(tmp_path, monkeypatch):
@@ -41,12 +40,7 @@ def app_client(temp_db):
     conn.commit()
     conn.close()
     from app.main import app
-    transport = ASGITransport(app=app)
-    client = httpx.Client(transport=transport, base_url="http://testserver")
-    try:
-        yield client
-    finally:
-        client.close()
+    return TestClient(app)
 
 def test_set_manual_mode(app_client):
     r = app_client.post("/api/sensors/mode", json={"mode":"manual"})

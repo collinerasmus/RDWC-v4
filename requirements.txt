@@ -1,6 +1,9 @@
+gpiozero
 fastapi
 uvicorn[standard]
 smbus2
 gpiozero
-httpx
+# Pin httpx to legacy version compatible with Starlette TestClient 'app' parameter
+httpx==0.23.3
+python-dotenv
 pytz
