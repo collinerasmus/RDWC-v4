@@ -1,9 +1,9 @@
 /* Sensors real-time display with color thresholds and calibration status */
 (function(){
-  // Respect existing inline poller guard if present
+  // Removed single-load guard to ensure latest script logic always applies even if included twice.
+  // Any previous timers will be stopped by ensurePolling(); we now allow redefinition safely.
   if (window.__RDWC_SENSORS_POLL_RUNNING__) {
-    console.log("[Sensors.js] Another sensors poller active; skipping.");
-    return;
+    console.log("[Sensors.js] Reload detected; reinitializing sensors module.");
   }
   window.__RDWC_SENSORS_POLL_RUNNING__ = true;
   const $ = (id)=>document.getElementById(id);
@@ -381,6 +381,14 @@
     console.log("[Sensors] Initializing real-time updates");
     ready = true;
     ensurePolling();
+    // Bind mode buttons via listeners (replace inline onclick for reliability)
+    const autoBtn = $("sensors-mode-auto");
+    const manualBtn = $("sensors-mode-manual");
+    const maintBtn = $("sensors-mode-maint");
+    const bindMode = (btn, mode)=>{ if(!btn) return; if(btn.__boundMode) return; btn.addEventListener('click', (e)=>{ e.preventDefault(); sensorsSetMode(mode); }); btn.__boundMode=true; };
+    bindMode(autoBtn, 'auto');
+    bindMode(manualBtn, 'manual');
+    bindMode(maintBtn, 'maintenance');
     // Initialize recent readings list
     refreshRecent();
     // Periodically refresh recent list (every 45s)
