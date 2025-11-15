@@ -24,8 +24,19 @@
     if (manualContent) manualContent.style.display = (next === 'manual') ? 'block' : 'none';
     if (maintContent) maintContent.style.display = (next === 'maint') ? 'block' : 'none';
 
-    updateEnvHealth();
-  }
+      // POST mode to backend (except maint, which may be local only)
+      if (next === 'auto' || next === 'manual') {
+        try {
+          fetch('/api/controller/chiller/mode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: next })
+          });
+        } catch (e) { /* ignore */ }
+      }
+
+      updateEnvHealth();
+    }
 
   function updateEnvHealth() {
     const chip = document.getElementById('env-health-indicator');

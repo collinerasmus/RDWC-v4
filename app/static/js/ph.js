@@ -90,7 +90,6 @@
     } else if (currentMode === 'maintenance') {
       indicator.textContent = 'MAINT';
       indicator.className = 'ui-status-chip warning';
-      indicator.title = 'Maintenance mode active';
     } else {
       indicator.textContent = (currentMode || 'manual').toUpperCase();
       indicator.className = 'ui-status-chip success';
@@ -135,6 +134,7 @@
     if(g.sensor_stale) out.push('Sensor stale');
     if(g.interval) out.push('Min interval');
     if(g.daily_cap) out.push('Daily cap');
+
     if(g.reservoir) out.push('Reservoir');
     return out;
   }

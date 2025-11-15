@@ -31,7 +31,16 @@
 
     updateCircHealth();
   }
-
+      // POST mode to backend (except maint, which may be local only)
+      if (next === 'auto' || next === 'manual') {
+        try {
+          fetch('/api/controller/circulation/mode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: next })
+          });
+        } catch (e) { /* ignore */ }
+      }
   function updateCircHealth() {
     const chip = document.getElementById('circ-health-indicator');
     if (!chip) return;

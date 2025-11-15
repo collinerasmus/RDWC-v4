@@ -2603,6 +2603,28 @@ def fix_ezo():
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
+# Generic controller mode endpoints
+@app.get("/api/controller/modes")
+def api_controller_modes():
+    from app.controller_modes import get_all_modes, VALID_MODES
+    return {"modes": get_all_modes(), "valid": sorted(list(VALID_MODES))}
+
+@app.get("/api/controller/{name}/mode")
+def api_controller_mode_get(name: str):
+    from app.controller_modes import get_mode, CONTROLLERS, VALID_MODES
+    if name not in CONTROLLERS:
+        return {"ok": False, "error": "unknown_controller", "controller": name}
+    return {"ok": True, "controller": name, "mode": get_mode(name), "valid": sorted(list(VALID_MODES))}
+
+@app.post("/api/controller/{name}/mode")
+def api_controller_mode_set(name: str, body: dict):
+    from app.controller_modes import set_mode, get_mode, CONTROLLERS, VALID_MODES
+    if name not in CONTROLLERS:
+        return {"ok": False, "error": "unknown_controller", "controller": name}
+    mode = body.get("mode") if isinstance(body, dict) else None
+    ok = set_mode(name, mode) if mode in VALID_MODES else False
+    return {"ok": ok, "controller": name, "mode": get_mode(name)}
+
 @app.get("/cam_status")
 def cam_status():
     svc = run(["systemctl", "is-active", "mjpg-streamer.service"], stdout=PIPE, stderr=PIPE, text=True)

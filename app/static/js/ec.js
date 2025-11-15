@@ -737,6 +737,16 @@
     currentMode = mode;
     modeInitialized = true;
     try{ localStorage.setItem('ec_mode', mode); }catch(_){/*noop*/}
+    // POST mode to backend (except maintenance, which may be local only)
+    if (mode === 'auto' || mode === 'manual') {
+      try {
+        fetch('/api/controller/ec/mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode })
+        });
+      } catch (e) { /* ignore */ }
+    }
     // Buttons
     const manualBtn = el('ec-mode-manual');
     const autoBtn = el('ec-mode-auto');

@@ -749,6 +749,15 @@ def _auto_loop():
     
     while _auto_stop_evt and not _auto_stop_evt.is_set():
         try:
+            # Controller mode gating: suppress automation unless mode=auto
+            try:
+                from app.controller_modes import get_mode
+                if get_mode("ph") != "auto":
+                    _set_auto_block("mode_hold")
+                    time.sleep(poll_s)
+                    continue
+            except Exception:
+                pass
             # Suppress automation when global maintenance override is active
             try:
                 from app.settings import get_setting_key

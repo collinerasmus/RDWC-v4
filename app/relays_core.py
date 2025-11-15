@@ -368,6 +368,14 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False, act
     now = time.monotonic()
     current_state = _last_state.get(name, False)
 
+    # Controller mode gating for circulation pumps (block non-forced automation when mode!=auto)
+    try:
+        from app.controller_modes import get_mode
+        if name in ("main_pump", "chiller_pump") and get_mode("circulation") != "auto" and not force and reason not in (REASON_OVERRIDE, REASON_EMERGENCY, "restore"):
+            return {"changed": False, "state": current_state, "reason": "mode_hold", "cooldown_remaining": 0}
+    except Exception:
+        pass
+
     # ESTOP handling
     if _estop_active and desired_on:
         _log_relay_event(name, True, current_state, "estop_active", 0, blocked=True)

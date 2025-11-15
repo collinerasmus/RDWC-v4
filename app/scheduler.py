@@ -160,12 +160,18 @@ class Scheduler:
             for name in ("micro_pump","grow_pump","bloom_pump","ph_up"):
                 self.relays.set(name, False)
             return
+        # Lights mode gating: skip all automatic light edges unless mode=auto
+        try:
+            from app.controller_modes import get_mode
+            lights_mode = get_mode("lights")
+        except Exception:
+            lights_mode = "auto"
 
         wday, h, m, s = _now_tuple()
         caps = cfg.get("daily_caps", {})
 
         # Handle lights scheduling - EDGE-ONLY with ±5s guards
-        if self._current_lights_on_time and self._current_lights_off_time:
+        if self._current_lights_on_time and self._current_lights_off_time and lights_mode == "auto":
             try:
                 from app.relays_core import set_lights, REASON_SCHEDULE_ON, REASON_SCHEDULE_OFF
                 

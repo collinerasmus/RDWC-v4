@@ -241,7 +241,15 @@ def should_chiller_run() -> tuple[bool, str]:
         (should_run, reason) tuple
     """
     # Check if auto control is enabled
-    auto_enabled = bool(int(get_setting('chiller.auto_enabled', '0')))
+    # Controller mode gating
+    try:
+        from app.controller_modes import get_mode
+        mode = get_mode('chiller')
+    except Exception:
+        mode = 'auto'
+    auto_enabled = bool(int(get_setting('chiller.auto_enabled', '0'))) and mode == 'auto'
+    if mode != 'auto':
+        return False, f'Mode {mode} holds automation'
     if not auto_enabled:
         return False, 'Auto control disabled'
     
