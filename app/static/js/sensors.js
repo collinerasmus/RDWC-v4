@@ -28,9 +28,23 @@
 
   async function sensorsSetMode(next){
     try{
-      await fetch('/api/sensors/mode', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode: next})});
-    }catch(e){ console.warn('[Sensors] set mode failed', e); }
-    await refreshServerMode();
+      const r = await fetch('/api/sensors/mode', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode: next})});
+      if (!r.ok) {
+        console.error('[Sensors] set mode failed:', r.status, await r.text());
+        return;
+      }
+      sensorsMode = next; // Update immediately for responsive UI
+      localStorage.setItem('sensors_mode', next);
+      setActive($('sensors-mode-auto'), next==='auto');
+      setActive($('sensors-mode-manual'), next==='manual');
+      setActive($('sensors-mode-maint'), next==='maintenance');
+      updateSensorsHealth();
+      toggleOverridesVisibility();
+    }catch(e){ 
+      console.error('[Sensors] set mode exception:', e); 
+    }
+    // Confirm with server after immediate UI update
+    setTimeout(refreshServerMode, 100);
   }
   
   function updateSensorsHealth(){
