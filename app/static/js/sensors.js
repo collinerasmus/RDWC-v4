@@ -17,8 +17,13 @@
   async function refreshServerMode(){
     try{
       const r = await fetch('/api/sensors/mode', {cache:'no-store'});
-      if(r.ok){ const j = await r.json(); sensorsMode = j.mode || sensorsMode; localStorage.setItem('sensors_mode', sensorsMode); }
-    }catch(e){ /* ignore */ }
+      if(r.ok){ 
+        const j = await r.json(); 
+        sensorsMode = j.mode || sensorsMode; 
+        localStorage.setItem('sensors_mode', sensorsMode);
+        console.log('[Sensors] refreshServerMode got:', sensorsMode);
+      }
+    }catch(e){ console.error('[Sensors] refreshServerMode failed:', e); }
     setActive($('sensors-mode-auto'), sensorsMode==='auto');
     setActive($('sensors-mode-manual'), sensorsMode==='manual');
     setActive($('sensors-mode-maint'), sensorsMode==='maintenance');
@@ -40,18 +45,18 @@
         console.error('[Sensors] server rejected mode:', respData);
         return;
       }
-      sensorsMode = next; // Update immediately for responsive UI
-      localStorage.setItem('sensors_mode', next);
-      setActive($('sensors-mode-auto'), next==='auto');
-      setActive($('sensors-mode-manual'), next==='manual');
-      setActive($('sensors-mode-maint'), next==='maintenance');
+      // Trust the server response, not the requested mode
+      sensorsMode = respData.mode;
+      localStorage.setItem('sensors_mode', sensorsMode);
+      console.log('[Sensors] UI updating to mode:', sensorsMode);
+      setActive($('sensors-mode-auto'), sensorsMode==='auto');
+      setActive($('sensors-mode-manual'), sensorsMode==='manual');
+      setActive($('sensors-mode-maint'), sensorsMode==='maintenance');
       updateSensorsHealth();
       toggleOverridesVisibility();
     }catch(e){ 
       console.error('[Sensors] set mode exception:', e); 
     }
-    // Confirm with server after immediate UI update
-    setTimeout(refreshServerMode, 100);
   }
   
   function updateSensorsHealth(){
