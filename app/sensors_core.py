@@ -206,14 +206,38 @@ def read_sensors_from_db(db_path: str = None, max_age_sec: int = 60) -> Dict[str
         age_sec = now_ts - row["ts"]
         is_stale = age_sec > max_age_sec
         
-        return {
+        # Apply maintenance overrides if active
+        original = {
             "temperature_c": row["temp_c"],
             "ph": row["ph"],
             "ec_mscm": row["ec_ms_cm"],
+        }
+        effective = dict(original)
+        mode = "auto"
+        overrides = {"temperature_c": None, "ph": None, "ec_mscm": None, "updated_ts": None}
+        try:
+            from app.sensors_mode import get_sensor_mode, get_overrides, MODE_MAINTENANCE
+            mode = get_sensor_mode()
+            if mode == MODE_MAINTENANCE:
+                overrides = get_overrides()
+                for k in ["temperature_c", "ph", "ec_mscm"]:
+                    if overrides.get(k) is not None:
+                        effective[k] = overrides[k]
+        except Exception:
+            pass
+        return {
+            "temperature_c": effective["temperature_c"],
+            "ph": effective["ph"],
+            "ec_mscm": effective["ec_mscm"],
             "online": not is_stale,
             "ts": dt.datetime.utcfromtimestamp(row["ts"]).isoformat() + "Z",
             "age_sec": age_sec,
-            "errors": {"stale": f"reading is {age_sec}s old"} if is_stale else {}
+            "errors": {"stale": f"reading is {age_sec}s old"} if is_stale else {},
+            "mode": mode,
+            "overrides": overrides,
+            "original_temperature_c": original["temperature_c"],
+            "original_ph": original["ph"],
+            "original_ec_mscm": original["ec_mscm"],
         }
     except Exception as e:
         logger.error(f"Failed to read sensors from DB: {e}", exc_info=True)

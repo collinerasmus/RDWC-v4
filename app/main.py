@@ -2352,29 +2352,28 @@ def api_sensors():
     Returns most recent DB reading with online flag based on freshness.
     """
     from app.sensors_core import read_sensors_from_db
-    
-    # Read from DB cache (max 60s age for 'online' flag)
+    # Read cached (max 60s)
     data = read_sensors_from_db(max_age_sec=60)
-    
-    # Add calibration state metadata
-    cal_state = {"temp": {"is_calibrated": False, "detail": "fallback"},
-                 "ec": {"is_calibrated": False, "detail": "fallback"},
-                 "ph": {"is_calibrated": False, "detail": "fallback"}}
-    
-    # Compute freshness fields
+
+    # Calibration placeholder (future real state)
+    cal_state = {
+        "temp": {"is_calibrated": False, "detail": "fallback"},
+        "ec": {"is_calibrated": False, "detail": "fallback"},
+        "ph": {"is_calibrated": False, "detail": "fallback"}
+    }
     age_sec = data.get("age_sec")
     stale = bool(age_sec is not None and age_sec > 60)
     online = data.get("online", False)
-    
-    # Health state: green (<60s & online), yellow (60-300s & online), red (>=300s or offline)
     if online and age_sec is not None and age_sec < 60:
         health_state = "green"
     elif online and age_sec is not None and age_sec < 300:
         health_state = "yellow"
     else:
         health_state = "red"
-    
-    return {
+
+    overrides = data.get("overrides", {})
+    mode = data.get("mode")
+    result = {
         "temperature_c": data.get("temperature_c"),
         "ec_mscm": data.get("ec_mscm"),
         "ph": data.get("ph"),
@@ -2383,11 +2382,54 @@ def api_sensors():
         "age_seconds": age_sec,
         "stale": stale,
         "health_state": health_state,
-        "temp_comp_applied": data.get("online", False),  # Poller applies temp comp
+        "temp_comp_applied": data.get("online", False),
         "temp_comp_reason": "sensor_poller" if data.get("online") else f"stale (age:{data.get('age_sec', '?')}s)",
         "cal": cal_state,
-        "errors": data.get("errors", {})
+        "errors": data.get("errors", {}),
+        "mode": mode,
+        "overrides": overrides,
+        "original_temperature_c": data.get("original_temperature_c"),
+        "original_ph": data.get("original_ph"),
+        "original_ec_mscm": data.get("original_ec_mscm"),
+        "effective_temperature_c": data.get("temperature_c"),
+        "effective_ph": data.get("ph"),
+        "effective_ec_mscm": data.get("ec_mscm")
     }
+    return result
+
+@app.get("/api/sensors/mode")
+def api_sensors_mode():
+    from app.sensors_mode import get_sensor_mode, VALID_MODES
+    m = get_sensor_mode()
+    return {"mode": m, "valid_modes": sorted(list(VALID_MODES))}
+
+@app.post("/api/sensors/mode")
+def api_sensors_mode_set(payload: dict):
+    from app.sensors_mode import set_sensor_mode, get_sensor_mode, VALID_MODES
+    mode = payload.get("mode") if isinstance(payload, dict) else None
+    ok = set_sensor_mode(mode) if mode in VALID_MODES else False
+    return {"ok": ok, "mode": get_sensor_mode()}
+
+@app.get("/api/sensors/override")
+def api_sensors_override_get():
+    from app.sensors_mode import get_overrides, overrides_effective_age
+    o = get_overrides()
+    age = overrides_effective_age()
+    return {"overrides": o, "age_seconds": age}
+
+@app.post("/api/sensors/override")
+def api_sensors_override_set(payload: dict):
+    from app.sensors_mode import set_overrides
+    if not isinstance(payload, dict):
+        payload = {}
+    updated = set_overrides(payload)
+    return {"overrides": updated}
+
+@app.delete("/api/sensors/override/{field}")
+def api_sensors_override_clear(field: str):
+    from app.sensors_mode import clear_override_field, get_overrides
+    ok = clear_override_field(field)
+    return {"ok": ok, "overrides": get_overrides()}
 
 @app.get("/diag/sensors/once")
 def diag_sensors_once():
