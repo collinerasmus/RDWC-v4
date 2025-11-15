@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251115ac"/><!-- pH: add Pump Control; move Dose Log; tidy -->
+<meta name="version" content="20251115ad"/><!-- Sensors: mode+overrides UI -->
 <link rel="stylesheet" href="/static/css/theme_v4.css?v=5" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
@@ -1477,6 +1477,39 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
             <button id="btnSensorsReadNow" class="btn-secondary" style="padding:6px 12px;">Read now</button>
             <span id="sensors-updated" class="muted" style="font-size:0.75rem;">—</span>
+          </div>
+          <!-- Maintenance Override Editor -->
+          <div id="sensor-overrides-wrapper" style="margin-bottom:18px;padding:10px;background:#0d1117;border:1px solid #1f2937;border-radius:8px;display:none;">
+            <div style="font-size:0.7rem;opacity:.75;margin-bottom:8px;">Maintenance Overrides (effective values used by controllers; live originals still logged). Leave blank to keep live value. Clear resets an individual override.</div>
+            <div style="display:grid;grid-template-columns:repeat(5,max-content);gap:10px;align-items:center;row-gap:10px;">
+              <div style="font-size:0.7rem;color:#9ca3af;">Metric</div>
+              <div style="font-size:0.7rem;color:#9ca3af;">Original</div>
+              <div style="font-size:0.7rem;color:#9ca3af;">Effective</div>
+              <div style="font-size:0.7rem;color:#9ca3af;">Override</div>
+              <div></div>
+              <!-- pH row -->
+              <div style="font-size:0.75rem;">pH</div>
+              <div id="originalPh" style="font-size:0.8rem;font-variant-numeric:tabular-nums;">—</div>
+              <div id="effectivePh" style="font-size:0.8rem;font-weight:600;">—</div>
+              <input id="inpOverridePh" type="number" step="0.01" min="0" max="14" placeholder="live" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+              <button id="btnClearOverridePh" class="btn-secondary" style="padding:4px 10px;font-size:0.65rem;" title="Clear pH override">Clear</button>
+              <!-- EC row -->
+              <div style="font-size:0.75rem;">EC (mS/cm)</div>
+              <div id="originalEc" style="font-size:0.8rem;font-variant-numeric:tabular-nums;">—</div>
+              <div id="effectiveEc" style="font-size:0.8rem;font-weight:600;">—</div>
+              <input id="inpOverrideEc" type="number" step="0.01" min="0" max="20" placeholder="live" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+              <button id="btnClearOverrideEc" class="btn-secondary" style="padding:4px 10px;font-size:0.65rem;" title="Clear EC override">Clear</button>
+              <!-- Temperature row -->
+              <div style="font-size:0.75rem;">Temp (°C)</div>
+              <div id="originalTemp" style="font-size:0.8rem;font-variant-numeric:tabular-nums;">—</div>
+              <div id="effectiveTemp" style="font-size:0.8rem;font-weight:600;">—</div>
+              <input id="inpOverrideTemp" type="number" step="0.01" min="0" max="50" placeholder="live" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+              <button id="btnClearOverrideTemp" class="btn-secondary" style="padding:4px 10px;font-size:0.65rem;" title="Clear temperature override">Clear</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap;">
+              <button id="btnApplySensorOverrides" class="btn-secondary primary" style="padding:6px 16px;">Apply Overrides</button>
+              <span id="sensorOverrideAge" class="muted" style="font-size:0.65rem;">—</span>
+            </div>
           </div>
           <div class="muted" style="font-size:0.75rem;font-weight:600;margin-bottom:4px;opacity:0.8;">Recent Readings (last 5)</div>
           <div id="s-recent" class="muted" style="font-size:0.7rem;opacity:0.8;"></div>

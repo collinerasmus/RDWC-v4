@@ -14,12 +14,23 @@
   let sensorsMode = localStorage.getItem('sensors_mode') || 'auto';
   const setActive = (btn, on)=>{ if(!btn) return; if(on) btn.classList.add('active'); else btn.classList.remove('active'); };
   
-  function sensorsSetMode(next){
-    sensorsMode = next; localStorage.setItem('sensors_mode', next);
-    setActive($('sensors-mode-auto'), next==='auto');
-    setActive($('sensors-mode-manual'), next==='manual');
-    setActive($('sensors-mode-maint'), next==='maintenance');
+  async function refreshServerMode(){
+    try{
+      const r = await fetch('/api/sensors/mode', {cache:'no-store'});
+      if(r.ok){ const j = await r.json(); sensorsMode = j.mode || sensorsMode; localStorage.setItem('sensors_mode', sensorsMode); }
+    }catch(e){ /* ignore */ }
+    setActive($('sensors-mode-auto'), sensorsMode==='auto');
+    setActive($('sensors-mode-manual'), sensorsMode==='manual');
+    setActive($('sensors-mode-maint'), sensorsMode==='maintenance');
     updateSensorsHealth();
+    toggleOverridesVisibility();
+  }
+
+  async function sensorsSetMode(next){
+    try{
+      await fetch('/api/sensors/mode', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode: next})});
+    }catch(e){ console.warn('[Sensors] set mode failed', e); }
+    await refreshServerMode();
   }
   
   function updateSensorsHealth(){
@@ -38,7 +49,7 @@
   window.sensorsSetMode = sensorsSetMode;
   
   // Initialize mode buttons on load
-  sensorsSetMode(sensorsMode);
+  refreshServerMode();
 
   // Demo mode shortcut: populate synthetic readings & skip network traffic
   if (window.UI_DEMO){
@@ -121,14 +132,10 @@
   function stopTimers(){ if (netTimer){ clearInterval(netTimer); netTimer=null; } if (simTimer){ clearInterval(simTimer); simTimer=null; } }
   function ensurePolling(){
     stopTimers();
-    if (sensorsMode === 'maintenance'){
-      simulateStep('maint');
-      simTimer = setInterval(()=>simulateStep('maint'), 3000);
-    } else {
-      tick();
-      const poll = (window.APP_POLL && window.APP_POLL.sensors) ? (parseInt(window.APP_POLL.sensors,10)||5000) : 5000;
-      netTimer = setInterval(tick, Math.max(1500, poll));
-    }
+    // Always poll backend (maintenance mode now served via effective values)
+    tick();
+    const poll = (window.APP_POLL && window.APP_POLL.sensors) ? (parseInt(window.APP_POLL.sensors,10)||5000) : 5000;
+    netTimer = setInterval(tick, Math.max(1500, poll));
   }
 
   async function fetchHealthDB(){
@@ -160,7 +167,7 @@
   }
   
   async function tick(){
-    if (sensorsMode === 'maintenance') { return; }
+    // Always fetch; backend applies maintenance overrides
     try{
       const r = await fetch("/api/sensors", {cache:"no-store"});
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -210,6 +217,9 @@
           dot.title = `DB age: ${Math.round(age)}s, last 5m: ${rows5} rows`;
         }
       }).catch(()=>{});
+
+      // Update overrides panel (original vs effective)
+      updateOverridesPanel(j);
     }catch(err){
       console.error("[Sensors] Fetch error:", err);
       setOnline(false);
@@ -250,6 +260,65 @@
         }
       } catch(_) { /* swallow fallback errors */ }
     }
+  }
+  function toggleOverridesVisibility(){
+    const wrap = $('sensor-overrides-wrapper');
+    if(!wrap) return;
+    wrap.style.display = (sensorsMode==='maintenance') ? 'block' : 'none';
+  }
+  function updateOverridesPanel(data){
+    const origPh = $('originalPh'); const effPh = $('effectivePh');
+    const origEc = $('originalEc'); const effEc = $('effectiveEc');
+    const origT  = $('originalTemp'); const effT  = $('effectiveTemp');
+    if (origPh) origPh.textContent = fmtVal(data.original_ph);
+    if (effPh)  effPh.textContent  = fmtVal(data.ph);
+    if (origEc) origEc.textContent = fmtVal(data.original_ec_mscm);
+    if (effEc)  effEc.textContent  = fmtVal(data.ec_mscm);
+    if (origT)  origT.textContent  = fmtVal(data.original_temperature_c);
+    if (effT)   effT.textContent   = fmtVal(data.temperature_c);
+  }
+  function fmtVal(v){ return (v==null || Number.isNaN(v))? '—' : (typeof v==='number'? v.toFixed(2): String(v)); }
+
+  async function loadSensorOverrides(){
+    try{
+      const r = await fetch('/api/sensors/override', {cache:'no-store'});
+      if(!r.ok) return;
+      const j = await r.json();
+      const o = j.overrides || {};
+      const ageSpan = $('sensorOverrideAge');
+      if (ageSpan){
+        const age = (j.age_seconds!=null)? j.age_seconds : null;
+        ageSpan.textContent = age!=null? `Overrides age: ${age}s` : 'Overrides inactive';
+      }
+      // Populate inputs only if maintenance mode (avoid confusion)
+      if (sensorsMode==='maintenance'){
+        const phIn = $('inpOverridePh'); const ecIn = $('inpOverrideEc'); const tIn = $('inpOverrideTemp');
+        if(phIn) phIn.value = o.ph!=null? o.ph : '';
+        if(ecIn) ecIn.value = o.ec_mscm!=null? o.ec_mscm : '';
+        if(tIn)  tIn.value = o.temperature_c!=null? o.temperature_c : '';
+      }
+    }catch(e){ /* ignore */ }
+  }
+  async function applySensorOverrides(){
+    const phIn = $('inpOverridePh'); const ecIn = $('inpOverrideEc'); const tIn = $('inpOverrideTemp');
+    const payload = {};
+    if(phIn && phIn.value.trim()!== '') payload.ph = parseFloat(phIn.value);
+    if(ecIn && ecIn.value.trim()!== '') payload.ec_mscm = parseFloat(ecIn.value);
+    if(tIn && tIn.value.trim()!== '') payload.temperature_c = parseFloat(tIn.value);
+    try{
+      await fetch('/api/sensors/override', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      await tick();
+      await loadSensorOverrides();
+    }catch(e){ console.warn('[Sensors] override apply failed', e); }
+  }
+  async function clearSensorOverride(field){
+    try{
+      await fetch(`/api/sensors/override/${encodeURIComponent(field)}`, {method:'DELETE'});
+      await tick();
+      await loadSensorOverrides();
+      const map = {ph:'inpOverridePh', ec_mscm:'inpOverrideEc', temperature_c:'inpOverrideTemp'};
+      const id = map[field]; if(id){ const el=$(id); if(el) el.value=''; }
+    }catch(e){ console.warn('[Sensors] clear override failed', e); }
   }
   // Recent readings now embedded in settings details (always visible when expanded)
   async function refreshRecent(){
@@ -385,5 +454,14 @@
       window.addEventListener('resize', ()=>{ if (open) place(badge); });
       window.addEventListener('scroll', ()=>{ if (open) place(badge); }, {passive:true});
     }
+    // Bind overrides controls
+    const applyBtn = $('btnApplySensorOverrides');
+    if(applyBtn && !applyBtn.__bound){ applyBtn.addEventListener('click', ()=>applySensorOverrides()); applyBtn.__bound=true; }
+    const clrPh = $('btnClearOverridePh'); if(clrPh && !clrPh.__bound){ clrPh.addEventListener('click', ()=>clearSensorOverride('ph')); clrPh.__bound=true; }
+    const clrEc = $('btnClearOverrideEc'); if(clrEc && !clrEc.__bound){ clrEc.addEventListener('click', ()=>clearSensorOverride('ec_mscm')); clrEc.__bound=true; }
+    const clrT  = $('btnClearOverrideTemp'); if(clrT && !clrT.__bound){ clrT.addEventListener('click', ()=>clearSensorOverride('temperature_c')); clrT.__bound=true; }
+    loadSensorOverrides();
+    setInterval(loadSensorOverrides, 15000);
+    toggleOverridesVisibility();
   });
 })();
