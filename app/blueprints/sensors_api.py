@@ -116,11 +116,55 @@ def _get_sensors_data():
 async def get_sensors():
     """
     GET /api/sensors
-    Return cached background-loop readings or DB fallback.
-    This endpoint is now guaranteed fast and never talks to I2C.
+    Unified sensors endpoint that always reads from the DB cache written by the
+    background poller and applies maintenance overrides when active.
+    This avoids direct I²C access and ensures consistent mode/override behavior.
     """
-    data = _get_sensors_data()
-    return JSONResponse(content=data, status_code=200)
+    try:
+        from app.sensors_core import read_sensors_from_db
+        d = read_sensors_from_db(max_age_sec=60)
+        age_sec = d.get("age_sec")
+        online = d.get("online", False)
+        if online and age_sec is not None and age_sec < 60:
+            health_state = "green"
+        elif online and age_sec is not None and age_sec < 300:
+            health_state = "yellow"
+        else:
+            health_state = "red"
+
+        result = {
+            "temperature_c": d.get("temperature_c"),
+            "ec_mscm": d.get("ec_mscm"),
+            "ph": d.get("ph"),
+            "online": online,
+            "ts": d.get("ts"),
+            "age_seconds": age_sec,
+            "stale": bool(age_sec is not None and age_sec > 60),
+            "health_state": health_state,
+            "temp_comp_applied": online,
+            "temp_comp_reason": "sensor_poller" if online else f"stale (age:{d.get('age_sec','?')}s)",
+            # Calibration placeholder for UI
+            "cal": {
+                "temp": {"is_calibrated": False, "detail": "db"},
+                "ec": {"is_calibrated": False, "detail": "db"},
+                "ph": {"is_calibrated": False, "detail": "db"}
+            },
+            # Mode/overrides and original/effective echo for diagnostics/UI
+            "mode": d.get("mode"),
+            "overrides": d.get("overrides", {}),
+            "original_temperature_c": d.get("original_temperature_c"),
+            "original_ph": d.get("original_ph"),
+            "original_ec_mscm": d.get("original_ec_mscm"),
+            "effective_temperature_c": d.get("temperature_c"),
+            "effective_ph": d.get("ph"),
+            "effective_ec_mscm": d.get("ec_mscm"),
+        }
+        return JSONResponse(content=result, status_code=200)
+    except Exception as e:
+        logger.error(f"[SensorsAPI] unified read failed: {e}")
+        # Fallback to previous behavior
+        data = _get_sensors_data()
+        return JSONResponse(content=data, status_code=200)
 
 @sensors_router.get('/sensors/last')
 async def api_sensors_last():
