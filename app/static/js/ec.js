@@ -119,43 +119,6 @@
       autoBtn.title = 'Automatically raises EC when below target band using G/M/B mix';
     }
 
-    // Automation badges
-    const stateBadge = el('ecAutoStateBadge');
-    const learnedBadge = el('ecLearnedBadge');
-    if (stateBadge && s) {
-      const enabled = !!(s.auto && s.auto.enabled);
-      if (!enabled) {
-        stateBadge.textContent = 'Disabled';
-        stateBadge.style.borderColor = 'rgba(148,163,184,.35)';
-        stateBadge.style.color = '#cbd5e1';
-        stateBadge.style.background = 'rgba(148,163,184,.08)';
-        stateBadge.title = '';
-      } else {
-        const reason = s.auto?.holding_reason;
-        if (reason) {
-          stateBadge.textContent = `Holding: ${reason}`;
-          stateBadge.style.borderColor = 'rgba(251,191,36,.4)';
-          stateBadge.style.color = '#fef3c7';
-          stateBadge.style.background = 'rgba(251,191,36,.12)';
-          stateBadge.title = 'Auto is enabled but holding due to guard';
-        } else {
-          stateBadge.textContent = 'Active';
-          stateBadge.style.borderColor = 'rgba(34,197,94,.4)';
-          stateBadge.style.color = '#86efac';
-          stateBadge.style.background = 'rgba(34,197,94,.12)';
-          stateBadge.title = 'Automation running';
-        }
-      }
-    }
-    if (learnedBadge && s) {
-      const learned = s.auto?.learned_ml_per_mScm;
-      if (learned != null) {
-        learnedBadge.textContent = `Learned: ${learned.toFixed(1)} ml/mScm`;
-        learnedBadge.style.display = 'inline-block';
-      } else {
-        learnedBadge.style.display = 'none';
-      }
-    }
     // Update controller health chip after status changes
     updateHealthIndicator();
     

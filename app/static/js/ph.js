@@ -231,19 +231,6 @@
       autoBtn.title = 'Automatically raises pH when below target band using pH Up';
     }
 
-    // Automation learned badge (state badge removed from UI)
-    const learnedBadge = el('phLearnedBadge');
-    if (learnedBadge && s) {
-      const learned = s.auto?.learned_ml_per_pH;
-      if (typeof learned === 'number' && isFinite(learned)) {
-        const perPointOne = (learned/10).toFixed(1);
-        learnedBadge.style.display = 'inline-block';
-        learnedBadge.textContent = `Learned: ≈${perPointOne} ml per 0.1 pH`;
-      } else {
-        learnedBadge.style.display = 'none';
-      }
-    }
-
     // Update caps display from settings (mirror EC caps summary)
     if (window.rdwcSettings) {
       const maxPress = window.rdwcSettings.get('safety.max_seconds_per_press') || '1.5';

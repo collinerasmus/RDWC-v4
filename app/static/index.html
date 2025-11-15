@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251115j"/><!-- Cache-buster: pH header reorder + remove dead phAutoStateBadge logic -->
+<meta name="version" content="20251115k"/><!-- Cache-buster: Remove pH/EC automation badges for clean layout -->
 <link rel="stylesheet" href="/static/css/theme_v4.css?v=5" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
@@ -1610,9 +1610,6 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
           <!-- Auto Mode Content -->
           <div id="ph-auto-content" style="display:none;">
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
-              <span id="phLearnedBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Learned: —</span>
-            </div>
             <button id="btnAutoToggle" class="btn-secondary">Enable automation</button>
           </div>
 
@@ -1837,10 +1834,6 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             </div>
             <!-- Auto Mode Content -->
             <div id="ec-auto-content" style="display:none;">
-              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
-                <span id="ecAutoStateBadge" class="countdown-pill" style="display:inline-block;border-color:rgba(148,163,184,.35);">Disabled</span>
-                <span id="ecLearnedBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Learned: —</span>
-              </div>
               <button id="btnEcAutoToggle" class="btn-secondary">Enable automation</button>
             </div>
 
