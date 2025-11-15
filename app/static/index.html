@@ -819,9 +819,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <div class="schedule-mode-buttons" style="display:flex;gap:6px;">
-          <button id="schedule-mode-auto" class="btn-chip active" onclick="window.scheduleSetMode?window.scheduleSetMode('auto'):0">Auto</button>
-          <button id="schedule-mode-manual" class="btn-chip" onclick="window.scheduleSetMode?window.scheduleSetMode('manual'):0">Manual</button>
-          <button id="schedule-mode-maint" class="btn-chip" onclick="window.scheduleSetMode?window.scheduleSetMode('maintenance'):0">Maintenance</button>
+          <button id="schedule-mode-auto" class="btn-chip active" onclick="fetch('/api/system_mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'auto'})}).then(()=>location.reload())">Auto</button>
+          <button id="schedule-mode-manual" class="btn-chip" onclick="fetch('/api/system_mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'manual'})}).then(()=>location.reload())">Manual</button>
+          <button id="schedule-mode-maint" class="btn-chip" onclick="fetch('/api/system_mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'maintenance'})}).then(()=>location.reload())">Maintenance</button>
         </div>
         <button id="header-estop-btn-schedule" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
@@ -1059,9 +1059,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <div class="system-mode-buttons" style="display:flex;gap:6px;">
-          <button id="system-mode-auto" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('auto'):0">Auto</button>
-          <button id="system-mode-manual" class="btn-chip active" onclick="window.systemSetMode?window.systemSetMode('manual'):0">Manual</button>
-          <button id="system-mode-maint" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('maintenance'):0">Maintenance</button>
+          <button id="system-mode-auto" class="btn-chip" onclick="fetch('/api/system_mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'auto'})}).then(()=>location.reload())">Auto</button>
+          <button id="system-mode-manual" class="btn-chip active" onclick="fetch('/api/system_mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'manual'})}).then(()=>location.reload())">Manual</button>
+          <button id="system-mode-maint" class="btn-chip" onclick="fetch('/api/system_mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'maintenance'})}).then(()=>location.reload())">Maintenance</button>
         </div>
           <button id="header-estop-btn-overview" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
@@ -1419,9 +1419,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <div class="sensors-mode-buttons" style="display:flex;gap:6px;">
-          <button id="sensors-mode-auto" class="btn-chip active" onclick="fetch('/api/sensors/mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'auto'})}).then(()=>location.reload())">Auto</button>
-          <button id="sensors-mode-manual" class="btn-chip" onclick="fetch('/api/sensors/mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'manual'})}).then(()=>location.reload())">Manual</button>
-          <button id="sensors-mode-maint" class="btn-chip" onclick="fetch('/api/sensors/mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'maintenance'})}).then(()=>location.reload())">Maintenance</button>
+          <button id="sensors-mode-auto" class="btn-chip active">Auto</button>
+          <button id="sensors-mode-manual" class="btn-chip">Manual</button>
+          <button id="sensors-mode-maint" class="btn-chip">Maintenance</button>
         </div>
         <button id="header-estop-btn-sensors" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
