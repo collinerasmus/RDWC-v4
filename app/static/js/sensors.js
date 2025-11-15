@@ -49,14 +49,26 @@
       sensorsMode = respData.mode;
       localStorage.setItem('sensors_mode', sensorsMode);
       console.log('[Sensors] UI updating to mode:', sensorsMode);
+      
+      // Force a small delay to ensure DOM is ready
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
       const autoBtn = $('sensors-mode-auto');
       const manualBtn = $('sensors-mode-manual');
       const maintBtn = $('sensors-mode-maint');
       console.log('[Sensors] Buttons found:', {auto: !!autoBtn, manual: !!manualBtn, maint: !!maintBtn});
       console.log('[Sensors] Setting active states:', {auto: sensorsMode==='auto', manual: sensorsMode==='manual', maint: sensorsMode==='maintenance'});
-      setActive(autoBtn, sensorsMode==='auto');
-      setActive(manualBtn, sensorsMode==='manual');
-      setActive(maintBtn, sensorsMode==='maintenance');
+      
+      // Remove active class from all buttons first
+      if(autoBtn) autoBtn.classList.remove('active');
+      if(manualBtn) manualBtn.classList.remove('active');
+      if(maintBtn) maintBtn.classList.remove('active');
+      
+      // Then add active class to the correct button
+      if(sensorsMode==='auto' && autoBtn) autoBtn.classList.add('active');
+      if(sensorsMode==='manual' && manualBtn) manualBtn.classList.add('active');
+      if(sensorsMode==='maintenance' && maintBtn) maintBtn.classList.add('active');
+      
       console.log('[Sensors] Active classes after:', {
         auto: autoBtn?.className,
         manual: manualBtn?.className,
@@ -64,6 +76,9 @@
       });
       updateSensorsHealth();
       toggleOverridesVisibility();
+      
+      // Force a UI refresh by triggering a tick
+      await tick();
     }catch(e){ 
       console.error('[Sensors] set mode exception:', e); 
     }
