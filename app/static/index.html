@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251115g"/><!-- Cache-buster: Move EC dosing controls to EC tab -->
+<meta name="version" content="20251115h"/><!-- Cache-buster: Redesign scheduler tab layout -->
 <link rel="stylesheet" href="/static/css/theme_v4.css?v=5" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
@@ -812,7 +812,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
   <!-- Schedule Controller Tab -->
   <section id="schedule-card" class="card card-wide tab-section" data-tab="schedule" style="display:none;">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+    <div class="card-header">
       <div style="display:flex;align-items:center;gap:8px;">
         <h3 class="card-title" style="margin:0;">Schedule Controller</h3>
         <span id="schedule-health-indicator" class="ui-status-chip success" title="Schedule health">OK</span>
@@ -826,61 +826,80 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <button id="header-estop-btn-schedule" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
-    <div class="card-body" style="padding:0;">
-      <div id="schedule-meta" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 12px 8px 12px;">
-        <span id="schedule-current-week-pill" class="muted" style="padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.10);border:1px solid rgba(59,130,246,0.35);font-size:0.75rem;">Week —</span>
-        <button id="scheduleSeedBtn" class="btn-secondary primary" title="Seed default 12-week schedule (non-destructive)">Seed Defaults</button>
+
+    <div class="card-body">
+      <!-- KPI Row -->
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="kpi">
+          <div class="kpi-label">Current Week</div>
+          <div class="kpi-value" id="schedule-current-week-kpi">—</div>
+        </div>
+        <div class="kpi" style="min-width:140px;">
+          <div class="kpi-label">Phase</div>
+          <div class="kpi-value" id="schedule-phase-kpi" style="font-size:0.9rem;">—</div>
+        </div>
+        <div class="kpi" style="min-width:140px;">
+          <div class="kpi-label">Grow Start</div>
+          <div class="kpi-value" id="schedule-grow-start-kpi" style="font-size:0.8rem;">—</div>
+        </div>
+        <div class="kpi" style="min-width:140px;">
+          <div class="kpi-label">Day in Grow</div>
+          <div class="kpi-value" id="schedule-grow-day-kpi">—</div>
+        </div>
       </div>
-      <div id="schedule-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;padding:12px;max-width:100%;">
-        <!-- Timeline Card -->
-        <div id="schedule-timeline" class="card" style="margin:0;min-height:220px;display:flex;flex-direction:column;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div class="muted" style="font-weight:600;">Timeline</div>
-            <span id="schedule-grow-start" class="muted" style="font-size:0.65rem;opacity:.7;">start: —</span>
+
+      <!-- Timeline Visualization -->
+      <hr class="separator" />
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div class="muted" style="font-weight:600;">Schedule Timeline</div>
+        <button id="schedule-refresh-btn" class="btn-secondary btn-small">Refresh</button>
+      </div>
+      <div id="schedule-timeline-lanes" class="schedule-timeline-lanes" style="min-height:120px;position:relative;overflow:hidden;margin-bottom:12px;">
+        <div class="muted" style="font-size:0.75rem;opacity:.6;">Loading schedule…</div>
+      </div>
+      <div id="schedule-week-selector" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px;"></div>
+
+      <!-- Current Week Targets -->
+      <hr class="separator" />
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div class="muted" style="font-weight:600;">This Week Targets</div>
+        <span id="schedule-phase-pill" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(148,163,184,0.10);border:1px solid rgba(148,163,184,0.25);font-size:0.7rem;">—</span>
+      </div>
+      <div id="schedule-targets-body" style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);min-height:100px;">
+        <div class="muted" style="font-size:0.8rem;opacity:.7;">Select a week…</div>
+      </div>
+
+      <!-- Next 48h Plan -->
+      <hr class="separator" />
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div class="muted" style="font-weight:600;">Next 48h Plan</div>
+        <div class="muted" id="schedule-plan-updated" style="font-size:0.7rem;opacity:.7;">—</div>
+      </div>
+      <div id="schedule-plan-list" style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);max-height:200px;overflow:auto;font-size:0.8rem;line-height:1.4;">
+        <div class="muted" style="opacity:.6;">Loading plan…</div>
+      </div>
+
+      <!-- Settings -->
+      <details style="margin-top:12px;">
+        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Schedule Settings</summary>
+        <div style="margin-top:12px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+            <button id="scheduleSeedBtn" class="btn-secondary primary" title="Seed default 12-week schedule (non-destructive)">Seed Defaults</button>
           </div>
-          <div id="schedule-timeline-lanes" class="schedule-timeline-lanes" style="flex:1;position:relative;overflow:hidden;">
-            <div class="muted" style="font-size:0.75rem;opacity:.6;">Loading schedule…</div>
-          </div>
-          <div id="schedule-week-selector" style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap;max-height:74px;overflow:auto;"></div>
-        </div>
-        <!-- Targets Card -->
-        <div id="schedule-targets" class="card" style="margin:0;min-height:220px;display:flex;flex-direction:column;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div class="muted" style="font-weight:600;">This Week Targets</div>
-            <span id="schedule-phase-pill" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(148,163,184,0.10);border:1px solid rgba(148,163,184,0.25);font-size:0.65rem;">—</span>
-          </div>
-          <div id="schedule-targets-body" style="flex:1;overflow:auto;">
-            <div class="muted" style="font-size:0.75rem;opacity:.7;">Select a week…</div>
-          </div>
-        </div>
-        <!-- Plan Card -->
-        <div id="schedule-plan" class="card" style="margin:0;min-height:220px;display:flex;flex-direction:column;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div class="muted" style="font-weight:600;">Next 48h Plan</div>
-            <div class="muted" id="schedule-plan-updated" style="font-size:0.65rem;opacity:.7;">—</div>
-          </div>
-          <div id="schedule-plan-list" style="flex:1;overflow:auto;font-size:0.75rem;line-height:1.4;">
-            <div class="muted" style="opacity:.6;">Loading plan…</div>
-          </div>
-        </div>
-        <!-- Status Card -->
-        <div id="schedule-status" class="card" style="margin:0;min-height:220px;display:flex;flex-direction:column;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div class="muted" style="font-weight:600;">Status & Safety</div>
-            <button id="schedule-refresh-btn" class="btn-secondary" style="padding:4px 10px;font-size:0.7rem;">Refresh</button>
-          </div>
-          <div id="schedule-status-badges" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;font-size:0.65rem;"></div>
-          <div id="schedule-rapid-test" style="margin-top:auto;">
-            <div class="muted" style="font-size:0.7rem;margin-bottom:4px;">Rapid Test Helper (EC interval)</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-              <button class="btn-secondary" id="schedule-rapid-10" style="padding:4px 8px;font-size:0.65rem;">10s</button>
-              <button class="btn-secondary" id="schedule-rapid-300" style="padding:4px 8px;font-size:0.65rem;">300s</button>
-              <span id="schedule-rapid-current" class="muted" style="font-size:0.65rem;">—</span>
+          
+          <div id="schedule-status-badges" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;"></div>
+          
+          <div style="padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
+            <div class="muted" style="font-size:0.8rem;margin-bottom:10px;font-weight:600;">Rapid Test Helper (EC interval)</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+              <button class="btn-secondary" id="schedule-rapid-10" style="padding:4px 10px;font-size:0.8rem;">10s</button>
+              <button class="btn-secondary" id="schedule-rapid-300" style="padding:4px 10px;font-size:0.8rem;">300s</button>
+              <span id="schedule-rapid-current" class="muted" style="font-size:0.75rem;">Current: —</span>
             </div>
-            <div class="muted" style="margin-top:6px;font-size:0.65rem;opacity:.65;">Preview-only — no automatic dosing from this tab.</div>
+            <div class="muted" style="font-size:0.7rem;opacity:.7;">Preview-only — no automatic dosing from this tab.</div>
           </div>
         </div>
-      </div>
+      </details>
     </div>
   </section>
 
