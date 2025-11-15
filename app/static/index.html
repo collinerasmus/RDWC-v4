@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251115p"/><!-- Cache-buster: Parameters flattened (no sub-headings, matches dosing/pump style) -->
+<meta name="version" content="20251115q"/><!-- Cache-buster: pH settings standardized to EC template (compact, clean) -->
 <link rel="stylesheet" href="/static/css/theme_v4.css?v=5" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
@@ -1660,94 +1660,83 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
           <!-- 5. Settings -->
 
-          <details class="minimal-settings" style="margin-top:12px;">
-            <summary class="muted minimal" style="cursor:pointer;font-size:0.85rem;padding:4px 0;">Settings</summary>
-            <div style="padding:20px 16px;">
-              <!-- Target Range -->
-              <div style="margin-bottom:20px;">
-                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;color:#e0e0e0;">Target Range</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                  <div>
-                    <label style="display:block;font-size:0.8rem;margin-bottom:3px;color:#9ca3af;">Low pH</label>
-                    <input type="number" id="phTargetLow" step="0.1" min="4.0" max="8.0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" />
-                  </div>
-                  <div>
-                    <label style="display:block;font-size:0.8rem;margin-bottom:3px;color:#9ca3af;">High pH</label>
-                    <input type="number" id="phTargetHigh" step="0.1" min="4.0" max="8.0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" />
-                  </div>
+          <details style="margin-top:12px;">
+            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Parameters</summary>
+            <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+              <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Configure pH targets, dosing parameters, and alert thresholds.</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+                <div>
+                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Low pH</label>
+                  <input type="number" id="phTargetLow" step="0.1" min="4.0" max="8.0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">High pH</label>
+                  <input type="number" id="phTargetHigh" step="0.1" min="4.0" max="8.0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" />
                 </div>
               </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+                <div>
+                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Low Alert pH</label>
+                  <input type="number" id="phAlertLow" step="0.1" min="3.0" max="8.0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">High Alert pH</label>
+                  <input type="number" id="phAlertHigh" step="0.1" min="3.0" max="8.0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" />
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+                <div>
+                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Grow (ml)</label>
+                  <input type="number" id="phPulseGrow" step="0.1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0.0" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Micro (ml)</label>
+                  <input type="number" id="phPulseMicro" step="0.1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0.0" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Bloom (ml)</label>
+                  <input type="number" id="phPulseBloom" step="0.1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0.0" />
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+                <div>
+                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">pH Up ml/s</label>
+                  <input type="number" id="phUpMlPerSec" step="0.01" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0.83" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Mix delay (s)</label>
+                  <input type="number" id="phMixDelay" step="1" min="0" max="3600" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0" />
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+                <div>
+                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Max ml/hour</label>
+                  <input type="number" id="phMaxMlHour" step="1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.75rem;margin-bottom:2px;color:#9ca3af;">Max ml/day</label>
+                  <input type="number" id="phMaxMlDay" step="1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0" />
+                </div>
+              </div>
+              <button id="btnSavePhSettings" class="btn-secondary" style="width:100%;">Save pH Settings</button>
+            </div>
+          </details>
 
-              <!-- Alert Thresholds -->
-              <div style="margin-bottom:20px;padding-top:16px;border-top:1px solid rgba(148,163,184,0.15);">
-                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;color:#e0e0e0;">Alert Thresholds</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                  <div>
-                    <label style="display:block;font-size:0.8rem;margin-bottom:3px;color:#9ca3af;">Low Alert pH</label>
-                    <input type="number" id="phAlertLow" step="0.1" min="3.0" max="8.0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" />
-                  </div>
-                  <div>
-                    <label style="display:block;font-size:0.8rem;margin-bottom:3px;color:#9ca3af;">High Alert pH</label>
-                    <input type="number" id="phAlertHigh" step="0.1" min="3.0" max="8.0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" />
-                  </div>
-                </div>
+          <details style="margin-top:12px;">
+            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Manual Dosing</summary>
+            <div style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+              <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Dose pH Up manually with safety caps enforced.</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+                <button id="btnPrime" class="btn-secondary" title="Prime (200 ms)">Prime</button>
+                <button id="btnDose1" class="btn-secondary">+1 ml</button>
+                <button id="btnDose5" class="btn-secondary">+5 ml</button>
+                <input id="phCustomMl" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
+                <button id="btnDoseCustom" class="btn-secondary">Dose</button>
+                <span id="phMaintBadge" class="muted" style="display:none;margin-left:6px;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.85rem;" title="Bypasses cooldown/daily cap; clamps single dose; E-STOP/empty reservoir still enforced.">Maintenance override active</span>
               </div>
-
-              <!-- Dosing Parameters -->
-              <div style="margin-bottom:20px;padding-top:16px;border-top:1px solid rgba(148,163,184,0.15);">
-                <div style="font-weight:600;margin-bottom:4px;font-size:0.9rem;color:#e0e0e0;">Dosing Parameters</div>
-                <div class="muted" style="font-size:0.75rem;margin-bottom:10px;opacity:0.7;">Configure pH Up dosing amounts and safety limits</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px;">
-                  <div>
-                    <label style="display:block;font-size:0.8rem;margin-bottom:3px;color:#9ca3af;" data-tooltip="Dose amount for grow phase">Grow (ml)</label>
-                    <input type="number" id="phPulseGrow" step="0.1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0.0" />
-                  </div>
-                  <div>
-                    <label style="display:block;font-size:0.8rem;margin-bottom:3px;color:#9ca3af;" data-tooltip="Dose amount for micro phase">Micro (ml)</label>
-                    <input type="number" id="phPulseMicro" step="0.1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0.0" />
-                  </div>
-                  <div>
-                    <label style="display:block;font-size:0.8rem;margin-bottom:3px;color:#9ca3af;" data-tooltip="Dose amount for bloom phase">Bloom (ml)</label>
-                    <input type="number" id="phPulseBloom" step="0.1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0.0" />
-                  </div>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">
-                  <div>
-                    <label style="display:block;font-size:0.8rem;margin-bottom:3px;color:#9ca3af;" data-tooltip="Calibration: ml of pH Up per second">pH Up ml/s</label>
-                    <input type="number" id="phUpMlPerSec" step="0.01" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0.83" />
-                  </div>
-                  <div>
-                    <label style="display:block;font-size:0.8rem;margin-bottom:3px;color:#9ca3af;" data-tooltip="Wait time after dosing for mixing">Mix delay (s)</label>
-                    <input type="number" id="phMixDelay" step="1" min="0" max="3600" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0" />
-                  </div>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                  <div>
-                    <label style="display:block;font-size:0.8rem;margin-bottom:3px;color:#9ca3af;" data-tooltip="Maximum ml of pH Up per hour">Max ml/hour</label>
-                    <input type="number" id="phMaxMlHour" step="1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0" />
-                  </div>
-                  <div>
-                    <label style="display:block;font-size:0.8rem;margin-bottom:3px;color:#9ca3af;" data-tooltip="Maximum ml of pH Up per day">Max ml/day</label>
-                    <input type="number" id="phMaxMlDay" step="1" min="0" style="width:100%;padding:4px 2px;background:transparent;border:none;border-bottom:1px solid rgba(148,163,184,0.3);color:#e0e0e0;border-radius:0;font-size:0.85rem;" placeholder="0" />
-                  </div>
-                </div>
-                <button id="btnSavePhSettings" class="btn-secondary" style="margin-top:16px;padding:6px 16px;font-size:0.85rem;">Save pH Settings</button>
+              <div class="muted" style="font-size:0.75rem;margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(148,163,184,0.05);">
+                Max per press: <span id="phCapMaxPress">1.5s</span> • Daily cap: <span id="phCapDaily">120s</span> • Min off: <span id="phCapMinOff">2s</span>
               </div>
-              
-              <!-- Manual Dosing Controls -->
-              <div style="margin-bottom:20px;padding-top:20px;border-top:1px solid rgba(148,163,184,0.15);">
-                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;color:#e0e0e0;">Manual Dosing Controls</div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
-                  <button id="btnPrime" class="btn-secondary" title="Prime (200 ms)">Prime</button>
-                  <button id="btnDose1" class="btn-secondary">+1 ml</button>
-                  <button id="btnDose5" class="btn-secondary">+5 ml</button>
-                  <input id="phCustomMl" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;"/>
-                  <button id="btnDoseCustom" class="btn-secondary">Dose</button>
-                  <span id="phMaintBadge" class="muted" style="display:none;margin-left:6px;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.85rem;" title="Bypasses cooldown/daily cap; clamps single dose; E-STOP/empty reservoir still enforced.">Maintenance override active</span>
-                </div>
-                <div class="muted" style="font-size:0.75rem;opacity:0.7;">
-                  Max per press: <span id="phCapMaxPress">1.5s</span> • Daily cap: <span id="phCapDaily">120s</span> • Min off: <span id="phCapMinOff">2s</span>
-                </div>
               </div>
               
               <!-- Dose Log -->
