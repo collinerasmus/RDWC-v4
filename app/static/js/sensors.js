@@ -49,9 +49,19 @@
       sensorsMode = respData.mode;
       localStorage.setItem('sensors_mode', sensorsMode);
       console.log('[Sensors] UI updating to mode:', sensorsMode);
-      setActive($('sensors-mode-auto'), sensorsMode==='auto');
-      setActive($('sensors-mode-manual'), sensorsMode==='manual');
-      setActive($('sensors-mode-maint'), sensorsMode==='maintenance');
+      const autoBtn = $('sensors-mode-auto');
+      const manualBtn = $('sensors-mode-manual');
+      const maintBtn = $('sensors-mode-maint');
+      console.log('[Sensors] Buttons found:', {auto: !!autoBtn, manual: !!manualBtn, maint: !!maintBtn});
+      console.log('[Sensors] Setting active states:', {auto: sensorsMode==='auto', manual: sensorsMode==='manual', maint: sensorsMode==='maintenance'});
+      setActive(autoBtn, sensorsMode==='auto');
+      setActive(manualBtn, sensorsMode==='manual');
+      setActive(maintBtn, sensorsMode==='maintenance');
+      console.log('[Sensors] Active classes after:', {
+        auto: autoBtn?.className,
+        manual: manualBtn?.className,
+        maint: maintBtn?.className
+      });
       updateSensorsHealth();
       toggleOverridesVisibility();
     }catch(e){ 
