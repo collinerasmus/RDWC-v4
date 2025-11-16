@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/frontend", tags=["frontend"])
 
 DB_PATH = os.environ.get("RDWC_DB", "data/rdwc.db")
+RETENTION_DAYS = int(os.environ.get("FRONTEND_LOG_RETENTION_DAYS", "7") or 7)
+MAX_ROWS = int(os.environ.get("FRONTEND_LOG_MAX_ROWS", "5000") or 5000)
 
 def _get_db():
     """Get database connection with frontend_logs table initialized."""
@@ -42,6 +44,35 @@ def _get_db():
     conn.commit()
     
     return conn
+
+
+def _trim_frontend_logs(retention_days: int, max_rows: int):
+    conn = _get_db()
+    cursor = conn.cursor()
+
+    deleted_by_age = 0
+    if retention_days > 0:
+        cutoff_ts = int((datetime.utcnow() - timedelta(days=retention_days)).timestamp())
+        cursor.execute("DELETE FROM frontend_logs WHERE ts < ?", (cutoff_ts,))
+        deleted_by_age = cursor.rowcount
+
+    total_rows = cursor.execute("SELECT COUNT(*) FROM frontend_logs").fetchone()[0]
+    deleted_by_cap = 0
+    if max_rows > 0 and total_rows > max_rows:
+        excess = total_rows - max_rows
+        cursor.execute("DELETE FROM frontend_logs WHERE id IN (SELECT id FROM frontend_logs ORDER BY ts ASC LIMIT ?)", (excess,))
+        deleted_by_cap = cursor.rowcount
+
+    final_count = cursor.execute("SELECT COUNT(*) FROM frontend_logs").fetchone()[0]
+    conn.commit()
+    conn.close()
+    return {
+        "retention_days": retention_days,
+        "max_rows": max_rows,
+        "deleted_by_age": deleted_by_age,
+        "deleted_by_cap": deleted_by_cap,
+        "final_count": final_count
+    }
 
 
 @router.post("/log")
@@ -81,8 +112,9 @@ async def log_frontend_errors(payload: dict = Body(...)):
         
         conn.commit()
         conn.close()
-        
-        return {"ok": True, "received": len(logs)}
+
+        trim_stats = _trim_frontend_logs(RETENTION_DAYS, MAX_ROWS)
+        return {"ok": True, "received": len(logs), "trim": trim_stats}
     
     except Exception as e:
         logger.error(f"Failed to store frontend logs: {e}", exc_info=True)
@@ -182,4 +214,16 @@ async def clear_frontend_logs(older_than_hours: int = 168):  # Default 7 days
     
     except Exception as e:
         logger.error(f"Failed to clear frontend logs: {e}", exc_info=True)
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/logs/trim")
+async def trim_frontend_logs(retention_days: Optional[int] = None, max_rows: Optional[int] = None):
+    try:
+        rd = retention_days if retention_days is not None else RETENTION_DAYS
+        mr = max_rows if max_rows is not None else MAX_ROWS
+        stats = _trim_frontend_logs(rd, mr)
+        return {"ok": True, "stats": stats}
+    except Exception as e:
+        logger.error(f"Failed to trim frontend logs: {e}", exc_info=True)
         return JSONResponse({"error": str(e)}, status_code=500)
