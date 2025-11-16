@@ -18,7 +18,7 @@ import os
 import argparse
 import subprocess
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Add parent directory to path for imports
@@ -347,7 +347,7 @@ Example:
         "metadata": {
             "script": "commission_all.py",
             "version": SCRIPT_VERSION,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "host": get_host_info(),
         },
         "config": {

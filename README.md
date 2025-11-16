@@ -186,6 +186,58 @@ python tools/commissioning_readiness.py --compact
 
 Add stricter flags only on hardware-backed environments (e.g., self-hosted Pi runner).
 
+### Automated Commissioning
+
+**NEW**: Automated Python scripts for systematic hardware validation and calibration.
+
+**Quick Start** - Full automated commissioning:
+```bash
+sudo python tools/commission_all.py
+```
+
+**Individual Phases:**
+```bash
+python tools/commission_sensors.py      # Phase 1: Sensor validation
+python tools/commission_ph.py           # Phase 2: pH calibration
+python tools/commission_ec.py           # Phase 3: EC calibration
+python tools/commission_relays.py       # Phase 4: Relay safety tests
+python tools/commission_pumps.py        # Phase 5: Pump calibration
+```
+
+**Key Features:**
+- Structured JSON reports with metadata and recommendations
+- Automatic retry logic with exponential backoff
+- Clear exit codes for automation/CI integration
+- Progress indicators and colored terminal output
+- Safety validation and comprehensive error handling
+
+**Example Output:**
+```bash
+# Sensor validation (fast, automated)
+python tools/commission_sensors.py
+# Output: sensor_report.json
+
+# pH calibration (interactive, requires buffers)
+python tools/commission_ph.py
+# Prompts for buffer placement (7.00, 4.01, 10.00)
+# Output: ph_calibration.json
+
+# Testing mode (skip prompts)
+python tools/commission_ph.py --auto-advance --skip-reservoir
+```
+
+**Documentation:**
+- Detailed guide: `docs/COMMISSIONING_AUTOMATION.md`
+- Manual procedures: `PI_COMMISSIONING_CHECKLIST.md`
+- Exit codes, troubleshooting, CI/CD integration examples
+
+**Benefits over manual curl commands:**
+- Systematic workflow with dependency checking
+- Structured reports for archiving and analysis
+- Built-in retry logic for transient failures
+- Clear error messages with troubleshooting hints
+- Easy integration into automation pipelines
+
 ### Code Quality Tools
 
 This project follows Python best practices with minimal tooling overhead:

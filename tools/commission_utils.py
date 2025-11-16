@@ -11,7 +11,7 @@ import sys
 import time
 import json
 import socket
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from urllib.parse import urljoin
 
@@ -104,7 +104,7 @@ def create_report(
         "metadata": {
             "script": script_name,
             "version": version,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "host": get_host_info(),
         },
         "config": config,

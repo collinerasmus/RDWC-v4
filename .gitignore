@@ -85,3 +85,12 @@ docs/_build/
 *.tmp
 *.bak
 *.backup
+
+# Commissioning output files
+sensor_report.json
+ph_calibration.json
+ec_calibration.json
+relay_safety.json
+pump_calibration.json
+commissioning_report_*.json
+commissioning_summary.txt
