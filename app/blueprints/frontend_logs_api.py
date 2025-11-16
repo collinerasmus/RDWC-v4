@@ -13,13 +13,13 @@ import os
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/frontend", tags=["frontend"])
 
-DB_PATH = os.environ.get("RDWC_DB", "data/rdwc.db")
 RETENTION_DAYS = int(os.environ.get("FRONTEND_LOG_RETENTION_DAYS", "7") or 7)
 MAX_ROWS = int(os.environ.get("FRONTEND_LOG_MAX_ROWS", "5000") or 5000)
 
 def _get_db():
     """Get database connection with frontend_logs table initialized."""
-    conn = sqlite3.connect(DB_PATH)
+    db_path = os.environ.get("RDWC_DB", "data/rdwc.db")
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     
     # Auto-create table if missing
