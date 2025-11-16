@@ -25,6 +25,20 @@
 
     updateScheduleHealth();
   }
+  
+  async function syncScheduleModeFromBackend() {
+    try {
+      const r = await fetch('/api/controller/schedule/mode', {cache: 'no-store'});
+      if (!r.ok) return;
+      const data = await r.json();
+      if (data.ok && data.mode) {
+        scheduleSetMode(data.mode);
+      }
+    } catch (e) {
+      // Fallback to localStorage
+    }
+  }
+  window.syncScheduleModeFromBackend = syncScheduleModeFromBackend;
 
   function updateScheduleHealth() {
     const chip = document.getElementById('schedule-health-indicator');

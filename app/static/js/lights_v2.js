@@ -35,6 +35,7 @@
       // Fallback to localStorage
     }
   }
+  window.syncLightsModeFromBackend = syncModeFromBackend;
 
   function updateWindowPreview(win){
     const el = $('lights-window-preview');

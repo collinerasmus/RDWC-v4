@@ -83,10 +83,21 @@
       showToast(`System mode set to ${mode.toUpperCase()}`, 'success');
       // Repaint to apply readonly styles
       renderRelays();
+      // Notify all controller tabs to refresh their modes from backend
+      refreshAllControllerModes();
     } catch(e) {
       console.error('Failed to set system mode:', e);
       showToast('Failed to change system mode', 'error');
     }
+  }
+  
+  function refreshAllControllerModes() {
+    // Notify each controller module to sync from backend
+    if (window.refreshServerMode) window.refreshServerMode(); // Sensors
+    if (window.syncCircModeFromBackend) window.syncCircModeFromBackend(); // Circulation
+    if (window.lightsSetMode && window.syncLightsModeFromBackend) window.syncLightsModeFromBackend(); // Lights
+    if (window.scheduleSetMode && window.syncScheduleModeFromBackend) window.syncScheduleModeFromBackend(); // Schedule
+    console.log('[System] Triggered controller mode refresh');
   }
 
   function updateModeButtons() {

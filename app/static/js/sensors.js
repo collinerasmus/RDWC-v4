@@ -30,6 +30,7 @@
     updateSensorsHealth();
     toggleOverridesVisibility();
   }
+  window.refreshServerMode = refreshServerMode;
 
   async function sensorsSetMode(next){
     console.log('[Sensors] setMode called:', next);

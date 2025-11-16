@@ -55,6 +55,7 @@
       // Fallback to localStorage
     }
   }
+  window.syncCircModeFromBackend = syncCircModeFromBackend;
   function updateCircHealth() {
     const chip = document.getElementById('circ-health-indicator');
     if (!chip) return;
