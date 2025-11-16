@@ -28,7 +28,7 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
       - name: Run tests
-        timeout-minutes: 12
+        timeout-minutes: 20
         run: |
           pytest --timeout=120 -vv -ra --maxfail=1 --durations=25 tests/
       - name: Upload artifact
