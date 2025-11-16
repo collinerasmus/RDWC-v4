@@ -6,7 +6,7 @@
   // ===== MODE MANAGEMENT =====
   let envMode = localStorage.getItem('env_mode') || 'auto';
 
-  function envSetMode(next) {
+  function envSetMode(next, syncBackend = true) {
     if (!['auto', 'manual', 'maint'].includes(next)) return;
     envMode = next;
     localStorage.setItem('env_mode', next);
@@ -25,7 +25,7 @@
     if (maintContent) maintContent.style.display = (next === 'maint') ? 'block' : 'none';
 
       // POST mode to backend (except maint, which may be local only)
-      if (next === 'auto' || next === 'manual') {
+      if (syncBackend && (next === 'auto' || next === 'manual')) {
         try {
           fetch('/api/controller/chiller/mode', {
             method: 'POST',
@@ -37,6 +37,19 @@
 
       updateEnvHealth();
     }
+  
+  async function syncEnvModeFromBackend() {
+    try {
+      const resp = await fetch('/api/controller/chiller/mode', {cache: 'no-store'});
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.ok && data.mode) {
+        envSetMode(data.mode, false);
+      }
+    } catch (e) {
+      // Fallback to localStorage
+    }
+  }
 
   function updateEnvHealth() {
     const chip = document.getElementById('env-health-indicator');
@@ -73,8 +86,9 @@
   window.envSetMode = envSetMode;
 
   // Initialize mode on load
-  document.addEventListener('DOMContentLoaded', () => {
-    envSetMode(envMode);
+  document.addEventListener('DOMContentLoaded', async () => {
+    await syncEnvModeFromBackend();
+    envSetMode(envMode, false);
   });
 
   // ===== CHILLER CONTROL LOGIC =====

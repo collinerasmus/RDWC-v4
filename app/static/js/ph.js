@@ -18,7 +18,7 @@
 
   function el(id){ return document.getElementById(id); }
 
-  function setMode(mode) {
+  function setMode(mode, syncBackend = true) {
     currentMode = mode;
     modeInitialized = true;
     localStorage.setItem('ph_mode', mode);
@@ -59,8 +59,30 @@
     if (autoContent) autoContent.style.display = (mode === 'auto') ? 'block' : 'none';
     if (maintContent) maintContent.style.display = (mode === 'maintenance') ? 'block' : 'none';
     
+    // Sync to backend if requested (skip on page load to avoid race)
+    if (syncBackend && mode !== 'maintenance') {
+      fetch('/api/controller/ph/mode', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mode: mode})
+      }).catch(() => {});
+    }
+    
     // Update health indicator based on mode
     updateHealthIndicator();
+  }
+  
+  async function syncModeFromBackend() {
+    try {
+      const resp = await fetch('/api/controller/ph/mode', {cache: 'no-store'});
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.ok && data.mode) {
+        setMode(data.mode, false);
+      }
+    } catch (e) {
+      // Fallback to localStorage
+    }
   }
 
   function updateHealthIndicator() {
@@ -828,10 +850,13 @@
   async function initPH(){
     await wire();  // This includes wireRangeControls which sets currentRange
     
+    // Sync mode from backend first, then fall back to localStorage
+    await syncModeFromBackend();
+    
     // Initialize mode and dose log state AFTER wire() completes
     // Only set mode if user hasn't already clicked a mode button
     if (!modeInitialized) {
-      setMode(currentMode);
+      setMode(currentMode, false);
     }
     setDoseLogCollapsed(doseLogCollapsed);
     

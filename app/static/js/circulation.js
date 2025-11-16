@@ -7,7 +7,7 @@
   let circEstop = false;
   let circCooldown = false;
 
-  function circSetMode(next) {
+  function circSetMode(next, syncBackend = true) {
     // Normalize 'maintenance' to 'maint' for consistency
     if (next === 'maintenance') next = 'maint';
     if (!['auto', 'manual', 'maint'].includes(next)) return;
@@ -29,18 +29,32 @@
     if (manualContent) manualContent.style.display = (next === 'manual') ? 'block' : 'none';
     if (maintContent) maintContent.style.display = (next === 'maint') ? 'block' : 'none';
 
+    // POST mode to backend (except maint, which may be local only)
+    if (syncBackend && (next === 'auto' || next === 'manual')) {
+      try {
+        fetch('/api/controller/circulation/mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: next })
+        });
+      } catch (e) { /* ignore */ }
+    }
+
     updateCircHealth();
   }
-      // POST mode to backend (except maint, which may be local only)
-      if (next === 'auto' || next === 'manual') {
-        try {
-          fetch('/api/controller/circulation/mode', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: next })
-          });
-        } catch (e) { /* ignore */ }
+  
+  async function syncCircModeFromBackend() {
+    try {
+      const r = await fetch('/api/controller/circulation/mode', {cache: 'no-store'});
+      if (!r.ok) return;
+      const data = await r.json();
+      if (data.ok && data.mode) {
+        circSetMode(data.mode, false);
       }
+    } catch (e) {
+      // Fallback to localStorage
+    }
+  }
   function updateCircHealth() {
     const chip = document.getElementById('circ-health-indicator');
     if (!chip) return;
@@ -70,8 +84,9 @@
   window.circSetMode = circSetMode;
 
   // Initialize mode on load
-  document.addEventListener('DOMContentLoaded', () => {
-    circSetMode(circMode);
+  document.addEventListener('DOMContentLoaded', async () => {
+    await syncCircModeFromBackend();
+    circSetMode(circMode, false);
   });
 
   // Refresh health every 5s from relays

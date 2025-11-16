@@ -358,6 +358,9 @@
 
   // Initialize
   async function init(){
+    // Sync mode from backend first
+    await syncModeFromBackend();
+    
     const s = await fetchStatus();
     if(s) renderStatus(s);
     startPoll();
@@ -365,7 +368,7 @@
 
     // Initialize mode after wiring; don't override if user already clicked
     if (!modeInitialized) {
-      setMode(currentMode);
+      setMode(currentMode, false);
     }
 
     // New unified dose buttons (time-based)
@@ -733,12 +736,12 @@
   window.ecController = { init, fetchStatus, renderStatus, doseEC, toggleAuto };
   
   // --- 3-mode header logic ---
-  function setMode(mode){
+  function setMode(mode, syncBackend = true){
     currentMode = mode;
     modeInitialized = true;
     try{ localStorage.setItem('ec_mode', mode); }catch(_){/*noop*/}
     // POST mode to backend (except maintenance, which may be local only)
-    if (mode === 'auto' || mode === 'manual') {
+    if (syncBackend && (mode === 'auto' || mode === 'manual')) {
       try {
         fetch('/api/controller/ec/mode', {
           method: 'POST',
@@ -763,6 +766,19 @@
     if(maintBanner) maintBanner.style.display = (mode==='maintenance') ? 'block' : 'none';
     // Health
     updateHealthIndicator();
+  }
+  
+  async function syncModeFromBackend() {
+    try {
+      const resp = await fetch('/api/controller/ec/mode', {cache: 'no-store'});
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.ok && data.mode) {
+        setMode(data.mode, false);
+      }
+    } catch (e) {
+      // Fallback to localStorage
+    }
   }
 
   function updateHealthIndicator(){
