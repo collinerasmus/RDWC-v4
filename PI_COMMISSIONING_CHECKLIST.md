@@ -3,6 +3,36 @@
 **Generated**: 2025-11-16  
 **Baseline**: Development environment (Windows) - all hardware operations require Pi deployment
 
+## Automated Commissioning Scripts
+
+**NEW**: Automated Python scripts are now available to replace manual curl commands. These provide structured JSON reports and systematic validation.
+
+### Quick Start (Automated)
+```bash
+# Full automated commissioning (all phases)
+sudo python tools/commission_all.py
+
+# Individual phases
+python tools/commission_sensors.py      # Phase 1: Sensor validation
+python tools/commission_ph.py           # Phase 2: pH calibration
+python tools/commission_ec.py           # Phase 3: EC calibration
+python tools/commission_relays.py       # Phase 4: Relay safety tests
+python tools/commission_pumps.py        # Phase 5: Pump calibration
+
+# With auto-advance for testing (skips interactive prompts)
+python tools/commission_ph.py --auto-advance --skip-reservoir
+python tools/commission_ec.py --auto-advance --skip-accuracy
+```
+
+**Benefits**:
+- Structured JSON reports with metadata and recommendations
+- Automatic retry logic with exponential backoff
+- Clear exit codes for automation/CI integration
+- Progress indicators and colored output
+- Safety validation and error handling
+
+**See**: `docs/COMMISSIONING_AUTOMATION.md` for detailed documentation
+
 ## Pre-Deployment Verification
 
 - [x] All Dependabot PRs resolved (#52-55)
@@ -51,6 +81,8 @@ curl http://localhost:8080/diag/sensors/once
 ### Phase 1: Sensor Health (#59)
 **Objective**: Validate I²C communication, freshness tracking, temperature compensation
 
+**Automated Script**: `python tools/commission_sensors.py` (outputs: `sensor_report.json`)
+
 **Acceptance Criteria**:
 - [ ] All 3 sensors detected at correct addresses (pH 0x63, EC 0x64, RTD 0x66)
 - [ ] Sensor poller running (`systemctl status rdwc-sensors`)
@@ -58,7 +90,7 @@ curl http://localhost:8080/diag/sensors/once
 - [ ] Health state: green (<60s)
 - [ ] Temperature compensation throttling active
 
-**Commands**:
+**Manual Commands** (or use automated script above):
 ```bash
 # Baseline snapshot
 curl http://localhost:8080/api/commissioning/snapshot > snapshot_sensors_baseline.json
@@ -85,12 +117,15 @@ python tools/commissioning_readiness.py --compact --require-sensors
 ### Phase 2: pH Calibration (#56)
 **Objective**: 3-point calibration (mid/low/high), validate accuracy
 
+**Automated Script**: `python tools/commission_ph.py` (outputs: `ph_calibration.json`)
+- With options: `--auto-advance` (skip prompts), `--skip-reservoir` (skip accuracy check)
+
 **Prerequisites**:
 - Fresh pH 4.01, 7.00, 10.00 buffer solutions
 - pH probe cleaned and hydrated
 - `CALIB_ENABLE=1` environment variable set
 
-**Commands**:
+**Manual Commands** (or use automated script above):
 ```bash
 # Check calibration capabilities
 curl http://localhost:8080/calib/ph/caps
@@ -134,11 +169,14 @@ python tools/commissioning_readiness.py --compact --require-sensors --require-ph
 ### Phase 3: EC Calibration (#57)
 **Objective**: Set K-value, 1-point low calibration (1413 µS/cm)
 
+**Automated Script**: `python tools/commission_ec.py` (outputs: `ec_calibration.json`)
+- With options: `--k-value 1.0`, `--two-point` (enable high-point), `--skip-accuracy`
+
 **Prerequisites**:
 - EC 1413 µS/cm calibration solution
 - Optional: EC 12,880 µS/cm for 2-point
 
-**Commands**:
+**Manual Commands** (or use automated script above):
 ```bash
 # Set probe K-value (typically K=1.0)
 curl -X POST http://localhost:8080/api/ec/k -H "Content-Type: application/json" -d '{"k_value": 1.0}'
@@ -168,7 +206,9 @@ curl http://localhost:8080/api/commissioning/snapshot > snapshot_ec_calibrated.j
 ### Phase 4: Relay Safety Tests (#58)
 **Objective**: Validate E-STOP, manual/auto modes, cooldown enforcement
 
-**Commands**:
+**Automated Script**: `python tools/commission_relays.py` (outputs: `relay_safety.json`)
+
+**Manual Commands** (or use automated script above):
 ```bash
 # Baseline relay state
 curl http://localhost:8080/api/relays/status | jq '.mode, .estop, .relays | keys'
@@ -210,11 +250,14 @@ curl http://localhost:8080/api/relays/status | jq '.relays | map_values(.is_on)'
 ### Phase 5: Dosing Pump Calibration (#60)
 **Objective**: Calibrate all pumps (pH Up, Grow, Micro, Bloom), validate safety guards
 
+**Automated Script**: `python tools/commission_pumps.py` (outputs: `pump_calibration.json`)
+- With options: `--pump ph_up` (specific pump), `--skip-guards`, `--auto-advance`
+
 **Prerequisites**:
 - Graduated cylinders or scale
 - Pumps primed with appropriate fluids (or water for testing)
 
-**Commands**:
+**Manual Commands** (or use automated script above):
 ```bash
 # List available pumps
 curl http://localhost:8080/calib/dose/pumps | jq '.pumps[] | {key, relay, ml_per_sec}'
