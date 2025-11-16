@@ -2,7 +2,6 @@
 Tests for the consolidated controllers status API endpoint.
 Validates the atomic snapshot endpoint for UI synchronization.
 """
-import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 

@@ -108,6 +108,15 @@ def set_system_mode(mode: str, propagate_to_controllers: bool = True) -> bool:
             except Exception as e:
                 logger.error(f"Failed to propagate system mode to controllers: {e}")
                 # Don't fail the whole operation if propagation fails
+            
+            # Also propagate to sensors (which uses a separate sensor_mode setting)
+            try:
+                from app.sensors_mode import set_sensor_mode
+                set_sensor_mode(mode)
+                logger.info(f"Propagated system mode '{mode}' to sensors")
+            except Exception as e:
+                logger.error(f"Failed to propagate system mode to sensors: {e}")
+                # Don't fail the whole operation if propagation fails
         
         return True
     except sqlite3.Error as e:

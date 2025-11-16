@@ -417,7 +417,8 @@
       if (autoBtn) autoBtn.className = mode === 'auto' ? 'btn-chip active' : 'btn-chip';
       if (manualBtn) manualBtn.className = mode === 'manual' ? 'btn-chip active' : 'btn-chip';
       if (maintBtn) maintBtn.className = mode === 'maintenance' ? 'btn-chip active' : 'btn-chip';
-      // Force immediate refresh
+      // Force immediate refresh after 100ms to allow backend propagation to complete
+      // This debounce prevents race conditions between mode change API call and status refresh
       setTimeout(() => { useConsolidated = true; refresh(); }, 100);
     } catch(e) {
       console.error('[Overview] Failed to set system mode:', e);

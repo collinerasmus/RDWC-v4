@@ -32,14 +32,15 @@
   
   async function syncScheduleModeFromBackend() {
     try {
-      const r = await fetch('/api/controller/schedule/mode', {cache: 'no-store'});
+      // Schedule controller uses lights mode since schedule controls lights
+      const r = await fetch('/api/controller/lights/mode', {cache: 'no-store'});
       if (!r.ok) return;
       const data = await r.json();
       if (data.ok && data.mode) {
         // Normalize maintenance to maint for UI
         const mode = data.mode === 'maintenance' ? 'maint' : data.mode;
         scheduleSetMode(mode);
-        console.log('[Schedule] Synced mode from backend:', mode);
+        console.log('[Schedule] Synced mode from backend (lights):', mode);
       }
     } catch (e) {
       console.error('[Schedule] Failed to sync mode from backend:', e);

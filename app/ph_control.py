@@ -562,7 +562,8 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
             result.update({"reason": "cooldown", "remaining_cooldown_s": remaining})
         return {"http_status": 409, **result}
 
-    # Concurrency control: attempt non-blocking lock first to avoid deadlock in tests
+    # Concurrency control: always use non-blocking lock acquisition to prevent blocking the API server
+    # and to avoid potential deadlocks in hardware control operations (both in tests and production).
     acquired = _dose_lock.acquire(blocking=False)
     if not acquired:
         # Lock already held: treat as busy regardless of nonblocking flag

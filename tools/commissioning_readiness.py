@@ -38,6 +38,9 @@ try:
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
 except Exception:
+    # Ignore errors if repo root cannot be determined or added to sys.path.
+    # This allows the script to run in environments (e.g., Windows, CI) where
+    # __file__ or the expected directory structure may not exist.
     pass
 
 from app.main import app  # type: ignore
