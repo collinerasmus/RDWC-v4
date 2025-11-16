@@ -21,7 +21,11 @@
         'safety.allow_stale_on_override': {label:'Allow stale sensors on override', type:'checkbox', tooltip:'Allows dosing when sensors are stale (TEST ONLY). Off by default.', badge:'TEST'},
         'safety.max_seconds_per_press': {label:'Max seconds per dose press', type:'number', min:0.1, max:10, step:0.1, tooltip:'Hard cap on single manual dose (even with maintenance override)'},
         'safety.max_total_seconds_per_24h': {label:'Max total seconds per 24h (per pump)', type:'number', min:0, max:600, step:1, tooltip:'Daily cap per pump; resets midnight UTC'},
-        'safety.min_off_window_sec': {label:'Min off between doses (s)', type:'number', min:0, max:60, step:0.5, tooltip:'Enforces minimum time between pump actuations'}
+        'safety.min_off_window_sec': {label:'Min off between doses (s)', type:'number', min:0, max:60, step:0.5, tooltip:'Enforces minimum time between pump actuations'},
+        'safety.main_pump_min_off_s': {label:'Main pump min off (s)', type:'number', min:0, max:300, step:1, tooltip:'Minimum off time for main circulation pump'},
+        'safety.chiller_pump_min_off_s': {label:'Chiller pump min off (s)', type:'number', min:0, max:300, step:1, tooltip:'Minimum off time for chiller pump'},
+        'safety.chiller_min_off_s': {label:'Chiller min off (s)', type:'number', min:60, max:3600, step:10, tooltip:'Minimum off time for chiller compressor (protection)'},
+        'safety.chiller_min_on_s': {label:'Chiller min on (s)', type:'number', min:30, max:1800, step:10, tooltip:'Minimum runtime for chiller compressor (protection)'}
       }
     },
     alerts: {
@@ -37,6 +41,37 @@
         'ui.default_sensor_range': {label:'Default sensor range', type:'text', placeholder:'24h'},
         'ui.relays_poll_ms': {label:'Relays poll (ms)', type:'number', min:250, max:10000, step:50},
         'ui.sensors_poll_ms': {label:'Sensors poll (ms)', type:'number', min:1000, max:60000, step:250}
+      }
+    },
+    chiller: {
+      title: 'Chiller',
+      fields: {
+        'chiller.target_temp': {label:'Target temp (°C)', type:'number', min:15, max:28, step:0.5, tooltip:'Optimal water temperature for DWC/RDWC'},
+        'chiller.hysteresis': {label:'Hysteresis (°C)', type:'number', min:0.1, max:3, step:0.1, tooltip:'Temperature deadband (e.g., 0.5°C: ON at +0.5, OFF at -0.5)'},
+        'chiller.min_on_seconds': {label:'Min ON time (s)', type:'number', min:30, max:1800, step:10, tooltip:'Minimum compressor runtime (protection)'},
+        'chiller.min_off_seconds': {label:'Min OFF time (s)', type:'number', min:60, max:3600, step:10, tooltip:'Minimum compressor cooldown (protection)'},
+        'chiller.control_interval_s': {label:'Control check interval (s)', type:'number', min:10, max:300, step:5, tooltip:'How often to check temperature and adjust'},
+        'chiller.auto_enabled': {label:'Auto control enabled', type:'checkbox', tooltip:'Enable automatic temperature control'},
+        'chiller.max_temp_alarm': {label:'Max temp alarm (°C)', type:'number', min:20, max:35, step:0.5, tooltip:'Alert if water exceeds this temperature'},
+        'chiller.min_temp_alarm': {label:'Min temp alarm (°C)', type:'number', min:10, max:20, step:0.5, tooltip:'Alert if water below this temperature'},
+        'chiller.stage': {label:'Growth stage', type:'select', options:['default','veg','flower'], tooltip:'Optimizes temperature for growth stage'}
+      }
+    },
+    automation: {
+      title: 'Automation',
+      fields: {
+        'ph.auto_enabled': {label:'pH automation enabled', type:'checkbox', tooltip:'Enable automatic pH Up dosing'},
+        'dosing.ph_up_step_min_ml': {label:'pH Up min step (ml)', type:'number', min:0.1, max:5, step:0.1, tooltip:'Minimum dose amount for pH Up'},
+        'dosing.ph_up_step_max_ml': {label:'pH Up max step (ml)', type:'number', min:0.5, max:10, step:0.5, tooltip:'Maximum dose amount for pH Up'},
+        'dosing.ph_up_safety_factor': {label:'pH Up safety factor', type:'number', min:0.1, max:1, step:0.05, tooltip:'Conservative multiplier (0.6 = 60% of learned value)'},
+        'dosing.ph_min_interval_s': {label:'pH min interval (s)', type:'number', min:60, max:3600, step:30, tooltip:'Minimum time between pH doses'},
+        'dosing.observe_s_after_dose': {label:'pH observe window (s)', type:'number', min:3600, max:86400, step:3600, tooltip:'Wait time after dose before next action'},
+        'ec.auto_enabled': {label:'EC automation enabled', type:'checkbox', tooltip:'Enable automatic EC (nutrient) dosing'},
+        'dosing.ec_step_ml_min': {label:'EC min step (ml)', type:'number', min:1, max:50, step:1, tooltip:'Minimum total dose amount for EC'},
+        'dosing.ec_step_ml_max': {label:'EC max step (ml)', type:'number', min:10, max:500, step:10, tooltip:'Maximum total dose amount for EC'},
+        'dosing.ec_safety_factor': {label:'EC safety factor', type:'number', min:0.1, max:1, step:0.05, tooltip:'Conservative multiplier (0.6 = 60% of learned value)'},
+        'dosing.ec_min_interval_s': {label:'EC min interval (s)', type:'number', min:60, max:3600, step:30, tooltip:'Minimum time between EC doses'},
+        'dosing.ec_max_ml_day': {label:'EC max ml/day', type:'number', min:0, max:1000, step:10, tooltip:'Daily cap for total EC dosing (0 = unlimited)'}
       }
     },
     calibration: {
@@ -318,6 +353,18 @@
         input = document.createElement('input');
         input.type = 'checkbox';
         input.checked = String(val).toLowerCase() === 'true';
+      } else if (meta.type === 'select'){
+        input = document.createElement('select');
+        input.style.cssText = 'margin-left:8px;padding:4px 8px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;cursor:pointer;';
+        if (meta.options && Array.isArray(meta.options)) {
+          meta.options.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt;
+            option.textContent = opt;
+            if (val === opt) option.selected = true;
+            input.appendChild(option);
+          });
+        }
       } else {
         input = document.createElement('input');
         input.type = meta.type || 'text';
@@ -334,7 +381,7 @@
         }
       }
       input.id = id;
-      input.addEventListener('input', ()=>{
+      const handleChange = ()=>{
         if (meta.type === 'checkbox'){
           current[key] = input.checked ? 'true' : 'false';
         } else {
@@ -345,7 +392,11 @@
         if (key === 'general.grow_start_date') {
           updateDayNBadge();
         }
-      });
+      };
+      input.addEventListener('input', handleChange);
+      if (meta.type === 'select') {
+        input.addEventListener('change', handleChange);
+      }
       wrap.appendChild(label);
       wrap.appendChild(input);
       if (meta.tooltip){
