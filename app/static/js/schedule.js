@@ -67,6 +67,12 @@
   // Initialize mode on load
   document.addEventListener('DOMContentLoaded', () => {
     scheduleSetMode(scheduleMode);
+    // Poll mode every 5 seconds to pick up system mode changes (if backend endpoint exists)
+    setInterval(() => {
+      if (window.syncScheduleModeFromBackend) {
+        window.syncScheduleModeFromBackend();
+      }
+    }, 5000);
   });
 
   // ===== SCHEDULE DISPLAY LOGIC =====

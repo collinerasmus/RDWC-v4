@@ -95,6 +95,8 @@
   document.addEventListener('DOMContentLoaded', async () => {
     await syncCircModeFromBackend();
     circSetMode(circMode, false);
+    // Poll mode every 5 seconds to pick up system mode changes
+    setInterval(syncCircModeFromBackend, 5000);
   });
 
   // Refresh health every 5s from relays

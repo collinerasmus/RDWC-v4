@@ -414,6 +414,9 @@
     bindMode(autoBtn, 'auto');
     bindMode(manualBtn, 'manual');
     bindMode(maintBtn, 'maintenance');
+    // Sync mode from backend and poll every 5s
+    refreshServerMode();
+    setInterval(refreshServerMode, 5000);
     // Initialize recent readings list
     refreshRecent();
     // Periodically refresh recent list (every 45s)

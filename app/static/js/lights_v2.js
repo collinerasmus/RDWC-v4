@@ -129,6 +129,8 @@
     setMode(mode, false);
     refresh();
     setInterval(refresh, 4000);
+    // Poll mode every 5 seconds to pick up system mode changes
+    setInterval(syncModeFromBackend, 5000);
     // expose for inline onclicks
     window.lightsSetMode = setMode;
   }
