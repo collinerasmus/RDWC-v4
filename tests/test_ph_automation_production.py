@@ -71,7 +71,9 @@ def db_path(tmp_path):
         ph_control._auto_enable(False)
         if ph_control._auto_stop_evt:
             ph_control._auto_stop_evt.set()
-        time.sleep(0.5)
+        # Wait for thread to actually stop with timeout
+        if ph_control._auto_thread and ph_control._auto_thread.is_alive():
+            ph_control._auto_thread.join(timeout=2.0)
     except Exception:
         pass
 
@@ -252,6 +254,8 @@ def test_worker_idempotent_toggle(db_path, client, monkeypatch):
     
     # Cleanup
     ph_control._auto_enable(False)
+    if ph_control._auto_thread:
+        ph_control._auto_thread.join(timeout=2.0)
 
 
 def test_nonblocking_lock(db_path, client, monkeypatch):
@@ -279,7 +283,7 @@ def test_nonblocking_lock(db_path, client, monkeypatch):
     
     try:
         # Attempt nonblocking dose (should fail with busy)
-        response = client.post("/api/ph/dose", json={"ml": 1.0, "reason": "test"})
+        response = client.post("/api/ph/dose", json={"ml": 1.0, "reason": "test", "nonblocking": True})
         # Should return 409 (busy/blocked)
         assert response.status_code == 409
         data = response.json()
@@ -292,7 +296,7 @@ def test_nonblocking_lock(db_path, client, monkeypatch):
         ph_control._dose_lock.release()
     
     # Now dose should succeed
-    response2 = client.post("/api/ph/dose", json={"ml": 1.0, "reason": "test"})
+    response2 = client.post("/api/ph/dose", json={"ml": 1.0, "reason": "test", "nonblocking": True})
     assert response2.status_code == 200
     assert response2.json()["ok"] is True
     assert dose_count["count"] == 1
