@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 # within endpoints that explicitly request direct hardware access.
 from app.diag import router as diag_router
 from app.blueprints.sensors_api import sensors_router
+from app.blueprints.frontend_logs_api import router as frontend_logs_router
 from app.hardware import PumpController, RelayBank
 from app.ph_control import router as ph_router
 from app.ec_control import router as ec_router
@@ -311,6 +312,7 @@ app.add_middleware(RequestAuditMiddleware)
 app.include_router(diag_router)
 app.include_router(debug_router, prefix="/debug", tags=["debug"])
 app.include_router(sensors_router)
+app.include_router(frontend_logs_router)
 app.include_router(ph_router)
 app.include_router(ec_router)
 app.include_router(schedule_router)
