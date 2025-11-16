@@ -1,0 +1,37 @@
+name: Readiness
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Readiness snapshot
+        env:
+          CALIB_ENABLE: '1'
+        run: |
+          python tools/commissioning_readiness.py --compact > readiness.json
+      - name: Upload readiness artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: readiness
+          path: readiness.json
+      - name: Run tests
+        run: |
+          pytest -q
