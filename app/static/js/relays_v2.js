@@ -104,6 +104,34 @@
     await Promise.all(refreshes);
     console.log('[System] All controller modes refreshed');
   }
+  
+  async function syncSystemModeFromControllers() {
+    // Check if all controllers are in the same mode, and if so, sync system mode
+    try {
+      const resp = await getJSON('/api/controllers/status');
+      const controllers = resp.controllers || {};
+      const modes = Object.values(controllers).map(c => c.mode).filter(m => m);
+      
+      if (modes.length === 0) return;
+      
+      // Check if all controllers have the same mode
+      const firstMode = modes[0];
+      const allSame = modes.every(m => m === firstMode);
+      
+      if (allSame && firstMode !== resp.system_mode) {
+        console.log(`[System] All controllers are ${firstMode}, syncing system mode...`);
+        await postJSON('/api/system_mode', { mode: firstMode });
+        currentMode = firstMode;
+        state.systemMode = firstMode;
+        updateModeButtons();
+        renderModeHint();
+        console.log(`[System] System mode synced to ${firstMode}`);
+      }
+    } catch (e) {
+      console.error('[System] Failed to sync system mode from controllers:', e);
+    }
+  }
+  window.syncSystemModeFromControllers = syncSystemModeFromControllers;
 
   function updateModeButtons() {
     const autoBtn = q('#mode-auto');

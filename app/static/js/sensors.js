@@ -86,6 +86,8 @@
       });
       updateSensorsHealth();
       toggleOverridesVisibility();
+      // Check if all controllers now match and sync system mode if so
+      if (window.syncSystemModeFromControllers) window.syncSystemModeFromControllers();
     }catch(e){ 
       console.error('[Sensors] set mode exception:', e);
       alert(`Error setting mode: ${e.message}`);

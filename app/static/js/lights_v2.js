@@ -21,7 +21,12 @@
     updateHealth();
     // Persist to backend (auto/manual only). Maintenance is a UI concept tied to safety.maintenance_override.
     if (syncBackend && (next==='auto' || next==='manual')){
-      postJSON('/api/controller/lights/mode', {mode: next}).catch(()=>{});
+      postJSON('/api/controller/lights/mode', {mode: next}).then(() => {
+        // Check if all controllers now match and sync system mode if so
+        if (window.syncSystemModeFromControllers) {
+          setTimeout(() => window.syncSystemModeFromControllers(), 200);
+        }
+      }).catch(()=>{});
     }
   }
   

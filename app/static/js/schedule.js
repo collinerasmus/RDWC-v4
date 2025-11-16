@@ -24,6 +24,10 @@
     if (maintContent) maintContent.style.display = (next === 'maint') ? 'block' : 'none';
 
     updateScheduleHealth();
+    // Check if all controllers now match and sync system mode if so
+    if (window.syncSystemModeFromControllers) {
+      setTimeout(() => window.syncSystemModeFromControllers(), 200);
+    }
   }
   
   async function syncScheduleModeFromBackend() {
