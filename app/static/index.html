@@ -1472,15 +1472,15 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         <button id="btnSensorsExport" class="btn-secondary btn-small" title="Export displayed graph data to CSV" onclick="exportCsv()" style="margin-left:auto;">Export CSV</button>
       </div>
       <!-- Settings with recent readings moved inside -->
-      <details class="minimal-settings" style="margin-top:16px;">
-        <summary class="muted minimal" style="cursor:pointer;font-size:0.85rem;padding:4px 0;">Settings</summary>
-        <div style="margin-top:8px;">
-          <div class="muted" style="font-size:0.8rem;margin-bottom:12px;opacity:0.7;">Live Sensors are cached by the background poller. Use "Read now" for an immediate sample (only available in Manual/Maintenance mode). Health details are available from the green "OK" badge.</div>
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-            <button id="btnSensorsReadNow" class="btn-secondary" style="padding:6px 12px;">Read now</button>
-            <span id="sensors-updated" class="muted" style="font-size:0.75rem;">—</span>
+      <details style="margin-top:12px;">
+        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Settings</summary>
+        <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+          <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Live Sensors are cached by the background poller. Use "Read now" for an immediate sample (only available in Manual/Maintenance mode). Health details are available from the green "OK" badge.</div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+            <button id="btnSensorsReadNow" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Read now</button>
+            <span id="sensors-updated" class="muted" style="font-size:0.7rem;">—</span>
           </div>
-          <div class="muted" style="font-size:0.75rem;font-weight:600;margin-bottom:4px;opacity:0.8;">Recent Readings (last 5)</div>
+          <div class="muted" style="font-size:0.7rem;font-weight:600;margin-bottom:6px;">Recent Readings (last 5)</div>
           <div id="s-recent" class="muted" style="font-size:0.7rem;opacity:0.8;"></div>
           
           <!-- pH Probe Calibration -->
@@ -1491,22 +1491,22 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             </div>
             <div style="margin-bottom:10px;">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <label style="font-size:0.8rem;color:#9ca3af;">Current pH:</label>
-                <span id="ph-current-inline" style="font-weight:600;color:#93c5fd;font-size:0.95rem;">—</span>
-                <button id="btnPhReadInline" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;">Read</button>
-                <button id="btnPhStabilizeInline" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;" title="Read until stable or timeout">Stabilize</button>
-                <button id="btnPhStatusInline" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;">Status</button>
+                <label style="font-size:0.7rem;color:#9ca3af;">Current pH:</label>
+                <span id="ph-current-inline" style="font-weight:600;color:#93c5fd;">—</span>
+                <button id="btnPhReadInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Read</button>
+                <button id="btnPhStabilizeInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" title="Read until stable or timeout">Stabilize</button>
+                <button id="btnPhStatusInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Status</button>
               </div>
             </div>
             <div style="margin-bottom:10px;">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-                <label style="font-size:0.8rem;color:#9ca3af;">Buffer Solution:</label>
-                <select id="ph-buffer-kind-inline" style="padding:3px 6px;border-radius:3px;border:1px solid rgba(148,163,184,0.3);background:transparent;color:#e0e0e0;font-size:0.8rem;">
+                <label style="font-size:0.7rem;color:#9ca3af;">Buffer Solution:</label>
+                <select id="ph-buffer-kind-inline" style="padding:4px 6px;border-radius:4px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;font-size:0.8rem;">
                   <option value="mid" data-default="7.00">Mid (7.00)</option>
                   <option value="low" data-default="4.00">Low (4.00)</option>
                   <option value="high" data-default="10.00">High (10.00)</option>
                 </select>
-                <input id="ph-buffer-val-inline" type="number" step="0.01" min="0" max="14" value="7.00" style="width:80px;padding:3px 6px;border-radius:3px;border:1px solid rgba(148,163,184,0.3);background:transparent;color:#e0e0e0;font-size:0.8rem;" />
+                <input id="ph-buffer-val-inline" type="number" step="0.01" min="0" max="14" value="7.00" style="width:80px;padding:4px 6px;border-radius:4px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;font-size:0.8rem;" />
               </div>
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 <button id="btnPhCalibrateInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Calibrate</button>
@@ -1514,14 +1514,14 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               </div>
             </div>
             <div style="margin-bottom:10px;">
-              <label style="display:block;font-size:0.8rem;margin-bottom:6px;color:#9ca3af;">Probe LEDs:</label>
+              <label style="display:block;font-size:0.7rem;margin-bottom:6px;color:#9ca3af;">Probe LEDs:</label>
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                <button id="btnLedsOnInline" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;" title="Turn LEDs on (all probes)">On</button>
-                <button id="btnLedsOffInline" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;" title="Turn LEDs off (all probes)">Off</button>
-                <button id="btnLedsBlinkInline" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;" title="Blink LEDs to locate probes">Blink</button>
+                <button id="btnLedsOnInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" title="Turn LEDs on (all probes)">On</button>
+                <button id="btnLedsOffInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" title="Turn LEDs off (all probes)">Off</button>
+                <button id="btnLedsBlinkInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" title="Blink LEDs to locate probes">Blink</button>
               </div>
             </div>
-            <div id="ph-calib-msg-inline" class="muted" style="padding:6px 10px;border-radius:4px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:36px;font-size:0.8rem;"></div>
+            <div id="ph-calib-msg-inline" class="muted" style="padding:6px 10px;border-radius:4px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:36px;font-size:0.7rem;"></div>
             <div id="ph-calib-log-inline" class="muted" style="margin-top:6px;max-height:120px;overflow:auto;font-family:ui-monospace,monospace;font-size:0.7rem;border-top:1px dashed rgba(148,163,184,0.15);padding-top:6px;"></div>
           </div>
           
@@ -1530,9 +1530,9 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             <div style="font-weight:600;margin-bottom:10px;font-size:0.9rem;color:#e0e0e0;">⚡ EC Probe Calibration</div>
             <div style="margin-bottom:10px;">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <label style="font-size:0.8rem;color:#9ca3af;">Current EC:</label>
-                <span id="ec-current-calib" style="font-weight:600;color:#93c5fd;font-size:0.95rem;">—</span>
-                <button id="btnEcStatus" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;">Status</button>
+                <label style="font-size:0.7rem;color:#9ca3af;">Current EC:</label>
+                <span id="ec-current-calib" style="font-weight:600;color:#93c5fd;">—</span>
+                <button id="btnEcStatus" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Status</button>
               </div>
             </div>
             <div style="margin-bottom:10px;">
@@ -1540,26 +1540,26 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <button id="btnEcCalClear" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Clear Calibration</button>
               </div>
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                <label style="font-size:0.8rem;color:#9ca3af;">Low Point (1413 µS/cm):</label>
-                <button id="btnEcCalLow" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;">Calibrate Low</button>
+                <label style="font-size:0.7rem;color:#9ca3af;">Low Point (1413 µS/cm):</label>
+                <button id="btnEcCalLow" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Calibrate Low</button>
               </div>
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <label style="font-size:0.8rem;color:#9ca3af;">High Point (12,880 µS/cm):</label>
-                <button id="btnEcCalHigh" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;">Calibrate High</button>
+                <label style="font-size:0.7rem;color:#9ca3af;">High Point (12,880 µS/cm):</label>
+                <button id="btnEcCalHigh" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Calibrate High</button>
               </div>
             </div>
             <div style="margin-bottom:10px;">
-              <label style="display:block;font-size:0.8rem;margin-bottom:6px;color:#9ca3af;">Probe Constant (K):</label>
+              <label style="display:block;font-size:0.7rem;margin-bottom:6px;color:#9ca3af;">Probe Constant (K):</label>
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                <select id="ec-k-select" style="padding:3px 6px;border-radius:3px;border:1px solid rgba(148,163,184,0.3);background:transparent;color:#e0e0e0;font-size:0.8rem;">
+                <select id="ec-k-select" style="padding:4px 6px;border-radius:4px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;font-size:0.8rem;">
                   <option value="0.1">K=0.1</option>
                   <option value="1.0" selected>K=1.0</option>
                   <option value="10.0">K=10.0</option>
                 </select>
-                <button id="btnEcSetK" class="btn-secondary" style="padding:3px 8px;font-size:0.8rem;">Set K</button>
+                <button id="btnEcSetK" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Set K</button>
               </div>
             </div>
-            <div id="ec-calib-msg" class="muted" style="padding:6px 10px;border-radius:4px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:36px;font-size:0.8rem;"></div>
+            <div id="ec-calib-msg" class="muted" style="padding:6px 10px;border-radius:4px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:36px;font-size:0.7rem;"></div>
           </div>
         </div>
       </details>
