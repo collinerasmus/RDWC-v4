@@ -29,10 +29,12 @@
     try {
       const resp = await getJSON('/api/controller/lights/mode');
       if (resp.ok && resp.mode) {
+        // Normalize maintenance to maint for UI (lights uses 'maintenance' not 'maint')
         setMode(resp.mode, false);
+        console.log('[Lights] Synced mode from backend:', resp.mode);
       }
     } catch (e) {
-      // Fallback to localStorage
+      console.error('[Lights] Failed to sync mode from backend:', e);
     }
   }
   window.syncLightsModeFromBackend = syncModeFromBackend;

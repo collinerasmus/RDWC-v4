@@ -32,10 +32,13 @@
       if (!r.ok) return;
       const data = await r.json();
       if (data.ok && data.mode) {
-        scheduleSetMode(data.mode);
+        // Normalize maintenance to maint for UI
+        const mode = data.mode === 'maintenance' ? 'maint' : data.mode;
+        scheduleSetMode(mode);
+        console.log('[Schedule] Synced mode from backend:', mode);
       }
     } catch (e) {
-      // Fallback to localStorage
+      console.error('[Schedule] Failed to sync mode from backend:', e);
     }
   }
   window.syncScheduleModeFromBackend = syncScheduleModeFromBackend;

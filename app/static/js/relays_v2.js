@@ -83,21 +83,26 @@
       showToast(`System mode set to ${mode.toUpperCase()}`, 'success');
       // Repaint to apply readonly styles
       renderRelays();
+      // Wait a moment for backend propagation to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
       // Notify all controller tabs to refresh their modes from backend
-      refreshAllControllerModes();
+      await refreshAllControllerModes();
     } catch(e) {
       console.error('Failed to set system mode:', e);
       showToast('Failed to change system mode', 'error');
     }
   }
   
-  function refreshAllControllerModes() {
-    // Notify each controller module to sync from backend
-    if (window.refreshServerMode) window.refreshServerMode(); // Sensors
-    if (window.syncCircModeFromBackend) window.syncCircModeFromBackend(); // Circulation
-    if (window.lightsSetMode && window.syncLightsModeFromBackend) window.syncLightsModeFromBackend(); // Lights
-    if (window.scheduleSetMode && window.syncScheduleModeFromBackend) window.syncScheduleModeFromBackend(); // Schedule
-    console.log('[System] Triggered controller mode refresh');
+  async function refreshAllControllerModes() {
+    // Notify each controller module to sync from backend (with delay between calls)
+    console.log('[System] Refreshing all controller modes from backend...');
+    const refreshes = [];
+    if (window.refreshServerMode) refreshes.push(window.refreshServerMode()); // Sensors
+    if (window.syncCircModeFromBackend) refreshes.push(window.syncCircModeFromBackend()); // Circulation
+    if (window.syncLightsModeFromBackend) refreshes.push(window.syncLightsModeFromBackend()); // Lights
+    if (window.syncScheduleModeFromBackend) refreshes.push(window.syncScheduleModeFromBackend()); // Schedule
+    await Promise.all(refreshes);
+    console.log('[System] All controller modes refreshed');
   }
 
   function updateModeButtons() {

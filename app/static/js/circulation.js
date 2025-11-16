@@ -49,10 +49,13 @@
       if (!r.ok) return;
       const data = await r.json();
       if (data.ok && data.mode) {
-        circSetMode(data.mode, false);
+        // Normalize maintenance to maint for UI
+        const mode = data.mode === 'maintenance' ? 'maint' : data.mode;
+        circSetMode(mode, false);
+        console.log('[Circulation] Synced mode from backend:', mode);
       }
     } catch (e) {
-      // Fallback to localStorage
+      console.error('[Circulation] Failed to sync mode from backend:', e);
     }
   }
   window.syncCircModeFromBackend = syncCircModeFromBackend;

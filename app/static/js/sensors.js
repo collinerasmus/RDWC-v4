@@ -21,9 +21,9 @@
         const j = await r.json(); 
         sensorsMode = j.mode || sensorsMode; 
         localStorage.setItem('sensors_mode', sensorsMode);
-        console.log('[Sensors] refreshServerMode got:', sensorsMode);
+        console.log('[Sensors] Synced mode from backend:', sensorsMode);
       }
-    }catch(e){ console.error('[Sensors] refreshServerMode failed:', e); }
+    }catch(e){ console.error('[Sensors] Failed to sync mode from backend:', e); }
     setActive($('sensors-mode-auto'), sensorsMode==='auto');
     setActive($('sensors-mode-manual'), sensorsMode==='manual');
     setActive($('sensors-mode-maint'), sensorsMode==='maintenance');
