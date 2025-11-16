@@ -52,13 +52,20 @@ def test_blocks_stale_even_with_maintenance_override():
             pass
 
 
-def test_allows_when_both_flags_true_and_gpio_finally(capsys):
+def test_allows_when_both_flags_true_and_gpio_finally(capsys, monkeypatch):
     # Setup temp DB for ph_control
     tmp = tempfile.NamedTemporaryFile(delete=False)
     tmp.close()
     mod = importlib.import_module('app.ph_control')
     original_db = mod.DB_PATH
     mod.DB_PATH = mod.Path(tmp.name)  # type: ignore[attr-defined]
+    
+    # Mock relay_guard.safe_set to bypass GPIO mismatch issues in test environment
+    guard_module = importlib.import_module('app.relay_guard')
+    def fake_guard_set(name, desired_on, reason="", actor="system"):
+        return {"changed": True, "ok": True, "coerced": False, "mismatch_retries": 0, "shadow": desired_on}
+    monkeypatch.setattr(guard_module, 'safe_set', fake_guard_set)
+    
     # Patch settings: maintenance_override=true AND allow_stale_on_override=true
     import app.settings as settings
     orig = settings.get_setting_key

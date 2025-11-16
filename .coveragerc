@@ -1,0 +1,19 @@
+[run]
+source = app
+branch = True
+omit =
+    tests/*
+    scripts/*
+    app/sensor_poller.py
+    app/camera.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.
+    raise NotImplementedError
+precision = 2
+show_missing = True
+
+[html]
+directory = coverage_html

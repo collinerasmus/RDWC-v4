@@ -207,8 +207,9 @@ def test_ph_auto_learning_applied(db_path, client, monkeypatch):
     assert abs(learned - expected) < 2.0
 
 
+@pytest.mark.slow
 def test_worker_idempotent_toggle(db_path, client, monkeypatch):
-    """Test that double-enable creates only one thread, and disable/re-enable works."""
+    """Test that double-enable creates only one thread, and disable/re-enable works (slow due to thread sleeps)."""
     # Mock relays
     def mock_set_dosing_ph_up(state, reason=None, force=False):
         return {"changed": True, "state": state, "reason": reason}
@@ -254,8 +255,9 @@ def test_worker_idempotent_toggle(db_path, client, monkeypatch):
     ph_control._auto_enable(False)
 
 
+@pytest.mark.slow
 def test_nonblocking_lock(db_path, client, monkeypatch):
-    """Test that while dose lock is held, auto cycle reports holding (cooldown) and does not double-dose."""
+    """Test that while dose lock is held, auto cycle reports holding (cooldown) and does not double-dose (slow due to lock and sleep)."""
     # Mock relays with artificial delay
     dose_count = {"count": 0}
     

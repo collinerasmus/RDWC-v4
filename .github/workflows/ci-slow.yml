@@ -1,0 +1,42 @@
+name: Slow Tests
+
+on:
+  schedule:
+    - cron: '30 5 * * *'  # Daily at 05:30 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: ci-slow-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  slow:
+    timeout-minutes: 40
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.11'
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-slow-${{ runner.os }}-${{ hashFiles('requirements.txt', 'requirements-dev.txt') }}
+          restore-keys: |
+            pip-slow-${{ runner.os }}-
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Run slow tests
+        timeout-minutes: 30
+        run: |
+          pytest -vv -m slow --maxfail=1 --durations=25 tests/ | tee slow-tests-report.txt
+      - name: Upload slow test report
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: slow-tests-report
+          path: slow-tests-report.txt
