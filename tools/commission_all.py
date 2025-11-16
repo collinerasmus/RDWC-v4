@@ -227,7 +227,7 @@ def generate_summary(phases_results: list, output_file: str) -> None:
     
     # Write to file
     try:
-        with open(output_file, 'w') as f:
+        with open(output_file, 'w', encoding='utf-8') as f:
             f.write('\n'.join(lines))
         print_status(f"Summary saved to: {output_file}", "success")
     except Exception as e:
