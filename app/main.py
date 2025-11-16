@@ -1776,15 +1776,15 @@ def get_system_mode_api():
 
 @app.post("/api/system_mode")
 def set_system_mode_api(body: dict = Body(...)):
-    """Set system mode (auto or manual)"""
-    from app.system_mode import set_system_mode, MODE_AUTO, MODE_MANUAL
+    """Set system mode (auto, manual, or maintenance)"""
+    from app.system_mode import set_system_mode, VALID_MODES
     
     mode = body.get("mode")
     
-    if mode not in [MODE_AUTO, MODE_MANUAL]:
+    if mode not in VALID_MODES:
         return JSONResponse(
             status_code=400,
-            content={"error": f"Invalid mode '{mode}'. Must be 'auto' or 'manual'"}
+            content={"error": f"Invalid mode '{mode}'. Must be one of: {', '.join(VALID_MODES)}"}
         )
     
     success = set_system_mode(mode)
@@ -1803,10 +1803,17 @@ def api_system_mode_fast(body: dict = Body(...)):
     Returns {mode, success}. Falls back handled by caller if needed."""
     from app.settings import upsert_settings
     mode = (body.get("mode") or "").lower()
-    if mode not in ("auto", "manual"):
+    if mode not in ("auto", "manual", "maintenance"):
         return JSONResponse(status_code=400, content={"error": "invalid_mode"})
     try:
         upsert_settings({"system_mode": mode})
+        # Also propagate to controllers
+        try:
+            from app.controller_modes import set_mode, CONTROLLERS
+            for controller in CONTROLLERS:
+                set_mode(controller, mode)
+        except Exception:
+            pass  # Best effort
         return {"mode": mode, "success": True, "fast": True}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": "fast_set_failed", "detail": str(e)})

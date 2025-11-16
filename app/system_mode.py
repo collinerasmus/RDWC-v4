@@ -19,6 +19,8 @@ CRITICAL_RELAYS = ["main_pump", "chiller_pump", "chiller_power", "lights"]
 # System modes
 MODE_AUTO = "auto"
 MODE_MANUAL = "manual"
+MODE_MAINTENANCE = "maintenance"
+VALID_MODES = {MODE_AUTO, MODE_MANUAL, MODE_MAINTENANCE}
 
 
 def _init_tables():
@@ -78,9 +80,9 @@ def get_system_mode() -> str:
         return MODE_MANUAL
 
 
-def set_system_mode(mode: str) -> bool:
-    """Set system mode (auto or manual)"""
-    if mode not in [MODE_AUTO, MODE_MANUAL]:
+def set_system_mode(mode: str, propagate_to_controllers: bool = True) -> bool:
+    """Set system mode (auto, manual, or maintenance) and optionally propagate to all controllers"""
+    if mode not in VALID_MODES:
         logger.error(f"Invalid system mode: {mode}")
         return False
     
@@ -95,7 +97,19 @@ def set_system_mode(mode: str) -> bool:
             """, (mode,))
             conn.commit()
             logger.info(f"System mode set to: {mode}")
-            return True
+        
+        # Propagate to all controllers if requested
+        if propagate_to_controllers:
+            try:
+                from app.controller_modes import set_mode, CONTROLLERS
+                for controller in CONTROLLERS:
+                    set_mode(controller, mode)
+                logger.info(f"Propagated system mode '{mode}' to all controllers")
+            except Exception as e:
+                logger.error(f"Failed to propagate system mode to controllers: {e}")
+                # Don't fail the whole operation if propagation fails
+        
+        return True
     except sqlite3.Error as e:
         logger.error(f"Failed to set system mode: {e}")
         return False

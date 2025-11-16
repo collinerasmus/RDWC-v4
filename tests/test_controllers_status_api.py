@@ -29,8 +29,8 @@ def test_controllers_status_shape():
     assert "controllers" in data
     assert "timestamp" in data
     
-    # System mode should be auto or manual
-    assert data["system_mode"] in ["auto", "manual"]
+    # System mode should be auto, manual, or maintenance
+    assert data["system_mode"] in ["auto", "manual", "maintenance"]
     
     # Maintenance override should be boolean
     assert isinstance(data["maintenance_override"], bool)
