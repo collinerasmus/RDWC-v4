@@ -238,6 +238,11 @@ python tools/commission_ph.py --auto-advance --skip-reservoir
 - Clear error messages with troubleshooting hints
 - Easy integration into automation pipelines
 
+**Reports generated:**
+- `sensor_report.json` (sensors), `ph_calibration.json` (pH), `ec_calibration.json` (EC)
+- `relay_safety.json` (relays), `pump_calibration.json` (pumps)
+- `commissioning_report_YYYYMMDD_HHMMSS.json` and `commissioning_summary.txt`
+
 ### Code Quality Tools
 
 This project follows Python best practices with minimal tooling overhead:
