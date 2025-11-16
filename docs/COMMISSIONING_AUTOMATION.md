@@ -532,10 +532,15 @@ jobs:
   commission:
     runs-on: self-hosted  # Raspberry Pi runner
     steps:
-      - uses: actions/checkout@v3
+      # NOTE: For security and Node 24 compatibility, prefer pinning actions by commit SHA
+      # and using the latest major versions (checkout@v5, setup-python@v6, upload-artifact@v5).
+      # Example (replace with pinned SHAs matching your org policy):
+      # uses: actions/checkout@v5 # pinned: actions/checkout@<SHA>
+      - uses: actions/checkout@v5
       
       - name: Setup Python
-        uses: actions/setup-python@v4
+        # pinned: actions/setup-python@<SHA>
+        uses: actions/setup-python@v6
         with:
           python-version: '3.9'
       
@@ -551,7 +556,8 @@ jobs:
           fi
       
       - name: Upload reports
-        uses: actions/upload-artifact@v3
+        # pinned: actions/upload-artifact@<SHA>
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: commissioning-reports
