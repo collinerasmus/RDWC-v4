@@ -37,7 +37,14 @@ jobs:
       - name: Run tests
         timeout-minutes: 20
         run: |
-          pytest -vv -m "not slow" tests/
+          coverage run -m pytest -vv -m "not slow" tests/
+          coverage report --fail-under=60
+          coverage xml
+      - name: Upload coverage xml
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: coverage-xml
+          path: coverage.xml
       - name: Upload artifact
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
