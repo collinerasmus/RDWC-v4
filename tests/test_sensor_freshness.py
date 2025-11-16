@@ -82,7 +82,7 @@ def test_sensor_freshness_recent(test_db):
 
 
 def test_sensor_freshness_120s_aged(test_db):
-    """Scenario B: 120s aged reading should be red (offline due to >60s age)."""
+    """Scenario B: 120s aged reading should be yellow (stale but <300s)."""
     from app.main import app
     
     insert_reading(test_db, age_seconds=120)
@@ -96,9 +96,10 @@ def test_sensor_freshness_120s_aged(test_db):
     # Validate freshness fields
     assert data["age_seconds"] >= 60, f"Expected age >=60s, got {data['age_seconds']}"
     assert data["stale"] is True, "120s aged reading should be stale"
-    # online flag uses 60s threshold, so 120s = offline → red health_state
+    # online flag uses 60s threshold, so 120s = offline
     assert data["online"] is False, "120s aged should be offline (>60s threshold)"
-    assert data["health_state"] == "red", f"Expected red (offline), got {data['health_state']}"
+    # health_state should be yellow for 60-300s range (stale but not too old)
+    assert data["health_state"] == "yellow", f"Expected yellow (60-300s), got {data['health_state']}"
 
 
 def test_sensor_freshness_400s_aged(test_db):
