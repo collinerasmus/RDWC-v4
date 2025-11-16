@@ -6,6 +6,54 @@ import pytest
 os.environ.setdefault("GPIOZERO_PIN_FACTORY", "mock")
 os.environ.setdefault("GPIOZERO_PIN_NUMBERING", "BCM")
 
+# Stateful GPIO mock for active-low relays (LOW=ON, HIGH=OFF)
+# This ensures relay_guard verification passes after state changes
+class StatefulGPIOShim:
+    """Mock GPIO that tracks pin state changes for active-low relays."""
+    BCM = 11
+    BOARD = 10
+    OUT = 0
+    IN = 1
+    HIGH = 1
+    LOW = 0
+    
+    def __init__(self):
+        self._pin_states = {}  # pin_number -> level (HIGH or LOW)
+        self._pin_modes = {}   # pin_number -> mode (OUT or IN)
+    
+    def setmode(self, mode):
+        pass
+    
+    def setwarnings(self, flag):
+        pass
+    
+    def setup(self, pin, direction, initial=None):
+        self._pin_modes[pin] = direction
+        if initial is not None:
+            self._pin_states[pin] = initial
+        elif pin not in self._pin_states:
+            # Default to HIGH (OFF for active-low)
+            self._pin_states[pin] = self.HIGH
+    
+    def output(self, pin, level):
+        self._pin_states[pin] = level
+    
+    def input(self, pin):
+        # Return current state, default to HIGH (safe OFF) if not set
+        return self._pin_states.get(pin, self.HIGH)
+    
+    def cleanup(self):
+        self._pin_states.clear()
+        self._pin_modes.clear()
+
+# Install stateful GPIO mock before any imports that use GPIO
+import sys
+if 'RPi.GPIO' not in sys.modules:
+    sys.modules['RPi.GPIO'] = StatefulGPIOShim()
+else:
+    # If already imported, replace it
+    sys.modules['RPi.GPIO'] = StatefulGPIOShim()
+
 # Reset relay state between tests to avoid inter-test coupling and set predictable lockouts
 @pytest.fixture(autouse=True)
 def reset_relays_between_tests():

@@ -125,9 +125,11 @@ async def get_sensors():
         d = read_sensors_from_db(max_age_sec=60)
         age_sec = d.get("age_sec")
         online = d.get("online", False)
-        if online and age_sec is not None and age_sec < 60:
+        # Health state based on age regardless of online flag:
+        # green: <60s, yellow: 60-300s (stale but recent), red: >=300s or None
+        if age_sec is not None and age_sec < 60:
             health_state = "green"
-        elif online and age_sec is not None and age_sec < 300:
+        elif age_sec is not None and age_sec < 300:
             health_state = "yellow"
         else:
             health_state = "red"
