@@ -15,7 +15,7 @@
   - `GET /api/controller/{name}/mode` - Get specific controller mode
   - `POST /api/controller/{name}/mode` - Set controller mode with validation
 - Comprehensive test suite: 35 tests covering integration, API, and end-to-end scenarios
-- Documentation: `MODE_CONTROLLER_IMPLEMENTATION.md`, `MODE_IMPLEMENTATION_SUMMARY.md`, `DEPLOYMENT_STATUS.md`
+- Documentation: `MODE_CONTROLLER_IMPLEMENTATION.md`
 
 ### Changed
 - Refactored pH, EC, chiller, and scheduler automation workers to check mode before executing
