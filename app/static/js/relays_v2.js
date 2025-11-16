@@ -110,22 +110,42 @@
     try {
       const resp = await getJSON('/api/controllers/status');
       const controllers = resp.controllers || {};
+      const controllerNames = Object.keys(controllers);
       const modes = Object.values(controllers).map(c => c.mode).filter(m => m);
       
-      if (modes.length === 0) return;
+      console.log('[System] Checking controller modes:', {
+        system_mode: resp.system_mode,
+        controllers: Object.fromEntries(controllerNames.map(name => [name, controllers[name].mode]))
+      });
+      
+      if (modes.length === 0) {
+        console.log('[System] No controller modes found, skipping sync');
+        return;
+      }
       
       // Check if all controllers have the same mode
       const firstMode = modes[0];
       const allSame = modes.every(m => m === firstMode);
       
+      console.log('[System] Mode check:', {
+        allSame,
+        firstMode,
+        systemMode: resp.system_mode,
+        needsSync: allSame && firstMode !== resp.system_mode
+      });
+      
       if (allSame && firstMode !== resp.system_mode) {
-        console.log(`[System] All controllers are ${firstMode}, syncing system mode...`);
+        console.log(`[System] All ${modes.length} controllers are "${firstMode}", syncing system mode from "${resp.system_mode}"...`);
         await postJSON('/api/system_mode', { mode: firstMode });
         currentMode = firstMode;
         state.systemMode = firstMode;
         updateModeButtons();
         renderModeHint();
-        console.log(`[System] System mode synced to ${firstMode}`);
+        console.log(`[System] ✓ System mode synced to "${firstMode}"`);
+      } else if (allSame) {
+        console.log(`[System] All controllers match system mode "${firstMode}", no sync needed`);
+      } else {
+        console.log('[System] Controllers have different modes, no sync performed');
       }
     } catch (e) {
       console.error('[System] Failed to sync system mode from controllers:', e);
@@ -542,6 +562,7 @@
     window.APP_POLL = window.APP_POLL || { relays: 1000, sensors: 5000 };
     let relaysTimer = setInterval(refreshRelays, window.APP_POLL.relays || 1000);
     let estopTimer = setInterval(refreshEstop, 2000);
+    let systemModeTimer = setInterval(refreshSystemMode, 3000); // Poll system mode every 3s
 
     window.addEventListener('settings:ui', (ev)=>{
       try {
