@@ -3,8 +3,207 @@
   const getJSON = async (u)=>{ const r = await fetch(u,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); };
   function setBadge(id, on){ const el = q(id); if (!el) return; el.className = 'bop-status-badge '+(on?'on':'off'); el.setAttribute('role','status'); el.setAttribute('aria-live','polite'); el.setAttribute('aria-label', (id.replace('#','')+' '+(on?'on':'off')).replace(/[-_]/g,' ')); }
   function setChip(id, text, cls){ const el = q(id); if (!el) return; el.textContent = text; el.className = 'ui-status-chip ' + cls; el.setAttribute('role','status'); el.setAttribute('aria-live','polite'); el.setAttribute('aria-label', (id.replace('#','')+' '+text).replace(/[-_]/g,' ')); }
-  const last = { chiller: 0, ph: 0, ec: 0, settings: 0, sensors: 0 };
+  const last = { chiller: 0, ph: 0, ec: 0, settings: 0, sensors: 0, consolidated: 0 };
+  let useConsolidated = true; // Feature flag for new consolidated endpoint
+  
+  async function refreshConsolidated(){
+    try {
+      const data = await getJSON('/api/controllers/status');
+      const hb = q('#heartbeat'); if (hb) hb.textContent = 'heartbeat ' + new Date().toLocaleTimeString();
+      
+      // System-wide state
+      const systemMode = data.system_mode || 'manual';
+      const estop = !!data.estop;
+      const maintOverride = !!data.maintenance_override;
+      
+      // Update E-STOP buttons
+      const estopBtns = document.querySelectorAll('.header-estop-btn, #estop-btn');
+      estopBtns.forEach(btn => {
+        if (btn) {
+          btn.textContent = estop ? '🚨 E-STOP ACTIVE' : (btn.id === 'estop-btn' ? 'E‑STOP' : 'E-STOP');
+          btn.className = estop ? 'btn-secondary' : 'btn-secondary';
+          btn.style.background = estop ? 'rgba(239,68,68,0.2)' : '';
+          btn.style.borderColor = estop ? '#ef4444' : '';
+          btn.style.color = estop ? '#ef4444' : '';
+        }
+      });
+      
+      // Update mode selector buttons (system-wide)
+      const autoBtn = q('#system-mode-auto');
+      const manualBtn = q('#system-mode-manual');
+      const maintBtn = q('#system-mode-maint');
+      if (autoBtn) autoBtn.className = systemMode === 'auto' ? 'btn-chip active' : 'btn-chip';
+      if (manualBtn) manualBtn.className = systemMode === 'manual' ? 'btn-chip active' : 'btn-chip';
+      if (maintBtn) maintBtn.className = systemMode === 'maintenance' ? 'btn-chip active' : 'btn-chip';
+      
+      // Show maintenance override banner if active
+      let banner = q('#maintenance-override-banner');
+      if (maintOverride && !banner) {
+        const container = q('.container');
+        if (container) {
+          banner = document.createElement('div');
+          banner.id = 'maintenance-override-banner';
+          banner.style.cssText = 'background:rgba(245,158,11,0.15);border:2px solid #f59e0b;color:#fbbf24;padding:12px;margin:12px 0;border-radius:8px;font-weight:600;text-align:center;';
+          banner.innerHTML = '⚠️ MAINTENANCE OVERRIDE ACTIVE ⚠️';
+          container.insertBefore(banner, container.firstChild);
+        }
+      } else if (!maintOverride && banner) {
+        banner.remove();
+      }
+      
+      // Controllers
+      const controllers = data.controllers || {};
+      
+      // pH Controller
+      if (controllers.ph) {
+        const ph = controllers.ph;
+        const guards = ph.guards || {};
+        const hardKeys = ['estop','reservoir'];
+        const softKeys = ['safe_off','sensor_stale','interval','daily_cap','ec_baseline_low'];
+        const hardActive = hardKeys.some(k => !!guards[k]);
+        const softActive = softKeys.some(k => !!guards[k]);
+        
+        let healthText = 'OK', healthClass = 'success';
+        if (hardActive) { healthText = 'BLOCKED'; healthClass = 'danger'; }
+        else if (softActive) { healthText = 'GUARDED'; healthClass = 'warning'; }
+        
+        setChip('#ov-ph-health', healthText, healthClass);
+        setChip('#ov-ph-modechip', ph.auto_enabled ? 'AUTO' : 'MANUAL', ph.auto_enabled ? 'success' : 'neutral');
+        
+        const allActive = [...hardKeys.filter(k=>!!guards[k]), ...softKeys.filter(k=>!!guards[k])];
+        const phHealthEl = q('#ov-ph-health');
+        if (phHealthEl) {
+          phHealthEl.title = allActive.length ? ('Active guards: ' + allActive.join(', ')) : 'All guards OK';
+          if (ph.holding_reason) phHealthEl.title += ` | Holding: ${ph.holding_reason}`;
+          if (ph.learned_ml_per_pH) phHealthEl.title += ` | Learned: ${ph.learned_ml_per_pH.toFixed(2)} ml/pH`;
+        }
+      }
+      
+      // EC Controller
+      if (controllers.ec) {
+        const ec = controllers.ec;
+        const guards = ec.guards || {};
+        const hardKeys = ['estop','reservoir'];
+        const softKeys = ['sensor_stale','mix_lock','interval','daily_cap'];
+        const hardActive = hardKeys.some(k => !!guards[k]);
+        const softActive = softKeys.some(k => !!guards[k]);
+        
+        let healthText = 'OK', healthClass = 'success';
+        if (hardActive) { healthText = 'BLOCKED'; healthClass = 'danger'; }
+        else if (softActive) { healthText = 'GUARDED'; healthClass = 'warning'; }
+        
+        setChip('#ov-ec-health', healthText, healthClass);
+        setChip('#ov-ec-modechip', ec.auto_enabled ? 'AUTO' : 'MANUAL', ec.auto_enabled ? 'success' : 'neutral');
+        
+        const allActive = [...hardKeys.filter(k=>!!guards[k]), ...softKeys.filter(k=>!!guards[k])];
+        const ecHealthEl = q('#ov-ec-health');
+        if (ecHealthEl) {
+          ecHealthEl.title = allActive.length ? ('Active guards: ' + allActive.join(', ')) : 'All guards OK';
+          if (ec.holding_reason) ecHealthEl.title += ` | Holding: ${ec.holding_reason}`;
+          if (ec.learned_ml_per_mScm) ecHealthEl.title += ` | Learned: ${ec.learned_ml_per_mScm.toFixed(2)} ml/mS/cm`;
+        }
+      }
+      
+      // Chiller Controller
+      if (controllers.chiller) {
+        const chiller = controllers.chiller;
+        const tempStr = chiller.current_temp ? ` ${chiller.current_temp.toFixed(1)}°C` : '';
+        const modeText = chiller.mode === 'manual' ? 'MANUAL' : chiller.mode === 'maintenance' ? 'MAINT' : 'AUTO';
+        setChip('#ov-chiller-modechip', modeText + tempStr, 
+                chiller.mode === 'manual' ? 'neutral' : chiller.mode === 'maintenance' ? 'warning' : 'success');
+      }
+      
+      // Lights Controller
+      if (controllers.lights) {
+        const lights = controllers.lights;
+        setBadge('#ov-lights', lights.is_on);
+        setChip('#ov-lights-modechip', 
+                lights.mode === 'manual' ? 'MANUAL' : 'SCHEDULE', 
+                lights.mode === 'manual' ? 'neutral' : 'success');
+      }
+      
+      // Circulation Controller
+      if (controllers.circulation) {
+        const circ = controllers.circulation;
+        setBadge('#ov-main-pump', circ.main_pump);
+        setBadge('#ov-chiller-pump', circ.chiller_pump);
+        setChip('#ov-main-pump-modechip', 
+                circ.mode === 'manual' ? 'MANUAL' : 'PROTECTED', 
+                circ.mode === 'manual' ? 'neutral' : 'success');
+      }
+      
+      // Update chiller power badge (from relay status - need to keep for now)
+      try {
+        const relayStatus = await getJSON('/api/relays/status');
+        const rel = relayStatus.relays || {};
+        setBadge('#ov-chiller', !!(rel.chiller_power && rel.chiller_power.is_on));
+      } catch(e) { /* ignore */ }
+      
+      last.consolidated = Date.now();
+    } catch(e) {
+      console.error('[Overview] Consolidated endpoint failed, falling back to legacy', e);
+      useConsolidated = false; // Fall back to legacy mode on error
+    }
+  }
+  
+  async function updateSensors() {
+    // Sensor poller status (separate from consolidated endpoint)
+    if (Date.now() - last.sensors < 6000) return;
+    try {
+      const ps = await getJSON('/api/sensors/status');
+      const age = ps.last_sample_ts ? (Date.now()/1000 - ps.last_sample_ts) : 9e9;
+      const online = ps.running && age < 60;
+      let stale = false;
+      try {
+        const s = await getJSON('/api/sensors');
+        if (s && s.ts) {
+          const tsAge = Math.max(0, Math.round((Date.now() - new Date(s.ts).getTime())/1000));
+          stale = !online && tsAge < 600;
+        }
+      } catch(_) { /* ignore */ }
+      
+      const sensorHealthEl = q('#ov-sensors-health');
+      const sensorStatusEl = q('#ov-sensors-status');
+      const sensorModeEl = q('#ov-sensors-modechip');
+      
+      if (sensorHealthEl) {
+        const ageStr = age < 60 ? `${Math.round(age)}s` : age < 3600 ? `${Math.round(age/60)}m` : `${Math.round(age/3600)}h`;
+        sensorHealthEl.textContent = online ? 'ONLINE' : (stale ? 'STALE' : 'OFFLINE');
+        sensorHealthEl.className = 'ui-status-chip ' + (online ? 'success' : (stale ? 'warning' : 'danger'));
+        sensorHealthEl.title = online
+          ? `Headless poller • Last sample: ${ageStr} ago • Polls: ${ps.poll_count || 0}`
+          : (stale ? 'Poller down; showing recent DB/cache values (<10m old)' : 'Poller down; no recent data');
+      }
+      if (sensorStatusEl) {
+        sensorStatusEl.textContent = online ? 'ACTIVE' : (stale ? 'RECENT' : 'OFF');
+        sensorStatusEl.className = 'ui-status-chip ' + (online ? 'success' : (stale ? 'warning' : 'danger'));
+        sensorStatusEl.title = online ? 'Sensor poller active' : (stale ? 'Recent DB/cache fallback' : 'No sensor data');
+      }
+      if (sensorModeEl) {
+        // Get system mode from relays status for sensor mode display
+        try {
+          const wrap = await getJSON('/api/relays/status');
+          sensorModeEl.textContent = wrap && wrap.mode ? wrap.mode.toUpperCase() : 'MANUAL';
+          sensorModeEl.className = 'ui-status-chip ' + ((wrap && wrap.mode === 'auto') ? 'success' : 'neutral');
+          sensorModeEl.title = 'Sensors mode';
+        } catch(_) { /* ignore */ }
+      }
+      last.sensors = Date.now();
+    } catch(e) { 
+      console.warn('[Overview] sensor poller status unavailable', e); 
+    }
+  }
+  
   async function refresh(){
+    // Try consolidated endpoint first (more efficient, single request)
+    if (useConsolidated && (Date.now() - last.consolidated > 2000)) {
+      await refreshConsolidated();
+      // Still need to update sensors separately as they're not in consolidated yet
+      await updateSensors();
+      return;
+    }
+    
+    // Legacy fallback path
     try{
   const wrap = await getJSON('/api/relays/status');
   // Debug heartbeat
@@ -201,6 +400,31 @@
     }
     refresh(); setInterval(refresh, 3000); bindEstopBtn();
   }
+  // System mode setter for UI buttons
+  window.systemSetMode = async function(mode) {
+    if (!['auto', 'manual', 'maintenance'].includes(mode)) return;
+    try {
+      const res = await fetch('/api/system_mode', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mode})
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      // Optimistic UI update
+      const autoBtn = q('#system-mode-auto');
+      const manualBtn = q('#system-mode-manual');
+      const maintBtn = q('#system-mode-maint');
+      if (autoBtn) autoBtn.className = mode === 'auto' ? 'btn-chip active' : 'btn-chip';
+      if (manualBtn) manualBtn.className = mode === 'manual' ? 'btn-chip active' : 'btn-chip';
+      if (maintBtn) maintBtn.className = mode === 'maintenance' ? 'btn-chip active' : 'btn-chip';
+      // Force immediate refresh
+      setTimeout(() => { useConsolidated = true; refresh(); }, 100);
+    } catch(e) {
+      console.error('[Overview] Failed to set system mode:', e);
+      alert('Failed to set system mode: ' + e.message);
+    }
+  };
+  
   function bindEstopBtn(){
     // Bind all E-STOP buttons across all tabs
     const btns = document.querySelectorAll('.header-estop-btn, #estop-btn');
