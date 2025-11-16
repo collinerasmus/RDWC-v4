@@ -89,6 +89,8 @@ def summarize() -> Dict[str, Any]:
 def main():
     parser = argparse.ArgumentParser(description="Commissioning readiness snapshot")
     parser.add_argument("--compact", action="store_true", help="Emit compact JSON (no raw section)")
+    parser.add_argument("--require-sensors", action="store_true", help="Fail if sensors not online (hardware required)")
+    parser.add_argument("--require-ph", action="store_true", help="Fail if pH value missing or out of reasonable range")
     args = parser.parse_args()
     summary = summarize()
     if args.compact:
@@ -104,6 +106,16 @@ def main():
     if not essential_ok:
         print("READINESS: partial (some essentials missing)")
         sys.exit(1)
+
+    # Optional stricter checks
+    if args.require_sensors and not summary.get("sensors_online_flag"):
+        print("READINESS: sensors requirement not met (offline)")
+        sys.exit(2)
+    if args.require_ph:
+        if not summary.get("ph_numeric") or not summary.get("ph_reasonable_range"):
+            print("READINESS: pH requirement not met")
+            sys.exit(3)
+
     print("READINESS: baseline snapshot complete")
 
 if __name__ == "__main__":

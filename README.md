@@ -154,6 +154,38 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
 - SQLite database at `data/rdwc.db` (created automatically)
 - Logs output to console in development mode
 
+### Commissioning Readiness Script
+
+Use the automated snapshot tool to verify baseline application wiring before attaching real hardware.
+
+Verbose (raw endpoint payloads included):
+```bash
+python tools/commissioning_readiness.py
+```
+
+Compact JSON (CI / log-friendly):
+```bash
+python tools/commissioning_readiness.py --compact > readiness.json
+```
+
+Stricter hardware gating (fail if sensors offline or pH out-of-range):
+```bash
+python tools/commissioning_readiness.py --compact --require-sensors --require-ph
+```
+
+Exit codes:
+- `0` baseline snapshot OK
+- `1` essentials missing (app wiring failure)
+- `2` sensors requirement failed (offline)
+- `3` pH requirement failed (missing / unreasonable value)
+
+Recommended CI step (no hardware expected):
+```bash
+python tools/commissioning_readiness.py --compact
+```
+
+Add stricter flags only on hardware-backed environments (e.g., self-hosted Pi runner).
+
 ### Code Quality Tools
 
 This project follows Python best practices with minimal tooling overhead:
