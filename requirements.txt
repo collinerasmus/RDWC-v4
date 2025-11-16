@@ -7,3 +7,6 @@ gpiozero
 httpx==0.28.1
 python-dotenv
 pytz
+requests>=2.31.0
+jsonschema>=4.17.0
+rich>=13.0.0
