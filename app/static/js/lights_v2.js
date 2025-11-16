@@ -10,7 +10,7 @@
   function setActive(btn, on){ if(!btn) return; if(on) btn.classList.add('active'); else btn.classList.remove('active'); }
   function show(id, on){ const el = $(id); if(el) el.style.display = on? 'block':'none'; }
 
-  function setMode(next){
+  function setMode(next, syncBackend = true){
     mode = next; localStorage.setItem('lights_mode', next);
     setActive($("lights-mode-manual"), next==='manual');
     setActive($("lights-mode-auto"), next==='auto');
@@ -20,8 +20,19 @@
     show('lights-maint-content', next==='maintenance');
     updateHealth();
     // Persist to backend (auto/manual only). Maintenance is a UI concept tied to safety.maintenance_override.
-    if (next==='auto' || next==='manual'){
-      postJSON('/api/relays/mode', {mode: next}).catch(()=>{});
+    if (syncBackend && (next==='auto' || next==='manual')){
+      postJSON('/api/controller/lights/mode', {mode: next}).catch(()=>{});
+    }
+  }
+  
+  async function syncModeFromBackend() {
+    try {
+      const resp = await getJSON('/api/controller/lights/mode');
+      if (resp.ok && resp.mode) {
+        setMode(resp.mode, false);
+      }
+    } catch (e) {
+      // Fallback to localStorage
     }
   }
 
@@ -98,13 +109,16 @@
     }finally{ setTimeout(refresh, 300); }
   }
 
-  function init(){
+  async function init(){
+    // Sync mode from backend first
+    await syncModeFromBackend();
+    
     $('lights-mode-manual')?.addEventListener('click', ()=> setMode('manual'));
     $('lights-mode-auto')?.addEventListener('click', ()=> setMode('auto'));
     $('lights-mode-maint')?.addEventListener('click', ()=> setMode('maintenance'));
     $('btnLightsToggle')?.addEventListener('click', ()=> toggle());
     // initial state
-    setMode(mode);
+    setMode(mode, false);
     refresh();
     setInterval(refresh, 4000);
     // expose for inline onclicks

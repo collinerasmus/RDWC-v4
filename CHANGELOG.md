@@ -1,5 +1,39 @@
 # Changelog
 
+## v4.1.0 (2025-11-16)
+
+**Mode Controller System Implementation**
+
+### Added
+- Comprehensive mode controller system for pH, EC, Lights, Chiller, and Circulation subsystems
+- Three operational modes per controller: `auto` (automation enabled), `manual` (automation disabled), `maintenance` (diagnostics mode)
+- Mode persistence via SQLite settings table (`controller.<name>.mode` keys)
+- UI mode selector buttons for each controller tab with real-time status indicators
+- Backend synchronization: JavaScript controllers fetch mode from API on page load
+- API endpoints:
+  - `GET /api/controller/modes` - Retrieve all controller modes
+  - `GET /api/controller/{name}/mode` - Get specific controller mode
+  - `POST /api/controller/{name}/mode` - Set controller mode with validation
+- Comprehensive test suite: 35 tests covering integration, API, and end-to-end scenarios
+- Documentation: `MODE_CONTROLLER_IMPLEMENTATION.md`, `MODE_IMPLEMENTATION_SUMMARY.md`, `DEPLOYMENT_STATUS.md`
+
+### Changed
+- Refactored pH, EC, chiller, and scheduler automation workers to check mode before executing
+- Enhanced JavaScript controllers (ph.js, ec.js, lights_v2.js, chiller.js, circulation.js) with `syncModeFromBackend()` functions
+- Improved UI layout and visual consistency across controller tabs
+- Mode state now syncs between localStorage and database, preventing divergence
+
+### Fixed
+- Browser cache issues preventing UI updates after deployments
+- Mode persistence across service restarts
+- Race conditions between localStorage and backend state
+
+### Technical Details
+- Backend: `app/controller_modes.py` provides centralized mode management
+- Controllers check: `if get_mode("controller_name") != "auto": hold_automation()`
+- UI sync flow: page load → fetch `/api/controller/{name}/mode` → update UI state → fallback to localStorage
+- All changes backward compatible (defaults to `auto` mode)
+
 ## v4.0.1 (2025-11-10)
 
 **UI Health Alignment & Stability**

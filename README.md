@@ -12,8 +12,9 @@ Automated RDWC (Recirculating Deep Water Culture) hydroponic controller with pH/
 2. **Install**: `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
   - Dev tools (optional): `pip install -r requirements-dev.txt`
 3. **Configure**: Copy `.env.example` to `.env`, set Pi IP, sensor addresses
-4. **Deploy**: `./deploy_pi.sh` (from dev machine) or `systemctl start rdwc.service` (on Pi)
+4. **Deploy**: `./deploy_pi.sh` (from dev machine) or `sudo systemctl start rdwc.service` (on Pi)
 5. **Access**: http://192.168.88.49:8080
+6. **Important**: After deployment, clear browser cache (Ctrl+Shift+R) to load new assets
 
 ## Ops: No-Pytest Health Checks
 
@@ -45,21 +46,50 @@ VS Code is configured to disable local test discovery to reduce noise. Use the s
 - E-STOP via `safety.estop` setting
 - Watchdog timer monitors sensor loop
 
+## Mode Controller System
+
+**NEW in v4.1.0**: Independent mode control for each subsystem.
+
+Each controller supports three operational modes:
+- **Auto**: Automation enabled (pH/EC dosing, temperature control, scheduled lights)
+- **Manual**: Automation disabled, manual operations only
+- **Maintenance**: Diagnostics mode with relaxed guards
+
+**Controllers**: pH, EC, Lights, Chiller, Circulation
+
+**Mode Persistence**: Modes are stored in SQLite and survive restarts. UI syncs with backend on page load.
+
+**API Access**:
+```bash
+# Get all controller modes
+curl http://192.168.88.49:8080/api/controller/modes
+
+# Get specific controller mode
+curl http://192.168.88.49:8080/api/controller/ph/mode
+
+# Set controller to manual mode
+curl -X POST http://192.168.88.49:8080/api/controller/ph/mode \
+  -H "Content-Type: application/json" \
+  -d '{"mode": "manual"}'
+```
+
+See `MODE_CONTROLLER_IMPLEMENTATION.md` for detailed documentation.
+
 ## Dashboard Tabs
 
 Web UI organized by function (http://192.168.88.49:8080):
 
 1. **Overview**: System at-a-glance, health indicators, grow day counter
-2. **pH Control**: Manual dosing, automation, dose history, settings
-3. **EC Control**: G/M/B nutrient dosing, mix ratios, auto-raise, CSV export
-4. **Temperature**: Chiller control, min ON/OFF protections
-5. **Lights**: Schedule (start time, duration), manual override
+2. **pH Control**: Manual dosing, automation, dose history, settings, **mode selector**
+3. **EC Control**: G/M/B nutrient dosing, mix ratios, auto-raise, CSV export, **mode selector**
+4. **Temperature**: Chiller control, min ON/OFF protections, **mode selector**
+5. **Lights**: Schedule (start time, duration), manual override, **mode selector**
 6. **Sensors**: Live readings, export, calibration status
 7. **Trends**: Multi-day charts (pH, EC, temp) with date pickers
 8. **Relays**: Manual relay control, state viewer, cooldown timers
 9. **Settings**: General (reservoir size, grow start), Alerts (email/Telegram), Calibration
 
-> Version: `v4.0.0` — see CHANGELOG.md
+> Version: `v4.1.0` — see CHANGELOG.md
 
 ## How it works
 
