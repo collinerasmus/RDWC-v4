@@ -1612,7 +1612,17 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
           <!-- Auto Mode Content -->
           <div id="ph-auto-content" style="display:none;">
-            <button id="btnAutoToggle" class="btn-secondary">Enable automation</button>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+              <button id="btnAutoToggle" class="btn-secondary">Enable automation</button>
+              <details style="flex-shrink:0;">
+                <summary class="btn-secondary btn-small" style="cursor:pointer;list-style:none;display:inline-block;">Advanced</summary>
+                <div style="position:absolute;z-index:100;margin-top:4px;padding:12px;background:#111827;border:1px solid #374151;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.4);min-width:200px;">
+                  <div class="muted" style="font-size:0.75rem;margin-bottom:8px;">Advanced Automation Controls</div>
+                  <button id="btnPhClearLearner" class="btn-secondary btn-small" style="width:100%;margin-bottom:6px;">Clear Learned Value</button>
+                  <div id="phLearnedValue" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;"></div>
+                </div>
+              </details>
+            </div>
           </div>
 
           <!-- Maintenance Mode Content -->
@@ -1845,7 +1855,17 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             </div>
             <!-- Auto Mode Content -->
             <div id="ec-auto-content" style="display:none;">
-              <button id="btnEcAutoToggle" class="btn-secondary">Enable automation</button>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                <button id="btnEcAutoToggle" class="btn-secondary">Enable automation</button>
+                <details style="flex-shrink:0;">
+                  <summary class="btn-secondary btn-small" style="cursor:pointer;list-style:none;display:inline-block;">Advanced</summary>
+                  <div style="position:absolute;z-index:100;margin-top:4px;padding:12px;background:#111827;border:1px solid #374151;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.4);min-width:200px;">
+                    <div class="muted" style="font-size:0.75rem;margin-bottom:8px;">Advanced Automation Controls</div>
+                    <button id="btnEcClearLearner" class="btn-secondary btn-small" style="width:100%;margin-bottom:6px;">Clear Learned Value</button>
+                    <div id="ecLearnedValue" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;"></div>
+                  </div>
+                </details>
+              </div>
             </div>
 
             <!-- Maintenance Mode Banner (shares manual controls; warning shown when in maintenance) -->

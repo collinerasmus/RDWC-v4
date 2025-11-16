@@ -118,6 +118,17 @@
       autoBtn.textContent = enabled ? 'Disable EC automation' : 'Enable EC automation';
       autoBtn.title = 'Automatically raises EC when below target band using G/M/B mix';
     }
+    
+    // Update learned value display
+    const learnedEl = el('ecLearnedValue');
+    if (learnedEl && s?.auto) {
+      const learned = s.auto.learned_ml_per_mScm;
+      if (learned !== null && learned !== undefined) {
+        learnedEl.innerHTML = `Learned: <strong>${learned.toFixed(2)} ml/mS/cm</strong>`;
+      } else {
+        learnedEl.innerHTML = `<span style="opacity:0.6;">No learned value yet</span>`;
+      }
+    }
 
     // Update controller health chip after status changes
     updateHealthIndicator();
@@ -421,6 +432,15 @@
       if(ml > 0) doseEC(ml);
     });
     el('btnEcAutoToggle')?.addEventListener('click', toggleAuto);
+    
+    // Clear learner button
+    el('btnEcClearLearner')?.addEventListener('click', async ()=>{
+      if (!confirm('Clear learned EC value? This will reset the automation learning.')) return;
+      const r = await fetch('/api/ec/auto/learn/reset', {method:'POST'});
+      let j = null; try{ j = await r.json(); }catch(e){}
+      if(window.showToast){ showToast(j?.ok ? 'EC learner reset' : 'Error resetting learner', j?.ok ? 'success':'error'); }
+      tick();
+    });
     // Export uses displayed window range
     el('btnEcExport')?.addEventListener('click', ()=>{
       if(window.ecChart && window.ecChart.exportCSV){ window.ecChart.exportCSV(); }

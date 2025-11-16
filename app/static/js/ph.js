@@ -252,6 +252,17 @@
       autoBtn.textContent = enabled ? 'Disable pH Up automation' : 'Enable pH Up automation';
       autoBtn.title = 'Automatically raises pH when below target band using pH Up';
     }
+    
+    // Update learned value display
+    const learnedEl = el('phLearnedValue');
+    if (learnedEl && s?.auto) {
+      const learned = s.auto.learned_ml_per_pH;
+      if (learned !== null && learned !== undefined) {
+        learnedEl.innerHTML = `Learned: <strong>${learned.toFixed(2)} ml/pH</strong>`;
+      } else {
+        learnedEl.innerHTML = `<span style="opacity:0.6;">No learned value yet</span>`;
+      }
+    }
 
     // Update caps display from settings (mirror EC caps summary)
     if (window.rdwcSettings) {
@@ -502,6 +513,15 @@
       let j = null; try{ j = await r.json(); }catch(e){}
       if(window.showToast){ showToast(j?.ok ? (enable ? 'pH Up automation enabled' : 'pH Up automation disabled') : (j?.guard||'Error'), j?.ok ? 'success':'error'); }
       // Refresh status to update label and state
+      tick();
+    });
+    
+    // Clear learner button
+    el('btnPhClearLearner')?.addEventListener('click', async ()=>{
+      if (!confirm('Clear learned pH Up value? This will reset the automation learning.')) return;
+      const r = await fetch('/api/ph/auto/learn/reset', {method:'POST'});
+      let j = null; try{ j = await r.json(); }catch(e){}
+      if(window.showToast){ showToast(j?.ok ? 'pH learner reset' : 'Error resetting learner', j?.ok ? 'success':'error'); }
       tick();
     });
     // Wire range controls (matching Trends template) - await to ensure range is loaded
