@@ -16,6 +16,271 @@ Automated RDWC (Recirculating Deep Water Culture) hydroponic controller with pH/
 5. **Access**: http://192.168.88.49:8080
 6. **Important**: After deployment, clear browser cache (Ctrl+Shift+R) to load new assets
 
+## Development Workflow
+
+### Environment Setup
+
+**1. Clone the Repository**
+```bash
+git clone https://github.com/collinerasmus/RDWC-v4.git
+cd RDWC-v4
+```
+
+**2. Create Virtual Environment**
+
+*Linux/macOS/Raspberry Pi:*
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+*Windows (PowerShell):*
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+```
+
+**3. Install Dependencies**
+
+*Runtime dependencies:*
+```bash
+pip install -r requirements.txt
+```
+
+*Development tools (testing, coverage):*
+```bash
+pip install -r requirements-dev.txt
+```
+
+**Key Dependencies:**
+- `fastapi` - Web framework
+- `uvicorn[standard]` - ASGI server
+- `smbus2` - I²C communication with Atlas EZO sensors
+- `gpiozero` - GPIO control for relays
+- `httpx==0.23.3` - HTTP client (pinned for Starlette TestClient compatibility)
+- `pytest>=8.0.0` - Testing framework
+- `coverage>=7.6` - Code coverage reporting
+- `playwright>=1.55` - Browser automation for E2E tests
+
+**4. Configure Environment Variables**
+
+Copy the example environment file:
+```bash
+cp .env.example .env
+```
+
+Edit `.env` to set your Pi's IP address and sensor I²C addresses:
+```env
+PI_HOST=192.168.88.49
+PI_USER=pi
+RDWC_PH_ADDR=0x63
+RDWC_EC_ADDR=0x64
+RDWC_RTD_ADDR=0x66
+```
+
+### Running Tests
+
+**Run All Tests:**
+```bash
+pytest
+```
+
+**Run Specific Test File:**
+```bash
+pytest tests/test_ph_control.py
+```
+
+**Run with Coverage:**
+```bash
+pytest --cov=app --cov-report=html
+# View coverage report: open htmlcov/index.html
+```
+
+**Run Specific Test Function:**
+```bash
+pytest tests/test_dosing_math_basic.py::test_calculate_dose_ml
+```
+
+**Run Tests with Verbose Output:**
+```bash
+pytest -v
+```
+
+**Run Tests with Output (show print statements):**
+```bash
+pytest -s
+```
+
+**Key Test Files:**
+- `test_commissioning_sim.py` - Simulated commissioning workflow
+- `test_relay_guard_basic.py` - Relay safety guards
+- `test_ph_control.py` - pH dosing logic
+- `test_ec_control.py` - EC/nutrient dosing
+- `test_mode_system_e2e.py` - Mode controller E2E tests
+- `test_frontend_logs_retention.py` - Frontend logs auto-trim
+
+**Note:** VS Code test discovery is disabled in this workspace to reduce noise. Use the command-line pytest commands above.
+
+### Running the Development Server
+
+**On Windows (dev machine):**
+```powershell
+# Activate virtual environment first
+.\venv\Scripts\Activate.ps1
+
+# Start FastAPI with auto-reload
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+```
+
+**On Linux/macOS/Raspberry Pi:**
+```bash
+# Activate virtual environment first
+source .venv/bin/activate
+
+# Start FastAPI with auto-reload
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+```
+
+**Access the UI:**
+- Local: http://localhost:8080
+- Network: http://YOUR_IP:8080
+
+**API Documentation:**
+- Swagger UI: http://localhost:8080/docs
+- ReDoc: http://localhost:8080/redoc
+
+**Development Features:**
+- `--reload` flag enables auto-restart on code changes
+- SQLite database at `data/rdwc.db` (created automatically)
+- Logs output to console in development mode
+
+### Code Quality Tools
+
+This project follows Python best practices with minimal tooling overhead:
+
+**Manual Code Review:**
+- Follow existing code style (4-space indentation, clear naming)
+- Keep functions focused and testable
+- Add docstrings for complex logic
+- Comment non-obvious safety guards
+
+**Automated Checks:**
+- Pytest for unit/integration tests (see above)
+- Coverage tracking via `pytest --cov`
+- Dependabot for dependency updates (weekly)
+
+**VS Code Configuration:**
+- Test discovery disabled (use CLI pytest)
+- Python extension configured for workspace
+- Recommended: Install Pylance, Python extensions
+
+### Deployment
+
+**Quick Deploy (from dev machine to Pi):**
+```powershell
+# Deploy main API + controllers
+.\deploy\deploy_controllers.ps1
+
+# Deploy sensor poller service
+.\deploy\deploy_sensor_poller.ps1
+
+# Refresh running services (quick restart)
+.\deploy\refresh_api.ps1 -Host $env:PI_HOST -User $env:PI_USER
+.\deploy\refresh_poller.ps1 -Host $env:PI_HOST -User $env:PI_USER
+```
+
+**Full Deploy (Bash script):**
+```bash
+./deploy_pi.sh
+```
+
+**Manual Systemd Setup on Pi:**
+```bash
+# Main API service
+sudo cp systemd/rdwc.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable rdwc.service
+sudo systemctl start rdwc.service
+
+# Sensor poller service
+sudo cp deploy/systemd/rdwc-sensors* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now rdwc-sensors.service
+
+# Verify services
+systemctl status rdwc.service --no-pager
+systemctl status rdwc-sensors.service --no-pager
+```
+
+**Deployment Best Practices:**
+- Always test changes locally first
+- Run pytest before deploying
+- Deploy sensor poller independently (separate service)
+- Clear browser cache after deployment (Ctrl+Shift+R)
+- Check logs after deployment: `journalctl -u rdwc.service -f`
+
+**Deployment Documentation:**
+- `deploy/DEPLOYMENT_SUMMARY.md` - Detailed deployment guide
+- `COMMISSIONING_RUNBOOK.md` - First-time hardware setup
+- `REFRESH_RUNBOOK.md` - Quick service refresh procedures
+
+### Project Structure
+
+**Key Directories:**
+- `app/` - FastAPI application code
+  - `main.py` - Main application entry point
+  - `relays_core.py` - GPIO relay control (ONLY file touching pins)
+  - `sensors_core.py` - Sensor reading logic
+  - `ph_control.py`, `ec_control.py` - Dosing controllers
+  - `scheduler.py` - Lights schedule management
+  - `sensor_poller.py` - Background sensor polling service
+  - `blueprints/` - UI route handlers
+  - `templates/` - Jinja2 HTML templates
+  - `static/` - CSS, JavaScript, images
+- `tests/` - Pytest test files
+- `deploy/` - Deployment scripts and systemd configs
+- `tools/` - Utility scripts (commissioning, health checks)
+- `data/` - SQLite database (auto-created)
+- `docs/` - Additional documentation
+
+**Important Files:**
+- `requirements.txt` - Production dependencies
+- `requirements-dev.txt` - Development/testing dependencies
+- `pytest.ini` - Pytest configuration
+- `conftest.py` - Shared pytest fixtures
+- `.env.example` - Environment variable template
+- `VERSION` - Current version string
+- `CHANGELOG.md` - Version history
+
+### Troubleshooting
+
+**Port 8080 already in use:**
+```powershell
+# Windows: Find and kill process
+Get-Process -Id (Get-NetTCPConnection -LocalPort 8080).OwningProcess | Stop-Process
+```
+
+**Import errors:**
+```bash
+# Ensure virtual environment is activated
+# Reinstall dependencies
+pip install -r requirements.txt
+```
+
+**GPIO errors on non-Pi:**
+- GPIO operations are mocked in tests
+- Use `RDWC_GPIO_MOCK=1` environment variable for testing
+
+**I²C errors:**
+- Only run sensor code on Raspberry Pi hardware
+- Tests use mocked sensor responses
+
+**Database locked:**
+```bash
+# Check for stale locks
+rm -f data/rdwc.db-journal
+```
+
 ## Ops: No-Pytest Health Checks
 
 - Refresh services on the Pi and view logs:
