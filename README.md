@@ -652,7 +652,7 @@ curl -s -X PUT -H "Content-Type: application/json" \
 curl -s -X PUT -H "Content-Type: application/json" \
   -d '{"override":"force_off"}' http://192.168.88.49:8080/chiller/override
 
-# Back to AUTO (no thermostat; holds current states)
+# Back to AUTO (thermostat control with compressor-safe min ON/OFF times)
 curl -s -X PUT -H "Content-Type: application/json" \
   -d '{"override":"auto"}' http://192.168.88.49:8080/chiller/override
 

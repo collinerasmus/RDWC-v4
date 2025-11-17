@@ -321,7 +321,7 @@ $ systemctl status rdwc.service --no-pager -l
 ✅ Complete relay core with idempotent control, cooldowns, anti-flap  
 ✅ UI control with POST/GET fallback and proper response format  
 ✅ Edge-only lights scheduler with settings integration  
-✅ Chiller override system (no thermostat in AUTO)  
+✅ Chiller override system (thermostat control with compressor protection)  
 ✅ Settings DB+API+UI with validation  
 ✅ Temperature compensation with throttling  
 ✅ Health and debug endpoints  
@@ -399,7 +399,7 @@ $ curl -s http://127.0.0.1:8080/settings
 {"system_volume_liters":25.0,"lights_on_time":"06:00","lights_duration_hours":16}
 ```
 
-### 6. Chiller in AUTO (no thermostat) ✅
+### 6. Chiller in AUTO (thermostat control with compressor-safe min ON/OFF) ✅
 ```bash
 $ curl -s http://127.0.0.1:8080/overrides
 {"chiller_mode":"auto","effective_mode":"auto","hold_until":null,"is_override_active":false,"time_remaining":null}
