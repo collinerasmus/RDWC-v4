@@ -12,6 +12,8 @@ Features:
 import time
 import threading
 import logging
+import os
+import sqlite3
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -106,6 +108,60 @@ CHILLER_SPECS = {
 }
 
 
+# --- Events logging (SQLite) -------------------------------------------------
+_EVENTS_TABLE = "chiller_events"
+
+def _db_conn():
+    path = os.environ.get("RDWC_DB", "data/rdwc.db")
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def _ensure_events_table():
+    try:
+        with _db_conn() as conn:
+            conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {_EVENTS_TABLE} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ts_utc INTEGER NOT NULL,
+                    prev_state TEXT NOT NULL,
+                    new_state TEXT NOT NULL,
+                    reason TEXT
+                )
+                """
+            )
+            conn.commit()
+    except Exception as e:
+        log.error(f"[CHILLER] Failed to ensure events table: {e}")
+
+def _log_event(prev_state: str, new_state: str, reason: str = ""):
+    """Persist a chiller state transition event."""
+    try:
+        with _db_conn() as conn:
+            conn.execute(
+                f"INSERT INTO {_EVENTS_TABLE} (ts_utc, prev_state, new_state, reason) VALUES (?,?,?,?)",
+                (int(time.time()), prev_state, new_state, reason)
+            )
+            conn.commit()
+    except Exception as e:
+        log.error(f"[CHILLER] Failed to log event: {e}")
+
+def get_chiller_events(limit: int = 200) -> list[dict]:
+    """Return most recent chiller state transition events (newest first)."""
+    try:
+        with _db_conn() as conn:
+            cur = conn.execute(
+                f"SELECT ts_utc, prev_state, new_state, reason FROM {_EVENTS_TABLE} ORDER BY ts_utc DESC LIMIT ?",
+                (int(limit),)
+            )
+            rows = cur.fetchall()
+            return [dict(r) for r in rows]
+    except Exception as e:
+        log.error(f"[CHILLER] Failed to fetch events: {e}")
+        return []
+
+
 def get_chiller_state() -> Dict[str, Any]:
     """Get current chiller state for API/UI."""
     with _control_lock:
@@ -186,11 +242,13 @@ def set_chiller_relay(desired_on: bool, reason: str = '') -> bool:
             
             # Update state
             now = time.time()
+            prev = 'ON' if _chiller_state['is_running'] else 'OFF'
             if desired_on:
                 _chiller_state['last_on_time'] = now
                 _chiller_state['is_running'] = True
                 _chiller_state['cycles_today'] += 1
                 log.info(f'[CHILLER] ON: {reason}')
+                _log_event(prev, 'ON', reason)
             else:
                 if _chiller_state['last_on_time']:
                     runtime = now - _chiller_state['last_on_time']
@@ -198,6 +256,7 @@ def set_chiller_relay(desired_on: bool, reason: str = '') -> bool:
                 _chiller_state['last_off_time'] = now
                 _chiller_state['is_running'] = False
                 log.info(f'[CHILLER] OFF: {reason}')
+                _log_event(prev, 'OFF', reason)
             
             return True
             
@@ -391,3 +450,4 @@ def _ensure_defaults():
             set_setting(key, default_value)
 
 _ensure_defaults()
+_ensure_events_table()

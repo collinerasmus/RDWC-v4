@@ -1220,6 +1220,19 @@ def api_controllers_status():
         "timestamp": int(time.time()),
     }
 
+@app.get("/api/chiller/events")
+def api_chiller_events(limit: int = Query(200, ge=1, le=1000)):
+    """Return recent chiller state transition events (newest first).
+    Each event: {ts_utc:int, prev_state:str, new_state:str, reason:str|null}
+    """
+    try:
+        from app.chiller_control import get_chiller_events
+        events = get_chiller_events(limit)
+        return {"events": events, "count": len(events)}
+    except Exception as e:
+        logger.error(f"/api/chiller/events failed: {e}")
+        return JSONResponse(status_code=500, content={"error": "events_failed"})
+
 # --- Unified dosing endpoints ------------------------------------------------
 @app.post("/api/dose/grow")
 def dose_grow(body: dict = Body(...)):
