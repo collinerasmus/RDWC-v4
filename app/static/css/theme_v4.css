@@ -195,5 +195,159 @@ summary.reduced { cursor:pointer; font-size:var(--font-md); padding:var(--space-
 /* Collapsible arrow default list-style removal */
 details > summary { list-style:none; }
 
+/* Settings UI Unification Classes */
+/* Settings card container - neutral background for all subsections */
+.settings-card {
+  margin-top: var(--space-lg);
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(148,163,184,0.05);
+  border: 1px solid rgba(148,163,184,0.2);
+}
+
+/* First card in a settings block */
+.settings-card:first-child {
+  margin-top: 0;
+}
+
+/* Settings subsection within a card */
+.settings-subsection {
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.settings-subsection:last-child {
+  margin-bottom: 0;
+}
+
+/* Settings heading - consistent size for all subsection titles */
+.settings-heading {
+  font-size: var(--font-base);
+  font-weight: 600;
+  margin-bottom: var(--space-md);
+  color: var(--fg-primary);
+}
+
+/* Settings help/description text */
+.settings-help {
+  font-size: var(--font-xs);
+  color: var(--fg-muted);
+  opacity: 0.8;
+  margin-bottom: var(--space-md);
+}
+
+/* Settings action button row */
+.settings-actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Compact button for inline actions */
+.btn-compact {
+  padding: 4px 10px;
+  font-size: var(--font-base);
+  min-width: 56px;
+}
+
+/* Standard input field width */
+.input-standard {
+  width: 120px;
+  height: 28px;
+  padding: 0 6px;
+  background: #1f2937;
+  border: 1px solid #374151;
+  color: var(--fg-primary);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-base);
+}
+
+/* Narrow input field for small values */
+.input-narrow {
+  width: 80px;
+  height: 28px;
+  padding: 0 6px;
+  background: #1f2937;
+  border: 1px solid #374151;
+  color: var(--fg-primary);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-base);
+}
+
+/* Standard select field */
+.select-standard {
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid #374151;
+  background: #1f2937;
+  color: var(--fg-primary);
+  font-size: var(--font-base);
+  cursor: pointer;
+}
+
+/* Alert boxes */
+.alert-warning {
+  padding: 8px 10px;
+  margin-bottom: var(--space-md);
+  border-radius: var(--radius-sm);
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.35);
+  color: #fbbf24;
+  font-size: var(--font-xs);
+}
+
+.alert-danger {
+  padding: 8px 10px;
+  margin-bottom: var(--space-md);
+  border-radius: var(--radius-sm);
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.35);
+  color: #fca5a5;
+  font-size: var(--font-xs);
+}
+
+/* Settings label - consistent small size */
+.settings-label {
+  display: block;
+  font-size: var(--font-xs);
+  margin-bottom: 2px;
+  color: var(--fg-muted);
+}
+
+/* Inline label for horizontal layouts */
+.settings-label-inline {
+  font-size: var(--font-xs);
+  color: var(--fg-muted);
+}
+
+/* Settings message box */
+.settings-message {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(148,163,184,0.05);
+  border: 1px solid rgba(148,163,184,0.2);
+  min-height: 36px;
+  font-size: var(--font-xs);
+}
+
+/* Settings log box */
+.settings-log {
+  margin-top: var(--space-sm);
+  max-height: 120px;
+  overflow: auto;
+  font-family: ui-monospace, monospace;
+  font-size: var(--font-xs);
+  border-top: 1px dashed rgba(148,163,184,0.15);
+  padding-top: var(--space-sm);
+}
+
+/* Vertical spacing utilities */
+.space-section {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid rgba(148,163,184,0.15);
+}
+
 /* Finalization marker */
 /* VERSION: theme_v4 locked */
