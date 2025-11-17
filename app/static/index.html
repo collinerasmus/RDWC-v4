@@ -1211,73 +1211,79 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       <span id="chiller-status-message" class="muted" style="font-size:0.85rem;"></span>
     </div>
 
-    <details style="margin-top:8px;">
+    <details style="margin-top:12px;">
       <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Temperature & Chiller Settings</summary>
-      <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-        <div class="muted" style="font-size:0.7rem;margin-bottom:10px;padding:6px 8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
-          Configure temperature targets, alert thresholds, and chiller compressor protection timings.
-        </div>
-        <div style="margin-bottom:16px;">
-          <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Temperature Settings</div>
-          <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
-            <div>
-              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Target (°C)</label>
-              <input type="number" id="tempTarget" step="0.1" min="14" max="26" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
-            </div>
-            <div>
-              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Hysteresis (°C)</label>
-              <input type="number" id="chillerHysteresis" step="0.1" min="0.1" max="3.0" value="0.5" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
-            </div>
+      
+      <!-- Temperature Settings Card -->
+      <div class="settings-card">
+        <div class="settings-heading">Temperature Settings</div>
+        <div class="settings-help">Configure temperature targets, alert thresholds, and chiller compressor protection timings.</div>
+        
+        <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;">
+          <div>
+            <label class="settings-label">Target (°C)</label>
+            <input type="number" id="tempTarget" step="0.1" min="14" max="26" class="input-standard" />
           </div>
-          <div style="margin-top:8px;">
-            <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Growth Stage</label>
-            <select id="chillerStage" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;">
-              <option value="default">Default (18-20°C optimal)</option>
-              <option value="veg">Vegetative (18-20°C)</option>
-              <option value="flower">Flowering (18-20°C)</option>
-            </select>
+          <div>
+            <label class="settings-label">Hysteresis (°C)</label>
+            <input type="number" id="chillerHysteresis" step="0.1" min="0.1" max="3.0" value="0.5" class="input-standard" />
           </div>
         </div>
-        <div style="margin-bottom:16px;padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
-          <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Alert Thresholds</div>
-          <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
-            <div>
-              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Low Alert (°C)</label>
-              <input type="number" id="tempAlertLow" step="0.1" min="10" max="30" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
-            </div>
-            <div>
-              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">High Alert (°C)</label>
-              <input type="number" id="tempAlertHigh" step="0.1" min="10" max="30" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
-            </div>
+        
+        <div>
+          <label class="settings-label">Growth Stage</label>
+          <select id="chillerStage" class="select-standard">
+            <option value="default">Default (18-20°C optimal)</option>
+            <option value="veg">Vegetative (18-20°C)</option>
+            <option value="flower">Flowering (18-20°C)</option>
+          </select>
+        </div>
+      </div>
+      
+      <!-- Alert Thresholds Card -->
+      <div class="settings-card">
+        <div class="settings-heading">Alert Thresholds</div>
+        <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
+          <div>
+            <label class="settings-label">Low Alert (°C)</label>
+            <input type="number" id="tempAlertLow" step="0.1" min="10" max="30" class="input-standard" />
+          </div>
+          <div>
+            <label class="settings-label">High Alert (°C)</label>
+            <input type="number" id="tempAlertHigh" step="0.1" min="10" max="30" class="input-standard" />
           </div>
         </div>
-        <div style="margin-bottom:16px;padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
-          <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Chiller Safety</div>
-          <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
-            <div>
-              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Min OFF time (s)</label>
-              <input type="number" id="chillerMinOff" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
-            </div>
-            <div>
-              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Min ON time (s)</label>
-              <input type="number" id="chillerMinOn" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
-            </div>
+      </div>
+      
+      <!-- Chiller Safety Card -->
+      <div class="settings-card">
+        <div class="settings-heading">Chiller Safety</div>
+        <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:10px;">
+          <div>
+            <label class="settings-label">Min OFF time (s)</label>
+            <input type="number" id="chillerMinOff" step="1" min="60" max="1800" class="input-standard" />
+          </div>
+          <div>
+            <label class="settings-label">Min ON time (s)</label>
+            <input type="number" id="chillerMinOn" step="1" min="60" max="1800" class="input-standard" />
           </div>
         </div>
-        <button id="btnSaveTempSettings" class="btn-secondary" style="width:100%;margin-bottom:12px;">Save Temperature Settings</button>
-        <div style="border-top:1px solid rgba(148,163,184,0.2);padding-top:12px;">
-          <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Manual Override (Emergency)</div>
-          <div class="muted" style="font-size:0.75rem;margin-bottom:8px;">Force chiller ON/OFF for specified duration (bypasses automation)</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <button id="btnChillerForceOn" class="btn-secondary">Force ON</button>
-            <button id="btnChillerForceOff" class="btn-secondary">Force OFF</button>
-            <select id="chillerForceDuration" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;">
-              <option value="30">30 minutes</option>
-              <option value="60">1 hour</option>
-              <option value="240">4 hours</option>
-              <option value="">Indefinite</option>
-            </select>
-          </div>
+        <button id="btnSaveTempSettings" class="btn-secondary" style="width:100%;">Save Temperature Settings</button>
+      </div>
+      
+      <!-- Manual Override Card -->
+      <div class="settings-card">
+        <div class="settings-heading">Manual Override (Emergency)</div>
+        <div class="settings-help">Force chiller ON/OFF for specified duration (bypasses automation)</div>
+        <div class="settings-actions">
+          <button id="btnChillerForceOn" class="btn-secondary btn-compact">Force ON</button>
+          <button id="btnChillerForceOff" class="btn-secondary btn-compact">Force OFF</button>
+          <select id="chillerForceDuration" class="select-standard">
+            <option value="30">30 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="240">4 hours</option>
+            <option value="">Indefinite</option>
+          </select>
         </div>
       </div>
     </details>
