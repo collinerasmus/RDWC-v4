@@ -92,6 +92,16 @@
     }
     // (Removed recent list rendering)
     
+    // Update learned value KPI in readings row
+    const learnedKPI = el('ec-learned-kpi');
+    if (learnedKPI && s && s.learned_ml_per_mScm !== null && s.learned_ml_per_mScm !== undefined && s.learned_ml_per_mScm > 0) {
+      learnedKPI.style.display = 'inline-block';
+      const valueEl = learnedKPI.querySelector('.kpi-value');
+      if (valueEl) valueEl.textContent = `${s.learned_ml_per_mScm.toFixed(2)} ml/mS`;
+    } else if (learnedKPI) {
+      learnedKPI.style.display = 'none';
+    }
+    
     // Today total
     const todayEl = el('ec-total-today');
     if(todayEl && s){ 
