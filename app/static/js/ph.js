@@ -190,6 +190,9 @@
     } else if (learnedKPI) {
       learnedKPI.style.display = 'none';
     }
+    
+    // Update learned value display in Settings section
+    updateLearnedDisplay(s);
     const cdPill = el('ph-countdown-pill');
     if(p){ p.textContent = (s && s.ph!=null) ? s.ph.toFixed(2) : '—'; }
     if(band && s){ band.textContent = `Targets ${s.targets.low} – ${s.targets.high}`; }
@@ -283,6 +286,21 @@
       m('phCapMaxPress', maxPress);
       m('phCapDaily', dailyCap);
       m('phCapMinOff', minOff);
+    }
+  }
+  
+  function updateLearnedDisplay(s) {
+    // Update learned value display in Settings > Automation section
+    const displayBox = el('ph-learned-display');
+    const displayValue = el('ph-learned-display-value');
+    if (!displayBox || !displayValue) return;
+    
+    if (s && s.learned_ml_per_pH !== null && s.learned_ml_per_pH !== undefined && s.learned_ml_per_pH > 0) {
+      displayBox.style.display = 'block';
+      displayValue.textContent = s.learned_ml_per_pH.toFixed(2);
+    } else {
+      displayBox.style.display = 'none';
+      displayValue.textContent = '—';
     }
   }
 
@@ -526,12 +544,23 @@
       tick();
     });
     
-    // Clear learner button
+    // Clear learner button (legacy ID)
     el('btnPhClearLearner')?.addEventListener('click', async ()=>{
       if (!confirm('Clear learned pH Up value? This will reset the automation learning.')) return;
       const r = await fetch('/api/ph/auto/learn/reset', {method:'POST'});
       let j = null; try{ j = await r.json(); }catch(e){}
       if(window.showToast){ showToast(j?.ok ? 'pH learner reset' : 'Error resetting learner', j?.ok ? 'success':'error'); }
+      tick();
+    });
+    
+    // Clear learner button (new Settings section)
+    el('btnClearPhLearned')?.addEventListener('click', async ()=>{
+      if (!confirm('Clear learned pH Up value? This will reset the automation learning.')) return;
+      const r = await fetch('/api/ph/auto/learn/reset', {method:'POST'});
+      let j = null; try{ j = await r.json(); }catch(e){}
+      if(window.showToast){ showToast(j?.ok ? 'pH learner reset' : 'Error resetting learner', j?.ok ? 'success':'error'); }
+      // Update the learned display in Settings section
+      updateLearnedDisplay();
       tick();
     });
     // Wire range controls (matching Trends template) - await to ensure range is loaded

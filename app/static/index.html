@@ -1867,6 +1867,18 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           </details>
 
           <details style="margin-top:12px;">
+            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Automation</summary>
+            <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
+              <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">pH automation learning and control.</div>
+              <div id="ph-learned-display" style="display:none;margin-bottom:10px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+                <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Learned ml/pH:</div>
+                <div style="font-size:1.1rem;font-weight:600;color:#60a5fa;" id="ph-learned-display-value">—</div>
+              </div>
+              <button id="btnClearPhLearned" class="btn-secondary" style="width:100%;" title="Reset pH automation learned value">Clear Learned Value</button>
+            </div>
+          </details>
+
+          <details style="margin-top:12px;">
             <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Manual Dosing (Volume)</summary>
             <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
               <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Dose pH Up manually with safety caps enforced.</div>
@@ -2089,6 +2101,18 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                   </div>
                 </div>
                 <button id="btnSaveEcSettings" class="btn-secondary" style="width:100%;">Save EC Settings</button>
+              </div>
+            </details>
+
+            <details style="margin-top:12px;">
+              <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Automation</summary>
+              <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
+                <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">EC automation learning and control.</div>
+                <div id="ec-learned-display" style="display:none;margin-bottom:10px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+                  <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Learned ml/mS/cm:</div>
+                  <div style="font-size:1.1rem;font-weight:600;color:#60a5fa;" id="ec-learned-display-value">—</div>
+                </div>
+                <button id="btnClearEcLearned" class="btn-secondary" style="width:100%;" title="Reset EC automation learned value">Clear Learned Value</button>
               </div>
             </details>
 
@@ -2865,11 +2889,11 @@ window.CircControl = (function(){
         window.__app_version = (j&&j.version)||null;
         try{ var vEl=document.getElementById('build-version'); if(vEl) vEl.textContent = window.__app_version || 'n/a'; }catch(e){}
         // Critical scripts only for initial interactive dashboard
-  return seq(['tabs.js','global_health.js','overview.js','system.js','sensors.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
+  return seq(['tabs.js','global_health.js','overview.js','system.js','sensors.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .catch(function(){
         window.__app_version = (new Date()).toISOString().slice(0,10);
-  return seq(['tabs.js','global_health.js','overview.js','system.js','sensors.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
+  return seq(['tabs.js','global_health.js','overview.js','system.js','sensors.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .finally(function(){ scheduleDeferred(window.__app_version); try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();

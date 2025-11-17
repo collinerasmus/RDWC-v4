@@ -102,6 +102,9 @@
       learnedKPI.style.display = 'none';
     }
     
+    // Update learned value display in Settings section
+    updateLearnedDisplay(s);
+    
     // Today total
     const todayEl = el('ec-total-today');
     if(todayEl && s){ 
@@ -184,6 +187,21 @@
       }
     } catch (e) {
       // Silently fail - chips will show default values
+    }
+  }
+  
+  function updateLearnedDisplay(s) {
+    // Update learned value display in Settings > Automation section
+    const displayBox = el('ec-learned-display');
+    const displayValue = el('ec-learned-display-value');
+    if (!displayBox || !displayValue) return;
+    
+    if (s && s.learned_ml_per_mScm !== null && s.learned_ml_per_mScm !== undefined && s.learned_ml_per_mScm > 0) {
+      displayBox.style.display = 'block';
+      displayValue.textContent = s.learned_ml_per_mScm.toFixed(2);
+    } else {
+      displayBox.style.display = 'none';
+      displayValue.textContent = '—';
     }
   }
 
@@ -443,12 +461,23 @@
     });
     el('btnEcAutoToggle')?.addEventListener('click', toggleAuto);
     
-    // Clear learner button
+    // Clear learner button (legacy ID)
     el('btnEcClearLearner')?.addEventListener('click', async ()=>{
       if (!confirm('Clear learned EC value? This will reset the automation learning.')) return;
       const r = await fetch('/api/ec/auto/learn/reset', {method:'POST'});
       let j = null; try{ j = await r.json(); }catch(e){}
       if(window.showToast){ showToast(j?.ok ? 'EC learner reset' : 'Error resetting learner', j?.ok ? 'success':'error'); }
+      tick();
+    });
+    
+    // Clear learner button (new Settings section)
+    el('btnClearEcLearned')?.addEventListener('click', async ()=>{
+      if (!confirm('Clear learned EC value? This will reset the automation learning.')) return;
+      const r = await fetch('/api/ec/auto/learn/reset', {method:'POST'});
+      let j = null; try{ j = await r.json(); }catch(e){}
+      if(window.showToast){ showToast(j?.ok ? 'EC learner reset' : 'Error resetting learner', j?.ok ? 'success':'error'); }
+      // Update the learned display in Settings section
+      updateLearnedDisplay();
       tick();
     });
     // Export uses displayed window range
