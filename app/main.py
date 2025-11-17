@@ -1926,7 +1926,7 @@ def set_chiller_override(body: dict = Body(...)):
     # Persist setting
     set_overrides(chiller_mode=override)
 
-    # Apply control once, respecting cooldowns (no thermostat in AUTO)
+    # Apply thermostat control with compressor-safe min ON/OFF times
     control_chiller("override")
 
     return {"override": override}

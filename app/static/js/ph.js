@@ -180,6 +180,16 @@
     const guards = el('ph-guards');
     const recent = el('ph-recent');
     const resBanner = el('ph-reservoir-banner');
+    
+    // Update learned value KPI in readings row
+    const learnedKPI = el('ph-learned-kpi');
+    if (learnedKPI && s && s.learned_ml_per_pH !== null && s.learned_ml_per_pH !== undefined && s.learned_ml_per_pH > 0) {
+      learnedKPI.style.display = 'inline-block';
+      const valueEl = learnedKPI.querySelector('.kpi-value');
+      if (valueEl) valueEl.textContent = `${s.learned_ml_per_pH.toFixed(2)} ml/pH`;
+    } else if (learnedKPI) {
+      learnedKPI.style.display = 'none';
+    }
     const cdPill = el('ph-countdown-pill');
     if(p){ p.textContent = (s && s.ph!=null) ? s.ph.toFixed(2) : '—'; }
     if(band && s){ band.textContent = `Targets ${s.targets.low} – ${s.targets.high}`; }

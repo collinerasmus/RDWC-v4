@@ -1205,11 +1205,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
       </div>
     </div>
 
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-      <button id="btnChillerAutoEnable" class="btn-secondary">Enable Auto Control</button>
-      <button id="btnChillerAutoDisable" class="btn-secondary" style="display:none;">Disable Auto Control</button>
-      <span id="chiller-status-message" class="muted" style="font-size:0.85rem;"></span>
-    </div>
+    <!-- Chiller automation controlled via header chips only - redundant buttons removed -->
 
     <details style="margin-top:8px;">
       <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Temperature & Chiller Settings</summary>
@@ -1471,103 +1467,240 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
         </div>
         <button id="btnSensorsExport" class="btn-secondary btn-small" title="Export displayed graph data to CSV" onclick="exportCsv()" style="margin-left:auto;">Export CSV</button>
       </div>
-      <!-- Settings with recent readings moved inside -->
-      <details style="margin-top:12px;">
-        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Settings</summary>
+      <!-- Settings with exclusive-open accordions -->
+      <div style="margin-top:12px;">
+        <div class="muted" style="cursor:default;font-size:0.9rem;margin-bottom:8px;">⚙️ Settings</div>
         
-        <!-- Sensor Reading Card -->
-        <div class="settings-card">
-          <div class="settings-help">Live Sensors are cached by the background poller. Use "Read now" for an immediate sample (only available in Manual/Maintenance mode). Health details are available from the green "OK" badge.</div>
-          <div class="settings-actions">
-            <button id="btnSensorsReadNow" class="btn-secondary btn-compact">Read now</button>
-            <span id="sensors-updated" class="muted" style="font-size:0.7rem;">—</span>
+        <!-- Sensor Reading Section -->
+        <details class="sensors-settings-accordion" style="margin-top:8px;">
+          <summary class="muted" style="cursor:pointer;font-size:0.85rem;">📊 Sensor Reading</summary>
+          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Live Sensors are cached by the background poller. Use "Read now" for an immediate sample (only available in Manual/Maintenance mode). Health details are available from the green "OK" badge.</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+              <button id="btnSensorsReadNow" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Read now</button>
+              <span id="sensors-updated" class="muted" style="font-size:0.7rem;">—</span>
+            </div>
+            <div style="font-weight:600;margin-bottom:6px;font-size:0.8rem;">Recent Readings (last 5)</div>
+            <div id="s-recent" class="muted" style="font-size:0.7rem;opacity:0.8;"></div>
           </div>
-          <div class="settings-heading" style="margin-top:12px;">Recent Readings (last 5)</div>
-          <div id="s-recent" class="muted" style="font-size:0.7rem;opacity:0.8;"></div>
-        </div>
+        </details>
         
-        <!-- pH Probe Calibration Card -->
-        <div class="settings-card">
-          <div class="settings-heading">🧪 pH Probe Calibration</div>
-          <div id="ph-calib-banner-inline" class="alert-danger" style="display:none;">
+        <!-- pH Probe Calibration Section -->
+        <details class="sensors-settings-accordion" style="margin-top:8px;">
+          <summary class="muted" style="cursor:pointer;font-size:0.85rem;">🧪 pH Probe Calibration</summary>
+          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+          <div style="font-weight:600;margin-bottom:8px;font-size:0.8rem;">pH Probe Calibration</div>
+          <div id="ph-calib-banner-inline" style="display:none;font-size:0.7rem;padding:6px 8px;border-radius:6px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);color:#fecaca;margin-bottom:10px;">
             ⚠️ Writes are disabled. Set CALIB_ENABLE=1 and restart service to enable calibration commands.
           </div>
           
-          <div class="settings-actions" style="margin-bottom:10px;">
-            <span class="settings-label-inline">Current pH:</span>
-            <span id="ph-current-inline" style="font-weight:600;color:#93c5fd;">—</span>
-            <button id="btnPhReadInline" class="btn-secondary btn-compact">Read</button>
-            <button id="btnPhStabilizeInline" class="btn-secondary btn-compact" title="Read until stable or timeout">Stabilize</button>
-            <button id="btnPhStatusInline" class="btn-secondary btn-compact">Status</button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <span style="font-size:0.7rem;color:#9ca3af;">Current pH:</span>
+            <span id="ph-current-inline" style="font-weight:600;color:#93c5fd;font-size:0.9rem;">—</span>
+            <button id="btnPhReadInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Read</button>
+            <button id="btnPhStabilizeInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" title="Read until stable or timeout">Stabilize</button>
+            <button id="btnPhStatusInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Status</button>
           </div>
           
-          <div class="settings-actions" style="margin-bottom:10px;">
-            <span class="settings-label-inline">Buffer Solution:</span>
-            <select id="ph-buffer-kind-inline" class="select-standard">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <span style="font-size:0.7rem;color:#9ca3af;">Buffer Solution:</span>
+            <select id="ph-buffer-kind-inline" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;">
               <option value="mid" data-default="7.00">Mid (7.00)</option>
               <option value="low" data-default="4.00">Low (4.00)</option>
               <option value="high" data-default="10.00">High (10.00)</option>
             </select>
-            <input id="ph-buffer-val-inline" type="number" step="0.01" min="0" max="14" value="7.00" class="input-narrow" />
+            <input id="ph-buffer-val-inline" type="number" step="0.01" min="0" max="14" value="7.00" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
           </div>
           
-          <div class="settings-actions" style="margin-bottom:10px;">
-            <button id="btnPhCalibrateInline" class="btn-secondary btn-compact">Calibrate</button>
-            <button id="btnPhClearInline" class="btn-secondary btn-compact">Clear Calibration</button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <button id="btnPhCalibrateInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Calibrate</button>
+            <button id="btnPhClearInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Clear Calibration</button>
           </div>
           
           <div style="margin-bottom:10px;">
-            <label class="settings-label">Probe LEDs:</label>
-            <div class="settings-actions">
-              <button id="btnLedsOnInline" class="btn-secondary btn-compact" title="Turn LEDs on (all probes)">On</button>
-              <button id="btnLedsOffInline" class="btn-secondary btn-compact" title="Turn LEDs off (all probes)">Off</button>
-              <button id="btnLedsBlinkInline" class="btn-secondary btn-compact" title="Blink LEDs to locate probes">Blink</button>
+            <div style="font-size:0.7rem;color:#9ca3af;margin-bottom:6px;">Probe LEDs:</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <button id="btnLedsOnInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" title="Turn LEDs on (all probes)">On</button>
+              <button id="btnLedsOffInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" title="Turn LEDs off (all probes)">Off</button>
+              <button id="btnLedsBlinkInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" title="Blink LEDs to locate probes">Blink</button>
             </div>
           </div>
           
-          <div id="ph-calib-msg-inline" class="settings-message muted"></div>
-          <div id="ph-calib-log-inline" class="settings-log muted"></div>
-        </div>
+          <div id="ph-calib-msg-inline" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
+          <div id="ph-calib-log-inline" class="muted" style="font-size:0.65rem;padding:6px;background:rgba(0,0,0,0.2);border:1px solid rgba(148,163,184,0.2);border-radius:4px;margin-top:6px;max-height:150px;overflow-y:auto;display:none;"></div>
+          </div>
+        </details>
         
-        <!-- EC Probe Calibration Card -->
-        <div class="settings-card">
-          <div class="settings-heading">⚡ EC Probe Calibration</div>
+        <!-- EC Probe Calibration Section -->
+        <details class="sensors-settings-accordion" style="margin-top:8px;">
+          <summary class="muted" style="cursor:pointer;font-size:0.85rem;">⚡ EC Probe Calibration</summary>
+          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+          <div style="font-weight:600;margin-bottom:8px;font-size:0.8rem;">EC Probe Calibration</div>
           
-          <div class="settings-actions" style="margin-bottom:10px;">
-            <span class="settings-label-inline">Current EC:</span>
-            <span id="ec-current-calib" style="font-weight:600;color:#93c5fd;">—</span>
-            <button id="btnEcStatus" class="btn-secondary btn-compact">Status</button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <span style="font-size:0.7rem;color:#9ca3af;">Current EC:</span>
+            <span id="ec-current-calib" style="font-weight:600;color:#93c5fd;font-size:0.9rem;">—</span>
+            <button id="btnEcStatus" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Status</button>
           </div>
           
-          <div class="settings-actions" style="margin-bottom:10px;">
-            <button id="btnEcCalClear" class="btn-secondary btn-compact">Clear Calibration</button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <button id="btnEcCalClear" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Clear Calibration</button>
           </div>
           
-          <div class="settings-actions" style="margin-bottom:10px;">
-            <span class="settings-label-inline">Low Point (1413 µS/cm):</span>
-            <button id="btnEcCalLow" class="btn-secondary btn-compact">Calibrate Low</button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <span style="font-size:0.7rem;color:#9ca3af;">Low Point (1413 µS/cm):</span>
+            <button id="btnEcCalLow" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Calibrate Low</button>
           </div>
           
-          <div class="settings-actions" style="margin-bottom:10px;">
-            <span class="settings-label-inline">High Point (12,880 µS/cm):</span>
-            <button id="btnEcCalHigh" class="btn-secondary btn-compact">Calibrate High</button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <span style="font-size:0.7rem;color:#9ca3af;">High Point (12,880 µS/cm):</span>
+            <button id="btnEcCalHigh" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Calibrate High</button>
           </div>
           
           <div style="margin-bottom:10px;">
-            <label class="settings-label">Probe Constant (K):</label>
-            <div class="settings-actions">
-              <select id="ec-k-select" class="select-standard">
+            <div style="font-size:0.7rem;color:#9ca3af;margin-bottom:6px;">Probe Constant (K):</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <select id="ec-k-select" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;">
                 <option value="0.1">K=0.1</option>
                 <option value="1.0" selected>K=1.0</option>
                 <option value="10.0">K=10.0</option>
               </select>
-              <button id="btnEcSetK" class="btn-secondary btn-compact">Set K</button>
+              <button id="btnEcSetK" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Set K</button>
             </div>
           </div>
           
-          <div id="ec-calib-msg" class="settings-message muted"></div>
-        </div>
-      </details>
+          <div id="ec-calib-msg" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
+          </div>
+        </details>
+        
+        <!-- Pump Calibration Sections -->
+        <details class="sensors-settings-accordion" style="margin-top:8px;">
+          <summary class="muted" style="cursor:pointer;font-size:0.85rem;">💧 pH Pump Calibration</summary>
+          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <div style="font-weight:600;margin-bottom:8px;font-size:0.8rem;">pH Up Pump Flow Rate</div>
+            <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Run pump for known duration, measure output, then commit to save ml/s rate.</div>
+            
+            <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:10px;">
+              <div>
+                <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
+                <input type="number" id="phPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+              </div>
+              <div>
+                <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
+                <input type="number" id="phPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+              </div>
+            </div>
+            
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+              <button id="btnPhPumpPrime" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Prime (3s)</button>
+              <button id="btnPhPumpRun" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Run</button>
+              <button id="btnPhPumpCommit" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Commit Rate</button>
+            </div>
+            
+            <div style="font-size:0.7rem;color:#9ca3af;margin-top:8px;">
+              Current rate: <span id="phPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s
+            </div>
+            <div id="phPumpCalibMsg" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
+          </div>
+        </details>
+        
+        <details class="sensors-settings-accordion" style="margin-top:8px;">
+          <summary class="muted" style="cursor:pointer;font-size:0.85rem;">🌿 EC Pumps Calibration</summary>
+          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <div style="font-weight:600;margin-bottom:8px;font-size:0.8rem;">EC Nutrient Pumps Flow Rates</div>
+            <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Calibrate all three EC pumps (Grow, Micro, Bloom) for accurate nutrient dosing.</div>
+            
+            <!-- Grow Pump -->
+            <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(148,163,184,0.2);">
+              <div style="font-weight:600;margin-bottom:6px;font-size:0.75rem;color:#a7f3d0;">Grow Pump</div>
+              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:8px;">
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
+                  <input type="number" id="growPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
+                  <input type="number" id="growPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <button id="btnGrowPumpPrime" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Prime</button>
+                <button id="btnGrowPumpRun" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Run</button>
+                <button id="btnGrowPumpCommit" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Commit</button>
+              </div>
+              <div style="font-size:0.7rem;color:#9ca3af;">
+                Rate: <span id="growPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s
+              </div>
+            </div>
+            
+            <!-- Micro Pump -->
+            <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(148,163,184,0.2);">
+              <div style="font-weight:600;margin-bottom:6px;font-size:0.75rem;color:#a7f3d0;">Micro Pump</div>
+              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:8px;">
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
+                  <input type="number" id="microPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
+                  <input type="number" id="microPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <button id="btnMicroPumpPrime" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Prime</button>
+                <button id="btnMicroPumpRun" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Run</button>
+                <button id="btnMicroPumpCommit" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Commit</button>
+              </div>
+              <div style="font-size:0.7rem;color:#9ca3af;">
+                Rate: <span id="microPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s
+              </div>
+            </div>
+            
+            <!-- Bloom Pump -->
+            <div>
+              <div style="font-weight:600;margin-bottom:6px;font-size:0.75rem;color:#a7f3d0;">Bloom Pump</div>
+              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:8px;">
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
+                  <input type="number" id="bloomPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
+                  <input type="number" id="bloomPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <button id="btnBloomPumpPrime" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Prime</button>
+                <button id="btnBloomPumpRun" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Run</button>
+                <button id="btnBloomPumpCommit" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Commit</button>
+              </div>
+              <div style="font-size:0.7rem;color:#9ca3af;">
+                Rate: <span id="bloomPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s
+              </div>
+            </div>
+            
+            <div id="ecPumpsCalibMsg" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
+          </div>
+        </details>
+      </div>
+      
+      <!-- Exclusive-open accordion script for Sensors Settings -->
+      <script>
+      (function(){
+        const accordions = document.querySelectorAll('.sensors-settings-accordion');
+        accordions.forEach(accordion => {
+          accordion.addEventListener('toggle', function() {
+            if (this.open) {
+              accordions.forEach(other => {
+                if (other !== this && other.open) {
+                  other.open = false;
+                }
+              });
+            }
+          });
+        });
+      })();
+      </script>
     </div>
   </section>
 
@@ -1605,6 +1738,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
               <div class="kpi-label">Targets</div>
               <div class="kpi-value" id="ph-band">5.8–6.2</div>
             </div>
+            <div class="kpi kpi-ph" id="ph-learned-kpi" style="min-width:110px;display:none;">
+              <div class="kpi-label">Learned</div>
+              <div class="kpi-value" id="ph-learned-value-kpi" style="font-size:0.85rem;">—</div>
+            </div>
             <span id="ph-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
           </div>
 
@@ -1617,17 +1754,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
 
           <!-- Auto Mode Content -->
           <div id="ph-auto-content" style="display:none;">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-              <button id="btnAutoToggle" class="btn-secondary">Enable automation</button>
-              <details style="flex-shrink:0;">
-                <summary class="btn-secondary btn-small" style="cursor:pointer;list-style:none;display:inline-block;">Advanced</summary>
-                <div style="position:absolute;z-index:100;margin-top:4px;padding:12px;background:#111827;border:1px solid #374151;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.4);min-width:200px;">
-                  <div class="muted" style="font-size:0.75rem;margin-bottom:8px;">Advanced Automation Controls</div>
-                  <button id="btnPhClearLearner" class="btn-secondary btn-small" style="width:100%;margin-bottom:6px;">Clear Learned Value</button>
-                  <div id="phLearnedValue" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;"></div>
-                </div>
-              </details>
-            </div>
+            <!-- Redundant automation button removed - use mode chips in header -->
           </div>
 
           <!-- Maintenance Mode Content -->
@@ -1843,6 +1970,10 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
                 <div class="kpi-label">Targets</div>
                 <div class="kpi-value" id="ec-band">0.8–1.2 mS/cm</div>
               </div>
+              <div class="kpi kpi-ec" id="ec-learned-kpi" style="min-width:110px;display:none;">
+                <div class="kpi-label">Learned</div>
+                <div class="kpi-value" id="ec-learned-value-kpi" style="font-size:0.85rem;">—</div>
+              </div>
               <!-- age chip and freshness dot removed (header health indicator is sufficient) -->
               <span id="ecOverrideBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.75rem;" title="OVERRIDE ON">OVERRIDE ON</span>
               
@@ -1860,17 +1991,7 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
             </div>
             <!-- Auto Mode Content -->
             <div id="ec-auto-content" style="display:none;">
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-                <button id="btnEcAutoToggle" class="btn-secondary">Enable automation</button>
-                <details style="flex-shrink:0;">
-                  <summary class="btn-secondary btn-small" style="cursor:pointer;list-style:none;display:inline-block;">Advanced</summary>
-                  <div style="position:absolute;z-index:100;margin-top:4px;padding:12px;background:#111827;border:1px solid #374151;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.4);min-width:200px;">
-                    <div class="muted" style="font-size:0.75rem;margin-bottom:8px;">Advanced Automation Controls</div>
-                    <button id="btnEcClearLearner" class="btn-secondary btn-small" style="width:100%;margin-bottom:6px;">Clear Learned Value</button>
-                    <div id="ecLearnedValue" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;"></div>
-                  </div>
-                </details>
-              </div>
+              <!-- Redundant automation button removed - use mode chips in header -->
             </div>
 
             <!-- Maintenance Mode Banner (shares manual controls; warning shown when in maintenance) -->
