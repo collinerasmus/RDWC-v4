@@ -1572,6 +1572,116 @@ th,td{border-bottom:1px solid #1f2937;padding:6px 8px;text-align:left}
           <div id="ec-calib-msg" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
           </div>
         </details>
+        
+        <!-- Pump Calibration Sections -->
+        <details class="sensors-settings-accordion" style="margin-top:8px;">
+          <summary class="muted" style="cursor:pointer;font-size:0.85rem;">💧 pH Pump Calibration</summary>
+          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <div style="font-weight:600;margin-bottom:8px;font-size:0.8rem;">pH Up Pump Flow Rate</div>
+            <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Run pump for known duration, measure output, then commit to save ml/s rate.</div>
+            
+            <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:10px;">
+              <div>
+                <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
+                <input type="number" id="phPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+              </div>
+              <div>
+                <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
+                <input type="number" id="phPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+              </div>
+            </div>
+            
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+              <button id="btnPhPumpPrime" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Prime (3s)</button>
+              <button id="btnPhPumpRun" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Run</button>
+              <button id="btnPhPumpCommit" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Commit Rate</button>
+            </div>
+            
+            <div style="font-size:0.7rem;color:#9ca3af;margin-top:8px;">
+              Current rate: <span id="phPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s
+            </div>
+            <div id="phPumpCalibMsg" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
+          </div>
+        </details>
+        
+        <details class="sensors-settings-accordion" style="margin-top:8px;">
+          <summary class="muted" style="cursor:pointer;font-size:0.85rem;">🌿 EC Pumps Calibration</summary>
+          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <div style="font-weight:600;margin-bottom:8px;font-size:0.8rem;">EC Nutrient Pumps Flow Rates</div>
+            <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Calibrate all three EC pumps (Grow, Micro, Bloom) for accurate nutrient dosing.</div>
+            
+            <!-- Grow Pump -->
+            <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(148,163,184,0.2);">
+              <div style="font-weight:600;margin-bottom:6px;font-size:0.75rem;color:#a7f3d0;">Grow Pump</div>
+              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:8px;">
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
+                  <input type="number" id="growPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
+                  <input type="number" id="growPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <button id="btnGrowPumpPrime" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Prime</button>
+                <button id="btnGrowPumpRun" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Run</button>
+                <button id="btnGrowPumpCommit" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Commit</button>
+              </div>
+              <div style="font-size:0.7rem;color:#9ca3af;">
+                Rate: <span id="growPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s
+              </div>
+            </div>
+            
+            <!-- Micro Pump -->
+            <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(148,163,184,0.2);">
+              <div style="font-weight:600;margin-bottom:6px;font-size:0.75rem;color:#a7f3d0;">Micro Pump</div>
+              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:8px;">
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
+                  <input type="number" id="microPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
+                  <input type="number" id="microPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <button id="btnMicroPumpPrime" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Prime</button>
+                <button id="btnMicroPumpRun" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Run</button>
+                <button id="btnMicroPumpCommit" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Commit</button>
+              </div>
+              <div style="font-size:0.7rem;color:#9ca3af;">
+                Rate: <span id="microPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s
+              </div>
+            </div>
+            
+            <!-- Bloom Pump -->
+            <div>
+              <div style="font-weight:600;margin-bottom:6px;font-size:0.75rem;color:#a7f3d0;">Bloom Pump</div>
+              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:8px;">
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
+                  <input type="number" id="bloomPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
+                  <input type="number" id="bloomPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <button id="btnBloomPumpPrime" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Prime</button>
+                <button id="btnBloomPumpRun" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Run</button>
+                <button id="btnBloomPumpCommit" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Commit</button>
+              </div>
+              <div style="font-size:0.7rem;color:#9ca3af;">
+                Rate: <span id="bloomPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s
+              </div>
+            </div>
+            
+            <div id="ecPumpsCalibMsg" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
+          </div>
+        </details>
       </div>
       
       <!-- Exclusive-open accordion script for Sensors Settings -->
