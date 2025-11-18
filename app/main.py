@@ -1177,7 +1177,8 @@ def api_controllers_status():
             "auto_enabled": chiller_state.get("auto_enabled", False),
             "current_temp": get_current_water_temp(),
             "target_temp": float(get_setting_key("chiller.target_temp", "19.0") or "19.0"),
-            "hysteresis": float(get_setting_key("chiller.hysteresis", "0.5") or "0.5"),
+            # Updated default hysteresis per brief (0.7°C)
+            "hysteresis": float(get_setting_key("chiller.hysteresis", "0.7") or "0.7"),
             "is_running": chiller_state.get("is_running", False),
             "in_cooldown": chiller_state.get("in_cooldown", False),
         }

@@ -102,9 +102,11 @@ CHILLER_SPECS = {
     'model': 'Hailea HS-52A',
     'cooling_capacity_watts': 160,
     'recommended_volume_liters': (50, 150),
-    'min_on_seconds': 300,      # 5 minutes minimum runtime (compressor protection)
-    'min_off_seconds': 600,     # 10 minutes minimum off (compressor cooldown)
-    'max_cycles_per_hour': 4,   # Prevent excessive cycling
+    # Defaults per approved brief (compressor-safe but responsive):
+    # min_off_seconds: 300 (5 min cooldown), min_on_seconds: 60 (≥1 min runtime), hysteresis default 0.7°C
+    'min_on_seconds': 60,
+    'min_off_seconds': 300,
+    'max_cycles_per_hour': 8,   # Allow up to 8 safe cycles/hour given shorter min_on
 }
 
 
@@ -433,18 +435,18 @@ def force_chiller_state(desired_on: bool, duration_minutes: Optional[int] = None
 
 # Initialize defaults in settings if not present
 def _ensure_defaults():
-    """Ensure all chiller settings exist with proper defaults."""
+    """Ensure all chiller settings exist with proper defaults (aligned with brief)."""
     defaults = {
-        'chiller.target_temp': '19.0',           # °C - optimal for cannabis
-        'chiller.hysteresis': '0.5',             # °C - deadband
+        'chiller.target_temp': '19.0',            # °C - optimal for cannabis
+        'chiller.hysteresis': '0.7',              # °C - deadband per brief
         'chiller.min_on_seconds': str(CHILLER_SPECS['min_on_seconds']),
         'chiller.min_off_seconds': str(CHILLER_SPECS['min_off_seconds']),
-        'chiller.auto_enabled': '0',             # Start disabled for safety
-        'chiller.control_interval_s': '30',      # Check temp every 30s
-        'chiller.max_temp_alarm': '24.0',        # Alert if water exceeds this
-        'chiller.min_temp_alarm': '16.0',        # Alert if water below this
+        'chiller.auto_enabled': '0',              # Start disabled for safety
+        'chiller.control_interval_s': '30',       # Check temp every 30s
+        'chiller.max_temp_alarm': '24.0',         # Alert if water exceeds this
+        'chiller.min_temp_alarm': '16.0',         # Alert if water below this
     }
-    
+
     for key, default_value in defaults.items():
         if get_setting(key) is None:
             set_setting(key, default_value)
