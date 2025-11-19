@@ -6,6 +6,7 @@ Safe to run on dev machines (Windows) thanks to light shims similar to test_comm
 """
 from __future__ import annotations
 import os, sys, types, json, time, argparse
+from pathlib import Path
 from typing import Any, Dict
 
 # Shims for Windows so smbus2 / fcntl imports succeed when app modules load.
@@ -35,6 +36,18 @@ if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
 from fastapi.testclient import TestClient  # type: ignore
+
+# Ensure repository root is on sys.path when executed as a script/subprocess
+try:
+    repo_root = Path(__file__).resolve().parents[1]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+except Exception:
+    # Ignore errors if repo root cannot be determined or added to sys.path.
+    # This allows the script to run in environments (e.g., Windows, CI) where
+    # __file__ or the expected directory structure may not exist.
+    pass
+
 from app.main import app  # type: ignore
 
 client = TestClient(app)

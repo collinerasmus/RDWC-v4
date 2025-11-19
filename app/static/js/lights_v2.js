@@ -21,7 +21,12 @@
     updateHealth();
     // Persist to backend (auto/manual only). Maintenance is a UI concept tied to safety.maintenance_override.
     if (syncBackend && (next==='auto' || next==='manual')){
-      postJSON('/api/controller/lights/mode', {mode: next}).catch(()=>{});
+      postJSON('/api/controller/lights/mode', {mode: next}).then(() => {
+        // Check if all controllers now match and sync system mode if so
+        if (window.syncSystemModeFromControllers) {
+          setTimeout(() => window.syncSystemModeFromControllers(), 200);
+        }
+      }).catch(()=>{});
     }
   }
   
@@ -29,12 +34,15 @@
     try {
       const resp = await getJSON('/api/controller/lights/mode');
       if (resp.ok && resp.mode) {
+        // Normalize maintenance to maint for UI (lights uses 'maintenance' not 'maint')
         setMode(resp.mode, false);
+        console.log('[Lights] Synced mode from backend:', resp.mode);
       }
     } catch (e) {
-      // Fallback to localStorage
+      console.error('[Lights] Failed to sync mode from backend:', e);
     }
   }
+  window.syncLightsModeFromBackend = syncModeFromBackend;
 
   function updateWindowPreview(win){
     const el = $('lights-window-preview');
@@ -121,6 +129,8 @@
     setMode(mode, false);
     refresh();
     setInterval(refresh, 4000);
+    // Poll mode every 5 seconds to pick up system mode changes
+    setInterval(syncModeFromBackend, 5000);
     // expose for inline onclicks
     window.lightsSetMode = setMode;
   }

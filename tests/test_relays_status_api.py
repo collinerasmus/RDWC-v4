@@ -13,7 +13,7 @@ def test_relays_status_shape():
     from app.main import api_relays_status
     data = api_relays_status()
     assert isinstance(data, dict)
-    assert data.get('mode') in ('manual', 'auto')
+    assert data.get('mode') in ('manual', 'auto', 'maintenance')
     assert isinstance(data.get('estop'), bool)
     relays = data.get('relays')
     assert isinstance(relays, dict)

@@ -562,21 +562,17 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
             result.update({"reason": "cooldown", "remaining_cooldown_s": remaining})
         return {"http_status": 409, **result}
 
-    # Concurrency control: acquire dosing lock
-    acquired = False
-    if nonblocking:
-        acquired = _dose_lock.acquire(blocking=False)
-        if not acquired:
-            # Busy: log blocked and return cooldown-like response
-            rowid = _log_row({
-                "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
-                "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
-                "result": "blocked", "reason": "busy"
-            })
-            return {"http_status": 409, "ok": False, "blocked": True, "reasons": ["busy"], "reason": "cooldown", "rowid": rowid}
-    else:
-        _dose_lock.acquire()
-        acquired = True
+    # Concurrency control: always use non-blocking lock acquisition to prevent blocking the API server
+    # and to avoid potential deadlocks in hardware control operations (both in tests and production).
+    acquired = _dose_lock.acquire(blocking=False)
+    if not acquired:
+        # Lock already held: treat as busy regardless of nonblocking flag
+        rowid = _log_row({
+            "ts_utc": ts_iso, "action": "dose", "volume_ml": None if volume_ml is None else float(volume_ml),
+            "duration_ms": int(duration_ms), "pre_ph": pre_ph, "post_ph": None,
+            "result": "blocked", "reason": "busy"
+        })
+        return {"http_status": 409, "ok": False, "blocked": True, "reasons": ["busy"], "reason": "cooldown", "rowid": rowid}
 
     try:
         # Actuate pump

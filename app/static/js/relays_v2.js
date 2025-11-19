@@ -83,11 +83,75 @@
       showToast(`System mode set to ${mode.toUpperCase()}`, 'success');
       // Repaint to apply readonly styles
       renderRelays();
+      // Wait a moment for backend propagation to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+      // Notify all controller tabs to refresh their modes from backend
+      await refreshAllControllerModes();
     } catch(e) {
       console.error('Failed to set system mode:', e);
       showToast('Failed to change system mode', 'error');
     }
   }
+  
+  async function refreshAllControllerModes() {
+    // Notify each controller module to sync from backend (with delay between calls)
+    console.log('[System] Refreshing all controller modes from backend...');
+    const refreshes = [];
+    if (window.refreshServerMode) refreshes.push(window.refreshServerMode()); // Sensors
+    if (window.syncCircModeFromBackend) refreshes.push(window.syncCircModeFromBackend()); // Circulation
+    if (window.syncLightsModeFromBackend) refreshes.push(window.syncLightsModeFromBackend()); // Lights
+    if (window.syncScheduleModeFromBackend) refreshes.push(window.syncScheduleModeFromBackend()); // Schedule
+    await Promise.all(refreshes);
+    console.log('[System] All controller modes refreshed');
+  }
+  
+  async function syncSystemModeFromControllers() {
+    // Check if all controllers are in the same mode, and if so, sync system mode
+    try {
+      const resp = await getJSON('/api/controllers/status');
+      const controllers = resp.controllers || {};
+      const controllerNames = Object.keys(controllers);
+      const modes = Object.values(controllers).map(c => c.mode).filter(m => m);
+      
+      console.log('[System] Checking controller modes:', {
+        system_mode: resp.system_mode,
+        controllers: Object.fromEntries(controllerNames.map(name => [name, controllers[name].mode]))
+      });
+      
+      if (modes.length === 0) {
+        console.log('[System] No controller modes found, skipping sync');
+        return;
+      }
+      
+      // Check if all controllers have the same mode
+      const firstMode = modes[0];
+      const allSame = modes.every(m => m === firstMode);
+      
+      console.log('[System] Mode check:', {
+        allSame,
+        firstMode,
+        systemMode: resp.system_mode,
+        needsSync: allSame && firstMode !== resp.system_mode
+      });
+      
+      if (allSame && firstMode !== resp.system_mode) {
+        console.log(`[System] All ${modes.length} controllers are "${firstMode}", syncing system mode from "${resp.system_mode}"...`);
+        await postJSON('/api/system_mode', { mode: firstMode });
+        currentMode = firstMode;
+        state.systemMode = firstMode;
+        updateModeButtons();
+        renderModeHint();
+        console.log(`[System] ✓ System mode synced to "${firstMode}"`);
+      } else if (allSame) {
+        console.log(`[System] All controllers match system mode "${firstMode}", no sync needed`);
+      } else {
+        console.log('[System] Controllers have different modes, no sync performed');
+      }
+    } catch (e) {
+      console.error('[System] Failed to sync system mode from controllers:', e);
+    }
+  }
+  window.syncSystemModeFromControllers = syncSystemModeFromControllers;
 
   function updateModeButtons() {
     const autoBtn = q('#mode-auto');
@@ -498,6 +562,7 @@
     window.APP_POLL = window.APP_POLL || { relays: 1000, sensors: 5000 };
     let relaysTimer = setInterval(refreshRelays, window.APP_POLL.relays || 1000);
     let estopTimer = setInterval(refreshEstop, 2000);
+    let systemModeTimer = setInterval(refreshSystemMode, 3000); // Poll system mode every 3s
 
     window.addEventListener('settings:ui', (ev)=>{
       try {
