@@ -1093,6 +1093,147 @@ def api_chiller_settings_update(req: dict):
     upsert_settings(updates)
     return {"ok": True, "updated": updates}
 
+@app.get("/api/controllers/status")
+def api_controllers_status():
+    """Consolidated atomic snapshot of all controller states, modes, guards, and holding reasons.
+    Used by UI for unified status display and mode synchronization.
+    Returns: {
+        system_mode: str,
+        maintenance_override: bool,
+        estop: bool,
+        controllers: {
+            ph: {mode, auto_enabled, holding_reason, guards, learned_ml_per_pH, ...},
+            ec: {mode, auto_enabled, holding_reason, guards, learned_ml_per_mScm, ...},
+            chiller: {mode, auto_enabled, current_temp, state, ...},
+            lights: {mode, is_on, schedule_active, ...},
+            circulation: {mode, pumps: {...}}
+        }
+    }
+    """
+    import time
+    from app.controller_modes import get_all_modes
+    from app.system_mode import get_system_mode
+    from app.settings import get_setting_key
+    from app.relays_core import get_estop_status, get_relay_status
+    
+    # System-wide state
+    system_mode = get_system_mode()
+    try:
+        maint_override = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
+    except Exception:
+        maint_override = False
+    estop = get_estop_status()
+    
+    # Controller modes
+    controller_modes = get_all_modes()
+    
+    # Build controller details
+    controllers = {}
+    
+    # pH Controller
+    try:
+        from app.ph_control import ph_status
+        ph_data = ph_status()
+        controllers["ph"] = {
+            "mode": controller_modes.get("ph", "auto"),
+            "auto_enabled": ph_data.get("auto", {}).get("enabled", False),
+            "holding_reason": ph_data.get("auto", {}).get("holding_reason"),
+            "learned_ml_per_pH": ph_data.get("auto", {}).get("learned_ml_per_pH"),
+            "guards": ph_data.get("guards", {}),
+            "ph": ph_data.get("ph"),
+            "ts": ph_data.get("ts"),
+            "targets": ph_data.get("targets", {}),
+            "remaining_cooldown_s": ph_data.get("remaining_cooldown_s", 0),
+        }
+    except Exception as e:
+        logger.error(f"Failed to get pH status: {e}")
+        controllers["ph"] = {"mode": controller_modes.get("ph", "auto"), "error": str(e)}
+    
+    # EC Controller
+    try:
+        from app.ec_control import get_ec_status
+        ec_data = get_ec_status()
+        controllers["ec"] = {
+            "mode": controller_modes.get("ec", "auto"),
+            "auto_enabled": ec_data.get("auto", {}).get("enabled", False),
+            "holding_reason": ec_data.get("auto", {}).get("holding_reason"),
+            "learned_ml_per_mScm": ec_data.get("auto", {}).get("learned_ml_per_mScm"),
+            "guards": ec_data.get("guards", {}),
+            "ec_ms_cm": ec_data.get("ec_ms_cm"),
+            "ec_ts": ec_data.get("ec_ts"),
+            "targets": ec_data.get("targets", {}),
+            "today_ml": ec_data.get("today_ml", 0),
+        }
+    except Exception as e:
+        logger.error(f"Failed to get EC status: {e}")
+        controllers["ec"] = {"mode": controller_modes.get("ec", "auto"), "error": str(e)}
+    
+    # Chiller Controller
+    try:
+        from app.chiller_control import get_chiller_state, get_current_water_temp
+        chiller_state = get_chiller_state()
+        controllers["chiller"] = {
+            "mode": controller_modes.get("chiller", "auto"),
+            "auto_enabled": chiller_state.get("auto_enabled", False),
+            "current_temp": get_current_water_temp(),
+            "target_temp": float(get_setting_key("chiller.target_temp", "19.0") or "19.0"),
+            # Updated default hysteresis per brief (0.7°C)
+            "hysteresis": float(get_setting_key("chiller.hysteresis", "0.7") or "0.7"),
+            "is_running": chiller_state.get("is_running", False),
+            "in_cooldown": chiller_state.get("in_cooldown", False),
+        }
+    except Exception as e:
+        logger.error(f"Failed to get chiller status: {e}")
+        controllers["chiller"] = {"mode": controller_modes.get("chiller", "auto"), "error": str(e)}
+    
+    # Lights Controller
+    try:
+        relay_status = get_relay_status()
+        lights_on = relay_status.get("lights", {}).get("is_on", False)
+        # Check if schedule is active (lights controller in auto means schedule active)
+        schedule_active = controller_modes.get("lights", "auto") == "auto"
+        controllers["lights"] = {
+            "mode": controller_modes.get("lights", "auto"),
+            "is_on": lights_on,
+            "schedule_active": schedule_active,
+        }
+    except Exception as e:
+        logger.error(f"Failed to get lights status: {e}")
+        controllers["lights"] = {"mode": controller_modes.get("lights", "auto"), "error": str(e)}
+    
+    # Circulation Controller (pumps)
+    try:
+        relay_status = get_relay_status()
+        controllers["circulation"] = {
+            "mode": controller_modes.get("circulation", "auto"),
+            "main_pump": relay_status.get("main_pump", {}).get("is_on", False),
+            "chiller_pump": relay_status.get("chiller_pump", {}).get("is_on", False),
+        }
+    except Exception as e:
+        logger.error(f"Failed to get circulation status: {e}")
+        controllers["circulation"] = {"mode": controller_modes.get("circulation", "auto"), "error": str(e)}
+    
+    return {
+        "system_mode": system_mode,
+        "maintenance_override": maint_override,
+        "estop": estop,
+        "controllers": controllers,
+        "timestamp": int(time.time()),
+    }
+
+@app.get("/api/chiller/events")
+def api_chiller_events(limit: int = Query(200, ge=1, le=1000)):
+    """Return recent chiller state transition events (newest first).
+    Each event: {ts_utc:int, prev_state:str, new_state:str, reason:str|null}
+    """
+    try:
+        from app.chiller_control import get_chiller_events
+        events = get_chiller_events(limit)
+        return {"events": events, "count": len(events)}
+    except Exception as e:
+        logger.error(f"/api/chiller/events failed: {e}")
+        return JSONResponse(status_code=500, content={"error": "events_failed"})
+
 # --- Unified dosing endpoints ------------------------------------------------
 @app.post("/api/dose/grow")
 def dose_grow(body: dict = Body(...)):
@@ -1649,15 +1790,15 @@ def get_system_mode_api():
 
 @app.post("/api/system_mode")
 def set_system_mode_api(body: dict = Body(...)):
-    """Set system mode (auto or manual)"""
-    from app.system_mode import set_system_mode, MODE_AUTO, MODE_MANUAL
+    """Set system mode (auto, manual, or maintenance)"""
+    from app.system_mode import set_system_mode, VALID_MODES
     
     mode = body.get("mode")
     
-    if mode not in [MODE_AUTO, MODE_MANUAL]:
+    if mode not in VALID_MODES:
         return JSONResponse(
             status_code=400,
-            content={"error": f"Invalid mode '{mode}'. Must be 'auto' or 'manual'"}
+            content={"error": f"Invalid mode '{mode}'. Must be one of: {', '.join(VALID_MODES)}"}
         )
     
     success = set_system_mode(mode)
@@ -1676,10 +1817,17 @@ def api_system_mode_fast(body: dict = Body(...)):
     Returns {mode, success}. Falls back handled by caller if needed."""
     from app.settings import upsert_settings
     mode = (body.get("mode") or "").lower()
-    if mode not in ("auto", "manual"):
+    if mode not in ("auto", "manual", "maintenance"):
         return JSONResponse(status_code=400, content={"error": "invalid_mode"})
     try:
         upsert_settings({"system_mode": mode})
+        # Also propagate to controllers
+        try:
+            from app.controller_modes import set_mode, CONTROLLERS
+            for controller in CONTROLLERS:
+                set_mode(controller, mode)
+        except Exception:
+            pass  # Best effort
         return {"mode": mode, "success": True, "fast": True}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": "fast_set_failed", "detail": str(e)})
@@ -1779,7 +1927,7 @@ def set_chiller_override(body: dict = Body(...)):
     # Persist setting
     set_overrides(chiller_mode=override)
 
-    # Apply control once, respecting cooldowns (no thermostat in AUTO)
+    # Apply thermostat control with compressor-safe min ON/OFF times
     control_chiller("override")
 
     return {"override": override}

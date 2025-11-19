@@ -21,15 +21,16 @@
         const j = await r.json(); 
         sensorsMode = j.mode || sensorsMode; 
         localStorage.setItem('sensors_mode', sensorsMode);
-        console.log('[Sensors] refreshServerMode got:', sensorsMode);
+        console.log('[Sensors] Synced mode from backend:', sensorsMode);
       }
-    }catch(e){ console.error('[Sensors] refreshServerMode failed:', e); }
+    }catch(e){ console.error('[Sensors] Failed to sync mode from backend:', e); }
     setActive($('sensors-mode-auto'), sensorsMode==='auto');
     setActive($('sensors-mode-manual'), sensorsMode==='manual');
     setActive($('sensors-mode-maint'), sensorsMode==='maintenance');
     updateSensorsHealth();
     toggleOverridesVisibility();
   }
+  window.refreshServerMode = refreshServerMode;
 
   async function sensorsSetMode(next){
     console.log('[Sensors] setMode called:', next);
@@ -85,6 +86,8 @@
       });
       updateSensorsHealth();
       toggleOverridesVisibility();
+      // Check if all controllers now match and sync system mode if so
+      if (window.syncSystemModeFromControllers) window.syncSystemModeFromControllers();
     }catch(e){ 
       console.error('[Sensors] set mode exception:', e);
       alert(`Error setting mode: ${e.message}`);
@@ -411,6 +414,9 @@
     bindMode(autoBtn, 'auto');
     bindMode(manualBtn, 'manual');
     bindMode(maintBtn, 'maintenance');
+    // Sync mode from backend and poll every 5s
+    refreshServerMode();
+    setInterval(refreshServerMode, 5000);
     // Initialize recent readings list
     refreshRecent();
     // Periodically refresh recent list (every 45s)

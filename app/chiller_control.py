@@ -12,6 +12,8 @@ Features:
 import time
 import threading
 import logging
+import os
+import sqlite3
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -100,10 +102,66 @@ CHILLER_SPECS = {
     'model': 'Hailea HS-52A',
     'cooling_capacity_watts': 160,
     'recommended_volume_liters': (50, 150),
-    'min_on_seconds': 300,      # 5 minutes minimum runtime (compressor protection)
-    'min_off_seconds': 600,     # 10 minutes minimum off (compressor cooldown)
-    'max_cycles_per_hour': 4,   # Prevent excessive cycling
+    # Defaults per approved brief (compressor-safe but responsive):
+    # min_off_seconds: 300 (5 min cooldown), min_on_seconds: 60 (≥1 min runtime), hysteresis default 0.7°C
+    'min_on_seconds': 60,
+    'min_off_seconds': 300,
+    'max_cycles_per_hour': 8,   # Allow up to 8 safe cycles/hour given shorter min_on
 }
+
+
+# --- Events logging (SQLite) -------------------------------------------------
+_EVENTS_TABLE = "chiller_events"
+
+def _db_conn():
+    path = os.environ.get("RDWC_DB", "data/rdwc.db")
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def _ensure_events_table():
+    try:
+        with _db_conn() as conn:
+            conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {_EVENTS_TABLE} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ts_utc INTEGER NOT NULL,
+                    prev_state TEXT NOT NULL,
+                    new_state TEXT NOT NULL,
+                    reason TEXT
+                )
+                """
+            )
+            conn.commit()
+    except Exception as e:
+        log.error(f"[CHILLER] Failed to ensure events table: {e}")
+
+def _log_event(prev_state: str, new_state: str, reason: str = ""):
+    """Persist a chiller state transition event."""
+    try:
+        with _db_conn() as conn:
+            conn.execute(
+                f"INSERT INTO {_EVENTS_TABLE} (ts_utc, prev_state, new_state, reason) VALUES (?,?,?,?)",
+                (int(time.time()), prev_state, new_state, reason)
+            )
+            conn.commit()
+    except Exception as e:
+        log.error(f"[CHILLER] Failed to log event: {e}")
+
+def get_chiller_events(limit: int = 200) -> list[dict]:
+    """Return most recent chiller state transition events (newest first)."""
+    try:
+        with _db_conn() as conn:
+            cur = conn.execute(
+                f"SELECT ts_utc, prev_state, new_state, reason FROM {_EVENTS_TABLE} ORDER BY ts_utc DESC LIMIT ?",
+                (int(limit),)
+            )
+            rows = cur.fetchall()
+            return [dict(r) for r in rows]
+    except Exception as e:
+        log.error(f"[CHILLER] Failed to fetch events: {e}")
+        return []
 
 
 def get_chiller_state() -> Dict[str, Any]:
@@ -186,11 +244,13 @@ def set_chiller_relay(desired_on: bool, reason: str = '') -> bool:
             
             # Update state
             now = time.time()
+            prev = 'ON' if _chiller_state['is_running'] else 'OFF'
             if desired_on:
                 _chiller_state['last_on_time'] = now
                 _chiller_state['is_running'] = True
                 _chiller_state['cycles_today'] += 1
                 log.info(f'[CHILLER] ON: {reason}')
+                _log_event(prev, 'ON', reason)
             else:
                 if _chiller_state['last_on_time']:
                     runtime = now - _chiller_state['last_on_time']
@@ -198,6 +258,7 @@ def set_chiller_relay(desired_on: bool, reason: str = '') -> bool:
                 _chiller_state['last_off_time'] = now
                 _chiller_state['is_running'] = False
                 log.info(f'[CHILLER] OFF: {reason}')
+                _log_event(prev, 'OFF', reason)
             
             return True
             
@@ -374,20 +435,21 @@ def force_chiller_state(desired_on: bool, duration_minutes: Optional[int] = None
 
 # Initialize defaults in settings if not present
 def _ensure_defaults():
-    """Ensure all chiller settings exist with proper defaults."""
+    """Ensure all chiller settings exist with proper defaults (aligned with brief)."""
     defaults = {
-        'chiller.target_temp': '19.0',           # °C - optimal for cannabis
-        'chiller.hysteresis': '0.5',             # °C - deadband
+        'chiller.target_temp': '19.0',            # °C - optimal for cannabis
+        'chiller.hysteresis': '0.7',              # °C - deadband per brief
         'chiller.min_on_seconds': str(CHILLER_SPECS['min_on_seconds']),
         'chiller.min_off_seconds': str(CHILLER_SPECS['min_off_seconds']),
-        'chiller.auto_enabled': '0',             # Start disabled for safety
-        'chiller.control_interval_s': '30',      # Check temp every 30s
-        'chiller.max_temp_alarm': '24.0',        # Alert if water exceeds this
-        'chiller.min_temp_alarm': '16.0',        # Alert if water below this
+        'chiller.auto_enabled': '0',              # Start disabled for safety
+        'chiller.control_interval_s': '30',       # Check temp every 30s
+        'chiller.max_temp_alarm': '24.0',         # Alert if water exceeds this
+        'chiller.min_temp_alarm': '16.0',         # Alert if water below this
     }
-    
+
     for key, default_value in defaults.items():
         if get_setting(key) is None:
             set_setting(key, default_value)
 
 _ensure_defaults()
+_ensure_events_table()

@@ -92,6 +92,19 @@
     }
     // (Removed recent list rendering)
     
+    // Update learned value KPI in readings row
+    const learnedKPI = el('ec-learned-kpi');
+    if (learnedKPI && s && s.learned_ml_per_mScm !== null && s.learned_ml_per_mScm !== undefined && s.learned_ml_per_mScm > 0) {
+      learnedKPI.style.display = 'inline-block';
+      const valueEl = learnedKPI.querySelector('.kpi-value');
+      if (valueEl) valueEl.textContent = `${s.learned_ml_per_mScm.toFixed(2)} ml/mS`;
+    } else if (learnedKPI) {
+      learnedKPI.style.display = 'none';
+    }
+    
+    // Update learned value display in Settings section
+    updateLearnedDisplay(s);
+    
     // Today total
     const todayEl = el('ec-total-today');
     if(todayEl && s){ 
@@ -117,6 +130,17 @@
       const enabled = !!(s && s.auto && s.auto.enabled);
       autoBtn.textContent = enabled ? 'Disable EC automation' : 'Enable EC automation';
       autoBtn.title = 'Automatically raises EC when below target band using G/M/B mix';
+    }
+    
+    // Update learned value display
+    const learnedEl = el('ecLearnedValue');
+    if (learnedEl && s?.auto) {
+      const learned = s.auto.learned_ml_per_mScm;
+      if (learned !== null && learned !== undefined) {
+        learnedEl.innerHTML = `Learned: <strong>${learned.toFixed(2)} ml/mS/cm</strong>`;
+      } else {
+        learnedEl.innerHTML = `<span style="opacity:0.6;">No learned value yet</span>`;
+      }
     }
 
     // Update controller health chip after status changes
@@ -163,6 +187,21 @@
       }
     } catch (e) {
       // Silently fail - chips will show default values
+    }
+  }
+  
+  function updateLearnedDisplay(s) {
+    // Update learned value display in Settings > Automation section
+    const displayBox = el('ec-learned-display');
+    const displayValue = el('ec-learned-display-value');
+    if (!displayBox || !displayValue) return;
+    
+    if (s && s.learned_ml_per_mScm !== null && s.learned_ml_per_mScm !== undefined && s.learned_ml_per_mScm > 0) {
+      displayBox.style.display = 'block';
+      displayValue.textContent = s.learned_ml_per_mScm.toFixed(2);
+    } else {
+      displayBox.style.display = 'none';
+      displayValue.textContent = '—';
     }
   }
 
@@ -421,6 +460,26 @@
       if(ml > 0) doseEC(ml);
     });
     el('btnEcAutoToggle')?.addEventListener('click', toggleAuto);
+    
+    // Clear learner button (legacy ID)
+    el('btnEcClearLearner')?.addEventListener('click', async ()=>{
+      if (!confirm('Clear learned EC value? This will reset the automation learning.')) return;
+      const r = await fetch('/api/ec/auto/learn/reset', {method:'POST'});
+      let j = null; try{ j = await r.json(); }catch(e){}
+      if(window.showToast){ showToast(j?.ok ? 'EC learner reset' : 'Error resetting learner', j?.ok ? 'success':'error'); }
+      tick();
+    });
+    
+    // Clear learner button (new Settings section)
+    el('btnClearEcLearned')?.addEventListener('click', async ()=>{
+      if (!confirm('Clear learned EC value? This will reset the automation learning.')) return;
+      const r = await fetch('/api/ec/auto/learn/reset', {method:'POST'});
+      let j = null; try{ j = await r.json(); }catch(e){}
+      if(window.showToast){ showToast(j?.ok ? 'EC learner reset' : 'Error resetting learner', j?.ok ? 'success':'error'); }
+      // Update the learned display in Settings section
+      updateLearnedDisplay();
+      tick();
+    });
     // Export uses displayed window range
     el('btnEcExport')?.addEventListener('click', ()=>{
       if(window.ecChart && window.ecChart.exportCSV){ window.ecChart.exportCSV(); }

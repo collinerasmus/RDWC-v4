@@ -24,7 +24,29 @@
     if (maintContent) maintContent.style.display = (next === 'maint') ? 'block' : 'none';
 
     updateScheduleHealth();
+    // Check if all controllers now match and sync system mode if so
+    if (window.syncSystemModeFromControllers) {
+      setTimeout(() => window.syncSystemModeFromControllers(), 200);
+    }
   }
+  
+  async function syncScheduleModeFromBackend() {
+    try {
+      // Schedule controller uses lights mode since schedule controls lights
+      const r = await fetch('/api/controller/lights/mode', {cache: 'no-store'});
+      if (!r.ok) return;
+      const data = await r.json();
+      if (data.ok && data.mode) {
+        // Normalize maintenance to maint for UI
+        const mode = data.mode === 'maintenance' ? 'maint' : data.mode;
+        scheduleSetMode(mode);
+        console.log('[Schedule] Synced mode from backend (lights):', mode);
+      }
+    } catch (e) {
+      console.error('[Schedule] Failed to sync mode from backend:', e);
+    }
+  }
+  window.syncScheduleModeFromBackend = syncScheduleModeFromBackend;
 
   function updateScheduleHealth() {
     const chip = document.getElementById('schedule-health-indicator');
@@ -46,6 +68,12 @@
   // Initialize mode on load
   document.addEventListener('DOMContentLoaded', () => {
     scheduleSetMode(scheduleMode);
+    // Poll mode every 5 seconds to pick up system mode changes (if backend endpoint exists)
+    setInterval(() => {
+      if (window.syncScheduleModeFromBackend) {
+        window.syncScheduleModeFromBackend();
+      }
+    }, 5000);
   });
 
   // ===== SCHEDULE DISPLAY LOGIC =====
