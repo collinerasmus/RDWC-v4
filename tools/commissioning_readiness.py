@@ -29,6 +29,11 @@ if os.name == 'nt' and 'fcntl' not in sys.modules:
 
 os.environ.setdefault("CALIB_ENABLE", "1")
 
+# Ensure repository root is on sys.path so 'app' package can be imported in CI
+_repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
 from fastapi.testclient import TestClient  # type: ignore
 from app.main import app  # type: ignore
 
