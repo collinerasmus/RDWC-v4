@@ -1095,9 +1095,47 @@ body{
       </div>
     </div>
 
+    <!-- Temperature History Chart -->
+    <div style="margin-top:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h4 style="margin:0;font-size:1rem;font-weight:600;">Temperature & Chiller History</h4>
+        <select id="temp-history-range" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;">
+          <option value="24h">Last 24 Hours</option>
+          <option value="7d">Last 7 Days</option>
+          <option value="30d">Last 30 Days</option>
+          <option value="90d">Last 90 Days</option>
+        </select>
+      </div>
+      
+      <!-- Chart Statistics Summary -->
+      <div id="temp-stats-summary" style="margin-bottom:12px;padding:10px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+        <div class="muted" style="font-size:0.75rem;text-align:center;">Loading statistics...</div>
+      </div>
+
+      <!-- Chart Canvas -->
+      <div style="position:relative;height:420px;background:rgba(17,24,39,0.6);border-radius:8px;border:1px solid rgba(148,163,184,0.2);padding:12px;">
+        <canvas id="tempHistoryChart"></canvas>
+        <div id="temp-history-empty" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#9ca3af;font-size:0.9rem;text-align:center;">
+          No temperature data available for selected period
+        </div>
+      </div>
+
+      <!-- Research-Based Information Panel -->
+      <div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.25);">
+        <div style="font-size:0.75rem;color:#93c5fd;line-height:1.5;">
+          <strong>📊 Chart Guide:</strong><br>
+          • <span style="color:#22c55e;">Green zone (18-20°C)</span>: Optimal for cannabis - maximum nutrient uptake &amp; root health<br>
+          • <span style="color:#fb923c;">Yellow lines (16°C/24°C)</span>: Safe boundaries - growth slows outside this range<br>
+          • <span style="color:#ef4444;">Red lines (14°C/26°C)</span>: Critical limits - risk of root rot (high) or stress (low)<br>
+          • <span style="color:#a855f7;">Purple line</span>: Your target temperature setpoint<br>
+          • Shaded areas: Chiller compressor ON periods (5min min ON, 10min min OFF protection active)
+        </div>
+      </div>
+    </div>
+
     <!-- Chiller automation controlled via header chips only - redundant buttons removed -->
 
-    <details style="margin-top:8px;">
+    <details style="margin-top:16px;">
       <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Temperature & Chiller Settings</summary>
       <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
         <div class="muted" style="font-size:0.7rem;margin-bottom:10px;padding:6px 8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
@@ -2829,7 +2867,7 @@ window.CircControl = (function(){
         'https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3'
       ];
       // Chart-related app scripts
-      var chartsApp = ['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js'];
+      var chartsApp = ['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js','temp_chart.js'];
       var base = '/static/js/';
       libs.reduce(function(p,src){ return p.then(()=>loadScript(src,true)); }, Promise.resolve())
         .then(function(){ return chartsApp.reduce(function(p,f){
