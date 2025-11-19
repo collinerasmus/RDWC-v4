@@ -257,45 +257,22 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        parsing: false,
         interaction: {
           mode: 'nearest',
-          axis: 'x',
           intersect: false
         },
         plugins: {
-          legend: {
+          legend: { 
             display: true,
-            position: 'top',
-            labels: {
-              color: '#e0e0e0',
-              font: { size: 11 },
-              usePointStyle: true,
-              padding: 12,
-              filter: (item) => item.text !== 'No data'
-            }
+            position: 'top'
           },
           tooltip: {
-            backgroundColor: 'rgba(17, 24, 39, 0.95)',
-            titleColor: '#e0e0e0',
-            bodyColor: '#cbd5e1',
-            borderColor: 'rgba(148, 163, 184, 0.3)',
-            borderWidth: 1,
-            padding: 10,
-            displayColors: true,
+            enabled: true,
             callbacks: {
-              title: (items) => {
-                if (!items[0]) return '';
-                const d = new Date(items[0].parsed.x);
-                return d.toLocaleString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                });
-              },
-              label: (item) => {
-                const label = item.dataset.label || '';
-                const val = item.parsed.y;
+              label: (ctx) => {
+                const label = ctx.dataset.label || '';
+                const val = ctx.parsed.y;
                 if (val == null) return label;
                 return `${label}: ${val.toFixed(2)}°C`;
               }
@@ -303,54 +280,22 @@
           },
           annotation: {
             annotations: annotations
-          },
-          title: {
-            display: false
           }
         },
         scales: {
           x: {
             type: 'time',
-            time: {
-              tooltipFormat: 'MMM d, HH:mm',
-              displayFormats: {
-                hour: 'HH:mm',
-                day: 'MMM d'
-              }
-            },
+            adapters: { date: {} },
             min: tmin || undefined,
             max: tmax || undefined,
-            grid: {
-              color: 'rgba(148, 163, 184, 0.1)',
-              drawBorder: false
-            },
-            ticks: {
-              color: '#9ca3af',
-              font: { size: 10 },
-              maxRotation: 0,
-              autoSkipPadding: 20
-            }
+            ticks: { source: 'auto' }
           },
           y: {
             type: 'linear',
             position: 'left',
-            title: {
-              display: true,
-              text: 'Temperature (°C)',
-              color: '#9ca3af',
-              font: { size: 11, weight: 'bold' }
-            },
+            title: { display: true, text: 'Temperature (°C)' },
             min: Math.max(12, CRITICAL_MIN - 1),
-            max: Math.min(28, CRITICAL_MAX + 1),
-            grid: {
-              color: 'rgba(148, 163, 184, 0.1)',
-              drawBorder: false
-            },
-            ticks: {
-              color: '#9ca3af',
-              font: { size: 10 },
-              callback: (value) => value.toFixed(1) + '°C'
-            }
+            max: Math.min(28, CRITICAL_MAX + 1)
           }
         }
       }
