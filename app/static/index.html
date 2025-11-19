@@ -408,8 +408,8 @@ body{
   /* Subtle click feedback */
   .relay-btn.loading{ opacity:.7; }
 
-  /* Dose History chart wrappers: match sensors graph height with strict containment */
-  #ph-dose-chart-wrap, #ec-dose-chart-wrap {
+  /* Chart wrappers: standardized height with strict containment */
+  #sensors-chart-wrap, #ph-dose-chart-wrap, #ec-dose-chart-wrap, #temp-chart-wrap {
     position: relative;
     height: var(--h-trends);
     min-height: var(--h-trends);
@@ -417,7 +417,7 @@ body{
     overflow: hidden;
     contain: layout size;
   }
-  #phDoseChart, #ecDoseChart {
+  #trendChart, #phDoseChart, #ecDoseChart, #tempHistoryChart {
     display: block;
     width: 100%;
     height: var(--h-trends);
@@ -1096,40 +1096,53 @@ body{
     </div>
 
     <!-- Temperature History Chart -->
-    <div style="margin-top:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <h4 style="margin:0;font-size:1rem;font-weight:600;">Temperature & Chiller History</h4>
-        <select id="temp-history-range" style="height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.85rem;">
-          <option value="24h">Last 24 Hours</option>
-          <option value="7d">Last 7 Days</option>
-          <option value="30d">Last 30 Days</option>
-          <option value="90d">Last 90 Days</option>
-        </select>
-      </div>
-      
-      <!-- Chart Statistics Summary -->
-      <div id="temp-stats-summary" style="margin-bottom:12px;padding:10px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-        <div class="muted" style="font-size:0.75rem;text-align:center;">Loading statistics...</div>
-      </div>
+    <hr class="separator" style="margin:20px 0;" />
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+      <div class="muted">Temperature History</div>
+    </div>
+    
+    <!-- Chart Statistics Summary -->
+    <div id="temp-stats-summary" style="margin-bottom:12px;padding:10px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
+      <div class="muted" style="font-size:0.75rem;text-align:center;">Loading statistics...</div>
+    </div>
 
-      <!-- Chart Canvas -->
-      <div style="position:relative;height:420px;background:rgba(17,24,39,0.6);border-radius:8px;border:1px solid rgba(148,163,184,0.2);padding:12px;">
-        <canvas id="tempHistoryChart"></canvas>
-        <div id="temp-history-empty" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#9ca3af;font-size:0.9rem;text-align:center;">
-          No temperature data available for selected period
-        </div>
+    <!-- Chart Canvas with standardized wrapper -->
+    <div id="temp-chart-wrap" class="chart-card">
+      <canvas id="tempHistoryChart"></canvas>
+      <div id="temp-history-empty" class="muted small" style="display:none;padding:8px 0;">
+        No temperature data available for selected period.
       </div>
+    </div>
+    
+    <!-- Graph Controls (Standardized dropdown + datetime inputs) -->
+    <div class="temp-controls trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
+      <select id="temp-history-range" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.8rem;cursor:pointer;min-width:110px;">
+        <option value="24h">Last 24 Hours</option>
+        <option value="7d">Last 7 Days</option>
+        <option value="30d">Last 30 Days</option>
+        <option value="90d">Last 90 Days</option>
+        <option value="grow">Entire Grow</option>
+        <option value="today">Since Midnight</option>
+        <option value="custom">Custom Range...</option>
+      </select>
+      <div id="tempCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
+        <input type="datetime-local" id="tempFrom" class="dt-input" />
+        <span style="opacity:0.5;font-size:0.75rem;">to</span>
+        <input type="datetime-local" id="tempTo" class="dt-input" />
+        <button class="btn btn-secondary" id="tempApply" style="height:28px;padding:0 8px;font-size:0.75rem;white-space:nowrap;">Apply</button>
+      </div>
+      <button id="btnTempExport" class="btn-secondary btn-small" title="Export temperature history to CSV" style="margin-left:auto;">Export CSV</button>
+    </div>
 
-      <!-- Research-Based Information Panel -->
-      <div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.25);">
-        <div style="font-size:0.75rem;color:#93c5fd;line-height:1.5;">
-          <strong>📊 Chart Guide:</strong><br>
-          • <span style="color:#22c55e;">Green zone (18-20°C)</span>: Optimal for cannabis - maximum nutrient uptake &amp; root health<br>
-          • <span style="color:#fb923c;">Yellow lines (16°C/24°C)</span>: Safe boundaries - growth slows outside this range<br>
-          • <span style="color:#ef4444;">Red lines (14°C/26°C)</span>: Critical limits - risk of root rot (high) or stress (low)<br>
-          • <span style="color:#a855f7;">Purple line</span>: Your target temperature setpoint<br>
-          • Shaded areas: Chiller compressor ON periods (5min min ON, 10min min OFF protection active)
-        </div>
+    <!-- Research-Based Information Panel -->
+    <div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.25);">
+      <div style="font-size:0.75rem;color:#93c5fd;line-height:1.5;">
+        <strong>📊 Chart Guide:</strong><br>
+        • <span style="color:#22c55e;">Green zone (18-20°C)</span>: Optimal for cannabis - maximum nutrient uptake &amp; root health<br>
+        • <span style="color:#fb923c;">Yellow lines (16°C/24°C)</span>: Safe boundaries - growth slows outside this range<br>
+        • <span style="color:#ef4444;">Red lines (14°C/26°C)</span>: Critical limits - risk of root rot (high) or stress (low)<br>
+        • <span style="color:#a855f7;">Purple line</span>: Your target temperature setpoint<br>
+        • Shaded areas: Chiller compressor ON periods (5min min ON, 10min min OFF protection active)
       </div>
     </div>
 
@@ -1374,8 +1387,12 @@ body{
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
         <div class="muted">Sensor History</div>
       </div>
-      <canvas id="trendChart" height="120"></canvas>
-      <div id="trendEmpty" style="display:none;margin-top:8px;opacity:.7;">No data for selected period.</div>
+      <div id="sensors-chart-wrap" class="chart-card">
+        <canvas id="trendChart"></canvas>
+        <div id="trendEmpty" class="muted small" style="display:none;padding:8px 0;">
+          No data for selected period.
+        </div>
+      </div>
       <!-- Time range selector -->
       <div class="trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
         <select id="trendRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.8rem;cursor:pointer;min-width:100px;">
