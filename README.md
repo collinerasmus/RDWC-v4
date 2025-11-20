@@ -6,6 +6,13 @@ Automated RDWC (Recirculating Deep Water Culture) hydroponic controller with pH/
 **Software**: FastAPI + SQLite + Python 3.9+  
 **Safety-First**: Active-low relays (HIGH=OFF), safe-off on boot, guard rails, alerts
 
+## 📚 Documentation
+- **[Quick Answers](QUICK_ANSWERS.md)** - Fast answers to project management questions ⚡
+- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute safely and effectively
+- **[Project Management](PROJECT_MANAGEMENT.md)** - Organization, best practices, GitHub features
+- **[System Architecture](SYSTEM_ARCHITECTURE.md)** - Technical design and data flows
+- **[GitHub Setup](GITHUB_REPOSITORY_SETUP.md)** - Repository configuration and security
+
 ## Quick Start
 
 1. **Hardware Setup**: Connect sensors and relays per hardware map below

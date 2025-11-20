@@ -1,0 +1,124 @@
+name: Feature Request
+description: Suggest a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please provide details to help us evaluate it.
+        
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      description: What area does this feature relate to?
+      options:
+        - pH Control
+        - EC/Nutrient Control
+        - Temperature/Chiller
+        - Lights/Scheduler
+        - Sensors/Monitoring
+        - Relays/Hardware Control
+        - Web UI/Dashboard
+        - Automation/Rules
+        - Data Export/Analysis
+        - Safety/Alerts
+        - Deployment/DevOps
+        - Documentation
+        - Other
+    validations:
+      required: true
+      
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve? What use case does it address?
+      placeholder: |
+        Example: "I want to water my plants at specific times, but the current system only supports lights scheduling. I have to manually trigger the circulation pump."
+    validations:
+      required: true
+      
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this feature to work?
+      placeholder: |
+        Example: "Add a 'Circulation Schedule' similar to lights schedule. Allow setting multiple ON/OFF times per day. UI could be in Temperature tab or new 'Pumps' tab."
+    validations:
+      required: true
+      
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Other ways to solve this problem (helps us find best approach)
+      placeholder: |
+        Example:
+        - Manual control via UI (tedious, requires me to be present)
+        - Cron job on Pi (works but bypasses safety guards)
+        - External timer (requires additional hardware)
+        
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: How will we know this feature is complete and working?
+      placeholder: |
+        Example:
+        - [ ] UI shows circulation schedule settings (start time, duration, interval)
+        - [ ] Pump turns on/off according to schedule
+        - [ ] Manual override still works
+        - [ ] Schedule persists across restarts
+        - [ ] API endpoints for schedule CRUD operations
+        
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority (Your Perspective)
+      description: How important is this to you?
+      options:
+        - High (Blocking my use of the system)
+        - Medium (Would significantly improve my workflow)
+        - Low (Nice to have, but not urgent)
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: hardware
+    attributes:
+      label: Hardware Impact
+      description: Does this require new hardware or affect existing hardware?
+      options:
+        - No hardware changes needed
+        - Requires additional sensors
+        - Requires additional relays/pumps
+        - Requires GPIO pin changes
+        - Not sure
+    validations:
+      required: true
+      
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Mockups, diagrams, examples from other systems, related features
+      placeholder: |
+        Example:
+        - I saw this feature in XYZ hydroponic controller
+        - Attached mockup of proposed UI
+        - This would work well with the existing scheduler module
+        
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing issues to avoid duplicates
+          required: true
+        - label: This is a feature request, not a bug report (use Bug Report template instead)
+          required: true
+        - label: I understand this may take time to implement or may not align with project goals
+          required: true
