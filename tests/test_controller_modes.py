@@ -23,27 +23,41 @@ def with_temp_db(test_fn):
 @with_temp_db
 def test_set_and_get_mode():
     # Set mode for each controller and verify get_mode returns it
+    # Note: manual and maintenance now map to "hold" for simplified system
     for ctrl in ['ph', 'ec', 'chiller', 'circulation', 'lights']:
-        for mode in ['auto', 'manual', 'maintenance']:
-            mod.set_mode(ctrl, mode)
-            assert mod.get_mode(ctrl) == mode
+        # Test auto mode
+        mod.set_mode(ctrl, 'auto')
+        assert mod.get_mode(ctrl) == 'auto'
+        
+        # Test hold mode
+        mod.set_mode(ctrl, 'hold')
+        assert mod.get_mode(ctrl) == 'hold'
+        
+        # Test legacy modes map to hold
+        mod.set_mode(ctrl, 'manual')
+        assert mod.get_mode(ctrl) == 'hold'
+        
+        mod.set_mode(ctrl, 'maintenance')
+        assert mod.get_mode(ctrl) == 'hold'
 
 @with_temp_db
 def test_get_all_modes():
     # Set modes and verify get_all_modes returns correct dict
+    # Note: manual and maintenance now map to "hold"
     mod.set_mode('ph', 'auto')
-    mod.set_mode('ec', 'manual')
-    mod.set_mode('chiller', 'maintenance')
+    mod.set_mode('ec', 'manual')  # Maps to hold
+    mod.set_mode('chiller', 'maintenance')  # Maps to hold
     modes = mod.get_all_modes()
     assert modes['ph'] == 'auto'
-    assert modes['ec'] == 'manual'
-    assert modes['chiller'] == 'maintenance'
+    assert modes['ec'] == 'hold'
+    assert modes['chiller'] == 'hold'
 
 @with_temp_db
 def test_mode_persistence():
     # Set mode, reload module, verify persistence
+    # Note: manual now maps to hold
     mod.set_mode('ph', 'manual')
-    assert mod.get_mode('ph') == 'manual'
+    assert mod.get_mode('ph') == 'hold'
     # Simulate reload
     mod2 = importlib.reload(mod)
-    assert mod2.get_mode('ph') == 'manual'
+    assert mod2.get_mode('ph') == 'hold'

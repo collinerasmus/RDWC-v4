@@ -2772,11 +2772,15 @@ def api_controller_mode_get(name: str):
 
 @app.post("/api/controller/{name}/mode")
 def api_controller_mode_set(name: str, body: dict):
-    from app.controller_modes import set_mode, get_mode, CONTROLLERS, VALID_MODES
+    from app.controller_modes import set_mode, get_mode, CONTROLLERS, VALID_MODES, LEGACY_MODE_MAP
     if name not in CONTROLLERS:
         return {"ok": False, "error": "unknown_controller", "controller": name}
     mode = body.get("mode") if isinstance(body, dict) else None
-    ok = set_mode(name, mode) if mode in VALID_MODES else False
+    # Accept valid modes and legacy modes (which will be mapped internally)
+    if mode and (mode in VALID_MODES or mode in LEGACY_MODE_MAP):
+        ok = set_mode(name, mode)
+    else:
+        ok = False
     return {"ok": ok, "controller": name, "mode": get_mode(name)}
 
 @app.get("/cam_status")
