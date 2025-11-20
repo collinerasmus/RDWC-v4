@@ -1,5 +1,51 @@
 # Changelog
 
+## v4.2.0 (2025-11-20)
+
+**UI Simplification - Backend-First Focus**
+
+### Removed
+- Complex temperature chart implementation (`temp_chart.js`, 359 lines)
+- Temperature & chiller history chart from Chiller tab
+- Dose history chart wrappers from pH and EC tabs
+- `docs/CHILLER_CHART_GUIDE.md` documentation
+
+### Kept
+- Sensors tab chart remains intact (temperature, pH, EC trends with timeline controls)
+- All backend controller functionality unchanged
+- All database action tracking unchanged
+- All historical data preserved in `/data/rdwc.db`
+
+### Rationale
+- Focus on backend controller reliability before UI complexity
+- Reduce code that needs debugging and maintenance
+- Keep essential visualization (Sensors chart) for monitoring
+- Simplify UI to match Overview tab pattern (status displays, manual controls)
+
+### Action Tracking (Unchanged)
+All controller actions continue logging to database:
+- `ph_dose_log` / `ec_dose_log` - Dosing events with volume, duration, blocked reasons
+- `relay_events` - Chiller, pumps, lights state changes with reasons
+- `readings` - Sensor data (temperature, pH, EC) every 10 seconds
+- `system_state` - System mode/status changes
+
+### Backend Controllers (Unchanged)
+All working independently of UI:
+- Sensor poller: Continuous data logging
+- pH controller: Auto dosing to targets (5.8-6.2)
+- EC controller: Auto dosing to targets
+- Chiller controller: Hysteresis-based temperature control (19°C ±0.7°C)
+- Circulation controller: Main pump + chiller pump coordination
+- Lights controller: Schedule-based operation
+- Scheduler: Default and custom schedules
+- Mode controller: Auto/Manual/Maintenance state management
+
+### Technical Details
+- UI now minimal and functional like Overview tab
+- No frontend logic for control decisions
+- All settings have backend defaults (system works without UI)
+- Controllers work independently, UI displays backend state only
+
 ## v4.1.0 (2025-11-16)
 
 **Mode Controller System Implementation**

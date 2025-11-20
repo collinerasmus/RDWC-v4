@@ -16,6 +16,31 @@ Automated RDWC (Recirculating Deep Water Culture) hydroponic controller with pH/
 5. **Access**: http://192.168.88.49:8080
 6. **Important**: After deployment, clear browser cache (Ctrl+Shift+R) to load new assets
 
+## UI Philosophy (Backend-First)
+
+**Design Principle**: The system is **backend-first** — all control logic lives in Python controllers that run independently of the UI.
+
+### Key Characteristics
+- **Autonomous Operation**: Controllers work 24/7 without browser open
+- **Safe Defaults**: All settings have backend defaults; system runs without UI configuration
+- **UI is View-Only**: Dashboard displays backend state and allows manual overrides
+- **No Frontend Logic**: Control decisions happen in backend; UI just sends commands
+- **Simple & Reliable**: Minimal chart complexity, focus on real-time status and controls
+
+### UI Structure
+- **Overview Tab**: System-wide health indicators and controller status
+- **Sensors Tab**: Live sensor readings + historical trend chart (Temperature, pH, EC)
+- **pH/EC Tabs**: Current values, targets, guards, manual dosing controls (no charts)
+- **Chiller Tab**: Water temperature, target, stage display (no chart)
+- **Lights/Circulation/Scheduler/System**: Settings panels with collapsible sections
+
+### Data Preservation
+All controller actions are logged to SQLite database (`/data/rdwc.db`):
+- `readings` — Sensor data (temperature, pH, EC) every 10 seconds
+- `ph_dose_log`, `ec_dose_log` — Dosing events with volume, duration, safety blocks
+- `relay_events` — Chiller, pumps, lights state changes with reasons
+- `system_state` — Mode changes, scheduler state, poller heartbeat
+
 ## Development Workflow
 
 ### Environment Setup
