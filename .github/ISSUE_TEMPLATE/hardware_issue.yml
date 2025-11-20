@@ -1,0 +1,172 @@
+name: Hardware Issue
+description: Report problems with sensors, relays, or physical hardware
+title: "[Hardware]: "
+labels: ["hardware", "needs-investigation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **Safety First:** If you smell burning, see smoke, or observe any dangerous behavior, immediately:
+        1. Toggle E-STOP in UI (or run: `curl -X POST http://YOUR_PI_IP:8080/api/relays/estop/toggle`)
+        2. Unplug power to affected hardware
+        3. Report issue here AFTER ensuring safety
+        
+  - type: dropdown
+    id: hardware_type
+    attributes:
+      label: Hardware Component
+      description: Which hardware is affected?
+      options:
+        - pH Sensor (EZO-pH 0x63)
+        - EC Sensor (EZO-EC 0x64)
+        - Temperature Sensor (RTD 0x66)
+        - pH Up Dosing Pump (GPIO 5)
+        - Grow Nutrient Pump (GPIO 6)
+        - Micro Nutrient Pump (GPIO 13)
+        - Bloom Nutrient Pump (GPIO 19)
+        - Main Circulation Pump (GPIO 26)
+        - Chiller Pump (GPIO 16)
+        - Chiller Compressor (GPIO 20)
+        - Grow Lights (GPIO 21)
+        - I²C Bus (/dev/i2c-1)
+        - Power Supply
+        - Other
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: Issue Type
+      description: What kind of hardware problem is this?
+      options:
+        - Sensor offline/not responding
+        - Sensor readings incorrect/unstable
+        - Relay not switching (stuck on or off)
+        - Relay switching erratically
+        - Pump not activating
+        - Pump running continuously
+        - Intermittent connectivity
+        - Physical damage observed
+        - Other
+    validations:
+      required: true
+      
+  - type: textarea
+    id: symptoms
+    attributes:
+      label: Symptoms
+      description: What is the hardware doing (or not doing)?
+      placeholder: |
+        Example: "pH sensor shows 'offline' in UI. Readings are all NULL. Red light on EZO board is solid (not blinking)."
+    validations:
+      required: true
+      
+  - type: textarea
+    id: readings
+    attributes:
+      label: Sensor Readings / Relay States
+      description: Paste output from /api/sensors or /api/relays/status
+      placeholder: |
+        Example:
+        curl -s http://192.168.88.49:8080/api/sensors | jq .
+        {
+          "temperature_c": 20.5,
+          "ph": null,
+          "ec_mscm": 1420,
+          "online": false,
+          "ts": 1700500000
+        }
+      render: json
+      
+  - type: textarea
+    id: i2c_check
+    attributes:
+      label: I²C Detection (if sensor issue)
+      description: Paste output of `i2cdetect -y 1` from Raspberry Pi
+      placeholder: |
+        Example:
+        pi@raspberrypi:~ $ i2cdetect -y 1
+             0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+        00:          -- -- -- -- -- -- -- -- -- -- -- -- -- 
+        10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+        20: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+        30: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+        40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+        50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+        60: -- -- -- 63 64 -- 66 -- -- -- -- -- -- -- -- -- 
+        70: -- -- -- -- -- -- -- --
+      render: shell
+      
+  - type: textarea
+    id: physical_inspection
+    attributes:
+      label: Physical Inspection
+      description: What do you see when inspecting the hardware?
+      placeholder: |
+        Example:
+        - LED status on EZO board: Solid red (should be blinking)
+        - Wiring: Checked, appears correct
+        - Power: 5V present at sensor terminals
+        - Relay: Click sound heard when toggling, LED on relay board changes
+        - Pump: No sound when relay activates
+        
+  - type: textarea
+    id: when_started
+    attributes:
+      label: When Did This Start?
+      description: Timeline and what changed before the issue appeared
+      placeholder: |
+        Example:
+        - Worked fine yesterday, started failing this morning
+        - Occurred after power outage
+        - Started after upgrading to v4.1.0
+        - Been intermittent for 3 days, now completely offline
+        
+  - type: textarea
+    id: troubleshooting
+    attributes:
+      label: Troubleshooting Already Done
+      description: What have you tried to fix this?
+      placeholder: |
+        Example:
+        - Restarted rdwc.service: No change
+        - Checked wiring: Appears correct
+        - Tested sensor with Atlas Scientific sample code: Same issue
+        - Swapped I²C address with working sensor: Issue follows the sensor
+        - Power cycled Pi: Issue persists
+        
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: |
+        - RDWC Version: v4.1.0
+        - Raspberry Pi Model: Pi 4B 4GB
+        - Power Supply: Official 5V 3A
+        - Sensor Age: 6 months old
+        - Last calibration: 2 weeks ago
+        - Reservoir conditions: 68°F, pH 5.8, EC 1400 µS/cm
+    validations:
+      required: true
+      
+  - type: textarea
+    id: logs
+    attributes:
+      label: System Logs
+      description: Paste relevant logs showing hardware errors
+      placeholder: |
+        journalctl -u rdwc.service -n 100 --no-pager | grep -i "i2c\|sensor\|relay\|gpio"
+      render: shell
+      
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety Confirmation
+      options:
+        - label: I have ensured my safety and the safety of the hardware before proceeding
+          required: true
+        - label: E-STOP is easily accessible and tested
+          required: true
+        - label: No physical damage or hazards are present
+          required: true

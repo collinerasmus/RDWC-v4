@@ -1,0 +1,129 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the sections below to help us fix it.
+        
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component Affected
+      description: Which part of the system is affected?
+      options:
+        - pH Control
+        - EC Control
+        - Temperature/Chiller
+        - Lights/Scheduler
+        - Sensors (I²C/EZO)
+        - Relays/GPIO
+        - Web UI
+        - Database/Settings
+        - Deployment/Installation
+        - Other
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How serious is this bug?
+      options:
+        - Critical (System unusable, safety risk, hardware damage possible)
+        - High (Major feature broken, workaround exists)
+        - Medium (Feature partially broken, annoying but workable)
+        - Low (Minor issue, cosmetic, or rare edge case)
+    validations:
+      required: true
+      
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: Clear description of what's wrong
+      placeholder: "Example: pH dosing pump activates even when in manual mode"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the bug
+      placeholder: |
+        1. Go to pH Control tab
+        2. Set mode to "Manual"
+        3. Trigger auto-dose via API: POST /api/ph/auto_dose
+        4. Observe pump activates despite manual mode
+    validations:
+      required: true
+      
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should happen instead?
+      placeholder: "Pump should NOT activate in manual mode. API should return error 400."
+    validations:
+      required: true
+      
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happens?
+      placeholder: "Pump activates for 2 seconds. API returns 200 OK."
+    validations:
+      required: true
+      
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: Paste relevant logs (from journalctl, browser console, or /api/health)
+      placeholder: |
+        # Example:
+        journalctl -u rdwc.service -n 50 --no-pager
+        
+        Nov 20 10:15:32 raspberrypi rdwc[1234]: WARNING - pH dose triggered in manual mode
+      render: shell
+      
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: System information
+      placeholder: |
+        - RDWC Version: v4.1.0 (from /health endpoint or VERSION file)
+        - Raspberry Pi Model: Pi 4B 4GB
+        - Python Version: 3.11.2
+        - Browser (if UI issue): Chrome 120
+        - OS (if dev machine): Windows 11
+    validations:
+      required: true
+      
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Screenshots, related issues, potential causes, workarounds
+      placeholder: |
+        - This started after upgrading from v4.0.1
+        - Workaround: Manually stop service before dosing
+        - Screenshot attached showing error message
+        
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing issues to avoid duplicates
+          required: true
+        - label: I have included all requested information above
+          required: true
+        - label: This is a bug report, not a feature request (use Feature Request template instead)
+          required: true
