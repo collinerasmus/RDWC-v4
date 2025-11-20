@@ -1071,11 +1071,7 @@ body{
         <span id="env-health-indicator" class="ui-status-chip success" title="Chiller health">OK</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <div class="env-mode-buttons" style="display:flex;gap:6px;">
-          <button id="env-mode-auto" class="btn-chip" onclick="window.envSetMode?window.envSetMode('auto'):0">Auto</button>
-          <button id="env-mode-manual" class="btn-chip active" onclick="window.envSetMode?window.envSetMode('manual'):0">Manual</button>
-          <button id="env-mode-maint" class="btn-chip" onclick="window.envSetMode?window.envSetMode('maintenance'):0">Maintenance</button>
-        </div>
+        <button id="chiller-hold-btn" class="btn-chip" onclick="window.chillerToggleHold?window.chillerToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
         <button id="header-estop-btn-temp" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
@@ -1181,11 +1177,7 @@ body{
         <span id="lights-health-indicator" class="ui-status-chip neutral" title="Controller health">—</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <div class="lights-mode-buttons" style="display:flex;gap:6px;">
-          <button id="lights-mode-auto" class="btn-chip" onclick="window.lightsSetMode?window.lightsSetMode('auto'):0">Auto</button>
-          <button id="lights-mode-manual" class="btn-chip active" onclick="window.lightsSetMode?window.lightsSetMode('manual'):0">Manual</button>
-          <button id="lights-mode-maint" class="btn-chip" onclick="window.lightsSetMode?window.lightsSetMode('maintenance'):0">Maintenance</button>
-        </div>
+        <button id="lights-hold-btn" class="btn-chip" onclick="window.lightsToggleHold?window.lightsToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
         <button id="header-estop-btn-lights" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
@@ -1242,11 +1234,7 @@ body{
         <span id="circ-health-indicator" class="ui-status-chip success" title="Circulation health">OK</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <div class="circ-mode-buttons" style="display:flex;gap:6px;">
-          <button id="circ-mode-auto" class="btn-chip" onclick="window.circSetMode?window.circSetMode('auto'):0">Auto</button>
-          <button id="circ-mode-manual" class="btn-chip active" onclick="window.circSetMode?window.circSetMode('manual'):0">Manual</button>
-          <button id="circ-mode-maint" class="btn-chip" onclick="window.circSetMode?window.circSetMode('maintenance'):0">Maintenance</button>
-        </div>
+        <button id="circ-hold-btn" class="btn-chip" onclick="window.circToggleHold?window.circToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
         <button id="header-estop-btn-circ" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
@@ -1586,11 +1574,7 @@ body{
             <span id="ph-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <div class="ph-mode-buttons" style="display:flex;gap:6px;">
-              <button id="ph-mode-auto" class="btn-chip" onclick="window.phSetMode?window.phSetMode('auto'):alert('Loading...')">Auto</button>
-              <button id="ph-mode-manual" class="btn-chip active" onclick="window.phSetMode?window.phSetMode('manual'):alert('Loading...')">Manual</button>
-              <button id="ph-mode-maint" class="btn-chip" onclick="window.phSetMode?window.phSetMode('maintenance'):alert('Loading...')">Maintenance</button>
-            </div>
+            <button id="ph-hold-btn" class="btn-chip" onclick="window.phToggleHold?window.phToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
             <button id="header-estop-btn-ph" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
           </div>
         </div>
@@ -1855,11 +1839,7 @@ body{
               <span id="ec-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <div class="ec-mode-buttons" style="display:flex;gap:6px;">
-                <button id="ec-mode-auto" class="btn-chip" onclick="window.ecSetMode?window.ecSetMode('auto'):alert('Loading...')">Auto</button>
-                <button id="ec-mode-manual" class="btn-chip active" onclick="window.ecSetMode?window.ecSetMode('manual'):alert('Loading...')">Manual</button>
-                <button id="ec-mode-maint" class="btn-chip" onclick="window.ecSetMode?window.ecSetMode('maintenance'):alert('Loading...')">Maintenance</button>
-              </div>
+              <button id="ec-hold-btn" class="btn-chip" onclick="window.ecToggleHold?window.ecToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
               <button id="header-estop-btn-ec" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
             </div>
           </div>

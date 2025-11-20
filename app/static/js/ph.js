@@ -11,77 +11,57 @@
   let recentCollapsed = true;
   let recentHeaderBound = false;
   
-  // Mode system state
-  let currentMode = localStorage.getItem('ph_mode') || 'manual';
+  // Simplified Hold system - automation always on by default, Hold pauses it
+  let isHeld = false;
   let doseLogCollapsed = localStorage.getItem('ph_dose_log_collapsed') !== 'false'; // default hidden
-  let modeInitialized = false; // Track if mode has been set by user or init
 
   function el(id){ return document.getElementById(id); }
 
-  function setMode(mode, syncBackend = true) {
-    currentMode = mode;
-    modeInitialized = true;
-    localStorage.setItem('ph_mode', mode);
-    
-    // Update mode button active states - infer mode from button ID
-    const manualBtn = el('ph-mode-manual');
-    const autoBtn = el('ph-mode-auto');
-    const maintBtn = el('ph-mode-maint');
-    
-    if (manualBtn) {
-      if (mode === 'manual') {
-        manualBtn.classList.add('active');
-      } else {
-        manualBtn.classList.remove('active');
-      }
-    }
-    if (autoBtn) {
-      if (mode === 'auto') {
-        autoBtn.classList.add('active');
-      } else {
-        autoBtn.classList.remove('active');
-      }
-    }
-    if (maintBtn) {
-      if (mode === 'maintenance') {
-        maintBtn.classList.add('active');
-      } else {
-        maintBtn.classList.remove('active');
-      }
-    }
-    
-    // Show/hide content based on mode
-    const manualContent = el('ph-manual-content');
-    const autoContent = el('ph-auto-content');
-    const maintContent = el('ph-maint-content');
-    
-    if (manualContent) manualContent.style.display = (mode === 'manual') ? 'block' : 'none';
-    if (autoContent) autoContent.style.display = (mode === 'auto') ? 'block' : 'none';
-    if (maintContent) maintContent.style.display = (mode === 'maintenance') ? 'block' : 'none';
-    
-    // Sync to backend if requested (skip on page load to avoid race)
-    if (syncBackend && mode !== 'maintenance') {
-      fetch('/api/controller/ph/mode', {
+  async function toggleHold() {
+    try {
+      const resp = await fetch('/api/controller/ph/hold', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({mode: mode})
-      }).catch(() => {});
+        body: JSON.stringify({}) // Empty body = toggle
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.ok) {
+        isHeld = data.held;
+        updateHoldButton();
+        updateHealthIndicator();
+      }
+    } catch (e) {
+      console.error('Failed to toggle hold:', e);
     }
-    
-    // Update health indicator based on mode
-    updateHealthIndicator();
   }
   
-  async function syncModeFromBackend() {
+  function updateHoldButton() {
+    const btn = el('ph-hold-btn');
+    if (!btn) return;
+    
+    if (isHeld) {
+      btn.classList.add('active', 'warning');
+      btn.textContent = 'Resume';
+      btn.title = 'Resume automation';
+    } else {
+      btn.classList.remove('active', 'warning');
+      btn.textContent = 'Hold';
+      btn.title = 'Pause automation';
+    }
+  }
+  
+  async function syncHoldState() {
     try {
       const resp = await fetch('/api/controller/ph/mode', {cache: 'no-store'});
       if (!resp.ok) return;
       const data = await resp.json();
       if (data.ok && data.mode) {
-        setMode(data.mode, false);
+        isHeld = (data.mode === 'hold');
+        updateHoldButton();
       }
     } catch (e) {
-      // Fallback to localStorage
+      // Silent fail on sync
     }
   }
 
@@ -89,7 +69,7 @@
     const indicator = el('ph-health-indicator');
     if (!indicator) return;
     
-    // Determine health based on lastStatus and current mode
+    // Determine health based on lastStatus and hold state
     if (!lastStatus) {
       indicator.textContent = '—';
       indicator.className = 'ui-status-chip neutral';
@@ -105,17 +85,18 @@
       indicator.textContent = 'BLOCKED';
       indicator.className = 'ui-status-chip error';
       indicator.title = 'Hard safety blocks active: ' + guardList(g).join(', ');
-    } else if (hasSoftBlocks && currentMode === 'auto') {
-      indicator.textContent = 'HOLDING';
+    } else if (isHeld) {
+      indicator.textContent = 'HELD';
       indicator.className = 'ui-status-chip warning';
-      indicator.title = 'Automation holding: ' + guardList(g).join(', ');
-    } else if (currentMode === 'maintenance') {
-      indicator.textContent = 'MAINT';
+      indicator.title = 'Automation paused by Hold button';
+    } else if (hasSoftBlocks) {
+      indicator.textContent = 'WAITING';
       indicator.className = 'ui-status-chip warning';
+      indicator.title = 'Automation waiting: ' + guardList(g).join(', ');
     } else {
-      indicator.textContent = (currentMode || 'manual').toUpperCase();
+      indicator.textContent = 'AUTO';
       indicator.className = 'ui-status-chip success';
-      indicator.title = 'Controller healthy';
+      indicator.title = 'Automation running';
     }
   }
 
@@ -909,14 +890,10 @@
   async function initPH(){
     await wire();  // This includes wireRangeControls which sets currentRange
     
-    // Sync mode from backend first, then fall back to localStorage
-    await syncModeFromBackend();
+    // Sync hold state from backend
+    await syncHoldState();
     
-    // Initialize mode and dose log state AFTER wire() completes
-    // Only set mode if user hasn't already clicked a mode button
-    if (!modeInitialized) {
-      setMode(currentMode, false);
-    }
+    // Initialize dose log state AFTER wire() completes
     setDoseLogCollapsed(doseLogCollapsed);
     
     tick();
@@ -947,7 +924,7 @@
   }
   
   // Export functions to window for inline onclick handlers
-  window.phSetMode = setMode;
+  window.phToggleHold = toggleHold;
   window.phSetDoseLogCollapsed = setDoseLogCollapsed;
   window.phToggleDoseLog = function() {
     setDoseLogCollapsed(!doseLogCollapsed);
