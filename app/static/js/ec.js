@@ -7,12 +7,58 @@
   lastStatus = null;
   let countdownTimer = null;
   let lastPollAt = Date.now();
-  // Recent doses list removed (was duplicate with Dose Log)
-  // Mode system state (persisted)
-  let currentMode = localStorage.getItem('ec_mode') || 'manual';
-  let modeInitialized = false;
+  // Simplified Hold system - automation always on by default, Hold pauses it
+  let isHeld = false;
 
   function el(id){ return document.getElementById(id); }
+
+  async function toggleHold() {
+    try {
+      const resp = await fetch('/api/controller/ec/hold', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({}) // Empty body = toggle
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.ok) {
+        isHeld = data.held;
+        updateHoldButton();
+        updateHealthIndicator();
+      }
+    } catch (e) {
+      console.error('Failed to toggle hold:', e);
+    }
+  }
+  
+  function updateHoldButton() {
+    const btn = el('ec-hold-btn');
+    if (!btn) return;
+    
+    if (isHeld) {
+      btn.classList.add('active', 'warning');
+      btn.textContent = 'Resume';
+      btn.title = 'Resume automation';
+    } else {
+      btn.classList.remove('active', 'warning');
+      btn.textContent = 'Hold';
+      btn.title = 'Pause automation';
+    }
+  }
+  
+  async function syncHoldState() {
+    try {
+      const resp = await fetch('/api/controller/ec/mode', {cache: 'no-store'});
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.ok && data.mode) {
+        isHeld = (data.mode === 'hold');
+        updateHoldButton();
+      }
+    } catch (e) {
+      // Silent fail on sync
+    }
+  }
 
   async function fetchStatus(){
     try{
@@ -397,18 +443,13 @@
 
   // Initialize
   async function init(){
-    // Sync mode from backend first
-    await syncModeFromBackend();
+    // Sync hold state from backend first
+    await syncHoldState();
     
     const s = await fetchStatus();
     if(s) renderStatus(s);
     startPoll();
     setupMixRatioToggle();
-
-    // Initialize mode after wiring; don't override if user already clicked
-    if (!modeInitialized) {
-      setMode(currentMode, false);
-    }
 
     // New unified dose buttons (time-based)
     el('btnDoseGrow')?.addEventListener('click', ()=> doseUnified('grow', 0.3, 'manual'));
@@ -795,51 +836,6 @@
   window.ecController = { init, fetchStatus, renderStatus, doseEC, toggleAuto };
   
   // --- 3-mode header logic ---
-  function setMode(mode, syncBackend = true){
-    currentMode = mode;
-    modeInitialized = true;
-    try{ localStorage.setItem('ec_mode', mode); }catch(_){/*noop*/}
-    // POST mode to backend (except maintenance, which may be local only)
-    if (syncBackend && (mode === 'auto' || mode === 'manual')) {
-      try {
-        fetch('/api/controller/ec/mode', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode })
-        });
-      } catch (e) { /* ignore */ }
-    }
-    // Buttons
-    const manualBtn = el('ec-mode-manual');
-    const autoBtn = el('ec-mode-auto');
-    const maintBtn = el('ec-mode-maint');
-    if(manualBtn){ manualBtn.classList.toggle('active', mode==='manual'); }
-    if(autoBtn){ autoBtn.classList.toggle('active', mode==='auto'); }
-    if(maintBtn){ maintBtn.classList.toggle('active', mode==='maintenance'); }
-    // Sections
-    const manual = el('ec-manual-content');
-    const auto = el('ec-auto-content');
-    const maintBanner = el('ec-maint-banner');
-    if(manual) manual.style.display = (mode==='manual' || mode==='maintenance') ? 'block' : 'none';
-    if(auto) auto.style.display = (mode==='auto') ? 'block' : 'none';
-    if(maintBanner) maintBanner.style.display = (mode==='maintenance') ? 'block' : 'none';
-    // Health
-    updateHealthIndicator();
-  }
-  
-  async function syncModeFromBackend() {
-    try {
-      const resp = await fetch('/api/controller/ec/mode', {cache: 'no-store'});
-      if (!resp.ok) return;
-      const data = await resp.json();
-      if (data.ok && data.mode) {
-        setMode(data.mode, false);
-      }
-    } catch (e) {
-      // Fallback to localStorage
-    }
-  }
-
   function updateHealthIndicator(){
     const chip = el('ec-health-indicator');
     if(!chip){ return; }
@@ -856,21 +852,21 @@
       chip.textContent = 'BLOCKED';
       chip.className = 'ui-status-chip error';
       chip.title = 'Hard safety blocks: ' + guardList(g).join(', ');
-    } else if (currentMode === 'maintenance'){
-      chip.textContent = 'MAINT';
+    } else if (isHeld){
+      chip.textContent = 'HELD';
       chip.className = 'ui-status-chip warning';
-      chip.title = 'Maintenance mode active';
-    } else if (currentMode === 'auto' && hasSoft){
-      chip.textContent = 'HOLDING';
+      chip.title = 'Automation paused by Hold button';
+    } else if (hasSoft){
+      chip.textContent = 'WAITING';
       chip.className = 'ui-status-chip warning';
-      chip.title = 'Automation holding: ' + guardList(g).join(', ');
+      chip.title = 'Automation waiting: ' + guardList(g).join(', ');
     } else {
-      chip.textContent = (currentMode || 'manual').toUpperCase();
+      chip.textContent = 'AUTO';
       chip.className = 'ui-status-chip success';
-      chip.title = 'Controller healthy';
+      chip.title = 'Automation running';
     }
   }
 
   // Export for inline onclicks
-  window.ecSetMode = setMode;
+  window.ecToggleHold = toggleHold;
 })();

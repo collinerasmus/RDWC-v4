@@ -3,51 +3,53 @@
  * Hailea HS-52A - Cannabis-optimized temperature automation
  */
 (() => {
-  // ===== MODE MANAGEMENT =====
-  let envMode = localStorage.getItem('env_mode') || 'auto';
+  // ===== SIMPLIFIED HOLD SYSTEM =====
+  let isHeld = false;
 
-  function envSetMode(next, syncBackend = true) {
-    if (!['auto', 'manual', 'maint'].includes(next)) return;
-    envMode = next;
-    localStorage.setItem('env_mode', next);
-
-    ['auto', 'manual', 'maint'].forEach(m => {
-      const btn = document.getElementById(`env-mode-${m}`);
-      if (btn) btn.classList.toggle('active', m === next);
-    });
-
-    // Show/hide content sections if they exist
-    const autoContent = document.getElementById('env-auto-content');
-    const manualContent = document.getElementById('env-manual-content');
-    const maintContent = document.getElementById('env-maint-content');
-    if (autoContent) autoContent.style.display = (next === 'auto') ? 'block' : 'none';
-    if (manualContent) manualContent.style.display = (next === 'manual') ? 'block' : 'none';
-    if (maintContent) maintContent.style.display = (next === 'maint') ? 'block' : 'none';
-
-      // POST mode to backend (except maint, which may be local only)
-      if (syncBackend && (next === 'auto' || next === 'manual')) {
-        try {
-          fetch('/api/controller/chiller/mode', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: next })
-          });
-        } catch (e) { /* ignore */ }
+  async function chillerToggleHold() {
+    try {
+      const resp = await fetch('/api/controller/chiller/hold', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.ok) {
+        isHeld = data.held;
+        updateChillerHoldButton();
+        updateEnvHealth();
       }
-
-      updateEnvHealth();
+    } catch (e) {
+      console.error('Failed to toggle hold:', e);
     }
-  
-  async function syncEnvModeFromBackend() {
+  }
+
+  function updateChillerHoldButton() {
+    const btn = document.getElementById('chiller-hold-btn');
+    if (!btn) return;
+    if (isHeld) {
+      btn.classList.add('active', 'warning');
+      btn.textContent = 'Resume';
+      btn.title = 'Resume automation';
+    } else {
+      btn.classList.remove('active', 'warning');
+      btn.textContent = 'Hold';
+      btn.title = 'Pause automation';
+    }
+  }
+
+  async function syncChillerHoldState() {
     try {
       const resp = await fetch('/api/controller/chiller/mode', {cache: 'no-store'});
       if (!resp.ok) return;
       const data = await resp.json();
       if (data.ok && data.mode) {
-        envSetMode(data.mode, false);
+        isHeld = (data.mode === 'hold');
+        updateChillerHoldButton();
       }
     } catch (e) {
-      // Fallback to localStorage
+      // Silent fail
     }
   }
 
@@ -61,14 +63,14 @@
       return;
     }
 
-    if (envMode === 'maint') {
-      chip.textContent = 'MAINT';
+    if (isHeld) {
+      chip.textContent = 'HELD';
       chip.className = 'ui-status-chip warning';
       return;
     }
 
     if (chillerState.in_cooldown || chillerState.min_runtime_active) {
-      chip.textContent = 'HOLDING';
+      chip.textContent = 'WAITING';
       chip.className = 'ui-status-chip warning';
       return;
     }
@@ -79,16 +81,15 @@
       return;
     }
 
-    chip.textContent = 'OK';
+    chip.textContent = 'AUTO';
     chip.className = 'ui-status-chip success';
   }
 
-  window.envSetMode = envSetMode;
+  window.chillerToggleHold = chillerToggleHold;
 
-  // Initialize mode on load
+  // Initialize hold state on load
   document.addEventListener('DOMContentLoaded', async () => {
-    await syncEnvModeFromBackend();
-    envSetMode(envMode, false);
+    await syncChillerHoldState();
   });
 
   // ===== CHILLER CONTROL LOGIC =====

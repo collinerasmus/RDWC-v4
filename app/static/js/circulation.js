@@ -2,75 +2,66 @@
  * Circulation Controller - Mode management for Main + Chiller pumps
  */
 (() => {
-  // ===== MODE MANAGEMENT =====
-  let circMode = localStorage.getItem('circ_mode') || 'manual';
+  // ===== SIMPLIFIED HOLD SYSTEM =====
+  let isHeld = false;
   let circEstop = false;
   let circCooldown = false;
 
-  function circSetMode(next, syncBackend = true) {
-    // Normalize 'maintenance' to 'maint' for consistency
-    if (next === 'maintenance') next = 'maint';
-    if (!['auto', 'manual', 'maint'].includes(next)) return;
-    
-    circMode = next;
-    localStorage.setItem('circ_mode', next);
-
-    // Update button states
-    ['auto', 'manual', 'maint'].forEach(m => {
-      const btn = document.getElementById(`circ-mode-${m}`);
-      if (btn) btn.classList.toggle('active', m === next);
-    });
-
-    // Show/hide content sections if they exist (future expansion)
-    const autoContent = document.getElementById('circ-auto-content');
-    const manualContent = document.getElementById('circ-manual-content');
-    const maintContent = document.getElementById('circ-maint-content');
-    if (autoContent) autoContent.style.display = (next === 'auto') ? 'block' : 'none';
-    if (manualContent) manualContent.style.display = (next === 'manual') ? 'block' : 'none';
-    if (maintContent) maintContent.style.display = (next === 'maint') ? 'block' : 'none';
-
-    // POST mode to backend (except maint, which may be local only)
-    if (syncBackend && (next === 'auto' || next === 'manual')) {
-      try {
-        fetch('/api/controller/circulation/mode', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: next })
-        });
-      } catch (e) { /* ignore */ }
-    }
-
-    updateCircHealth();
-    // Check if all controllers now match and sync system mode if so
-    if (syncBackend && window.syncSystemModeFromControllers) {
-      setTimeout(() => window.syncSystemModeFromControllers(), 200);
+  async function circToggleHold() {
+    try {
+      const resp = await fetch('/api/controller/circulation/hold', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.ok) {
+        isHeld = data.held;
+        updateCircHoldButton();
+        updateCircHealth();
+      }
+    } catch (e) {
+      console.error('Failed to toggle hold:', e);
     }
   }
-  
-  async function syncCircModeFromBackend() {
+
+  function updateCircHoldButton() {
+    const btn = document.getElementById('circ-hold-btn');
+    if (!btn) return;
+    if (isHeld) {
+      btn.classList.add('active', 'warning');
+      btn.textContent = 'Resume';
+      btn.title = 'Resume automation';
+    } else {
+      btn.classList.remove('active', 'warning');
+      btn.textContent = 'Hold';
+      btn.title = 'Pause automation';
+    }
+  }
+
+  async function syncCircHoldState() {
     try {
       const r = await fetch('/api/controller/circulation/mode', {cache: 'no-store'});
       if (!r.ok) return;
       const data = await r.json();
       if (data.ok && data.mode) {
-        // Normalize maintenance to maint for UI
-        const mode = data.mode === 'maintenance' ? 'maint' : data.mode;
-        circSetMode(mode, false);
-        console.log('[Circulation] Synced mode from backend:', mode);
+        isHeld = (data.mode === 'hold');
+        updateCircHoldButton();
       }
     } catch (e) {
-      console.error('[Circulation] Failed to sync mode from backend:', e);
+      // Silent fail
     }
   }
-  window.syncCircModeFromBackend = syncCircModeFromBackend;
+
   function updateCircHealth() {
     const chip = document.getElementById('circ-health-indicator');
     if (!chip) return;
 
     if (circEstop) { chip.textContent='BLOCKED'; chip.className='ui-status-chip error'; return; }
-    if (circMode === 'maint') { chip.textContent='MAINT'; chip.className='ui-status-chip warning'; return; }
-    if (circCooldown) { chip.textContent='HOLDING'; chip.className='ui-status-chip warning'; return; }
-    chip.textContent = 'OK'; chip.className = 'ui-status-chip success';
+    if (isHeld) { chip.textContent='HELD'; chip.className='ui-status-chip warning'; return; }
+    if (circCooldown) { chip.textContent='WAITING'; chip.className='ui-status-chip warning'; return; }
+    chip.textContent = 'AUTO'; chip.className = 'ui-status-chip success';
   }
 
   async function refreshCirc(){
@@ -89,14 +80,11 @@
     updateCircHealth();
   }
 
-  window.circSetMode = circSetMode;
+  window.circToggleHold = circToggleHold;
 
-  // Initialize mode on load
+  // Initialize hold state on load
   document.addEventListener('DOMContentLoaded', async () => {
-    await syncCircModeFromBackend();
-    circSetMode(circMode, false);
-    // Poll mode every 5 seconds to pick up system mode changes
-    setInterval(syncCircModeFromBackend, 5000);
+    await syncCircHoldState();
   });
 
   // Refresh health every 5s from relays
