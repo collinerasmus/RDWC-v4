@@ -9,39 +9,54 @@
   let mode = localStorage.getItem('system_mode') || 'manual';
   let lastWrap = null;
 
-  function setMode(next){
+  async function setMode(next){
     mode = next; localStorage.setItem('system_mode', next);
+    
+    // Optimistic UI update for BOTH button sets (Overview tab and System Settings tab)
     setActive($('system-mode-auto'), next==='auto');
     setActive($('system-mode-manual'), next==='manual');
     setActive($('system-mode-maint'), next==='maintenance');
+    setActive($('mode-auto'), next==='auto');
+    setActive($('mode-manual'), next==='manual');
+    setActive($('mode-maint'), next==='maintenance');
+    
     show('system-auto-content', next==='auto');
     show('system-manual-content', next==='manual');
     show('system-maint-content', next==='maintenance');
     updateHealth();
-    // Persist backend system mode (auto/manual only)
-    if (next==='auto' || next==='manual'){
-      postJSON('/api/relays/mode', {mode: next}).catch(()=>{});
+    
+    // Persist backend system mode with propagation to all controllers
+    try {
+      await postJSON('/api/system_mode', {mode: next});
+      console.log(`[System] Mode set to ${next}, propagated to all controllers`);
+      
+      // Wait for backend propagation to complete
+      await new Promise(resolve => setTimeout(resolve, 150));
+      
+      // Trigger individual controller UI refresh
+      console.log('[System] Refreshing all controller modes from backend...');
+      const refreshPromises = [];
+      if (window.refreshServerMode) refreshPromises.push(window.refreshServerMode().catch(e => console.warn('[System] Sensors mode sync failed:', e)));
+      if (window.syncCircModeFromBackend) refreshPromises.push(window.syncCircModeFromBackend().catch(e => console.warn('[System] Circulation mode sync failed:', e)));
+      if (window.syncLightsModeFromBackend) refreshPromises.push(window.syncLightsModeFromBackend().catch(e => console.warn('[System] Lights mode sync failed:', e)));
+      if (window.syncScheduleModeFromBackend) refreshPromises.push(window.syncScheduleModeFromBackend().catch(e => console.warn('[System] Schedule mode sync failed:', e)));
+      
+      // Also trigger pH and EC if their sync functions are available
+      if (window.phSetMode) {
+        try { window.phSetMode(next, true); } catch(e) { console.warn('[System] pH mode set failed:', e); }
+      }
+      if (window.ecSetMode) {
+        try { window.ecSetMode(next, true); } catch(e) { console.warn('[System] EC mode set failed:', e); }
+      }
+      
+      await Promise.all(refreshPromises);
+      console.log('[System] All controller modes refreshed');
+      
+      // Force refresh to show updated state
+      setTimeout(() => refresh(), 100);
+    } catch(e) {
+      console.error('[System] Failed to set mode:', e);
     }
-    // Maintenance mode affects safety.maintenance_override setting
-    if (next==='maintenance'){
-      fetch('/api/settings', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({'safety.maintenance_override': 'true'})}).catch(()=>{});
-    } else {
-      fetch('/api/settings', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({'safety.maintenance_override': 'false'})}).catch(()=>{});
-    }
-    // Propagate global intent to individual controllers (only auto/manual)
-    try {
-      if (next==='auto' && window.phSetMode) window.phSetMode('auto');
-      if (next==='manual' && window.phSetMode) window.phSetMode('manual');
-    }catch(e){}
-    try {
-      if (next==='auto' && window.ecSetMode) window.ecSetMode('auto');
-      if (next==='manual' && window.ecSetMode) window.ecSetMode('manual');
-    }catch(e){}
-    // Environment (chiller) maps auto/manual; maintenance leaves per-controller specifics to user
-    try {
-      if (next==='auto' && window.envSetMode) window.envSetMode('auto');
-      if (next==='manual' && window.envSetMode) window.envSetMode('manual');
-    }catch(e){}
   }
 
   function updateHealth(){
@@ -58,6 +73,21 @@
     try{
       const wrap = await getJSON('/api/relays/status');
       lastWrap = wrap;
+      
+      // Sync button states from backend
+      const backendMode = wrap.mode || 'manual';
+      if (backendMode !== mode) {
+        mode = backendMode;
+        localStorage.setItem('system_mode', mode);
+        // Update both button sets
+        setActive($('system-mode-auto'), mode==='auto');
+        setActive($('system-mode-manual'), mode==='manual');
+        setActive($('system-mode-maint'), mode==='maintenance');
+        setActive($('mode-auto'), mode==='auto');
+        setActive($('mode-manual'), mode==='manual');
+        setActive($('mode-maint'), mode==='maintenance');
+      }
+      
       updateHealth();
       updateSystemStatus(wrap);
     }catch(e){}
@@ -124,7 +154,18 @@
   }
 
   function init(){
-    setMode(mode);
+    // Don't call setMode(mode) here to avoid triggering API call on page load
+    // Instead, just sync UI from localStorage
+    setActive($('system-mode-auto'), mode==='auto');
+    setActive($('system-mode-manual'), mode==='manual');
+    setActive($('system-mode-maint'), mode==='maintenance');
+    setActive($('mode-auto'), mode==='auto');
+    setActive($('mode-manual'), mode==='manual');
+    setActive($('mode-maint'), mode==='maintenance');
+    show('system-auto-content', mode==='auto');
+    show('system-manual-content', mode==='manual');
+    show('system-maint-content', mode==='maintenance');
+    
     refresh();
     setInterval(refresh, 5000);
     window.systemSetMode = setMode;
