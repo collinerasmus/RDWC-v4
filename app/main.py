@@ -3061,16 +3061,13 @@ def calib_ph_read():
                 return float(tok)
         except FileNotFoundError:
             # I2C device not available (test/dev environment)
-            import logging
-            logging.debug(f"pH read_once failed: I2C device not found")
+            logger.debug(f"pH read_once failed: I2C device not found")
             raise  # Re-raise to signal hardware unavailable
         except Exception as e:
-            import logging
-            logging.debug(f"pH read_once failed: {e}")
+            logger.debug(f"pH read_once failed: {e}")
         return None
 
     lock_path = "/tmp/rdwc_calib.lock"
-    hardware_unavailable = False
     # Quick hardware check first to avoid long waits when hardware is unavailable
     try:
         test_dev = EZO(1, 0x63, "pH")
@@ -3080,6 +3077,7 @@ def calib_ph_read():
     except Exception:
         pass
     
+    hardware_unavailable = False
     for attempt in (1, 2):
         if hardware_unavailable:
             break
