@@ -598,11 +598,11 @@ def allowed_lights_reasons() -> List[str]:
     """Get list of allowed reasons for lights control."""
     return sorted(list(WHITELIST_LIGHTS))
 
-def set_hold(name: str, seconds: int):
+def set_relay_hold(name: str, seconds: int):
     """Set temporary hold on relay for debugging."""
     _hold_until[name] = time.monotonic() + seconds
 
 def set_lights_hold(seconds: int):
     """Set temporary hold on lights for debugging."""
-    set_hold("lights", seconds)
+    set_relay_hold("lights", seconds)
     return {"hold_until": time.time() + seconds}
