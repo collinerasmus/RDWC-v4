@@ -3059,13 +3059,28 @@ def calib_ph_read():
                 # Parse first token (pH value)
                 tok = value_str.split(",")[0].strip()
                 return float(tok)
+        except FileNotFoundError:
+            # I2C device not available (test/dev environment)
+            logger.debug(f"pH read_once failed: I2C device not found")
+            raise  # Re-raise to signal hardware unavailable
         except Exception as e:
-            import logging
-            logging.debug(f"pH read_once failed: {e}")
+            logger.debug(f"pH read_once failed: {e}")
         return None
 
     lock_path = "/tmp/rdwc_calib.lock"
+    # Quick hardware check first to avoid long waits when hardware is unavailable
+    try:
+        test_dev = EZO(1, 0x63, "pH")
+        test_dev.cmd("C,0", read_len=0, settle=0.05)
+    except FileNotFoundError:
+        return {"ok": False, "note": "HardwareUnavailable"}
+    except Exception:
+        pass
+    
+    hardware_unavailable = False
     for attempt in (1, 2):
+        if hardware_unavailable:
+            break
         lock_fd = None
         try:
             lock_fd = open(lock_path, 'w')
@@ -3075,9 +3090,14 @@ def calib_ph_read():
             _time.sleep(6.0)
             # Try up to 3 immediate reads under the same lock to get a payload
             for tries in range(3):
-                val = _read_once(timeout=3.0 if attempt == 1 else 5.0)
-                if val is not None:
-                    return {"ok": True, "value": round(float(val), 3)}
+                try:
+                    val = _read_once(timeout=3.0 if attempt == 1 else 5.0)
+                    if val is not None:
+                        return {"ok": True, "value": round(float(val), 3)}
+                except FileNotFoundError:
+                    # Hardware not available, exit immediately
+                    hardware_unavailable = True
+                    break
                 _time.sleep(1.2)
         except Exception:
             pass
@@ -3088,9 +3108,10 @@ def calib_ph_read():
                     lock_fd.close()
                 except Exception:
                     pass
-        _time.sleep(0.5)  # brief backoff before retry
+        if not hardware_unavailable:
+            _time.sleep(0.5)  # brief backoff before retry
 
-    return {"ok": False, "note": "NoData"}
+    return {"ok": False, "note": "NoData" if not hardware_unavailable else "HardwareUnavailable"}
 
 @app.get("/calib/ph/status")
 def calib_ph_status():
@@ -3176,29 +3197,45 @@ def calib_ph_read_stable(timeout_s: float = 25.0, delta: float = 0.03, min_sampl
     start = _time.monotonic()
     readings = []
 
-    def _locked_read(timeout: float = 4.5):
+    def _locked_read(timeout: float = 4.5, fast_fail: bool = False):
         try:
             ph_dev = EZO(1, 0x63, "pH")  # I2C bus 1, address 0x63
             # Disable continuous mode
             ph_dev.cmd("C,0", read_len=0, settle=0.3)
             # Read pH value with Atlas 'R' command
-            value_str = ph_dev.read_value("R", timeout=timeout, poll=0.15)
+            # Use shorter timeout for fast fail mode to avoid long hangs when hardware is unavailable
+            actual_timeout = 0.5 if fast_fail else timeout
+            value_str = ph_dev.read_value("R", timeout=actual_timeout, poll=0.15)
             if value_str:
                 return float(value_str.split(',')[0].strip())
+        except RuntimeError as e:
+            # EZO raises RuntimeError when SMBus is not available (Windows/test env)
+            # Re-raise to signal hardware unavailability
+            raise
         except Exception:
             pass
         return None
 
     lock_path = "/tmp/rdwc_calib.lock"
     attempt = 0
+    consecutive_failures = 0
+    hardware_unavailable = False
     while _time.monotonic() - start < float(timeout_s):
         attempt += 1
+        # Start with short timeout for first attempt, then use fast_fail for subsequent
+        # This avoids long hangs when hardware is genuinely unavailable
+        fast_fail = attempt > 1 or consecutive_failures > 0
+        read_timeout = 1.0 if attempt == 1 else (0.5 if fast_fail else 4.5)
         lock_fd = None
         try:
             lock_fd = open(lock_path, 'w')
             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
             _time.sleep(0.3)
-            val = _locked_read(timeout=4.5)
+            val = _locked_read(timeout=read_timeout, fast_fail=fast_fail)
+        except RuntimeError:
+            # Hardware not available (e.g., SMBus unavailable in test env)
+            hardware_unavailable = True
+            val = None
         except Exception:
             val = None
         finally:
@@ -3208,8 +3245,13 @@ def calib_ph_read_stable(timeout_s: float = 25.0, delta: float = 0.03, min_sampl
                     lock_fd.close()
                 except Exception:
                     pass
+        
+        # Exit immediately if hardware is unavailable
+        if hardware_unavailable:
+            return {"ok": False, "stable": False, "value": None, "samples": len(readings), "duration_s": round(_time.monotonic() - start, 3), "error": "Hardware unavailable"}
 
         if val is not None:
+            consecutive_failures = 0
             readings.append(val)
             if len(readings) >= int(min_samples):
                 last = readings[-1]
@@ -3218,7 +3260,14 @@ def calib_ph_read_stable(timeout_s: float = 25.0, delta: float = 0.03, min_sampl
                 max_dev = max(recent) - min(recent)
                 if abs(last - prev) <= float(delta) and max_dev <= float(delta) * 1.5:
                     return {"ok": True, "stable": True, "value": round(last, 3), "samples": len(readings), "duration_s": round(_time.monotonic() - start, 3)}
-        _time.sleep(float(poll_s))
+        else:
+            consecutive_failures += 1
+            # Fail fast if hardware appears unavailable (3 consecutive failures)
+            if consecutive_failures >= 3:
+                return {"ok": False, "stable": False, "value": None, "samples": len(readings), "duration_s": round(_time.monotonic() - start, 3), "error": "Hardware unavailable"}
+        # Use shorter sleep in fast fail mode
+        sleep_time = 0.5 if fast_fail else float(poll_s)
+        _time.sleep(sleep_time)
 
     return {"ok": True, "stable": False, "value": (round(readings[-1], 3) if readings else None), "samples": len(readings), "duration_s": round(_time.monotonic() - start, 3)}
 
