@@ -2772,12 +2772,70 @@ def api_controller_mode_get(name: str):
 
 @app.post("/api/controller/{name}/mode")
 def api_controller_mode_set(name: str, body: dict):
-    from app.controller_modes import set_mode, get_mode, CONTROLLERS, VALID_MODES
+    from app.controller_modes import set_mode, get_mode, CONTROLLERS, VALID_MODES, LEGACY_MODE_MAP
     if name not in CONTROLLERS:
         return {"ok": False, "error": "unknown_controller", "controller": name}
     mode = body.get("mode") if isinstance(body, dict) else None
-    ok = set_mode(name, mode) if mode in VALID_MODES else False
+    # Accept valid modes and legacy modes (which will be mapped internally)
+    if mode and (mode in VALID_MODES or mode in LEGACY_MODE_MAP):
+        ok = set_mode(name, mode)
+    else:
+        ok = False
     return {"ok": ok, "controller": name, "mode": get_mode(name)}
+
+# Simplified Hold button endpoints
+@app.post("/api/controller/{name}/hold")
+def api_controller_hold_toggle(name: str, body: dict = None):
+    """Toggle or set hold state for a controller.
+    
+    Body can be:
+      - {"hold": true} - Set to hold
+      - {"hold": false} - Resume (set to auto)
+      - {} or null - Toggle current state
+    """
+    from app.controller_modes import set_hold, is_held, CONTROLLERS
+    if name not in CONTROLLERS:
+        return {"ok": False, "error": "unknown_controller", "controller": name}
+    
+    body = body or {}
+    if "hold" in body:
+        # Explicit set
+        hold_state = bool(body.get("hold"))
+    else:
+        # Toggle
+        hold_state = not is_held(name)
+    
+    ok = set_hold(name, hold_state)
+    return {
+        "ok": ok,
+        "controller": name,
+        "held": is_held(name),
+        "mode": "hold" if is_held(name) else "auto"
+    }
+
+@app.post("/api/controller/hold/all")
+def api_controller_hold_all(body: dict = None):
+    """Set or toggle hold state for all controllers.
+    
+    Body can be:
+      - {"hold": true} - Hold all
+      - {"hold": false} - Resume all
+      - {} or null - Not supported for all (must be explicit)
+    """
+    from app.controller_modes import set_all_hold, get_all_modes
+    
+    body = body or {}
+    if "hold" not in body:
+        return {"ok": False, "error": "must_specify_hold", "message": "Body must include 'hold' field (true or false)"}
+    
+    hold_state = bool(body.get("hold"))
+    ok = set_all_hold(hold_state)
+    
+    return {
+        "ok": ok,
+        "hold": hold_state,
+        "modes": get_all_modes()
+    }
 
 @app.get("/cam_status")
 def cam_status():

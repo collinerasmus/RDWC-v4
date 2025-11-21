@@ -94,33 +94,33 @@ def test_complete_mode_system_workflow(temp_db):
     assert response.status_code == 200
     print("  ✓ Set chiller to maintenance")
     
-    # Step 3: Verify modes via Python API
+    # Step 3: Verify modes via Python API (legacy modes map to hold)
     print("\n=== Step 3: Verify via Python API ===")
-    assert get_mode("ph") == "manual"
-    print("  ✓ pH is manual")
+    assert get_mode("ph") == "hold"  # manual -> hold
+    print("  ✓ pH is hold (was manual)")
     
     assert get_mode("ec") == "auto"
     print("  ✓ EC is auto")
     
-    assert get_mode("chiller") == "maintenance"
-    print("  ✓ Chiller is maintenance")
+    assert get_mode("chiller") == "hold"  # maintenance -> hold
+    print("  ✓ Chiller is hold (was maintenance)")
     
     # Step 4: Verify via REST API
     print("\n=== Step 4: Verify via REST API ===")
     response = client.get("/api/controller/modes")
     modes = response.json()["modes"]
     
-    assert modes["ph"] == "manual"
+    assert modes["ph"] == "hold"
     assert modes["ec"] == "auto"
-    assert modes["chiller"] == "maintenance"
+    assert modes["chiller"] == "hold"
     print("  ✓ All modes correct via REST API")
     
     # Step 5: Simulate controller behavior
     print("\n=== Step 5: Simulate Controller Checks ===")
     
-    # pH controller should hold automation (mode is manual)
+    # pH controller should hold automation (mode is hold)
     if get_mode("ph") != "auto":
-        print("  ✓ pH automation would hold (mode is manual)")
+        print("  ✓ pH automation would hold (mode is hold)")
     else:
         raise AssertionError("pH should hold automation")
     
@@ -130,9 +130,9 @@ def test_complete_mode_system_workflow(temp_db):
     else:
         raise AssertionError("EC should run automation")
     
-    # Chiller controller should hold automation (mode is maintenance)
+    # Chiller controller should hold automation (mode is hold)
     if get_mode("chiller") != "auto":
-        print("  ✓ Chiller automation would hold (mode is maintenance)")
+        print("  ✓ Chiller automation would hold (mode is hold)")
     else:
         raise AssertionError("Chiller should hold automation")
     
@@ -144,19 +144,25 @@ def test_complete_mode_system_workflow(temp_db):
     import app.controller_modes as cm
     cm = importlib.reload(cm)
     
-    assert cm.get_mode("ph") == "manual"
+    assert cm.get_mode("ph") == "hold"  # manual -> hold
     assert cm.get_mode("ec") == "auto"
-    assert cm.get_mode("chiller") == "maintenance"
+    assert cm.get_mode("chiller") == "hold"  # maintenance -> hold
     print("  ✓ Modes persisted across module reload")
     
-    # Step 7: Test mode transitions
+    # Step 7: Test mode transitions (legacy modes map to hold)
     print("\n=== Step 7: Test Mode Transitions ===")
     
-    # Transition pH through all modes
-    for mode in ["auto", "manual", "maintenance", "auto"]:
-        set_mode("ph", mode)
-        assert get_mode("ph") == mode
-        print(f"  ✓ pH transitioned to {mode}")
+    # Transition pH through modes
+    test_transitions = [
+        ("auto", "auto"),
+        ("manual", "hold"),
+        ("maintenance", "hold"),
+        ("auto", "auto")
+    ]
+    for mode_to_set, expected_mode in test_transitions:
+        set_mode("ph", mode_to_set)
+        assert get_mode("ph") == expected_mode
+        print(f"  ✓ pH transitioned to {expected_mode} (from {mode_to_set})")
     
     # Step 8: Test independent operation
     print("\n=== Step 8: Test Independent Operation ===")
@@ -170,9 +176,9 @@ def test_complete_mode_system_workflow(temp_db):
     
     all_modes = get_all_modes()
     assert all_modes["ph"] == "auto"
-    assert all_modes["ec"] == "manual"
-    assert all_modes["chiller"] == "maintenance"
-    assert all_modes["lights"] == "manual"
+    assert all_modes["ec"] == "hold"  # manual -> hold
+    assert all_modes["chiller"] == "hold"  # maintenance -> hold
+    assert all_modes["lights"] == "hold"  # manual -> hold
     assert all_modes["circulation"] == "auto"
     print("  ✓ All controllers operate independently")
     
