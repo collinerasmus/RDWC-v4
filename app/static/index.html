@@ -1230,23 +1230,45 @@ body{
     </div>
 
     <div class="card-body">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
-        <div class="bop-relay-card">
+      <!-- Safety Interlock Banner -->
+      <div id="circ-interlock-banner" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;font-size:0.85rem;font-weight:600;"></div>
+      
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;">
+        <!-- Main Pump Section -->
+        <div class="bop-relay-card" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <div style="font-weight:600;font-size:0.95rem;">🔄 Main Pump</div>
             <span class="bop-status-badge" id="circ-main-pump">—</span>
           </div>
           <button class="relay-btn" id="btnMainPump" style="width:100%;"><span class="relay-label">Toggle Main Pump</span></button>
+          <div class="muted" style="font-size:0.7rem;margin-top:6px;line-height:1.3;">
+            Primary RDWC circulation pump. Maintains nutrient solution flow throughout the system.
+          </div>
         </div>
-        <div class="bop-relay-card">
+        
+        <!-- Chiller Pump Section with Interlock -->
+        <div class="bop-relay-card" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <div style="font-weight:600;font-size:0.95rem;">🌊 Chiller Pump</div>
             <span class="bop-status-badge" id="circ-chiller-pump">—</span>
           </div>
           <button class="relay-btn" id="btnChillerPump" style="width:100%;"><span class="relay-label">Toggle Chiller Pump</span></button>
+          <div id="circ-chiller-pump-interlock" class="muted" style="font-size:0.7rem;margin-top:6px;line-height:1.3;">
+            🔒 <strong>Safety Interlock:</strong> This pump must run when chiller is active.
+          </div>
         </div>
       </div>
-      <div class="muted" style="margin-top:8px;">Honors Auto/Manual mode and E‑STOP protections</div>
+      
+      <!-- Chiller Status Indicator -->
+      <div style="margin-top:12px;padding:8px 12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);display:flex;justify-content:space-between;align-items:center;font-size:0.85rem;">
+        <div>
+          <span style="font-weight:600;">Chiller Status:</span>
+          <span id="circ-chiller-status" style="margin-left:6px;color:#94a3b8;">—</span>
+        </div>
+        <div id="circ-interlock-status" style="font-size:0.75rem;color:#64748b;">
+          Interlock: Monitoring
+        </div>
+      </div>
 
       <!-- Circulation Settings -->
       <details style="margin-top:12px;">

@@ -564,9 +564,68 @@ def set_lights(on: bool, reason: str, force: bool = False) -> Dict[str, Any]:
     return result
 
 def set_chiller_power(on: bool, reason: str, force: bool = False) -> Dict[str, Any]:
+    """
+    Set chiller power with safety interlock: chiller requires chiller pump running.
+    Auto-starts chiller pump if needed when turning chiller ON.
+    """
+    if on and not force:
+        # SAFETY INTERLOCK: Chiller requires chiller pump to be running
+        current_pump_state = _last_state.get("chiller_pump", False)
+        
+        if not current_pump_state:
+            logger.info("Chiller interlock: Auto-starting chiller pump before chiller")
+            # Attempt to start chiller pump first
+            pump_result = set_relay("chiller_pump", True, reason="AUTO: Chiller interlock", force=False)
+            
+            # Verify pump actually started
+            if not pump_result.get("changed") and not pump_result.get("state"):
+                # Pump failed to start (cooldown, antiflap, etc.)
+                pump_reason = pump_result.get("reason", "unknown")
+                cooldown = pump_result.get("cooldown_remaining", 0)
+                logger.warning(
+                    f"Chiller BLOCKED: Cannot start chiller because chiller pump failed to start "
+                    f"(reason: {pump_reason}, cooldown: {cooldown}s)"
+                )
+                return {
+                    "changed": False,
+                    "state": False,
+                    "reason": "interlock_pump_failed",
+                    "blocked": True,
+                    "interlock": {
+                        "required": "chiller_pump",
+                        "pump_reason": pump_reason,
+                        "pump_cooldown": cooldown
+                    }
+                }
+            
+            logger.info("Chiller interlock: Chiller pump started successfully, proceeding with chiller")
+    
     return set_relay("chiller_power", on, reason, force)
 
 def set_chiller_pump(on: bool, reason: str, force: bool = False) -> Dict[str, Any]:
+    """
+    Set chiller pump with safety interlock: cannot turn OFF while chiller is running.
+    """
+    if not on and not force:
+        # SAFETY INTERLOCK: Cannot turn off chiller pump while chiller is running
+        chiller_state = _last_state.get("chiller_power", False)
+        
+        if chiller_state:
+            logger.warning(
+                "Chiller pump BLOCKED: Cannot turn OFF while chiller is running "
+                "(safety interlock - turn off chiller first)"
+            )
+            return {
+                "changed": False,
+                "state": True,  # Pump remains ON
+                "reason": "interlock_chiller_running",
+                "blocked": True,
+                "interlock": {
+                    "blocking": "chiller_power",
+                    "message": "Turn off chiller before stopping chiller pump"
+                }
+            }
+    
     return set_relay("chiller_pump", on, reason, force)
 
 def set_main_pump(on: bool, reason: str, force: bool = False) -> Dict[str, Any]:
