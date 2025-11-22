@@ -1189,7 +1189,8 @@ def api_controllers_status():
     # Lights Controller
     try:
         relay_status = get_relay_status()
-        lights_on = relay_status.get("lights", {}).get("is_on", False)
+        # get_relay_status() returns key 'state' for ON/OFF
+        lights_on = relay_status.get("lights", {}).get("state", False)
         # Check if schedule is active (lights controller in auto means schedule active)
         schedule_active = controller_modes.get("lights", "auto") == "auto"
         controllers["lights"] = {
@@ -1206,8 +1207,9 @@ def api_controllers_status():
         relay_status = get_relay_status()
         controllers["circulation"] = {
             "mode": controller_modes.get("circulation", "auto"),
-            "main_pump": relay_status.get("main_pump", {}).get("is_on", False),
-            "chiller_pump": relay_status.get("chiller_pump", {}).get("is_on", False),
+            # get_relay_status() uses 'state' for ON/OFF
+            "main_pump": relay_status.get("main_pump", {}).get("state", False),
+            "chiller_pump": relay_status.get("chiller_pump", {}).get("state", False),
         }
     except Exception as e:
         logger.error(f"Failed to get circulation status: {e}")
