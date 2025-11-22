@@ -515,3 +515,20 @@ details > summary { list-style:none; }
   align-items: center;
   flex-wrap: wrap;
 }
+
+/* Details content wrappers for settings/calibration sections */
+.details-content {
+  margin-top: var(--space-md);
+  padding: 6px;
+  border-radius: var(--radius-md);
+  background: rgba(148,163,184,0.05);
+  border: 1px solid rgba(148,163,184,0.15);
+}
+
+.details-content-accent {
+  margin-top: var(--space-md);
+  padding: 6px;
+  border-radius: var(--radius-md);
+  background: rgba(59,130,246,0.05);
+  border: 1px solid rgba(59,130,246,0.2);
+}

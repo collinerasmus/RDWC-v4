@@ -1076,17 +1076,17 @@ body{
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px;">
-      <div style="padding:10px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);">
-        <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Water Temp</div>
-        <div style="font-weight:600;font-size:1.1rem;color:#93c5fd;" id="chiller-current-temp">—°C</div>
+      <div class="kpi kpi-temp">
+        <div class="kpi-label">Water Temp</div>
+        <div class="kpi-value" id="chiller-current-temp">—°C</div>
       </div>
-      <div style="padding:10px;border-radius:8px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);">
-        <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Target Temp</div>
-        <div style="font-weight:600;font-size:1.1rem;color:#a7f3d0;" id="chiller-target-temp">19.0°C</div>
+      <div class="kpi kpi-temp">
+        <div class="kpi-label">Target Temp</div>
+        <div class="kpi-value" id="chiller-target-temp">19.0°C</div>
       </div>
-      <div style="padding:10px;border-radius:8px;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.3);">
-        <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Stage</div>
-        <div style="font-weight:600;font-size:1.1rem;color:#d8b4fe;" id="chiller-stage">Default</div>
+      <div class="kpi kpi-temp">
+        <div class="kpi-label">Stage</div>
+        <div class="kpi-value" id="chiller-stage">Default</div>
       </div>
     </div>
 
@@ -1094,9 +1094,11 @@ body{
 
     <details style="margin-top:8px;">
       <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Temperature & Chiller Settings</summary>
-      <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-        <div class="muted" style="font-size:0.7rem;margin-bottom:10px;padding:6px 8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
-          Configure temperature targets, alert thresholds, and chiller compressor protection timings.
+      <div class="system-card">
+        <div class="info-banner-blue">
+          <div class="info-banner-blue-content">
+            Configure temperature targets, alert thresholds, and chiller compressor protection timings.
+          </div>
         </div>
         <div style="margin-bottom:16px;">
           <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Temperature Settings</div>
@@ -1461,8 +1463,10 @@ body{
         </div>
 
         <div class="card-body">
-          <div id="ph-reservoir-banner" class="muted" style="display:none;margin-bottom:8px;padding:6px 10px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#fecaca;">
-            Reservoir set to 0 L — dosing disabled
+          <div id="ph-reservoir-banner" class="info-banner-danger" style="display:none;">
+            <div class="info-banner-danger-content">
+              Reservoir set to 0 L — dosing disabled
+            </div>
           </div>
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
             <div class="kpi kpi-ph">
@@ -1498,8 +1502,11 @@ body{
 
           <!-- Maintenance Mode Content -->
           <div id="ph-maint-content" style="display:none;">
-            <div class="muted" style="margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);color:#fecaca;">
-              ⚠️ <strong>Maintenance Mode Active:</strong> Controller automation disabled. Manual dosing available with reduced safety restrictions (E-STOP and empty reservoir checks still enforced).
+            <div class="info-banner-danger">
+              <div class="info-banner-icon">⚠️</div>
+              <div class="info-banner-danger-content">
+                <strong>Maintenance Mode Active:</strong> Controller automation disabled. Manual dosing available with reduced safety restrictions (E-STOP and empty reservoir checks still enforced).
+              </div>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
               <button id="btnPrimeMaint" class="btn-secondary" title="Prime (200 ms)">Prime</button>
@@ -1608,7 +1615,7 @@ body{
           <!-- pH Pump Calibration (moved from Sensors tab) -->
           <details style="margin-top:12px;">
             <summary class="muted" style="cursor:pointer;font-size:0.9rem;">💧 Pump Calibration</summary>
-            <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <div class="details-content-accent">
               <div style="font-weight:600;margin-bottom:8px;font-size:0.8rem;">pH Up Pump Flow Rate</div>
               <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Run pump for known duration, measure output, then commit to save ml/s rate.</div>
               <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:10px;">
@@ -1633,7 +1640,7 @@ body{
 
           <details style="margin-top:12px;">
             <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Automation</summary>
-            <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
+            <div class="details-content">
               <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">pH automation learning and control.</div>
               <div id="ph-learned-display" style="display:none;margin-bottom:10px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
                 <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Learned ml/pH:</div>
@@ -1645,7 +1652,7 @@ body{
 
           <details style="margin-top:12px;">
             <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Manual Dosing (Volume)</summary>
-            <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <div class="details-content-accent">
               <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Dose pH Up manually with safety caps enforced.</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
                 <button id="btnPrime" class="btn-secondary" title="Prime (200 ms)">Prime</button>
@@ -1665,7 +1672,7 @@ body{
           <!-- pH Direct Pump Control (Time-based) -->
           <details style="margin-top:12px;">
             <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Pump Control (Time)</summary>
-            <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <div class="details-content-accent">
               <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Press and hold pattern for the pH Up pump. Safety caps enforced.</div>
               <div>
                 <button id="btnPhPulse03" class="btn-secondary" style="width:100%;" title="Dose pH Up for 0.3s">pH Up (0.3s)</button>
@@ -1682,7 +1689,7 @@ body{
           <!-- pH Dose Log (Last 20) -->
           <details style="margin-top:12px;">
             <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Dose Log (Last 20)</summary>
-            <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
+            <div class="details-content">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                 <div class="muted" style="font-weight:600;font-size:0.9rem;">Recent pH Doses</div>
                 <button id="btnRefreshDoseLog" class="btn-secondary btn-small" style="padding:3px 8px;font-size:0.8rem;" title="Refresh dose log">Refresh</button>
@@ -1725,8 +1732,10 @@ body{
           </div>
 
           <div class="card-body">
-            <div id="ec-reservoir-banner" class="muted" style="display:none;margin-bottom:8px;padding:6px 10px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#fecaca;">
-              Reservoir set to 0 L — dosing disabled
+            <div id="ec-reservoir-banner" class="info-banner-danger" style="display:none;">
+              <div class="info-banner-danger-content">
+                Reservoir set to 0 L — dosing disabled
+              </div>
             </div>
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
               <div class="kpi kpi-ec">
@@ -1767,8 +1776,11 @@ body{
             </div>
 
             <!-- Maintenance Mode Banner (shares manual controls; warning shown when in maintenance) -->
-            <div id="ec-maint-banner" class="muted" style="display:none;margin:12px 0;padding:10px 12px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);color:#fecaca;">
-              ⚠️ <strong>Maintenance Mode Active:</strong> Controller automation disabled. Manual dosing available with reduced safety restrictions (E-STOP and empty reservoir checks still enforced).
+            <div id="ec-maint-banner" class="info-banner-danger" style="display:none;">
+              <div class="info-banner-icon">⚠️</div>
+              <div class="info-banner-danger-content">
+                <strong>Maintenance Mode Active:</strong> Controller automation disabled. Manual dosing available with reduced safety restrictions (E-STOP and empty reservoir checks still enforced).
+              </div>
             </div>
 
             <!-- History chart under KPI + summary; graph buttons under the graph -->
