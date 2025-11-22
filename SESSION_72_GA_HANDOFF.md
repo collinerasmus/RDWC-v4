@@ -170,9 +170,9 @@ Real-time status display:
 "⚠️ INTERLOCK VIOLATION: [specific_violation_message]"
 ```
 
-### Test Coverage (tests/test_chiller_interlock.py)
+### Test Coverage (on implementation branch)
 
-Comprehensive test suite covering all scenarios:
+Comprehensive test suite in `tests/test_chiller_interlock.py` covering all scenarios:
 
 - ✓ All pumps ON + chiller running → Pass
 - ✓ Main pump OFF → Fail (main_pump_off)
@@ -182,7 +182,9 @@ Comprehensive test suite covering all scenarios:
 - ✓ Force chiller_pump ON when main_pump ON in AUTO
 - ✓ Shutdown chiller when circulation lost
 
-**Run:** `pytest tests/test_chiller_interlock.py -v`
+**Run on implementation branch:** `pytest tests/test_chiller_interlock.py -v`
+
+**Note:** Test file exists on `copilot/remove-duplicate-pump-calibrations-again` branch, not on this documentation branch.
 
 ---
 

@@ -64,11 +64,10 @@
 - **Relay POST Timeout**: `/relay/set` endpoint experiencing delays on feature branch (UI controls functional, deferred to Phase 8)
 - **Remediation Latency**: 30-second validation loop (future enhancement: event-driven model for <1s latency)
 
-### Deployment
-- **Branch**: `copilot/remove-duplicate-pump-calibrations-again`
-- **Production Validated**: Pi @ 192.168.88.49:8080
-- **Services**: rdwc.service + rdwc-sensors.service (both active)
-- **Commits**: 8dbe584, 46f8809, 14396a4, 20ab7f2, e7c9863, a4bac9e
+### Deployment Notes
+- Production validated on reference system
+- Services: rdwc.service + rdwc-sensors.service (both active)
+- See `SESSION_72_GA_HANDOFF.md` for full deployment details and validation evidence
 
 ### Safety Impact
 This release significantly improves system safety by preventing chiller operation without proper water circulation, which could lead to equipment damage or unsafe temperature conditions. The auto-remediation system provides additional reliability by automatically correcting common operational issues.
