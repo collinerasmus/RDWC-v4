@@ -88,13 +88,16 @@ try {
         Write-Host "  Main Pump: $mainPump" -ForegroundColor Cyan
         Write-Host "  Chiller Pump: $chillerPump" -ForegroundColor Cyan
         
-        # Check if values are boolean or boolean-like (true/false strings get auto-converted)
-        # In PowerShell, Invoke-RestMethod converts JSON booleans to actual [bool] types
-        if ($null -ne $mainPump -and ($mainPump -is [bool] -or $mainPump -eq $true -or $mainPump -eq $false)) {
+        # Check if values are boolean (Invoke-RestMethod auto-converts JSON booleans)
+        if ($null -ne $mainPump -and $mainPump -is [bool]) {
             Write-Host "✓ Controllers status endpoint returns valid pump state values" -ForegroundColor Green
         } else {
             Write-Host "✗ Controllers status endpoint may be returning incorrect values" -ForegroundColor Red
-            Write-Host "  Expected boolean, got: type=$($mainPump.GetType().Name), value=$mainPump" -ForegroundColor Red
+            if ($null -eq $mainPump) {
+                Write-Host "  Main pump value is null (API call may have failed)" -ForegroundColor Red
+            } else {
+                Write-Host "  Expected boolean, got: type=$($mainPump.GetType().Name), value=$mainPump" -ForegroundColor Red
+            }
         }
     } else {
         Write-Host "✗ Circulation controller not found in status response" -ForegroundColor Red
