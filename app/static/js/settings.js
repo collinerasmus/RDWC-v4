@@ -73,10 +73,6 @@
         'dosing.ec_min_interval_s': {label:'EC min interval (s)', type:'number', min:60, max:3600, step:30, tooltip:'Minimum time between EC doses'},
         'dosing.ec_max_ml_day': {label:'EC max ml/day', type:'number', min:0, max:1000, step:10, tooltip:'Daily cap for total EC dosing (0 = unlimited)'}
       }
-    },
-    calibration: {
-      title: 'Calibration',
-      fields: { /* custom-rendered below */ }
     }
   };
 
@@ -95,9 +91,10 @@
     panel.style.cssText = 'margin-bottom:12px;';
     panel.open = (ns === 'general'); // Open General by default
     
-    // Custom panel for Calibration
+    // Calibration is handled in respective controller tabs (pH, EC), not here
     if (ns === 'calibration'){
-      const summary = document.createElement('summary');
+      return null; // Skip - calibration panels exist in pH and EC tabs
+    }
       summary.style.cssText = 'cursor:pointer;padding:16px 20px;background:rgba(31,41,55,0.6);border:1px solid rgba(55,65,81,0.5);border-radius:12px;display:flex;align-items:center;gap:10px;font-size:1.05rem;font-weight:600;transition:all 0.2s ease;margin-bottom:2px;';
       summary.innerHTML = `<span style="font-size:1.3rem;">🔬</span><span>Calibration</span><span style="margin-left:auto;font-size:0.8rem;color:#9ca3af;">▼</span>`;
       summary.addEventListener('mouseenter', () => summary.style.background = 'rgba(31,41,55,0.8)');
@@ -347,10 +344,6 @@
         }catch(e){ setDoseMsg('Save failed', false); }
       });
 
-      // Prime values on open
-      ecStatus(); renderPumps(); refreshPrimeState();
-      return panel;
-    }
     
     // Standard fields - modern card-based layout
     const def = GROUP_DEF[ns];
@@ -504,7 +497,9 @@
     // Render all groups as accordions (no tabs needed)
     Object.keys(GROUP_DEF).forEach((ns)=>{
       const panel = renderGroup(ns);
-      panels.appendChild(panel);
+      if (panel) { // Skip null panels (e.g., calibration)
+        panels.appendChild(panel);
+      }
     });
   }
 
