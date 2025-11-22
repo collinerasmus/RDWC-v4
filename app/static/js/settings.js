@@ -86,268 +86,34 @@
   }
 
   function renderGroup(ns){
+    const grp = GROUP_DEF[ns];
+    if (!grp) return null;
+
     const panel = document.createElement('details');
     panel.dataset.ns = ns;
     panel.style.cssText = 'margin-bottom:12px;';
     panel.open = (ns === 'general'); // Open General by default
     
-    // Calibration is handled in respective controller tabs (pH, EC), not here
-    if (ns === 'calibration'){
-      return null; // Skip - calibration panels exist in pH and EC tabs
-    }
-      summary.style.cssText = 'cursor:pointer;padding:16px 20px;background:rgba(31,41,55,0.6);border:1px solid rgba(55,65,81,0.5);border-radius:12px;display:flex;align-items:center;gap:10px;font-size:1.05rem;font-weight:600;transition:all 0.2s ease;margin-bottom:2px;';
-      summary.innerHTML = `<span style="font-size:1.3rem;">🔬</span><span>Calibration</span><span style="margin-left:auto;font-size:0.8rem;color:#9ca3af;">▼</span>`;
-      summary.addEventListener('mouseenter', () => summary.style.background = 'rgba(31,41,55,0.8)');
-      summary.addEventListener('mouseleave', () => summary.style.background = 'rgba(31,41,55,0.6)');
-      panel.appendChild(summary);
-
-      // Wrapper for calibration content
-      const contentWrap = document.createElement('div');
-      contentWrap.style.cssText = 'padding:20px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-top:none;border-radius:0 0 12px 12px;margin-top:-2px;display:flex;flex-direction:column;gap:16px;';
-      
-      // EC Calibration (full wizard moved from EC Controller card)
-      const ecWrap = document.createElement('div');
-      ecWrap.style.cssText = 'padding:16px;background:rgba(31,41,55,0.2);border:1px solid rgba(55,65,81,0.3);border-radius:8px;';
-      ecWrap.innerHTML = `
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-          <span style="font-size:1.3rem;">⚡</span>
-          <h4 style="margin:0;font-size:1.05rem;font-weight:600;">EC Calibration</h4>
-        </div>
-        <div style="padding:12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;margin-bottom:16px;color:#fecaca;">
-          ⚠️ <strong>Warning:</strong> Calibration affects all EC readings. Follow Atlas Scientific calibration procedure precisely. Rinse probe between steps.
-        </div>
-        
-        <div style="margin-bottom:16px;padding:12px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);border-radius:8px;">
-          <div style="font-weight:600;margin-bottom:8px;">Current Status</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.9rem;">
-            <div>Calibration: <strong id="ecCalStatusValue">—</strong></div>
-            <div>K Factor: <strong id="ecKValue">—</strong></div>
-            <div>Current EC: <strong id="ecCalCurrentReading">—</strong> mS/cm</div>
-            <div><button id="btnEcCalRefreshStatus" class="btn-text" style="padding:4px 8px;font-size:0.85rem;">🔄 Refresh</button></div>
-          </div>
-        </div>
-        
-        <div style="margin-bottom:16px;padding:12px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);border-radius:8px;">
-          <div style="font-weight:600;margin-bottom:8px;">Calibration Steps</div>
-          <ol style="margin:0;padding-left:20px;line-height:1.8;">
-            <li>Rinse probe with DI water and shake dry</li>
-            <li>Place probe in 1413 µS/cm solution</li>
-            <li>Wait 30s for stabilization, then click "Low Point (1413 µS/cm)"</li>
-            <li><em>(Optional)</em> For 2-point: rinse, place in 12,880 µS/cm, wait 30s, click "High Point"</li>
-            <li>Verify reading matches known solution</li>
-          </ol>
-        </div>
-        
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-          <button id="btnEcCalClear" class="btn-secondary" title="Clear calibration and start fresh">Clear Calibration</button>
-          <button id="btnEcCalLow" class="btn-primary" title="Apply 1-point calibration at 1413 µS/cm">Low Point (1413 µS/cm)</button>
-          <button id="btnEcCalHigh" class="btn-secondary" title="Apply high point for 2-point calibration at 12,880 µS/cm">High Point (12,880 µS/cm)</button>
-          <button id="btnEcCalSetK" class="btn-secondary" title="Set K factor (probe constant)">Set K=1.0</button>
-        </div>
-        
-        <div id="ecCalMessage" class="muted" style="padding:8px;border-radius:6px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:40px;">
-          Ready. Click "Refresh" to see current status.
-        </div>
-      `;
-
-      // Dosing calibration
-      const doseWrap = document.createElement('div');
-      doseWrap.style.cssText = 'padding:16px;background:rgba(31,41,55,0.2);border:1px solid rgba(55,65,81,0.3);border-radius:8px;';
-      doseWrap.innerHTML = `
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-          <span style="font-size:1.3rem;">💧</span>
-          <h4 style="margin:0;font-size:1.05rem;font-weight:600;">Dosing Calibration</h4>
-        </div>
-        <div id="dose-calib-banner" class="row" style="margin-bottom:6px;display:none">
-          <span class="muted">Writes are disabled. Set CALIB_ENABLE=1 and restart service to enable calibration commands.</span>
-        </div>
-        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;">
-          <label for="dose-pump">Pump:</label>
-          <select id="dose-pump" style="padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3"></select>
-          <span class="muted">Current rate:</span>
-          <span id="dose-current">—</span>
-          <button id="btnDoseRefresh" class="btn-secondary">Refresh</button>
-        </div>
-        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;">
-          <label>Prime:</label>
-          <button id="btnDosePrimeToggle" class="btn-secondary">Start Priming</button>
-          <span class="muted">Manual start/stop; auto‑stops after safety timeout.</span>
-        </div>
-        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;">
-          <label>Run:</label>
-          <input id="dose-run-sec" type="number" min="0.2" max="10.0" step="0.1" value="5.0" style="width:80px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3"/>
-          <span class="muted">sec</span>
-          <button id="btnDoseRun" class="btn-secondary">Run</button>
-        </div>
-        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;">
-          <label>Measured:</label>
-          <input id="dose-measured-ml" type="number" min="0.1" step="0.1" value="50.0" style="width:100px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3"/>
-          <span class="muted">ml</span>
-          <button id="btnDoseCommit" class="btn-secondary" title="Compute ml/s and save">Compute & Save</button>
-        </div>
-        <div class="row" style="margin-top:6px">
-          <span id="dose-calib-msg" class="muted"></span>
-        </div>
-        <div id="dose-calib-log" class="muted" style="margin-top:8px;max-height:160px;overflow:auto;font-family:ui-monospace, monospace;font-size:12px;border-top:1px dashed #1f2937;padding-top:6px"></div>
-      `;
-
-      contentWrap.appendChild(doseWrap);
-      contentWrap.appendChild(ecWrap);
-      panel.appendChild(contentWrap);
-
-      // Panel-scoped query helper
-      const qP = (sel) => panel.querySelector(sel);
-      
-      // EC Calibration wiring
-      const ecMsgEl = qP('#ecCalMessage');
-      const setEcMsg = (t, ok=true)=>{ if (ecMsgEl){ ecMsgEl.textContent = t||''; ecMsgEl.style.color = ok? '#9ca3af' : '#fca5a5'; } };
-      const ecStatus = async ()=>{
-        try{
-          const r = await (await fetch('/api/ec/cal/status?t='+Date.now(), {cache:'no-store'})).json();
-          if (!r || !r.ok){ setEcMsg('Status load failed', false); return; }
-          const sts = qP('#ecCalStatusValue'); if (sts) sts.textContent = r.status || '—';
-          const kv = qP('#ecKValue'); if (kv) kv.textContent = r.K ? Number(r.K).toFixed(2) : '—';
-          const ecCur = qP('#ecCalCurrentReading'); if (ecCur) ecCur.textContent = r.ec_mscm!=null ? Number(r.ec_mscm).toFixed(2) : '—';
-          setEcMsg(`Status: ${r.status}. K=${r.K||'—'}, EC=${r.ec_mscm!=null ? r.ec_mscm.toFixed(2) : '—'} mS/cm`);
-        }catch(e){ setEcMsg('Status failed', false); }
-      };
-      const btnEcCalRefreshStatus = qP('#btnEcCalRefreshStatus');
-      if (btnEcCalRefreshStatus) btnEcCalRefreshStatus.addEventListener('click', ecStatus);
-      const btnEcCalClear = qP('#btnEcCalClear');
-      if (btnEcCalClear) btnEcCalClear.addEventListener('click', async ()=>{
-        try{
-          setEcMsg('Clearing calibration...');
-          const r = await (await fetch('/api/ec/cal/clear', {method:'POST'})).json();
-          if (r && r.ok){ setEcMsg(r.note || 'Calibration cleared'); await ecStatus(); }
-          else { setEcMsg((r && r.note) || 'Clear failed', false); }
-        }catch(e){ setEcMsg('Clear failed', false); }
-      });
-      const btnEcCalLow = qP('#btnEcCalLow');
-      if (btnEcCalLow) btnEcCalLow.addEventListener('click', async ()=>{
-        try{
-          setEcMsg('Setting low point (1413 µS/cm)...');
-          const r = await (await fetch('/api/ec/cal/low', {method:'POST'})).json();
-          if (r && r.ok){ setEcMsg(r.note || 'Low point calibration accepted'); await ecStatus(); }
-          else { setEcMsg((r && r.note) || 'Low cal failed', false); }
-        }catch(e){ setEcMsg('Low cal failed', false); }
-      });
-      const btnEcCalHigh = qP('#btnEcCalHigh');
-      if (btnEcCalHigh) btnEcCalHigh.addEventListener('click', async ()=>{
-        try{
-          setEcMsg('Setting high point (12,880 µS/cm)...');
-          const r = await (await fetch('/api/ec/cal/high', {method:'POST'})).json();
-          if (r && r.ok){ setEcMsg(r.note || 'High point calibration accepted'); await ecStatus(); }
-          else { setEcMsg((r && r.note) || 'High cal failed', false); }
-        }catch(e){ setEcMsg('High cal failed', false); }
-      });
-      const btnEcCalSetK = qP('#btnEcCalSetK');
-      if (btnEcCalSetK) btnEcCalSetK.addEventListener('click', async ()=>{
-        try{
-          setEcMsg('Setting K=1.0...');
-          const r = await (await fetch('/api/ec/k', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({k:1.0})})).json();
-          if (r && r.ok){ setEcMsg(r.note || 'K factor set to 1.0'); await ecStatus(); }
-          else { setEcMsg((r && r.note) || 'K set failed', false); }
-        }catch(e){ setEcMsg('K set failed', false); }
-      });
-
-  // Dosing wiring (qP already defined above for panel-scoped queries)
-  const doseMsgEl = qP('#dose-calib-msg');
-  const doseLog = (line)=>{ const box = qP('#dose-calib-log'); if (!box) return; const ts=new Date().toLocaleTimeString(); const div=document.createElement('div'); div.textContent = `[${ts}] ${line}`; box.appendChild(div); box.scrollTop = box.scrollHeight; };
-      const setDoseMsg = (t, ok=true)=>{ if (doseMsgEl){ doseMsgEl.textContent = t||''; doseMsgEl.style.color = ok? '#9ca3af' : '#fca5a5'; } doseLog(t); };
-  const doseSel = qP('#dose-pump');
-  const doseCur = qP('#dose-current');
-      const renderPumps = async ()=>{
-        try{
-          const r = await (await fetch('/calib/dose/pumps?t='+Date.now(), {cache:'no-store'})).json();
-          if (!r || !r.ok) throw new Error('load failed');
-          if (!Array.isArray(r.pumps)) r.pumps = [];
-          const prev = doseSel ? doseSel.value : '';
-          if (doseSel){
-            // Rebuild options fresh each time for robustness
-            doseSel.innerHTML = '';
-            if (r.pumps.length === 0){
-              const opt = document.createElement('option');
-              opt.value = '';
-              opt.textContent = 'No pumps available';
-              opt.disabled = true; opt.selected = true;
-              doseSel.appendChild(opt);
-            } else {
-              r.pumps.forEach(p=>{
-                const opt = document.createElement('option');
-                opt.value = p.key;
-                opt.textContent = p.label;
-                doseSel.appendChild(opt);
-              });
-              // Prefer previous selection if still present; else first
-              const hasPrev = r.pumps.some(p=>p.key===prev);
-              doseSel.value = hasPrev ? prev : r.pumps[0].key;
-            }
-          }
-          // Update current rate display
-          const sel = (doseSel && doseSel.value) || (r.pumps[0] && r.pumps[0].key);
-          const found = (r.pumps||[]).find(p=>p.key===sel);
-          if (doseCur) doseCur.textContent = found? `${Number(found.ml_per_sec||0).toFixed(3)} ml/s` : '—';
-        }catch(e){ if (doseCur) doseCur.textContent = '—'; }
-      };
-  if (doseSel){ doseSel.addEventListener('change', renderPumps); }
-  const btnDoseRefresh = qP('#btnDoseRefresh'); if (btnDoseRefresh) btnDoseRefresh.addEventListener('click', renderPumps);
-  const btnPrime = qP('#btnDosePrimeToggle');
-      let primeMonitorInterval = null;
-      async function refreshPrimeState(){
-        try{
-          const r = await (await fetch('/calib/dose/status?t='+Date.now(), {cache:'no-store'})).json();
-          const pump = doseSel && doseSel.value;
-          const on = !!(r && r.ok && r.states && r.states[pump]);
-          if (btnPrime) btnPrime.textContent = on? 'Stop Priming' : 'Start Priming';
-          // Start/stop monitoring based on state
-          if (on && !primeMonitorInterval){
-            primeMonitorInterval = setInterval(refreshPrimeState, 2000);
-          } else if (!on && primeMonitorInterval){
-            clearInterval(primeMonitorInterval);
-            primeMonitorInterval = null;
-          }
-          return on;
-        }catch(e){ if (btnPrime) btnPrime.textContent = 'Start Priming'; return false; }
-      }
-      if (btnPrime) btnPrime.addEventListener('click', async ()=>{
-        try{
-          const pump = doseSel && doseSel.value;
-          const on = await refreshPrimeState();
-          const ep = on? '/calib/dose/stop' : '/calib/dose/start';
-          const r = await (await fetch(`${ep}?pump=${encodeURIComponent(pump)}`, {method:'POST'})).json();
-          if (r && r.ok){
-            const nowOn = await refreshPrimeState();
-            setDoseMsg(nowOn? `Priming ${pump}…` : `Stopped priming ${pump}`);
-          } else {
-            setDoseMsg((r && r.note) || 'Prime toggle failed', false);
-          }
-        }catch(e){ setDoseMsg('Prime toggle failed', false); }
-      });
-      const btnRun = qP('#btnDoseRun'); if (btnRun) btnRun.addEventListener('click', async ()=>{
-        try{
-          const pump = doseSel && doseSel.value; const sec = parseFloat((qP('#dose-run-sec')||{}).value||'5');
-          const r = await (await fetch(`/calib/dose/run?pump=${encodeURIComponent(pump)}&seconds=${encodeURIComponent(sec)}`, {method:'POST'})).json();
-          setDoseMsg(r && r.ok? `Running ${pump} for ${r.scheduled_s||sec}s` : (r.note||'Run failed'), !!(r&&r.ok));
-        }catch(e){ setDoseMsg('Run failed', false); }
-      });
-      const btnCommit = qP('#btnDoseCommit'); if (btnCommit) btnCommit.addEventListener('click', async ()=>{
-        try{
-          const pump = doseSel && doseSel.value; const sec = parseFloat((qP('#dose-run-sec')||{}).value||'5'); const ml = parseFloat((qP('#dose-measured-ml')||{}).value||'0');
-          if (!pump || !isFinite(sec) || !isFinite(ml) || sec<=0 || ml<=0){ setDoseMsg('Enter seconds and measured ml', false); return; }
-          const rate = ml/sec; setDoseMsg(`Computed ${rate.toFixed(3)} ml/s; saving...`);
-          const r = await (await fetch(`/calib/dose/commit?pump=${encodeURIComponent(pump)}&seconds=${encodeURIComponent(sec)}&measured_ml=${encodeURIComponent(ml)}`, {method:'POST'})).json();
-          if (r && r.ok){ setDoseMsg(`Saved ${Number(r.rate_ml_per_sec||rate).toFixed(3)} ml/s to ${pump}`); await renderPumps(); }
-          else {
-            if (r && r.field){ setDoseMsg(`${r.field}: ${r.message||'Invalid'}`, false); }
-            else setDoseMsg((r && r.note) || 'Save failed', false);
-          }
-        }catch(e){ setDoseMsg('Save failed', false); }
-      });
-
+    const summary = document.createElement('summary');
     
-    // Standard fields - modern card-based layout
-    const def = GROUP_DEF[ns];
-    if (!def) return panel;
+    // Icon mapping to match System tab style
+    const icons = {
+      general: '🏠',
+      safety: '🛡️',
+      chiller: '🧊',
+      automation: '🤖',
+      alerts: '🔔',
+      ui: '🎨'
+    };
+    
+    summary.style.cssText = 'cursor:pointer;padding:16px 20px;background:rgba(31,41,55,0.6);border:1px solid rgba(55,65,81,0.5);border-radius:12px;display:flex;align-items:center;gap:10px;font-size:1.05rem;font-weight:600;transition:all 0.2s ease;margin-bottom:2px;';
+    summary.innerHTML = `<span style="font-size:1.3rem;">${icons[ns] || '⚙️'}</span><span>${grp.title}</span><span style="margin-left:auto;font-size:0.8rem;color:#9ca3af;">▼</span>`;
+    summary.addEventListener('mouseenter', () => summary.style.background = 'rgba(31,41,55,0.8)');
+    summary.addEventListener('mouseleave', () => summary.style.background = 'rgba(31,41,55,0.6)');
+    panel.appendChild(summary);
+
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:20px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-top:none;border-radius:0 0 12px 12px;margin-top:-2px;';
     
     // Add group title with icon as summary (clickable header)
     const icons = {
@@ -373,7 +139,7 @@
     const grid = document.createElement('div');
     grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;';
     
-    const fields = GROUP_DEF[ns].fields;
+    const fields = grp.fields;
     Object.entries(fields).forEach(([key, meta]) => {
       const val = current[key] ?? '';
       const wrap = document.createElement('div');
