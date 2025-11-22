@@ -282,24 +282,51 @@
       const banner = q('#chiller-interlock-banner');
       if (!banner) return;
       
-      const relays = await getJSON('/api/relays/status');
-      const mainPumpOn = relays?.relays?.main_pump?.is_on;
-      const chillerPumpOn = relays?.relays?.chiller_pump?.is_on;
-      const chillerOn = relays?.relays?.chiller_power?.is_on;
+      // Use new interlock status from chiller state
+      const status = await getJSON('/api/chiller/status');
+      const interlockOk = status.interlock_ok;
+      const details = status.interlock_details || {};
       
-      if (chillerOn && chillerPumpOn && mainPumpOn) {
+      const mainPumpOn = details.main_pump_on;
+      const chillerPumpOn = details.chiller_pump_on;
+      const chillerRunning = details.chiller_running;
+      const violations = details.violations;
+      
+      // Show banner based on interlock status
+      if (interlockOk && chillerRunning) {
+        // All good: chiller running with proper circulation
         banner.style.display = 'block';
         banner.style.background = 'rgba(34,197,94,0.12)';
         banner.style.borderColor = 'rgba(34,197,94,0.4)';
         banner.style.color = '#a7f3d0';
         banner.innerHTML = '<strong>✅ INTERLOCK ACTIVE:</strong> Chiller running with circulation pumps';
+      } else if (!interlockOk && violations && violations.length > 0) {
+        // Interlock violation detected
+        banner.style.display = 'block';
+        banner.style.background = 'rgba(239,68,68,0.12)';
+        banner.style.borderColor = 'rgba(239,68,68,0.4)';
+        banner.style.color = '#fecaca';
+        
+        let message = '<strong>⚠️ INTERLOCK VIOLATION:</strong> ';
+        if (violations.includes('main_pump_off_while_chiller_running')) {
+          message += 'Chiller running without main pump!';
+        } else if (violations.includes('chiller_pump_off_while_chiller_running')) {
+          message += 'Chiller running without chiller pump!';
+        } else if (violations.includes('chiller_pump_off_in_auto_mode')) {
+          message += 'Chiller pump OFF in AUTO mode (auto-remediation pending)';
+        } else {
+          message += violations.join(', ');
+        }
+        banner.innerHTML = message;
       } else if (!mainPumpOn) {
+        // Ready state: main pump prerequisite
         banner.style.display = 'block';
         banner.style.background = 'rgba(239,68,68,0.12)';
         banner.style.borderColor = 'rgba(239,68,68,0.4)';
         banner.style.color = '#fecaca';
         banner.innerHTML = '<strong>⚠️ INTERLOCK:</strong> Main pump must be ON before chiller can start';
-      } else if (mainPumpOn && !chillerOn) {
+      } else if (mainPumpOn && !chillerRunning) {
+        // Standby: ready to operate
         banner.style.display = 'block';
         banner.style.background = 'rgba(148,163,184,0.12)';
         banner.style.borderColor = 'rgba(148,163,184,0.3)';
@@ -309,7 +336,16 @@
         banner.style.display = 'none';
       }
     } catch (e) {
-      // Silent fail - banner is informational only
+      console.error('Failed to update interlock banner:', e);
+      // Show error state in banner
+      const banner = q('#chiller-interlock-banner');
+      if (banner) {
+        banner.style.display = 'block';
+        banner.style.background = 'rgba(239,68,68,0.12)';
+        banner.style.borderColor = 'rgba(239,68,68,0.4)';
+        banner.style.color = '#fecaca';
+        banner.innerHTML = '<strong>⚠️ ERROR:</strong> Cannot verify interlock status';
+      }
     }
   }
 

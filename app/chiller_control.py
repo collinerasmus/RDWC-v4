@@ -181,6 +181,39 @@ def get_chiller_state() -> Dict[str, Any]:
         state['hysteresis'] = float(get_setting('chiller.hysteresis', '0.5'))
         state['auto_enabled'] = bool(int(get_setting('chiller.auto_enabled', '0')))
         
+        # Add interlock status for continuous validation
+        try:
+            relays = get_relay_status()
+            main_pump_on = relays.get('main_pump', {}).get('state', False)
+            chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
+            chiller_running = state['is_running']
+            auto_enabled = state['auto_enabled']
+            
+            # Interlock is OK if:
+            # 1. If chiller is running, both pumps must be ON
+            # 2. If AUTO mode and main_pump is ON, chiller_pump must be ON
+            interlock_violations = []
+            
+            if chiller_running and not main_pump_on:
+                interlock_violations.append("main_pump_off_while_chiller_running")
+            if chiller_running and not chiller_pump_on:
+                interlock_violations.append("chiller_pump_off_while_chiller_running")
+            if auto_enabled and main_pump_on and not chiller_pump_on:
+                interlock_violations.append("chiller_pump_off_in_auto_mode")
+            
+            state['interlock_ok'] = len(interlock_violations) == 0
+            state['interlock_details'] = {
+                'main_pump_on': main_pump_on,
+                'chiller_pump_on': chiller_pump_on,
+                'chiller_running': chiller_running,
+                'auto_enabled': auto_enabled,
+                'violations': interlock_violations if interlock_violations else None
+            }
+        except Exception as e:
+            log.error(f'[CHILLER] Failed to check interlock status: {e}')
+            state['interlock_ok'] = False
+            state['interlock_details'] = {'error': str(e)}
+        
         return state
 
 
@@ -348,6 +381,34 @@ def control_loop():
     
     while not _stop_control:
         try:
+            # Auto-remediation: Enforce circulation interlock in AUTO mode
+            try:
+                from app.controller_modes import get_mode
+                mode = get_mode('chiller')
+            except Exception:
+                mode = 'auto'
+            
+            if mode == 'auto':
+                relays = get_relay_status()
+                main_pump_on = relays.get('main_pump', {}).get('state', False)
+                chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
+                chiller_running = _chiller_state['is_running']
+                
+                # Enforce: If main_pump ON in AUTO mode, chiller_pump must be ON
+                if main_pump_on and not chiller_pump_on:
+                    log.warning('[CHILLER] Auto-remediation: Asserting chiller_pump ON (main_pump is ON in AUTO mode)')
+                    relay_set('chiller_pump', True, reason='auto_remediation_circulation', actor='chiller-ctl-remediation')
+                
+                # Safety: If chiller running but circulation lost, shut down chiller
+                if chiller_running and (not main_pump_on or not chiller_pump_on):
+                    missing = []
+                    if not main_pump_on:
+                        missing.append('main_pump')
+                    if not chiller_pump_on:
+                        missing.append('chiller_pump')
+                    log.error(f'[CHILLER] INTERLOCK VIOLATION: Chiller running without circulation ({", ".join(missing)} OFF) - SHUTTING DOWN')
+                    set_chiller_relay(False, f'Emergency shutdown - circulation lost ({", ".join(missing)} OFF)')
+            
             # Check if we should run
             should_run, reason = should_chiller_run()
             
