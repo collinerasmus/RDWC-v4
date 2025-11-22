@@ -2021,6 +2021,22 @@ def relay_debug():
     
     return debug_info
 
+@app.post("/test/ping")
+def test_ping():
+    """Simplest possible POST endpoint - no body, no params"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("[test/ping] Request received")
+    return {"ok": True, "message": "pong"}
+
+@app.post("/test/echo")
+def test_echo(body: dict = Body(...)):
+    """Simple test endpoint to verify POST is working at all"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[test/echo] Received: {body}")
+    return {"ok": True, "echo": body, "message": "POST endpoint is working"}
+
 @app.post("/relay/set")
 def relay_set_new(body: dict = Body(...)):
     """Set relay state using proper relays_core with whitelisted 'override' reason"""
