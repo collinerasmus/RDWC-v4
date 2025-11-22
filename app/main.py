@@ -663,6 +663,257 @@ def health():
     
     return response_data
 
+@app.get("/api/system/info")
+def get_system_info():
+    """
+    Comprehensive system information for System tab.
+    Returns Pi hardware stats, software versions, environment details,
+    database statistics, network info, and process status.
+    """
+    import platform
+    import socket
+    import subprocess
+    from pathlib import Path
+    
+    try:
+        import psutil
+    except ImportError:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "psutil not installed - run: pip install psutil>=5.9.0"}
+        )
+    
+    info = {}
+    
+    # ===== RASPBERRY PI INFO =====
+    try:
+        cpu_percent = psutil.cpu_percent(interval=0.5)
+        cpu_freq = psutil.cpu_freq()
+        mem = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        
+        # Try to read Pi temperature
+        pi_temp = None
+        try:
+            temp_path = Path("/sys/class/thermal/thermal_zone0/temp")
+            if temp_path.exists():
+                temp_raw = int(temp_path.read_text().strip())
+                pi_temp = round(temp_raw / 1000.0, 1)
+        except Exception:
+            pass
+        
+        # Uptime
+        boot_time = psutil.boot_time()
+        uptime_seconds = int(time.time() - boot_time)
+        uptime_str = str(timedelta(seconds=uptime_seconds))
+        
+        info["pi_info"] = {
+            "cpu_percent": round(cpu_percent, 1),
+            "cpu_freq_mhz": round(cpu_freq.current, 0) if cpu_freq else None,
+            "cpu_count": psutil.cpu_count(),
+            "temperature_c": pi_temp,
+            "memory_total_mb": round(mem.total / 1024 / 1024, 0),
+            "memory_used_mb": round(mem.used / 1024 / 1024, 0),
+            "memory_percent": round(mem.percent, 1),
+            "disk_total_gb": round(disk.total / 1024 / 1024 / 1024, 1),
+            "disk_used_gb": round(disk.used / 1024 / 1024 / 1024, 1),
+            "disk_percent": round(disk.percent, 1),
+            "uptime_seconds": uptime_seconds,
+            "uptime_human": uptime_str,
+            "platform": platform.platform()
+        }
+    except Exception as e:
+        info["pi_info"] = {"error": str(e)}
+    
+    # ===== SOFTWARE INFO =====
+    try:
+        # RDWC version
+        version_file = Path(__file__).parent.parent / "VERSION"
+        rdwc_version = version_file.read_text().strip() if version_file.exists() else "unknown"
+        
+        # Git info
+        git_info = {}
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=Path(__file__).parent.parent,
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            if result.returncode == 0:
+                git_info["commit"] = result.stdout.strip()
+            
+            result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=Path(__file__).parent.parent,
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            if result.returncode == 0:
+                git_info["branch"] = result.stdout.strip()
+        except Exception:
+            git_info = {"error": "git not available"}
+        
+        # Python version
+        python_version = platform.python_version()
+        
+        # Service status (systemd)
+        services = {}
+        for service_name in ["rdwc-api", "rdwc-sensors"]:
+            try:
+                result = subprocess.run(
+                    ["systemctl", "is-active", service_name],
+                    capture_output=True,
+                    text=True,
+                    timeout=2
+                )
+                services[service_name] = result.stdout.strip()
+            except Exception:
+                services[service_name] = "unknown"
+        
+        info["software_info"] = {
+            "rdwc_version": rdwc_version,
+            "python_version": python_version,
+            "fastapi_version": "installed",  # Could import to get exact version
+            "git": git_info,
+            "services": services
+        }
+    except Exception as e:
+        info["software_info"] = {"error": str(e)}
+    
+    # ===== ENVIRONMENT INFO =====
+    try:
+        # I²C devices
+        i2c_devices = []
+        try:
+            from app.infra.i2c_bus import get_bus
+            bus = get_bus()
+            if bus:
+                # Scan common EZO addresses
+                for addr in [0x63, 0x64, 0x66]:  # pH, EC, RTD
+                    try:
+                        bus.read_byte(addr)
+                        device_name = {0x63: "pH", 0x64: "EC", 0x66: "RTD"}.get(addr, "unknown")
+                        i2c_devices.append({"address": hex(addr), "name": device_name, "online": True})
+                    except Exception:
+                        device_name = {0x63: "pH", 0x64: "EC", 0x66: "RTD"}.get(addr, "unknown")
+                        i2c_devices.append({"address": hex(addr), "name": device_name, "online": False})
+        except Exception as e:
+            i2c_devices = [{"error": str(e)}]
+        
+        # Relay GPIO pins
+        relay_pins = {}
+        try:
+            from app.relays_core import RELAY_PINS
+            relay_pins = RELAY_PINS
+        except Exception:
+            pass
+        
+        # Sensor power pin
+        sensor_power_pin = os.environ.get("RDWC_SENSOR_POWER_PIN", "not configured")
+        
+        info["environment_info"] = {
+            "i2c_devices": i2c_devices,
+            "relay_pins": relay_pins,
+            "sensor_power_pin": sensor_power_pin,
+            "i2c_bus": "/dev/i2c-1"
+        }
+    except Exception as e:
+        info["environment_info"] = {"error": str(e)}
+    
+    # ===== DATABASE INFO =====
+    try:
+        import sqlite3
+        db_path = Path(DB_PATH)
+        
+        if db_path.exists():
+            db_size_mb = round(db_path.stat().st_size / 1024 / 1024, 2)
+            
+            # Get record counts
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            
+            tables = {}
+            for table in ["readings", "ph_dose_log", "ec_dose_log", "dose_events", "nutrient_schedule", "system_state"]:
+                try:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                    count = cursor.fetchone()[0]
+                    tables[table] = count
+                except Exception:
+                    tables[table] = "N/A"
+            
+            # Get oldest and newest reading timestamps
+            try:
+                cursor.execute("SELECT MIN(ts), MAX(ts) FROM readings")
+                min_ts, max_ts = cursor.fetchone()
+                oldest = datetime.fromtimestamp(min_ts).isoformat() if min_ts else "N/A"
+                newest = datetime.fromtimestamp(max_ts).isoformat() if max_ts else "N/A"
+            except Exception:
+                oldest = newest = "N/A"
+            
+            conn.close()
+            
+            info["database_info"] = {
+                "path": str(db_path),
+                "size_mb": db_size_mb,
+                "tables": tables,
+                "oldest_reading": oldest,
+                "newest_reading": newest
+            }
+        else:
+            info["database_info"] = {"error": "Database file not found"}
+    except Exception as e:
+        info["database_info"] = {"error": str(e)}
+    
+    # ===== NETWORK INFO =====
+    try:
+        hostname = socket.gethostname()
+        
+        # Get all IP addresses
+        ip_addresses = []
+        for interface, addrs in psutil.net_if_addrs().items():
+            for addr in addrs:
+                if addr.family == socket.AF_INET:  # IPv4
+                    ip_addresses.append({
+                        "interface": interface,
+                        "address": addr.address,
+                        "netmask": addr.netmask
+                    })
+        
+        info["network_info"] = {
+            "hostname": hostname,
+            "ip_addresses": ip_addresses
+        }
+    except Exception as e:
+        info["network_info"] = {"error": str(e)}
+    
+    # ===== PROCESS INFO =====
+    try:
+        processes = []
+        for proc in psutil.process_iter(['pid', 'name', 'username', 'memory_percent']):
+            try:
+                pinfo = proc.info
+                # Only include RDWC-related processes
+                if 'rdwc' in pinfo['name'].lower() or 'uvicorn' in pinfo['name'].lower() or 'python' in pinfo['name'].lower():
+                    processes.append({
+                        "pid": pinfo['pid'],
+                        "name": pinfo['name'],
+                        "user": pinfo['username'],
+                        "memory_percent": round(pinfo['memory_percent'], 2) if pinfo['memory_percent'] else 0
+                    })
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        
+        info["process_info"] = {
+            "rdwc_processes": processes[:10]  # Limit to 10 most relevant
+        }
+    except Exception as e:
+        info["process_info"] = {"error": str(e)}
+    
+    return info
+
 @app.get("/health/db")
 def health_db():
     """Database health check with freshness validation"""

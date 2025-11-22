@@ -651,6 +651,8 @@ body{
 </style>
 <!-- Frontend Error Reporter: captures console errors and sends to backend -->
 <script src="/static/js/error_reporter.js"></script>
+<!-- System Information Controller: fetches and displays comprehensive system info -->
+<script src="/static/system_info.js"></script>
 </head>
 <body>
 <main id="rdwc-root" class="container">
@@ -2141,77 +2143,245 @@ body{
           </div>
   </section>
 
-  <!-- 6. System (Settings + Relays consolidated) -->
+  <!-- 6. System Tab (Comprehensive System Information) -->
   <section id="settings-card" class="card card-wide tab-section" data-tab="settings" style="display:none;">
     <div class="card-header">
       <div style="display:flex;align-items:center;gap:8px;">
-        <h3 class="card-title" style="margin:0;">System Settings</h3>
-        <span id="system-relays-health" class="ui-status-chip neutral" title="Relays status">—</span>
+        <h3 class="card-title" style="margin:0;">System Information</h3>
+        <span id="sys-info-refresh-indicator" class="ui-status-chip success" title="Auto-refresh every 10s">Live</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"></div>
-    </div>
-    <div id="system-meta" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 12px 0;">
-      <button id="btnExportSettings" class="btn-secondary" style="margin-left:auto;">Export JSON</button>
-      <label class="btn-secondary" style="cursor:pointer;">
-        Import JSON <input id="importFile" type="file" accept=".json,application/json" style="display:none;"/>
-      </label>
-      <button id="btnSaveSettings" class="btn-secondary" disabled>Save</button>
-    </div>
-    <!-- System Status Engineering Panel -->
-    <div style="margin-bottom:24px;padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;">
-      <h4 style="margin:0 0 12px 0;font-size:0.95rem;font-weight:600;">System Status</h4>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
-        <div>
-          <div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Mode</div>
-          <div id="sys-mode-display" style="font-weight:600;font-size:1.1rem;">—</div>
-        </div>
-        <div>
-          <div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">E-STOP</div>
-          <div id="sys-estop-display" style="font-weight:600;font-size:1.1rem;">—</div>
-        </div>
-        <div>
-          <div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Sensor Poller</div>
-          <div id="sys-sensors-display" style="font-weight:600;font-size:1.1rem;">—</div>
-        </div>
-        <div>
-          <div style="font-size:0.75rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">API Service</div>
-          <div id="sys-api-display" style="font-weight:600;font-size:1.1rem;">—</div>
-        </div>
-      </div>
-      <hr style="margin:12px 0;border:none;border-top:1px solid rgba(55,65,81,0.5);"/>
-      <h4 style="margin:12px 0 8px 0;font-size:0.85rem;font-weight:600;color:#9ca3af;">Raspberry Pi Stats</h4>
-      <div id="sys-pi-stats" style="font-size:0.85rem;color:#d1d5db;line-height:1.6;">
-        <div>Loading system information...</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button id="btnRefreshSystemInfo" class="btn-chip" title="Refresh system info now">↻ Refresh</button>
+        <button id="btnExportSettings" class="btn-chip">Export JSON</button>
+        <label class="btn-chip" style="cursor:pointer;margin:0;">
+          Import JSON <input id="importFile" type="file" accept=".json,application/json" style="display:none;"/>
+        </label>
       </div>
     </div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:20px;">
+      
+      <!-- 1. Pi Information Card -->
+      <div style="padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <span style="font-size:1.5rem;">🍓</span>
+          <h4 style="margin:0;font-size:1.05rem;font-weight:600;">Raspberry Pi</h4>
+        </div>
+        <div id="sys-pi-info" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;font-size:0.9rem;">
+          <div>
+            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">CPU Usage</div>
+            <div id="pi-cpu" style="font-weight:600;color:#93c5fd;">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">CPU Freq</div>
+            <div id="pi-cpu-freq" style="font-weight:600;color:#93c5fd;">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">CPU Temp</div>
+            <div id="pi-cpu-temp" style="font-weight:600;color:#93c5fd;">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Memory</div>
+            <div id="pi-memory" style="font-weight:600;color:#93c5fd;">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Disk</div>
+            <div id="pi-disk" style="font-weight:600;color:#93c5fd;">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Uptime</div>
+            <div id="pi-uptime" style="font-weight:600;color:#93c5fd;">—</div>
+          </div>
+        </div>
+      </div>
 
-    <!-- Relays Panel (migrated from former Relays tab) -->
-    <div style="margin-bottom:18px;">
-      <div id="estop-banner" class="estop-banner hidden" style="margin-bottom:10px;">
-        <strong>E-STOP ACTIVE:</strong> All relays are forced OFF. Release E-STOP to resume control.
+      <!-- 2. Software Information Card -->
+      <div style="padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <span style="font-size:1.5rem;">💻</span>
+          <h4 style="margin:0;font-size:1.05rem;font-weight:600;">Software</h4>
+        </div>
+        <div id="sys-software-info" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;font-size:0.9rem;">
+          <div>
+            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">RDWC Version</div>
+            <div id="sw-rdwc-version" style="font-weight:600;color:#a7f3d0;">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Python Version</div>
+            <div id="sw-python-version" style="font-weight:600;color:#a7f3d0;">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Git Commit</div>
+            <div id="sw-git-commit" style="font-weight:600;color:#a7f3d0;font-family:monospace;font-size:0.85rem;">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Git Branch</div>
+            <div id="sw-git-branch" style="font-weight:600;color:#a7f3d0;">—</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(55,65,81,0.5);">
+          <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:8px;font-weight:600;">Service Status</div>
+          <div id="sw-services" style="display:flex;flex-direction:column;gap:6px;font-size:0.85rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:rgba(0,0,0,0.2);border-radius:6px;">
+              <span>rdwc-api</span>
+              <span id="svc-api" class="ui-status-chip neutral">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:rgba(0,0,0,0.2);border-radius:6px;">
+              <span>rdwc-sensors</span>
+              <span id="svc-sensors" class="ui-status-chip neutral">—</span>
+            </div>
+          </div>
+        </div>
       </div>
-      <div id="relays-mode-hint" class="text-xs text-gray-400 mb-3"></div>
-      <div id="relays-grid" class="relays-grid"></div>
-      <div id="relays-status-subfooter" class="text-xs text-gray-400 mt-2"></div>
-      <div id="relays-note" class="muted" style="margin-top:10px;font-size:12px;">
-        <strong>Manual:</strong> relays stay OFF at boot. <strong>Auto:</strong> critical relays restore last state. 
-        <span style="opacity:.8">Active-low; OFF = HIGH. Safe-off on boot.</span>
+
+      <!-- 3. Environment Information Card -->
+      <div style="padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <span style="font-size:1.5rem;">⚙️</span>
+          <h4 style="margin:0;font-size:1.05rem;font-weight:600;">Hardware Environment</h4>
+        </div>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:8px;font-weight:600;">I²C Devices (EZO Sensors)</div>
+          <div id="env-i2c-devices" style="display:flex;flex-wrap:wrap;gap:6px;">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+        <div style="margin-bottom:14px;padding-top:12px;border-top:1px solid rgba(55,65,81,0.5);">
+          <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:8px;font-weight:600;">Relay GPIO Pins</div>
+          <div id="env-gpio-pins" style="display:flex;flex-wrap:wrap;gap:6px;font-size:0.85rem;">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+        <div style="padding-top:12px;border-top:1px solid rgba(55,65,81,0.5);">
+          <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:4px;">Sensor Power Pin</div>
+          <div id="env-sensor-power" style="font-weight:600;color:#f9a8d4;font-size:0.9rem;">—</div>
+        </div>
       </div>
-      <hr class="separator" style="margin:20px 0;"/>
+
+      <!-- 4. Database Information Card -->
+      <div style="padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <span style="font-size:1.5rem;">🗄️</span>
+          <h4 style="margin:0;font-size:1.05rem;font-weight:600;">Database</h4>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;font-size:0.9rem;margin-bottom:14px;">
+          <div>
+            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">DB Size</div>
+            <div id="db-size" style="font-weight:600;color:#fbbf24;">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Readings</div>
+            <div id="db-readings" style="font-weight:600;color:#fbbf24;">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">pH Doses</div>
+            <div id="db-ph-doses" style="font-weight:600;color:#fbbf24;">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">EC Doses</div>
+            <div id="db-ec-doses" style="font-weight:600;color:#fbbf24;">—</div>
+          </div>
+        </div>
+        <div style="padding-top:12px;border-top:1px solid rgba(55,65,81,0.5);">
+          <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:8px;font-weight:600;">Data Range</div>
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:0.85rem;">
+            <div style="display:flex;justify-content:space-between;">
+              <span>Oldest reading:</span>
+              <span id="db-oldest" style="color:#d1d5db;">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span>Newest reading:</span>
+              <span id="db-newest" style="color:#d1d5db;">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Network Information Card -->
+      <div style="padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <span style="font-size:1.5rem;">🌐</span>
+          <h4 style="margin:0;font-size:1.05rem;font-weight:600;">Network</h4>
+        </div>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Hostname</div>
+          <div id="net-hostname" style="font-weight:600;color:#c084fc;font-size:0.95rem;">—</div>
+        </div>
+        <div>
+          <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:8px;font-weight:600;">IP Addresses</div>
+          <div id="net-ips" style="display:flex;flex-direction:column;gap:6px;font-size:0.85rem;">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Process Information Card -->
+      <div style="padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <span style="font-size:1.5rem;">📊</span>
+          <h4 style="margin:0;font-size:1.05rem;font-weight:600;">RDWC Processes</h4>
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;font-size:0.85rem;border-collapse:collapse;">
+            <thead>
+              <tr style="border-bottom:1px solid rgba(55,65,81,0.5);">
+                <th style="padding:8px 10px;text-align:left;color:#9ca3af;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">PID</th>
+                <th style="padding:8px 10px;text-align:left;color:#9ca3af;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Name</th>
+                <th style="padding:8px 10px;text-align:left;color:#9ca3af;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">User</th>
+                <th style="padding:8px 10px;text-align:right;color:#9ca3af;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Memory</th>
+              </tr>
+            </thead>
+            <tbody id="proc-table" style="color:#d1d5db;">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Legacy Settings Actions (kept for backwards compatibility) -->
+      <div style="padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <span style="font-size:1.5rem;">⚙️</span>
+          <h4 style="margin:0;font-size:1.05rem;font-weight:600;">Settings Management</h4>
+        </div>
+        <div class="muted" style="margin-bottom:12px;padding:10px 14px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);font-size:0.85rem;">
+          ℹ️ Controller-specific settings (pH targets, EC targets, dosing, pump timings) are available in their respective controller tabs.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button id="btnSaveSettings" class="btn-secondary" disabled>Save Settings</button>
+        </div>
+        
+        <!-- Settings Tabs (General/Safety/etc) -->
+        <div id="settings-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:16px;">
+          <button class="btn btn-chip" data-tab="general">General</button>
+          <button class="btn btn-chip" data-tab="safety">Safety</button>
+          <button class="btn btn-chip" data-tab="chiller">Chiller</button>
+          <button class="btn btn-chip" data-tab="automation">Automation</button>
+          <button class="btn btn-chip" data-tab="alerts">Alerts</button>
+          <button class="btn btn-chip" data-tab="ui">UI</button>
+        </div>
+        <div id="settings-panels" style="margin-top:10px;"></div>
+        <div id="settings-note" class="muted" style="margin-top:8px;font-size:12px;">Changes apply immediately unless noted; relays never energize on save.</div>
+      </div>
+
+      <!-- Relays Panel -->
+      <div style="padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <span style="font-size:1.5rem;">🔌</span>
+          <h4 style="margin:0;font-size:1.05rem;font-weight:600;">Relays</h4>
+        </div>
+        <div id="estop-banner" class="estop-banner hidden" style="margin-bottom:10px;">
+          <strong>E-STOP ACTIVE:</strong> All relays are forced OFF. Release E-STOP to resume control.
+        </div>
+        <div id="relays-mode-hint" class="text-xs text-gray-400 mb-3"></div>
+        <div id="relays-grid" class="relays-grid"></div>
+        <div id="relays-status-subfooter" class="text-xs text-gray-400 mt-2"></div>
+        <div id="relays-note" class="muted" style="margin-top:10px;font-size:12px;">
+          <strong>Manual:</strong> relays stay OFF at boot. <strong>Auto:</strong> critical relays restore last state. 
+          <span style="opacity:.8">Active-low; OFF = HIGH. Safe-off on boot.</span>
+        </div>
+      </div>
+
     </div>
-      <div class="muted" style="margin:12px 0;padding:10px 14px;border-radius:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);font-size:0.85rem;">
-        ℹ️ Controller-specific settings (pH targets, EC targets, dosing, pump timings) have moved to their respective controller tabs.
-      </div>
-    <div id="settings-tabs" style="display:flex;gap:6px;flex-wrap:wrap;">
-      <button class="btn btn-chip" data-tab="general">General</button>
-      <button class="btn btn-chip" data-tab="safety">Safety</button>
-      <button class="btn btn-chip" data-tab="chiller">Chiller</button>
-      <button class="btn btn-chip" data-tab="automation">Automation</button>
-      <button class="btn btn-chip" data-tab="alerts">Alerts</button>
-      <button class="btn btn-chip" data-tab="ui">UI</button>
-    </div>
-    <div id="settings-panels" style="margin-top:10px;"></div>
-    <div id="settings-note" class="muted" style="margin-top:8px;font-size:12px;">Changes apply immediately unless noted; relays never energize on save.</div>
   </section>
 
   <!-- Recent Readings Card (removed; moved into Sensors card) -->

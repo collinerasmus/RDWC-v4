@@ -1,5 +1,45 @@
 # Changelog
 
+## v4.4.0 (2025-11-22)
+
+**Phase 6: System Tab Enhancements**
+
+### Added
+- Comprehensive system information endpoint: `GET /api/system/info`
+- Single-column System tab layout with 6 information sections:
+  1. **Raspberry Pi**: CPU usage/freq/temp, memory, disk, uptime (live metrics)
+  2. **Software**: RDWC version, Python version, Git commit/branch, systemd service status
+  3. **Hardware Environment**: I²C devices (pH/EC/RTD sensors), relay GPIO pins, sensor power pin
+  4. **Database**: File size, record counts (readings/pH/EC doses), oldest/newest timestamps
+  5. **Network**: Hostname, IP addresses per interface with netmask
+  6. **Processes**: RDWC-related processes with PID, name, user, memory usage
+- Auto-refresh system info every 10 seconds with manual refresh button
+- Live status indicator (green "Live" chip when healthy, red "Error" on fetch failure)
+- New dependency: `psutil>=5.9.0` for system metrics
+
+### Frontend
+- `app/static/system_info.js` - System info controller with auto-refresh logic
+- Card-based layout with visual hierarchy (icons, colors, sections)
+- Human-readable formatting (bytes → MB/GB, seconds → uptime, timestamps → local date/time)
+- Responsive grid layouts for metrics display
+- Service status chips (Active/Inactive/Error) for rdwc-api and rdwc-sensors
+
+### Backend
+- `app/main.py`: Added `/api/system/info` endpoint (~237 lines)
+- Uses `psutil` for Pi metrics, `subprocess` for git/systemd status, `socket` for network info
+- Graceful error handling per section (partial data on individual section failure)
+- I²C device scanning with known EZO addresses (0x63 pH, 0x64 EC, 0x66 RTD)
+
+### Migration
+- Settings management UI preserved (General/Safety/Chiller/Automation/Alerts/UI tabs)
+- Relays panel preserved with E-STOP and mode controls
+- Legacy Export/Import JSON functions intact
+
+### Deployment
+- Requires `pip install psutil>=5.9.0` before restart
+- No database schema changes
+- Backwards-compatible with existing settings
+
 ## v4.3.0 (2025-11-22)
 
 **Phase 5: Schedule Controller - 12-Week Grow Timeline**
