@@ -1,5 +1,7 @@
 # Grow Diary & Historical Tracking — Research & Planning
 
+**Status**: NEW feature proposal (not part of original PR #72 Phase 6-8 plan)
+
 ## Current State (Phase 5: Schedule Controller)
 ✅ 12-week schedule timeline with phase tracking (seedling → veg → preflower → flower → flush)  
 ✅ Per-week targets: EC, pH band, temp, nutrients, lights  
@@ -197,7 +199,7 @@ CREATE TABLE diary_entries (
 ## Don't Break Current Work
 - Schedule Controller (Phase 5) is automation-focused — leave it alone
 - Diary is **additive** — no changes to existing tabs/APIs
-- Can prototype diary backend without touching UI until Phase 6
+- Can prototype diary backend without touching UI until future phase
 
 ---
 
@@ -213,9 +215,9 @@ CREATE TABLE diary_entries (
 **Immediate** (don't derail Phase 5):
 - [x] Document diary research (this file)
 - [ ] Add "Diary (Coming Soon)" tab to UI (5 min task)
-- [ ] Update roadmap in PROJECT_MANAGEMENT.md
+- [ ] Discuss placement in roadmap (after Phase 8 As-Built docs?)
 
-**Phase 6 Kickoff** (after Schedule Controller is stable):
+**Future Implementation** (after original PR #72 phases complete):
 - [ ] Design SQLite schema for diary_entries
 - [ ] Implement diary_api.py with CRUD endpoints
 - [ ] Build diary.js with timeline view + entry form

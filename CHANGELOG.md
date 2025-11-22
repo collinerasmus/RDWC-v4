@@ -39,7 +39,7 @@
 - Deployed to Pi at commit de7b073
 
 ### Documentation
-- Research completed for future Grow Diary feature (Phase 6+): `docs/GROW_DIARY_RESEARCH.md`
+- Research completed for future Grow Diary feature (not part of PR #72 roadmap): `docs/GROW_DIARY_RESEARCH.md`
 
 ## v4.2.0 (2025-11-20)
 
