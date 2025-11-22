@@ -90,19 +90,27 @@
   }
 
   function renderGroup(ns){
-    const panel = document.createElement('div');
+    const panel = document.createElement('details');
     panel.dataset.ns = ns;
-    panel.style.cssText = 'display:flex;flex-direction:column;gap:16px;';
+    panel.style.cssText = 'margin-bottom:12px;';
+    panel.open = (ns === 'general'); // Open General by default
     
     // Custom panel for Calibration
     if (ns === 'calibration'){
-      const title = document.createElement('h3');
-      title.textContent = 'Calibration';
-      title.style.cssText = 'margin:0 0 12px 0;font-size:1.1rem;font-weight:600;color:#e0e0e0;';
+      const summary = document.createElement('summary');
+      summary.style.cssText = 'cursor:pointer;padding:16px 20px;background:rgba(31,41,55,0.6);border:1px solid rgba(55,65,81,0.5);border-radius:12px;display:flex;align-items:center;gap:10px;font-size:1.05rem;font-weight:600;transition:all 0.2s ease;margin-bottom:2px;';
+      summary.innerHTML = `<span style="font-size:1.3rem;">🔬</span><span>Calibration</span><span style="margin-left:auto;font-size:0.8rem;color:#9ca3af;">▼</span>`;
+      summary.addEventListener('mouseenter', () => summary.style.background = 'rgba(31,41,55,0.8)');
+      summary.addEventListener('mouseleave', () => summary.style.background = 'rgba(31,41,55,0.6)');
+      panel.appendChild(summary);
 
+      // Wrapper for calibration content
+      const contentWrap = document.createElement('div');
+      contentWrap.style.cssText = 'padding:20px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-top:none;border-radius:0 0 12px 12px;margin-top:-2px;display:flex;flex-direction:column;gap:16px;';
+      
       // EC Calibration (full wizard moved from EC Controller card)
       const ecWrap = document.createElement('div');
-      ecWrap.style.cssText = 'padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;';
+      ecWrap.style.cssText = 'padding:16px;background:rgba(31,41,55,0.2);border:1px solid rgba(55,65,81,0.3);border-radius:8px;';
       ecWrap.innerHTML = `
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
           <span style="font-size:1.3rem;">⚡</span>
@@ -147,7 +155,7 @@
 
       // Dosing calibration
       const doseWrap = document.createElement('div');
-      doseWrap.style.cssText = 'padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;';
+      doseWrap.style.cssText = 'padding:16px;background:rgba(31,41,55,0.2);border:1px solid rgba(55,65,81,0.3);border-radius:8px;';
       doseWrap.innerHTML = `
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
           <span style="font-size:1.3rem;">💧</span>
@@ -186,9 +194,9 @@
         <div id="dose-calib-log" class="muted" style="margin-top:8px;max-height:160px;overflow:auto;font-family:ui-monospace, monospace;font-size:12px;border-top:1px dashed #1f2937;padding-top:6px"></div>
       `;
 
-      panel.appendChild(title);
-      panel.appendChild(doseWrap);
-      panel.appendChild(ecWrap);
+      contentWrap.appendChild(doseWrap);
+      contentWrap.appendChild(ecWrap);
+      panel.appendChild(contentWrap);
 
       // Panel-scoped query helper
       const qP = (sel) => panel.querySelector(sel);
@@ -348,11 +356,7 @@
     const def = GROUP_DEF[ns];
     if (!def) return panel;
     
-    // Create a card wrapper for this group
-    const card = document.createElement('div');
-    card.style.cssText = 'padding:20px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;';
-    
-    // Add group title with icon
+    // Add group title with icon as summary (clickable header)
     const icons = {
       general: '🏠',
       safety: '🛡️',
@@ -361,10 +365,16 @@
       chiller: '🧊',
       automation: '🤖'
     };
-    const titleWrap = document.createElement('div');
-    titleWrap.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:18px;';
-    titleWrap.innerHTML = `<span style="font-size:1.3rem;">${icons[ns] || '⚙️'}</span><h4 style="margin:0;font-size:1.05rem;font-weight:600;">${def.title}</h4>`;
-    card.appendChild(titleWrap);
+    const summary = document.createElement('summary');
+    summary.style.cssText = 'cursor:pointer;padding:16px 20px;background:rgba(31,41,55,0.6);border:1px solid rgba(55,65,81,0.5);border-radius:12px;display:flex;align-items:center;gap:10px;font-size:1.05rem;font-weight:600;transition:all 0.2s ease;margin-bottom:2px;';
+    summary.innerHTML = `<span style="font-size:1.3rem;">${icons[ns] || '⚙️'}</span><span>${def.title}</span><span style="margin-left:auto;font-size:0.8rem;color:#9ca3af;">▼</span>`;
+    summary.addEventListener('mouseenter', () => summary.style.background = 'rgba(31,41,55,0.8)');
+    summary.addEventListener('mouseleave', () => summary.style.background = 'rgba(31,41,55,0.6)');
+    panel.appendChild(summary);
+    
+    // Create content wrapper
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:20px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-top:none;border-radius:0 0 12px 12px;margin-top:-2px;';
     
     // Create grid for fields
     const grid = document.createElement('div');
@@ -487,34 +497,19 @@
   }
 
   function renderAll(){
-    const tabs = q('#settings-tabs');
     const panels = q('#settings-panels');
-    if (!tabs || !panels) return;
+    if (!panels) return;
     panels.innerHTML = '';
-    tabs.querySelectorAll('.btn-chip').forEach(btn => btn.classList.remove('active'));
 
-    Object.keys(GROUP_DEF).forEach((ns,i)=>{
+    // Render all groups as accordions (no tabs needed)
+    Object.keys(GROUP_DEF).forEach((ns)=>{
       const panel = renderGroup(ns);
-      panel.style.display = i===0 ? 'block' : 'none';
       panels.appendChild(panel);
     });
-
-    // Activate first tab
-    const first = tabs.querySelector('[data-tab]');
-    if (first) first.classList.add('active');
   }
 
   function bindTabs(){
-    const tabs = q('#settings-tabs');
-    const panels = q('#settings-panels');
-    if (!tabs || !panels) return;
-    tabs.addEventListener('click', (e)=>{
-      const btn = e.target.closest('[data-tab]');
-      if (!btn) return;
-      const ns = btn.dataset.tab;
-      qa('#settings-tabs .btn-chip').forEach(b=>b.classList.toggle('active', b===btn));
-      qa('#settings-panels > div').forEach(p=> p.style.display = (p.dataset.ns===ns?'block':'none'));
-    });
+    // No longer needed - accordions handle interaction natively
   }
 
   function diff(){
