@@ -2206,15 +2206,15 @@ body{
           <span class="system-card-icon">⚙️</span>
           <h4 class="system-card-title">Hardware Environment</h4>
         </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;" id="env-i2c-container">
+          <!-- I²C devices populated dynamically -->
+        </div>
+        <hr class="separator" style="margin:16px 0;" />
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;" id="env-gpio-container">
+          <!-- GPIO pins populated dynamically -->
+        </div>
+        <hr class="separator" style="margin:16px 0;" />
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-          <div class="kpi" style="flex:1 1 300px;">
-            <div class="kpi-label">I²C Devices (EZO Sensors)</div>
-            <div class="kpi-value" id="env-i2c-devices" style="font-size:var(--font-base);line-height:1.4;">—</div>
-          </div>
-          <div class="kpi" style="flex:1 1 400px;">
-            <div class="kpi-label">Relay GPIO Pins</div>
-            <div class="kpi-value" id="env-gpio-pins" style="font-size:var(--font-base);line-height:1.4;">—</div>
-          </div>
           <div class="kpi">
             <div class="kpi-label">Sensor Power Pin</div>
             <div class="kpi-value" id="env-sensor-power">—</div>
@@ -2312,22 +2312,66 @@ body{
         </div>
       </div>
 
-      <!-- 8. Settings Management -->
+      <!-- 8. General Settings -->
       <div class="system-card">
         <div class="system-card-header">
-          <span class="system-card-icon">⚙️</span>
-          <h4 class="system-card-title">Settings Management</h4>
+          <span class="system-card-icon">🏠</span>
+          <h4 class="system-card-title">General Settings</h4>
         </div>
         <div class="muted" style="font-size:var(--font-sm);margin-bottom:var(--space-md);padding:8px 12px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:6px;">
           <strong>Note:</strong> Controller-specific settings (pH targets, EC targets, chiller controls, automation parameters) are available in their respective controller tabs.
         </div>
-        <div style="display:flex;justify-content:flex-end;margin-bottom:var(--space-md);">
+        <details style="margin-top:12px;">
+          <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">General</summary>
+          <div class="details-content" id="settings-general">
+            <!-- Populated by settings.js -->
+          </div>
+        </details>
+      </div>
+
+      <!-- 9. Safety Settings -->
+      <div class="system-card">
+        <div class="system-card-header">
+          <span class="system-card-icon">🛡️</span>
+          <h4 class="system-card-title">Safety Settings</h4>
+        </div>
+        <details style="margin-top:12px;">
+          <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Safety</summary>
+          <div class="details-content" id="settings-safety">
+            <!-- Populated by settings.js -->
+          </div>
+        </details>
+      </div>
+
+      <!-- 10. Alerts Settings -->
+      <div class="system-card">
+        <div class="system-card-header">
+          <span class="system-card-icon">🔔</span>
+          <h4 class="system-card-title">Alerts Settings</h4>
+        </div>
+        <details style="margin-top:12px;">
+          <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Alerts</summary>
+          <div class="details-content" id="settings-alerts">
+            <!-- Populated by settings.js -->
+          </div>
+        </details>
+      </div>
+
+      <!-- 11. UI Settings -->
+      <div class="system-card">
+        <div class="system-card-header">
+          <span class="system-card-icon">🎨</span>
+          <h4 class="system-card-title">UI Settings</h4>
+        </div>
+        <details style="margin-top:12px;">
+          <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">UI</summary>
+          <div class="details-content" id="settings-ui">
+            <!-- Populated by settings.js -->
+          </div>
+        </details>
+        <div style="display:flex;justify-content:flex-end;margin-top:var(--space-md);">
           <button id="btnSaveSettings" class="btn-secondary" disabled style="padding:8px 16px;border-radius:8px;font-weight:600;">💾 Save Changes</button>
         </div>
-        
-        <!-- Settings Accordion Sections -->
-        <div id="settings-panels"></div>
-        
         <div class="muted" style="font-size:var(--font-xs);margin-top:var(--space-md);padding-top:var(--space-md);border-top:1px solid rgba(55,65,81,0.5);">
           💡 Changes apply immediately unless noted. Relays never energize on save.
         </div>

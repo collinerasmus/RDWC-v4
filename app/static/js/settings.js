@@ -54,166 +54,87 @@
     saveBtn.disabled = Object.keys(diff()).length === 0;
   }
 
-  function renderGroup(ns){
-    const grp = GROUP_DEF[ns];
-    if (!grp) return null;
-
-    const panel = document.createElement('details');
-    panel.dataset.ns = ns;
-    panel.style.cssText = 'margin-bottom:12px;';
-    panel.open = (ns === 'general'); // Open General by default
-    
-    const summary = document.createElement('summary');
-    
-    // Icon mapping to match System tab style
-    const icons = {
-      general: '🏠',
-      safety: '🛡️',
-      alerts: '🔔',
-      ui: '🎨'
-    };
-    
-    summary.style.cssText = 'cursor:pointer;padding:16px 20px;background:rgba(31,41,55,0.6);border:1px solid rgba(55,65,81,0.5);border-radius:12px;display:flex;align-items:center;gap:10px;font-size:1.05rem;font-weight:600;transition:all 0.2s ease;margin-bottom:2px;';
-    summary.innerHTML = `<span style="font-size:1.3rem;">${icons[ns] || '⚙️'}</span><span>${grp.title}</span><span style="margin-left:auto;font-size:0.8rem;color:#9ca3af;">▼</span>`;
-    summary.addEventListener('mouseenter', () => summary.style.background = 'rgba(31,41,55,0.8)');
-    summary.addEventListener('mouseleave', () => summary.style.background = 'rgba(31,41,55,0.6)');
-    panel.appendChild(summary);
-
-    // Create content wrapper
-    const card = document.createElement('div');
-    card.style.cssText = 'padding:20px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-top:none;border-radius:0 0 12px 12px;margin-top:-2px;';
-    
-    // Create grid for fields
-    const grid = document.createElement('div');
-    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;';
-    
-    const fields = grp.fields;
-    Object.entries(fields).forEach(([key, meta]) => {
-      const val = current[key] ?? '';
-      const wrap = document.createElement('div');
-      wrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
-      
-      const labelRow = document.createElement('div');
-      labelRow.style.cssText = 'display:flex;align-items:center;gap:8px;';
-      
-      const label = document.createElement('label');
-      const id = `f_${key.replace(/\./g,'_')}`;
-      label.htmlFor = id;
-      label.style.cssText = 'font-size:0.85rem;font-weight:500;color:#d1d5db;';
-      label.textContent = meta.label;
-      let input;
-      if (meta.type === 'checkbox'){
-        input = document.createElement('input');
-        input.type = 'checkbox';
-        input.checked = String(val).toLowerCase() === 'true';
-        input.style.cssText = 'width:20px;height:20px;cursor:pointer;accent-color:#3b82f6;';
-      } else if (meta.type === 'select'){
-        input = document.createElement('select');
-        input.style.cssText = 'width:100%;height:38px;padding:8px 12px;border-radius:8px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;cursor:pointer;font-size:0.9rem;';
-        if (meta.options && Array.isArray(meta.options)) {
-          meta.options.forEach(opt => {
-            const option = document.createElement('option');
-            option.value = opt;
-            option.textContent = opt;
-            if (val === opt) option.selected = true;
-            input.appendChild(option);
-          });
-        }
-      } else {
-        input = document.createElement('input');
-        input.type = meta.type || 'text';
-        if (meta.min!=null) input.min = meta.min;
-        if (meta.max!=null) input.max = meta.max;
-        if (meta.step!=null) input.step = meta.step;
-        if (meta.placeholder) input.placeholder = meta.placeholder;
-        input.value = val;
-        input.style.cssText = 'width:100%;height:38px;padding:8px 12px;border-radius:8px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;font-size:0.9rem;';
-        // For date inputs, set max to today
-        if (meta.type === 'date') {
-          const today = new Date().toISOString().split('T')[0];
-          input.max = today;
-        }
-      }
-      input.id = id;
-      const handleChange = ()=>{
-        if (meta.type === 'checkbox'){
-          current[key] = input.checked ? 'true' : 'false';
-        } else {
-          current[key] = input.value;
-        }
-        markDirty();
-        // Update Day N badge if grow_start_date changed
-        if (key === 'general.grow_start_date') {
-          updateDayNBadge();
-        }
-      };
-      input.addEventListener('input', handleChange);
-      if (meta.type === 'select') {
-        input.addEventListener('change', handleChange);
-      }
-      
-      // Optional badge (e.g., TEST) - add to label row
-      if (meta.badge){
-        const badge = document.createElement('span');
-        badge.textContent = meta.badge;
-        badge.style.cssText = 'padding:2px 6px;border-radius:6px;background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);color:#fca5a5;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;';
-        labelRow.appendChild(label);
-        labelRow.appendChild(badge);
-      } else {
-        labelRow.appendChild(label);
-      }
-      
-      wrap.appendChild(labelRow);
-      
-      // For checkbox, add special inline layout
-      if (meta.type === 'checkbox'){
-        const checkWrap = document.createElement('div');
-        checkWrap.style.cssText = 'display:flex;align-items:center;gap:8px;';
-        checkWrap.appendChild(input);
-        if (meta.tooltip){
-          const tip = document.createElement('span');
-          tip.style.cssText = 'font-size:0.75rem;color:#9ca3af;line-height:1.4;';
-          tip.textContent = meta.tooltip;
-          checkWrap.appendChild(tip);
-        }
-        wrap.appendChild(checkWrap);
-      } else {
-        wrap.appendChild(input);
-        if (meta.tooltip){
-          const tip = document.createElement('div');
-          tip.style.cssText = 'font-size:0.75rem;color:#9ca3af;line-height:1.4;margin-top:2px;';
-          tip.textContent = meta.tooltip;
-          wrap.appendChild(tip);
-        }
-      }
-      
-      // Add Day N badge after grow_start_date input
-      if (key === 'general.grow_start_date') {
-        const badge = document.createElement('div');
-        badge.id = 'grow-day-n-badge';
-        badge.style.cssText = 'margin-top:6px;padding:6px 10px;border-radius:8px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;font-weight:500;display:none;';
-        wrap.appendChild(badge);
-      }
-      
-      grid.appendChild(wrap);
-    });
-    
-    card.appendChild(grid);
-    panel.appendChild(card);
-    return panel;
-  }
-
   function renderAll(){
-    const panels = q('#settings-panels');
-    if (!panels) return;
-    panels.innerHTML = '';
-
-    // Render all groups as accordions (no tabs needed)
+    // Render each group into its own dedicated div
     Object.keys(GROUP_DEF).forEach((ns)=>{
-      const panel = renderGroup(ns);
-      if (panel) { // Skip null panels (e.g., calibration)
-        panels.appendChild(panel);
-      }
+      const targetDiv = q(`#settings-${ns}`);
+      if (!targetDiv) return;
+      
+      targetDiv.innerHTML = '';
+      const grp = GROUP_DEF[ns];
+      if (!grp) return;
+
+      // Create grid for fields
+      const grid = document.createElement('div');
+      grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:12px;';
+      
+      const fields = grp.fields;
+      Object.entries(fields).forEach(([key, meta]) => {
+        const val = current[key] ?? '';
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
+        
+        const labelRow = document.createElement('div');
+        labelRow.style.cssText = 'display:flex;align-items:center;gap:8px;';
+        
+        const label = document.createElement('label');
+        const id = `f_${key.replace(/\./g,'_')}`;
+        label.htmlFor = id;
+        label.style.cssText = 'font-size:var(--font-sm);color:#9ca3af;font-weight:500;';
+        label.textContent = meta.label;
+        labelRow.appendChild(label);
+        
+        if (meta.badge){
+          const badge = document.createElement('span');
+          badge.style.cssText = 'padding:2px 6px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:4px;color:#fca5a5;font-size:0.65rem;font-weight:600;text-transform:uppercase;';
+          badge.textContent = meta.badge;
+          labelRow.appendChild(badge);
+        }
+        
+        if (meta.tooltip){
+          const icon = document.createElement('span');
+          icon.textContent = 'ℹ️';
+          icon.style.cssText = 'cursor:help;font-size:0.85rem;';
+          icon.title = meta.tooltip;
+          labelRow.appendChild(icon);
+        }
+        
+        wrap.appendChild(labelRow);
+        
+        let inp;
+        if (meta.type === 'checkbox'){
+          inp = document.createElement('input');
+          inp.type = 'checkbox';
+          inp.id = id;
+          inp.checked = (val === 'true' || val === '1' || val === 'True');
+          inp.style.cssText = 'width:20px;height:20px;cursor:pointer;';
+          inp.addEventListener('change', ()=>{ current[key] = inp.checked ? 'true' : 'false'; markDirty(); });
+        } else {
+          inp = document.createElement('input');
+          inp.type = meta.type || 'text';
+          inp.id = id;
+          inp.value = val;
+          inp.placeholder = meta.placeholder || '';
+          if (meta.min !== undefined) inp.min = meta.min;
+          if (meta.max !== undefined) inp.max = meta.max;
+          if (meta.step !== undefined) inp.step = meta.step;
+          inp.style.cssText = 'height:32px;padding:0 10px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);';
+          inp.addEventListener('input', ()=>{ current[key] = inp.value; markDirty(); });
+        }
+        
+        // Add Day N badge after grow_start_date input
+        if (key === 'general.grow_start_date') {
+          const badge = document.createElement('div');
+          badge.id = 'grow-day-n-badge';
+          badge.style.cssText = 'margin-top:6px;padding:6px 10px;border-radius:8px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;font-weight:500;display:none;';
+          wrap.appendChild(badge);
+        }
+        
+        wrap.appendChild(inp);
+        grid.appendChild(wrap);
+      });
+      
+      targetDiv.appendChild(grid);
     });
   }
 

@@ -131,27 +131,65 @@
 
   // Populate Environment Information section
   function populateEnvironmentInfo(data) {
-    const i2cContainer = document.getElementById('env-i2c-devices');
-    const gpioContainer = document.getElementById('env-gpio-pins');
+    const i2cContainer = document.getElementById('env-i2c-container');
+    const gpioContainer = document.getElementById('env-gpio-container');
     const sensorPowerEl = document.getElementById('env-sensor-power');
 
-    // I²C devices - display as inline text
+    // I²C devices - create individual kpi blocks with blue color
     if (i2cContainer) {
+      i2cContainer.innerHTML = '';
       if (data.i2c_devices && data.i2c_devices.length > 0) {
-        const devices = data.i2c_devices.map(device => `${device.address} ${device.name}`).join(' • ');
-        i2cContainer.textContent = devices;
+        data.i2c_devices.forEach(device => {
+          const kpi = document.createElement('div');
+          kpi.className = 'kpi';
+          
+          const label = document.createElement('div');
+          label.className = 'kpi-label';
+          label.textContent = device.name;
+          
+          const value = document.createElement('div');
+          value.className = 'kpi-value';
+          value.textContent = device.address;
+          value.style.color = '#93c5fd'; // Blue for I²C
+          
+          kpi.appendChild(label);
+          kpi.appendChild(value);
+          i2cContainer.appendChild(kpi);
+        });
       } else {
-        i2cContainer.textContent = 'No I²C devices detected';
+        const kpi = document.createElement('div');
+        kpi.className = 'kpi';
+        kpi.innerHTML = '<div class="kpi-label">I²C Devices</div><div class="kpi-value" style="color:#9ca3af;">None detected</div>';
+        i2cContainer.appendChild(kpi);
       }
     }
 
-    // GPIO pins - display as inline text
+    // GPIO pins - create individual kpi blocks with green color
     if (gpioContainer) {
+      gpioContainer.innerHTML = '';
       if (data.relay_pins && Object.keys(data.relay_pins).length > 0) {
-        const pins = Object.entries(data.relay_pins).map(([name, pin]) => `${name}: GPIO ${pin}`).join(' • ');
-        gpioContainer.textContent = pins;
+        Object.entries(data.relay_pins).forEach(([name, pin]) => {
+          const kpi = document.createElement('div');
+          kpi.className = 'kpi';
+          
+          const label = document.createElement('div');
+          label.className = 'kpi-label';
+          label.textContent = name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          
+          const value = document.createElement('div');
+          value.className = 'kpi-value';
+          value.textContent = `GPIO ${pin}`;
+          value.style.color = '#a7f3d0'; // Green for GPIO
+          
+          kpi.appendChild(label);
+          kpi.appendChild(value);
+          gpioContainer.appendChild(kpi);
+        });
       } else {
-        gpioContainer.textContent = 'No GPIO pins configured';
+        const kpi = document.createElement('div');
+        kpi.className = 'kpi';
+        kpi.innerHTML = '<div class="kpi-label">GPIO Pins</div><div class="kpi-value" style="color:#9ca3af;">None configured</div>';
+        gpioContainer.appendChild(kpi);
       }
     }
 
