@@ -1130,14 +1130,60 @@ body{
 
     <details style="margin-top:8px;">
       <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">⚙️ Temperature & Chiller Settings</summary>
-      <div class="system-card">
-        <div class="info-banner-blue">
-          <div class="info-banner-blue-content">
-            Configure temperature targets, alert thresholds, and chiller compressor protection timings.
+      <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+        <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure temperature targets, alert thresholds, and chiller compressor protection timings.</div>
+        <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
+          <div>
+            <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Target (°C)</label>
+            <input type="number" id="tempTarget" step="0.1" min="14" max="26" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+          </div>
+          <div>
+            <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Hysteresis (°C)</label>
+            <input type="number" id="chillerHysteresis" step="0.1" min="0.1" max="3.0" value="0.5" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
           </div>
         </div>
-        <div style="margin-bottom:var(--space-lg);">
-          <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-lg);">Temperature Settings</div>
+        <div style="margin-bottom:var(--space-md);">
+          <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Growth Stage</label>
+          <select id="chillerStage" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid#374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
+            <option value="default">Default (18-20°C optimal)</option>
+            <option value="veg">Vegetative (18-20°C)</option>
+            <option value="flower">Flowering (18-20°C)</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
+          <div>
+            <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Low Alert (°C)</label>
+            <input type="number" id="tempAlertLow" step="0.1" min="10" max="30" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+          </div>
+          <div>
+            <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">High Alert (°C)</label>
+            <input type="number" id="tempAlertHigh" step="0.1" min="10" max="30" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
+          <div>
+            <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min OFF time (s)</label>
+            <input type="number" id="chillerMinOff" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+          </div>
+          <div>
+            <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min ON time (s)</label>
+            <input type="number" id="chillerMinOn" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+          </div>
+        </div>
+        <button id="btnSaveTempSettings" class="btn-secondary btn-full" style="margin-bottom:12px;">Save Temperature Settings</button>
+        <div style="border-top:1px solid rgba(148,163,184,0.2);padding-top:12px;">
+          <div class="muted" style="font-size:var(--font-xs);margin-bottom:8px;">Force chiller ON/OFF for specified duration (bypasses automation)</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button id="btnChillerForceOn" class="btn-secondary">Force ON</button>
+            <button id="btnChillerForceOff" class="btn-secondary">Force OFF</button>
+            <select id="chillerForceDuration" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
+              <option value="30">30 minutes</option>
+              <option value="60">1 hour</option>
+              <option value="240">4 hours</option>
+              <option value="">Indefinite</option>
+            </select>
+          </div>
+        </div>
           <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
             <div>
               <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Target (°C)</label>
@@ -1156,48 +1202,6 @@ body{
               <option value="flower">Flowering (18-20°C)</option>
             </select>
           </div>
-        </div>
-        <div style="margin-bottom:var(--space-lg);padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
-          <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-lg);">Alert Thresholds</div>
-          <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
-            <div>
-              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Low Alert (°C)</label>
-              <input type="number" id="tempAlertLow" step="0.1" min="10" max="30" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
-            </div>
-            <div>
-              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">High Alert (°C)</label>
-              <input type="number" id="tempAlertHigh" step="0.1" min="10" max="30" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
-            </div>
-          </div>
-        </div>
-        <div style="margin-bottom:var(--space-lg);padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
-          <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-lg);">Chiller Safety</div>
-          <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
-            <div>
-              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min OFF time (s)</label>
-              <input type="number" id="chillerMinOff" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
-            </div>
-            <div>
-              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min ON time (s)</label>
-              <input type="number" id="chillerMinOn" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
-            </div>
-          </div>
-        </div>
-        <button id="btnSaveTempSettings" class="btn-secondary btn-full" style="margin-bottom:12px;">Save Temperature Settings</button>
-        <div style="border-top:1px solid rgba(148,163,184,0.2);padding-top:12px;">
-          <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-lg);">Manual Override (Emergency)</div>
-          <div class="muted" style="font-size:var(--font-sm);margin-bottom:8px;">Force chiller ON/OFF for specified duration (bypasses automation)</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <button id="btnChillerForceOn" class="btn-secondary">Force ON</button>
-            <button id="btnChillerForceOff" class="btn-secondary">Force OFF</button>
-            <select id="chillerForceDuration" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
-              <option value="30">30 minutes</option>
-              <option value="60">1 hour</option>
-              <option value="240">4 hours</option>
-              <option value="">Indefinite</option>
-            </select>
-          </div>
-        </div>
       </div>
     </details>
 
@@ -1237,13 +1241,9 @@ body{
       <!-- Manual Control -->
       <details open style="margin-top:12px;">
         <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">🎮 Manual Control</summary>
-        <div class="details-content">
-          <div class="info-banner-blue">
-            <div class="info-banner-blue-content">
-              Manual relay control. Honors Auto/Manual mode and cooldowns. In Auto mode, schedule controls lights automatically.
-            </div>
-          </div>
-          <button class="btn-secondary btn-full" id="btnLightsToggle" style="margin-top:12px;">
+        <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+          <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Manual relay control. Honors Auto/Manual mode and cooldowns. In Auto mode, schedule controls lights automatically.</div>
+          <button class="btn-secondary btn-full" id="btnLightsToggle">
             <span class="relay-label" id="lights-label">Toggle Lights</span>
           </button>
         </div>
@@ -1252,26 +1252,19 @@ body{
       <!-- Settings -->
       <details style="margin-top:12px;">
         <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">⚙️ Settings</summary>
-        <div class="details-content">
-          <div class="info-banner-blue">
-            <div class="info-banner-blue-content">
-              Configure light schedule and timing. Edge-only scheduler: two transitions per day (lights on, lights off).
+        <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+          <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure light schedule and timing. Edge-only scheduler: two transitions per day (lights on, lights off).</div>
+          <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
+            <div>
+              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Lights On Time</label>
+              <input type="time" id="lightsOnTime" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+            </div>
+            <div>
+              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Lights Off Time</label>
+              <input type="time" id="lightsOffTime" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
             </div>
           </div>
-          <div style="margin-top:12px;">
-            <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-lg);">Light Schedule</div>
-            <div style="display:grid;grid-template-columns:repeat(2,max-content);gap:10px 10px;align-items:end;">
-              <div>
-                <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Lights On Time</label>
-                <input type="time" id="lightsOnTime" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
-              </div>
-              <div>
-                <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Lights Off Time</label>
-                <input type="time" id="lightsOffTime" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
-              </div>
-            </div>
-          </div>
-          <button id="btnSaveLightsSettings" class="btn-secondary btn-full" style="margin-top:12px;">Save Light Settings</button>
+          <button id="btnSaveLightsSettings" class="btn-secondary btn-full">Save Light Settings</button>
         </div>
       </details>
 
@@ -1317,13 +1310,9 @@ body{
       <!-- Manual Control -->
       <details open style="margin-top:12px;">
         <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">🎮 Manual Control</summary>
-        <div class="details-content">
-          <div class="info-banner-blue">
-            <div class="info-banner-blue-content">
-              Manual relay control. Honors Auto/Manual mode and E‑STOP protections. Cooldowns enforced.
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+        <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+          <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Manual relay control. Honors Auto/Manual mode and E‑STOP protections. Cooldowns enforced.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <button class="btn-secondary btn-full" id="btnMainPump">Toggle Main Pump</button>
             <button class="btn-secondary btn-full" id="btnChillerPump">Toggle Chiller Pump</button>
           </div>
@@ -1333,21 +1322,15 @@ body{
       <!-- Settings -->
       <details style="margin-top:12px;">
         <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">⚙️ Settings</summary>
-        <div class="details-content">
-          <div class="info-banner-blue">
-            <div class="info-banner-blue-content">
-              Configure minimum off times to prevent rapid cycling and extend pump lifespan.
+        <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+          <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure minimum off times to prevent rapid cycling and extend pump lifespan.</div>
+          <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
+            <div>
+              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Main Pump Min OFF (s)</label>
+              <input type="number" id="mainPumpMinOff" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
             </div>
-          </div>
-          <div style="margin-bottom:var(--space-lg);">
-            <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-lg);">Pump Minimum Off Times</div>
-            <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
-              <div>
-                <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Main Pump Min OFF (s)</label>
-                <input type="number" id="mainPumpMinOff" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
-              </div>
-              <div>
-                <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Chiller Pump Min OFF (s)</label>
+            <div>
+              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Chiller Pump Min OFF (s)</label>
                 <input type="number" id="chillerPumpMinOff" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
               </div>
             </div>
