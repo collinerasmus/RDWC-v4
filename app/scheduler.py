@@ -119,13 +119,11 @@ class Scheduler:
                 "off_datetime": off_dt.isoformat()
             })
             
-            # Handle case where lights span midnight (off_time < on_time the next day)
-            if off_dt.date() > on_dt.date():
-                # Split into two spans: today->midnight and midnight->off_time
-                # Edge-only design: we end today at 23:59 and rely on the next day's
-                # _update_lights_schedule() to set the new ON/OFF edge across midnight.
-                # This avoids periodic catch-up loops by construction.
-                self._current_lights_off_time = "23:59"  # end today; midnight portion handled next day
+            # If lights window spans midnight, do not truncate.
+            # We keep the true off time (e.g., 06:00 next day). Since the scheduler
+            # is edge-only, lights will remain ON across midnight until the OFF
+            # edge naturally occurs the next morning. No catch-up loop required.
+            # Therefore, no special handling needed here.
             
         except Exception as e:
             log_event({"kind": "lights_schedule_error", "error": str(e)})

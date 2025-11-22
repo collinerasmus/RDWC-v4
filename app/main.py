@@ -1126,6 +1126,11 @@ def api_controllers_status():
     
     # Controller modes
     controller_modes = get_all_modes()
+    def _to_legacy_mode(m: str) -> str:
+        if m == "hold":
+            return "maintenance" if maint_override else "manual"
+        return m if m in ("auto", "manual", "maintenance") else "auto"
+    controller_modes = {k: _to_legacy_mode(v) for k, v in controller_modes.items()}
     
     # Build controller details
     controllers = {}

@@ -656,8 +656,17 @@ body{
 <main id="rdwc-root" class="container">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
     <h1 style="margin:0;">RDWC v4 — Dashboard</h1>
-    <div id="build-banner" class="muted" style="font-size:0.8rem;padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,0.25);background:rgba(148,163,184,0.06);color:#cbd5e1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      <span>Build: <span id="build-version">—</span> • <span id="build-status">initializing…</span></span>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <!-- Global Mode Controls (single source of truth) -->
+      <div class="system-mode-buttons" style="display:flex;gap:6px;">
+        <button id="mode-auto" class="btn-chip" title="System Auto">Auto</button>
+        <button id="mode-manual" class="btn-chip active" title="System Manual">Manual</button>
+        <button id="mode-maint" class="btn-chip" title="Maintenance Mode">Maintenance</button>
+      </div>
+      <button id="estop-btn" class="btn-secondary danger" title="Emergency Stop: forces all relays OFF and blocks ON until released">E‑STOP</button>
+      <div id="build-banner" class="muted" style="font-size:0.8rem;padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,0.25);background:rgba(148,163,184,0.06);color:#cbd5e1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span>Build: <span id="build-version">—</span> • <span id="build-status">initializing…</span></span>
+      </div>
     </div>
   </div>
 
@@ -709,14 +718,7 @@ body{
         <h3 class="card-title" style="margin:0;">Schedule Controller</h3>
         <span id="schedule-health-indicator" class="ui-status-chip success" title="Schedule health">OK</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <div class="schedule-mode-buttons" style="display:flex;gap:6px;">
-          <button id="schedule-mode-auto" class="btn-chip active" onclick="window.scheduleSetMode?window.scheduleSetMode('auto'):0">Auto</button>
-          <button id="schedule-mode-manual" class="btn-chip" onclick="window.scheduleSetMode?window.scheduleSetMode('manual'):0">Manual</button>
-          <button id="schedule-mode-maint" class="btn-chip" onclick="window.scheduleSetMode?window.scheduleSetMode('maintenance'):0">Maintenance</button>
-        </div>
-        <button id="header-estop-btn-schedule" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
-      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"></div>
     </div>
 
     <div class="card-body">
@@ -949,14 +951,7 @@ body{
         <h3 class="card-title" style="margin:0;">System Controller</h3>
         <span style="font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">Controllers</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <div class="system-mode-buttons" style="display:flex;gap:6px;">
-          <button id="system-mode-auto" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('auto'):0">Auto</button>
-          <button id="system-mode-manual" class="btn-chip active" onclick="window.systemSetMode?window.systemSetMode('manual'):0">Manual</button>
-          <button id="system-mode-maint" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('maintenance'):0">Maintenance</button>
-        </div>
-          <button id="header-estop-btn-overview" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
-      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"></div>
     </div>
       <div class="card-body">
       <!-- Removed redundant section label 'Controllers' per user request -->
@@ -1072,7 +1067,6 @@ body{
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <button id="chiller-hold-btn" class="btn-chip" onclick="window.chillerToggleHold?window.chillerToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
-        <button id="header-estop-btn-temp" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
 
@@ -1178,7 +1172,6 @@ body{
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <button id="lights-hold-btn" class="btn-chip" onclick="window.lightsToggleHold?window.lightsToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
-        <button id="header-estop-btn-lights" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
     <div class="card-body">
@@ -1235,7 +1228,6 @@ body{
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <button id="circ-hold-btn" class="btn-chip" onclick="window.circToggleHold?window.circToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
-        <button id="header-estop-btn-circ" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
       </div>
     </div>
 
@@ -1293,14 +1285,7 @@ body{
         <h3 class="card-title" style="margin:0;">Sensors</h3>
         <span id="sensors-health-indicator" class="ui-status-chip success" title="Sensor poller health">OK</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <div class="sensors-mode-buttons" style="display:flex;gap:6px;">
-          <button id="sensors-mode-auto" class="btn-chip active" onclick="window.sensorsSetMode?window.sensorsSetMode('auto'):0">Auto</button>
-          <button id="sensors-mode-manual" class="btn-chip" onclick="window.sensorsSetMode?window.sensorsSetMode('manual'):0">Manual</button>
-          <button id="sensors-mode-maint" class="btn-chip" onclick="window.sensorsSetMode?window.sensorsSetMode('maintenance'):0">Maintenance</button>
-        </div>
-        <button id="header-estop-btn-sensors" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
-      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"></div>
     </div>
 
     <div class="card-body">
@@ -1575,7 +1560,6 @@ body{
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <button id="ph-hold-btn" class="btn-chip" onclick="window.phToggleHold?window.phToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
-            <button id="header-estop-btn-ph" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
           </div>
         </div>
 
@@ -1840,7 +1824,6 @@ body{
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <button id="ec-hold-btn" class="btn-chip" onclick="window.ecToggleHold?window.ecToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
-              <button id="header-estop-btn-ec" class="btn-secondary danger header-estop-btn" title="Emergency stop">E-STOP</button>
             </div>
           </div>
 
@@ -2165,14 +2148,7 @@ body{
         <h3 class="card-title" style="margin:0;">System Settings</h3>
         <span id="system-relays-health" class="ui-status-chip neutral" title="Relays status">—</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <div class="system-mode-buttons" style="display:flex;gap:6px;">
-          <button id="mode-auto" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('auto'):0">Auto</button>
-          <button id="mode-manual" class="btn-chip active" onclick="window.systemSetMode?window.systemSetMode('manual'):0">Manual</button>
-          <button id="mode-maint" class="btn-chip" onclick="window.systemSetMode?window.systemSetMode('maintenance'):0">Maintenance</button>
-        </div>
-        <button id="estop-btn" class="btn-secondary danger" title="Emergency Stop: forces all relays OFF and blocks ON until released">E‑STOP</button>
-      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"></div>
     </div>
     <div id="system-meta" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 12px 0;">
       <button id="btnExportSettings" class="btn-secondary" style="margin-left:auto;">Export JSON</button>
