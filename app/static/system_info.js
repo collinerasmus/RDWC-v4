@@ -60,26 +60,26 @@
       if (elem) elem.textContent = text;
     };
 
-    el('pi-cpu', data.cpu_percent ? `${data.cpu_percent.toFixed(1)}%` : '—');
+    el('pi-cpu', data.cpu_percent !== null && data.cpu_percent !== undefined ? `${data.cpu_percent.toFixed(1)}%` : '—');
     el('pi-cpu-freq', data.cpu_freq_mhz ? `${data.cpu_freq_mhz.toFixed(0)} MHz` : '—');
-    el('pi-cpu-temp', data.cpu_temp_c ? `${data.cpu_temp_c.toFixed(1)}°C` : '—');
+    el('pi-cpu-temp', data.temperature_c ? `${data.temperature_c.toFixed(1)}°C` : '—');
     
-    if (data.memory) {
-      const mem = data.memory;
-      const pct = mem.percent ? mem.percent.toFixed(1) : 0;
-      const used = formatBytes(mem.used || 0);
-      const total = formatBytes(mem.total || 0);
-      el('pi-memory', `${used} / ${total} (${pct}%)`);
+    // Memory from direct properties (not nested)
+    if (data.memory_total_mb) {
+      const total = data.memory_total_mb * 1024 * 1024; // Convert MB to bytes
+      const used = data.memory_used_mb * 1024 * 1024;
+      const pct = data.memory_percent ? data.memory_percent.toFixed(1) : 0;
+      el('pi-memory', `${formatBytes(used)} / ${formatBytes(total)} (${pct}%)`);
     } else {
       el('pi-memory', '—');
     }
     
-    if (data.disk) {
-      const disk = data.disk;
-      const pct = disk.percent ? disk.percent.toFixed(1) : 0;
-      const used = formatBytes(disk.used || 0);
-      const total = formatBytes(disk.total || 0);
-      el('pi-disk', `${used} / ${total} (${pct}%)`);
+    // Disk from direct properties (not nested)
+    if (data.disk_total_gb) {
+      const total = data.disk_total_gb * 1024 * 1024 * 1024; // Convert GB to bytes
+      const used = data.disk_used_gb * 1024 * 1024 * 1024;
+      const pct = data.disk_percent ? data.disk_percent.toFixed(1) : 0;
+      el('pi-disk', `${formatBytes(used)} / ${formatBytes(total)} (${pct}%)`);
     } else {
       el('pi-disk', '—');
     }
@@ -96,10 +96,17 @@
 
     el('sw-rdwc-version', data.rdwc_version || '—');
     el('sw-python-version', data.python_version || '—');
-    el('sw-git-commit', data.git_commit ? data.git_commit.substring(0, 8) : '—');
-    el('sw-git-branch', data.git_branch || '—');
+    
+    // Git info is nested under data.git
+    if (data.git) {
+      el('sw-git-commit', data.git.commit ? data.git.commit.substring(0, 8) : '—');
+      el('sw-git-branch', data.git.branch || '—');
+    } else {
+      el('sw-git-commit', '—');
+      el('sw-git-branch', '—');
+    }
 
-    // Service status chips
+    // Service status chips - services is nested
     const updateServiceChip = (id, status) => {
       const chip = document.getElementById(id);
       if (!chip) return;
@@ -116,9 +123,9 @@
       }
     };
 
-    if (data.systemd_services) {
-      updateServiceChip('svc-api', data.systemd_services['rdwc-api']);
-      updateServiceChip('svc-sensors', data.systemd_services['rdwc-sensors']);
+    if (data.services) {
+      updateServiceChip('svc-api', data.services['rdwc-api']);
+      updateServiceChip('svc-sensors', data.services['rdwc-sensors']);
     }
   }
 
@@ -146,13 +153,13 @@
       }
     }
 
-    // GPIO pins
+    // GPIO pins - relay_pins not relay_gpio_pins
     if (gpioContainer) {
       gpioContainer.innerHTML = '';
-      if (data.relay_gpio_pins && Object.keys(data.relay_gpio_pins).length > 0) {
-        Object.entries(data.relay_gpio_pins).forEach(([name, pin]) => {
+      if (data.relay_pins && Object.keys(data.relay_pins).length > 0) {
+        Object.entries(data.relay_pins).forEach(([name, pin]) => {
           const badge = document.createElement('span');
-          badge.style.cssText = 'padding:4px 8px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.35);border-radius:6px;color:#a7f3d0;font-size:0.8rem;';
+          badge.style.cssText = 'padding:4px 8px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.35);border-radius:6px;color:#a7f3d0;font-size:0.8rem;white-space:nowrap;';
           badge.textContent = `${name}: GPIO ${pin}`;
           gpioContainer.appendChild(badge);
         });
@@ -166,8 +173,9 @@
 
     // Sensor power pin
     if (sensorPowerEl) {
-      if (data.sensor_power_pin !== null && data.sensor_power_pin !== undefined) {
-        sensorPowerEl.textContent = `GPIO ${data.sensor_power_pin}`;
+      if (data.sensor_power_pin && data.sensor_power_pin !== 'not configured') {
+        sensorPowerEl.textContent = data.sensor_power_pin;
+        sensorPowerEl.style.color = '#f9a8d4';
       } else {
         sensorPowerEl.textContent = 'Not configured';
         sensorPowerEl.style.color = '#9ca3af';
@@ -182,16 +190,30 @@
       if (elem) elem.textContent = text;
     };
 
-    el('db-size', data.db_size_bytes ? formatBytes(data.db_size_bytes) : '—');
+    // DB size in MB
+    el('db-size', data.size_mb ? `${data.size_mb.toFixed(2)} MB` : '—');
     
-    if (data.record_counts) {
-      el('db-readings', data.record_counts.readings ? data.record_counts.readings.toLocaleString() : '0');
-      el('db-ph-doses', data.record_counts.ph_dose_log ? data.record_counts.ph_dose_log.toLocaleString() : '0');
-      el('db-ec-doses', data.record_counts.ec_dose_log ? data.record_counts.ec_dose_log.toLocaleString() : '0');
+    // Record counts from tables object
+    if (data.tables) {
+      el('db-readings', data.tables.readings ? data.tables.readings.toLocaleString() : '0');
+      el('db-ph-doses', data.tables.ph_dose_log ? data.tables.ph_dose_log.toLocaleString() : '0');
+      el('db-ec-doses', data.tables.ec_dose_log ? data.tables.ec_dose_log.toLocaleString() : '0');
+    } else {
+      el('db-readings', '0');
+      el('db-ph-doses', '0');
+      el('db-ec-doses', '0');
     }
 
-    el('db-oldest', formatTimestamp(data.oldest_reading_ts));
-    el('db-newest', formatTimestamp(data.newest_reading_ts));
+    // Parse ISO timestamps
+    const parseTimestamp = (isoStr) => {
+      if (!isoStr) return null;
+      // Parse format like "2025-11-01T14:37:59"
+      const date = new Date(isoStr);
+      return date.getTime() / 1000; // Convert to Unix timestamp
+    };
+
+    el('db-oldest', formatTimestamp(parseTimestamp(data.oldest_reading)));
+    el('db-newest', formatTimestamp(parseTimestamp(data.newest_reading)));
   }
 
   // Populate Network Information section
@@ -253,11 +275,11 @@
 
         const userCell = document.createElement('td');
         userCell.style.cssText = 'padding:8px 10px;';
-        userCell.textContent = proc.username || '—';
+        userCell.textContent = proc.user || proc.username || '—';
 
         const memCell = document.createElement('td');
         memCell.style.cssText = 'padding:8px 10px;text-align:right;';
-        memCell.textContent = proc.memory_percent ? `${proc.memory_percent.toFixed(2)}%` : '—';
+        memCell.textContent = proc.memory_percent !== null && proc.memory_percent !== undefined ? `${proc.memory_percent.toFixed(2)}%` : '—';
 
         row.appendChild(pidCell);
         row.appendChild(nameCell);
