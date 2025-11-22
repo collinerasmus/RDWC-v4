@@ -36,17 +36,6 @@ def fetch_json(url: str, timeout: float = 5.0) -> Dict[str, Any]:
         return {}
 
 
-def post_json(url: str, data: Dict[str, Any], timeout: float = 5.0) -> Dict[str, Any]:
-    """POST JSON to endpoint with error handling."""
-    try:
-        r = requests.post(url, json=data, timeout=timeout)
-        r.raise_for_status()
-        return r.json()
-    except Exception as e:
-        print(f"ERROR: POST {url} failed: {e}", file=sys.stderr)
-        return {}
-
-
 def verify_controllers_status_field(base: str) -> Dict[str, Any]:
     """Verify that /api/controllers/status correctly reads 'state' field."""
     print("\n=== Verifying Controllers Status Endpoint ===")
