@@ -8,10 +8,9 @@ Verifies the three-layer circulation safety system:
 3. Interlock prevents unsafe operations
 
 Tests the following scenarios:
-- /api/controllers/status returns correct pump states using 'state' field
-- Main pump prerequisite enforced for chiller operations
-- Chiller pump auto-start when chiller is activated
-- Interlock blocking unsafe chiller pump deactivation
+- /api/controllers/status correctly translates internal 'state' field to match relays 'is_on' format
+- Consistency between controllers and relays endpoints for pump states
+- E-STOP status consistency across endpoints
 
 Usage:
     python tools/verify_circulation_interlock.py --base http://192.168.88.49:8080
@@ -21,7 +20,7 @@ import argparse
 import json
 import sys
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import requests
 

@@ -162,6 +162,10 @@ if ($controllersResp.controllers.circulation.main_pump -ne $relaysResp.relays.ma
     $issuesDetected = $true
 }
 
+if ($controllersResp.controllers.circulation.chiller_pump -ne $relaysResp.relays.chiller_pump.is_on) {
+    $issuesDetected = $true
+}
+
 if ($issuesDetected) {
     Write-Host "`n⚠ ISSUES DETECTED - Pi needs to be updated" -ForegroundColor Yellow
     Write-Host "`nTo fix, run these commands on the Pi:" -ForegroundColor White

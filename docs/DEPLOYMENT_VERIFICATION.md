@@ -279,9 +279,9 @@ All of the following should be true:
 
 ## Related Documentation
 
-- [PI_COMMISSIONING_CHECKLIST.md](../PI_COMMISSIONING_CHECKLIST.md) - Initial setup
-- [DEPLOYMENT_TROUBLESHOOTING.md](../DEPLOYMENT_TROUBLESHOOTING.md) - General deployment issues
-- [SYSTEM_ARCHITECTURE.md](../SYSTEM_ARCHITECTURE.md) - Architecture overview
+- [PI_COMMISSIONING_CHECKLIST.md](../PI_COMMISSIONING_CHECKLIST.md) - Initial Pi setup and commissioning
+- [DEPLOYMENT_TROUBLESHOOTING.md](../DEPLOYMENT_TROUBLESHOOTING.md) - General deployment troubleshooting
+- [SYSTEM_ARCHITECTURE.md](../SYSTEM_ARCHITECTURE.md) - System architecture overview
 
 ## Automation Scripts
 
