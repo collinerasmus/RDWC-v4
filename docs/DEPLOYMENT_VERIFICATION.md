@@ -288,8 +288,8 @@ All of the following should be true:
 | Script | Purpose |
 |--------|---------|
 | `deploy/verify_pi_sync.ps1` | Comprehensive Pi sync verification (PowerShell) |
-| `tools/verify_circulation_interlock.py` | Circulation interlock verification (Python) |
-| `tools/deploy_verify.py` | General deployment verification (Python) |
+| `tools/verify_circulation_interlock.py` | Circulation interlock and controller status verification (Python) |
+| `tools/deploy_verify.py` | General deployment verification - runs key API endpoints and summarizes acceptance criteria (Python) |
 | `deploy/refresh_api.ps1` | Deploy latest code to Pi (PowerShell) |
 
 ## Quick Reference Commands

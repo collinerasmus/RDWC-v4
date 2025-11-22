@@ -157,7 +157,8 @@ if ($currentBranch -ne $ExpectedBranch) {
     $issuesDetected = $true
 }
 
-if ($controllersResp.controllers.circulation.main_pump -ne $relaysResp.relays.main_pump.state) {
+# Compare using correct field name (is_on, not state)
+if ($controllersResp.controllers.circulation.main_pump -ne $relaysResp.relays.main_pump.is_on) {
     $issuesDetected = $true
 }
 
