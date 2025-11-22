@@ -197,7 +197,6 @@
       
       // Immediately update UI before async refresh
       updateEstopButton();
-      updateEstopBanner();
       renderModeHint();
       
       // Force immediate relay state refresh (backend changed all relays)
@@ -399,12 +398,6 @@
     }
   }
 
-  function updateEstopBanner() {
-    const banner = q('#estop-banner');
-    if (!banner) return;
-    banner.classList.toggle('hidden', !state.estop);
-  }
-
   // Render the 8-button grid consistently
   function renderRelays(){
   const grid = q('#relays-grid');
@@ -452,7 +445,6 @@
     }
     
     renderModeHint();
-    updateEstopBanner();
   }
 
   function wire(){
