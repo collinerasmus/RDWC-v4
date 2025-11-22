@@ -271,6 +271,46 @@
     if (targetInput) targetInput.value = state.target_temp.toFixed(1);
     if (hysteresisInput) hysteresisInput.value = state.hysteresis.toFixed(1);
     if (stageSelect) stageSelect.value = state.stage || 'default';
+    
+    // Update interlock status banner
+    updateInterlockBanner();
+  }
+  
+  // Update circulation interlock status banner
+  async function updateInterlockBanner() {
+    try {
+      const banner = q('#chiller-interlock-banner');
+      if (!banner) return;
+      
+      const relays = await getJSON('/api/relays/status');
+      const mainPumpOn = relays?.relays?.main_pump?.is_on;
+      const chillerPumpOn = relays?.relays?.chiller_pump?.is_on;
+      const chillerOn = relays?.relays?.chiller_power?.is_on;
+      
+      if (chillerOn && chillerPumpOn && mainPumpOn) {
+        banner.style.display = 'block';
+        banner.style.background = 'rgba(34,197,94,0.12)';
+        banner.style.borderColor = 'rgba(34,197,94,0.4)';
+        banner.style.color = '#a7f3d0';
+        banner.innerHTML = '<strong>✅ INTERLOCK ACTIVE:</strong> Chiller running with circulation pumps';
+      } else if (!mainPumpOn) {
+        banner.style.display = 'block';
+        banner.style.background = 'rgba(239,68,68,0.12)';
+        banner.style.borderColor = 'rgba(239,68,68,0.4)';
+        banner.style.color = '#fecaca';
+        banner.innerHTML = '<strong>⚠️ INTERLOCK:</strong> Main pump must be ON before chiller can start';
+      } else if (mainPumpOn && !chillerOn) {
+        banner.style.display = 'block';
+        banner.style.background = 'rgba(148,163,184,0.12)';
+        banner.style.borderColor = 'rgba(148,163,184,0.3)';
+        banner.style.color = '#cbd5e1';
+        banner.innerHTML = '<strong>ℹ️ STANDBY:</strong> Ready to start (chiller pump will auto-start)';
+      } else {
+        banner.style.display = 'none';
+      }
+    } catch (e) {
+      // Silent fail - banner is informational only
+    }
   }
 
   // Enable auto control
@@ -339,20 +379,39 @@
       const action = desiredOn ? 'ON' : 'OFF';
       const durationText = duration ? `for ${duration} minutes` : 'indefinitely';
       
+      // Check for interlock issues before confirming
+      if (desiredOn) {
+        const relaysResp = await getJSON('/api/relays/status');
+        const mainPumpOn = relaysResp?.relays?.main_pump?.is_on;
+        if (!mainPumpOn) {
+          showToast('Cannot turn ON chiller: Main pump must be ON first (circulation required)', 'error');
+          return;
+        }
+      }
+      
       const ok = confirm(`Force chiller ${action} ${durationText}?\n\nThis will override automation until the duration expires or you manually disable it.`);
       if (!ok) return;
       
-      await postJSON('/api/chiller/force', {
+      const result = await postJSON('/api/chiller/force', {
         on: desiredOn,
         duration_minutes: duration
       });
       
-      showToast(`Chiller forced ${action} ${durationText}`, 'warning');
+      // Check if operation succeeded
+      if (result.success) {
+        showToast(`Chiller forced ${action} ${durationText}`, 'warning');
+        if (desiredOn) {
+          showToast('✅ Chiller pump auto-started by interlock', 'success');
+        }
+      } else {
+        showToast(result.message || 'Failed to apply override', 'error');
+      }
+      
       setTimeout(refreshChillerStatus, 200);
       
     } catch (e) {
       console.error('Failed to force chiller:', e);
-      showToast('Failed to apply override', 'error');
+      showToast('Failed to apply override - check console for details', 'error');
     }
   }
 

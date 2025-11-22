@@ -188,6 +188,9 @@ def set_chiller_relay(desired_on: bool, reason: str = '') -> bool:
     """
     Control chiller relay with safety checks.
     
+    NOTE: Chiller pump is auto-started by relays_core.py interlock when chiller turns ON.
+    This function only needs to check main_pump prerequisite.
+    
     Args:
         desired_on: True to turn ON, False to turn OFF
         reason: Log message explaining the action
@@ -196,18 +199,14 @@ def set_chiller_relay(desired_on: bool, reason: str = '') -> bool:
         True if relay was set, False if blocked
     """
     with _control_lock:
-        # Check RDWC coordination: require main_pump + chiller_pump
+        # Check RDWC coordination: require main_pump
+        # (chiller_pump will be auto-started by interlock in relays_core)
         if desired_on:
             relays = get_relay_status()
             main_pump_on = relays.get('main_pump', {}).get('state', False)
-            chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
             
             if not main_pump_on:
                 log.warning('[CHILLER] Blocked: Main pump is OFF (RDWC circulation required)')
-                return False
-            
-            if not chiller_pump_on:
-                log.warning('[CHILLER] Blocked: Chiller pump is OFF (water circulation required)')
                 return False
         
         # Check minimum OFF time (compressor protection)
