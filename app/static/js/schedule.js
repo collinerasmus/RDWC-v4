@@ -122,7 +122,7 @@
   }
 
   function renderTimeline(){
-    const timeline = el('schedule-timeline');
+    const timeline = el('schedule-timeline-lanes');
     if(!timeline) return;
 
     const sched = scheduleCache;
@@ -130,78 +130,93 @@
       timeline.innerHTML = `
         <div style="padding:24px;text-align:center;color:#94a3b8;">
           <div style="font-size:1.1rem;margin-bottom:12px;">📅 No schedule configured</div>
-          <button id="btnSeedSchedule" class="btn-secondary">Seed with EHG Defaults (12 weeks)</button>
+          <button id="btnSeedSchedule" class="btn-secondary">Seed Defaults (12 weeks)</button>
         </div>
       `;
       el('btnSeedSchedule')?.addEventListener('click', async ()=>{
-        el('btnSeedSchedule').disabled = true;
+        const btn = el('btnSeedSchedule');
+        if(btn) btn.disabled = true;
         await seedSchedule();
-        el('btnSeedSchedule').disabled = false;
+        if(btn) btn.disabled = false;
+        updateKpis();
       });
+      // Also wire settings panel seed button if present
+      const seedSettingsBtn = el('scheduleSeedBtn');
+      if(seedSettingsBtn && !seedSettingsBtn._wired){
+        seedSettingsBtn._wired = true;
+        seedSettingsBtn.addEventListener('click', async ()=>{
+          seedSettingsBtn.disabled = true;
+          await seedSchedule();
+          seedSettingsBtn.disabled = false;
+          updateKpis();
+          renderTimeline();
+        });
+      }
       return;
     }
 
     const currentWeek = sched.current_week || 1;
     if(!selectedWeek) selectedWeek = currentWeek;
 
-    // Group weeks by phase
-    const phases = {veg: [], bloom: [], flush: []};
-    sched.weeks.forEach(w => {
-      if(w.phase && phases[w.phase]) phases[w.phase].push(w);
-    });
-
+    // Simple linear rendering of all 12 weeks (supports seedling/preflower/flower phases)
     let html = '<div style="position:relative;overflow-x:auto;padding:12px 0;">';
-    html += '<div style="display:flex;gap:4px;min-width:800px;">';
+    html += '<div style="display:flex;gap:4px;min-width:860px;">';
 
-    // Render lanes
-    Object.keys(phases).forEach(phase => {
-      const weeks = phases[phase];
-      if(weeks.length === 0) return;
-      
-      const colors = {
-        veg: 'rgba(34,197,94,0.15)',
-        bloom: 'rgba(251,191,36,0.15)',
-        flush: 'rgba(148,163,184,0.15)'
+    sched.weeks.forEach(w => {
+      const phase = w.phase || 'week';
+      const isCurrent = w.week === currentWeek;
+      const isSelected = w.week === selectedWeek;
+      const phaseColors = {
+        seedling:'rgba(147,197,253,0.15)',
+        veg:'rgba(34,197,94,0.15)',
+        preflower:'rgba(251,191,36,0.18)',
+        flower:'rgba(217,70,239,0.20)',
+        flush:'rgba(59,130,246,0.18)'
       };
       const borderColors = {
-        veg: 'rgba(34,197,94,0.4)',
-        bloom: 'rgba(251,191,36,0.4)',
-        flush: 'rgba(148,163,184,0.4)'
+        seedling:'rgba(147,197,253,0.45)',
+        veg:'rgba(34,197,94,0.45)',
+        preflower:'rgba(251,191,36,0.55)',
+        flower:'rgba(217,70,239,0.55)',
+        flush:'rgba(59,130,246,0.50)'
       };
-
-      weeks.forEach(w => {
-        const isCurrent = w.week === currentWeek;
-        const isSelected = w.week === selectedWeek;
-        const boxStyle = `
-          flex: 0 0 auto;
-          min-width: 100px;
-          padding: 12px 8px;
-          border: 2px solid ${isSelected ? borderColors[phase].replace('0.4','0.8') : borderColors[phase]};
-          border-radius: 8px;
-          background: ${colors[phase]};
-          cursor: pointer;
-          position: relative;
-          transition: all 0.2s ease;
-        `;
-        
-        html += `<div style="${boxStyle}" data-week="${w.week}" class="week-block">`;
-        html += `<div style="font-size:0.75rem;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;">${phase}</div>`;
-        html += `<div style="font-weight:600;font-size:0.9rem;">Week ${w.week}</div>`;
-        html += `<div style="font-size:0.7rem;color:#cbd5e1;margin-top:2px;">EC ${w.ec_target}</div>`;
-        
-        if(isCurrent){
-          html += `<div style="position:absolute;top:-8px;right:8px;background:#ef4444;color:#fff;padding:2px 8px;border-radius:10px;font-size:0.65rem;font-weight:700;">WE ARE HERE</div>`;
-          html += `<div style="position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);width:2px;height:20px;background:#ef4444;"></div>`;
-        }
-        
-        html += '</div>';
-      });
+      const bg = phaseColors[phase] || 'rgba(148,163,184,0.15)';
+      const bd = borderColors[phase] || 'rgba(148,163,184,0.40)';
+      const boxStyle = `
+        flex:0 0 auto;min-width:110px;padding:12px 8px;border:2px solid ${isSelected?bd.replace('0.40','0.85'):bd};
+        border-radius:8px;background:${bg};cursor:pointer;position:relative;transition:all .2s ease;`;
+      html += `<div style="${boxStyle}" data-week="${w.week}" class="week-block">`;
+      html += `<div style="font-size:0.65rem;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;">${phase}</div>`;
+      html += `<div style="font-weight:600;font-size:0.9rem;">Week ${w.week}</div>`;
+      html += `<div style="font-size:0.7rem;color:#cbd5e1;margin-top:2px;">EC ${w.ec_target}</div>`;
+      if(isCurrent){
+        html += `<div style="position:absolute;top:-8px;right:8px;background:#ef4444;color:#fff;padding:2px 8px;border-radius:10px;font-size:0.6rem;font-weight:700;">NOW</div>`;
+        html += `<div style="position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);width:2px;height:18px;background:#ef4444;"></div>`;
+      }
+      html += '</div>';
     });
 
     html += '</div></div>';
     timeline.innerHTML = html;
 
-    // Click handlers
+    // Week selector buttons
+    const weekSel = el('schedule-week-selector');
+    if(weekSel){
+      let selHtml='';
+      sched.weeks.forEach(w=>{
+        selHtml += `<button data-week="${w.week}" class="${w.week===selectedWeek?'active':''}">W${w.week}</button>`;
+      });
+      weekSel.innerHTML = selHtml;
+      weekSel.querySelectorAll('button').forEach(btn=>{
+        btn.addEventListener('click',()=>{
+          selectedWeek = parseInt(btn.getAttribute('data-week'));
+          renderTimeline();
+          renderTargets(selectedWeek);
+        });
+      });
+    }
+
+    // Click handlers for blocks
     document.querySelectorAll('.week-block').forEach(block => {
       block.addEventListener('click', ()=>{
         const week = parseInt(block.getAttribute('data-week'));
@@ -211,12 +226,12 @@
       });
     });
 
-    // Auto-render targets for selected week
     renderTargets(selectedWeek);
+    updateKpis();
   }
 
   function renderTargets(weekNum){
-    const card = el('schedule-targets');
+    const card = el('schedule-targets-body');
     if(!card) return;
 
     const sched = scheduleCache;
@@ -239,7 +254,7 @@
         </div>
         <div>
           <div style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">pH Band</div>
-          <div style="font-size:1.1rem;font-weight:600;">5.8 – 6.2</div>
+          <div style="font-size:1.1rem;font-weight:600;">${week.ph_low} – ${week.ph_high}</div>
         </div>
         <div>
           <div style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">Lights</div>
@@ -263,14 +278,72 @@
           </div>
         </div>
       </div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button id="btnEditWeek" class="btn-secondary">Edit Selected Week…</button>
+        <button id="btnResetSchedule" class="btn-danger">Reset Schedule to Defaults</button>
+      </div>
       ${week.notes ? `<div style="margin-top:12px;padding:10px;border-radius:6px;background:rgba(59,130,246,0.08);font-size:0.85rem;color:#93c5fd;"><strong>Notes:</strong> ${week.notes}</div>` : ''}
     `;
     
     card.innerHTML = html;
+
+    // Wire up actions
+    const btnEdit = document.getElementById('btnEditWeek');
+    btnEdit?.addEventListener('click', async ()=>{
+      // Simple prompt-based editor for now
+      const nextEc = prompt('EC target (mS/cm):', String(week.ec_target));
+      if(nextEc === null) return;
+      const nextPhLow = prompt('pH low:', String(week.ph_low ?? 5.8));
+      if(nextPhLow === null) return;
+      const nextPhHigh = prompt('pH high:', String(week.ph_high ?? 6.2));
+      if(nextPhHigh === null) return;
+      const nextTemp = prompt('Temp target (°C):', String(week.temp_target ?? 20));
+      if(nextTemp === null) return;
+
+      const payload = {
+        ec_target: parseFloat(nextEc),
+        ph_low: parseFloat(nextPhLow),
+        ph_high: parseFloat(nextPhHigh),
+        temp_target: parseFloat(nextTemp)
+      };
+      try{
+        const r = await fetch(`/api/nutrient_schedule/week/${week.week}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+        const data = await r.json();
+        if(r.ok && data.ok){
+          showToast(`Week ${week.week} updated`, 'success');
+          await fetchSchedule();
+          renderTargets(week.week);
+          renderTimeline();
+        } else {
+          showToast(data.error || 'Update failed', 'error');
+        }
+      }catch(e){
+        showToast('Update error: '+e.message, 'error');
+      }
+    });
+
+    const btnReset = document.getElementById('btnResetSchedule');
+    btnReset?.addEventListener('click', async ()=>{
+      if(!confirm('Reset entire schedule to defaults? This overwrites all weeks.')) return;
+      try{
+        const r = await fetch('/api/nutrient_schedule/reset', {method:'POST'});
+        const data = await r.json();
+        if(r.ok && data.ok){
+          showToast('Schedule reset to defaults', 'success');
+          await fetchSchedule();
+          renderTimeline();
+          renderTargets(selectedWeek);
+        } else {
+          showToast(data.error || 'Reset failed', 'error');
+        }
+      }catch(e){
+        showToast('Reset error: '+e.message, 'error');
+      }
+    });
   }
 
   async function renderPlan(){
-    const planCard = el('schedule-plan');
+    const planCard = el('schedule-plan-list');
     if(!planCard) return;
 
     const data = await fetchPlan(48);
@@ -309,7 +382,7 @@
   }
 
   async function renderStatus(){
-    const statusCard = el('schedule-status');
+    const statusCard = el('schedule-status-badges');
     if(!statusCard) return;
 
     try{
@@ -376,12 +449,44 @@
     else console.log(`[Schedule] ${type}: ${msg}`);
   }
 
+  function updateKpis(){
+    const sched = scheduleCache;
+    if(!sched) return;
+    const cwEl = el('schedule-current-week-kpi');
+    const phaseEl = el('schedule-phase-kpi');
+    const startEl = el('schedule-grow-start-kpi');
+    const dayEl = el('schedule-grow-day-kpi');
+    const week = sched.current_week || 1;
+    const currentWeekRow = sched.weeks?.find(w=>w.week===week);
+    if(cwEl) cwEl.textContent = week;
+    if(phaseEl) phaseEl.textContent = currentWeekRow? (currentWeekRow.phase || '—') : '—';
+    if(startEl) startEl.textContent = sched.grow_start_date ? new Date(sched.grow_start_date).toLocaleDateString() : '—';
+    if(dayEl){
+      if(sched.grow_start_date){
+        const diffMs = Date.now() - Date.parse(sched.grow_start_date);
+        const days = Math.floor(diffMs/86400000)+1;
+        dayEl.textContent = days;
+      } else {
+        dayEl.textContent = '—';
+      }
+    }
+  }
+
   async function init(){
     const data = await fetchSchedule();
     if(data){
+      updateKpis();
       await renderTimeline();
       await renderPlan();
       await renderStatus();
+    } else {
+      // Still wire seed defaults button if present
+      const seedBtn = el('scheduleSeedBtn');
+      if(seedBtn && !seedBtn._wired){
+        seedBtn._wired = true;
+        seedBtn.addEventListener('click', async ()=>{
+          seedBtn.disabled = true; await seedSchedule(); seedBtn.disabled=false; await fetchSchedule(); renderTimeline(); renderPlan(); renderStatus(); });
+      }
     }
   }
 
