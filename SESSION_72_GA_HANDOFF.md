@@ -12,6 +12,8 @@
 
 Session #72 successfully delivered comprehensive UI cleanup and chiller circulation safety features. All acceptance criteria met and validated on production hardware. System is demonstrably safer than previous version with no risk of silent chiller-without-circulation operation.
 
+**Note:** This document describes work completed on branch `copilot/remove-duplicate-pump-calibrations-again`. The current branch (`copilot/finalize-ga-handoff`) contains only this handoff documentation. The actual implementation exists on the feature branch and is ready to be merged to `main`.
+
 ### Key Deliverables
 ✅ Single global E-STOP header button  
 ✅ Mode buttons localized to System tab only  
