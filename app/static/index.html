@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <!-- BUILD_COMMIT: 43fa8ee -->
 <html lang="en">
 <head>
@@ -6,7 +6,7 @@
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta name="version" content="20251115ac"/><!-- pH: add Pump Control; move Dose Log; tidy -->
-<link rel="stylesheet" href="/static/css/theme_v4.css?v=7" />
+<link rel="stylesheet" href="/static/css/theme_v4.css?v=8" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
     (function(){
@@ -89,7 +89,7 @@ body{
   color:#e0e0e0;
   padding:6px 12px;
   border-radius:999px;
-  font-size:0.75rem;
+  font-size:var(--font-sm);
   font-weight:600;
   position:relative;
   cursor:pointer;
@@ -213,7 +213,7 @@ body{
   color:#e0e0e0;
   padding:6px 12px;
   border-radius:999px;
-  font-size:0.75rem;
+  font-size:var(--font-sm);
   font-weight:600;
   position:relative;
   cursor:pointer;
@@ -595,7 +595,7 @@ body{
     align-items: center;
   }
   /* Uniform label spacing */
-  label{ display:block; font-size:0.85rem; margin-bottom:6px; font-weight:500; }
+  label{ display:block; font-size:var(--font-md); margin-bottom:var(--space-sm); font-weight:500; }
   /* Generic responsive form row helper */
   .form-row{ display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap: var(--gap); }
   .form-row > div{ min-width:0; }
@@ -628,26 +628,26 @@ body{
   .ec-v1-ui .btn-mini:hover{background:#374151}
   .ec-v1-ui .nowrap{white-space:nowrap}
     /* Schedule timeline & targets lightweight styles */
-    .schedule-timeline-lanes{min-height:120px;position:relative;font-size:0.6rem;}
+    .schedule-timeline-lanes{min-height:120px;position:relative;font-size:var(--font-xs);}
     .schedule-week-block{position:relative;display:inline-block;height:14px;margin:2px 0;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.25);border-radius:4px;overflow:hidden;}
     .schedule-week-block.veg{background:rgba(34,197,94,0.12);border-color:rgba(34,197,94,0.35);} /* vegetative */
     .schedule-week-block.bloom{background:rgba(168,85,247,0.12);border-color:rgba(168,85,247,0.35);} /* bloom */
     .schedule-week-block.flush{background:rgba(59,130,246,0.12);border-color:rgba(59,130,246,0.35);} /* flush */
-    .schedule-week-block span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:0.55rem;letter-spacing:.5px;opacity:.75;}
+    .schedule-week-block span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:var(--font-xs);letter-spacing:.5px;opacity:.75;}
     .schedule-today-marker{position:absolute;top:0;bottom:0;width:2px;background:#facc15;box-shadow:0 0 4px 2px rgba(250,204,21,.5);animation:todayPulse 2.8s ease-in-out infinite;}
     @keyframes todayPulse{0%,100%{box-shadow:0 0 4px 2px rgba(250,204,21,.4);}50%{box-shadow:0 0 6px 3px rgba(250,204,21,.7);}}
-    #schedule-week-selector button{padding:4px 6px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);background:#1e293b;color:#cbd5e1;font-size:0.65rem;cursor:pointer;}
+    #schedule-week-selector button{padding:4px 6px;border-radius:6px;border:1px solid rgba(148,163,184,0.3);background:#1e293b;color:#cbd5e1;font-size:var(--font-xs);cursor:pointer;}
     #schedule-week-selector button.active{background:rgba(59,130,246,0.25);border-color:rgba(59,130,246,0.6);color:#93c5fd;}
     #schedule-targets-body .band-bar{position:relative;height:34px;margin:6px 0;border-radius:6px;background:linear-gradient(90deg,rgba(34,197,94,.15),rgba(59,130,246,.15));border:1px solid rgba(148,163,184,0.25);}
     .band-bar .tick{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.4);}
     .band-bar .ec-dot{position:absolute;top:50%;width:10px;height:10px;margin-top:-5px;border-radius:50%;background:#f59e0b;box-shadow:0 0 0 2px rgba(0,0,0,.4);}
-    .schedule-badge{display:inline-block;padding:3px 6px;border-radius:6px;font-size:0.55rem;font-weight:600;letter-spacing:.5px;background:rgba(148,163,184,0.15);border:1px solid rgba(148,163,184,0.3);color:#cbd5e1;white-space:nowrap;}
+    .schedule-badge{display:inline-block;padding:3px 6px;border-radius:6px;font-size:var(--font-xs);font-weight:600;letter-spacing:.5px;background:rgba(148,163,184,0.15);border:1px solid rgba(148,163,184,0.3);color:#cbd5e1;white-space:nowrap;}
     .schedule-badge.ok{background:rgba(34,197,94,0.15);border-color:rgba(34,197,94,0.35);color:#22c55e;}
     .schedule-badge.warn{background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.35);color:#fbbf24;}
     .schedule-plan-item{padding:4px 6px;border-bottom:1px solid rgba(148,163,184,0.15);display:flex;flex-direction:column;gap:2px;}
     .schedule-plan-item:last-child{border-bottom:none;}
-    .schedule-plan-item .top{display:flex;justify-content:space-between;font-size:0.6rem;font-weight:600;}
-    .schedule-plan-item .meta{font-size:0.55rem;opacity:.75;display:flex;gap:6px;flex-wrap:wrap;}
+    .schedule-plan-item .top{display:flex;justify-content:space-between;font-size:var(--font-xs);font-weight:600;}
+    .schedule-plan-item .meta{font-size:var(--font-xs);opacity:.75;display:flex;gap:6px;flex-wrap:wrap;}
 </style>
 <!-- Frontend Error Reporter: captures console errors and sends to backend -->
 <script src="/static/js/error_reporter.js"></script>
@@ -666,7 +666,7 @@ body{
         <button id="mode-maint" class="btn-chip" title="Maintenance Mode">Maintenance</button>
       </div>
       <button id="estop-btn" class="btn-secondary danger" title="Emergency Stop: forces all relays OFF and blocks ON until released">E‑STOP</button>
-      <div id="build-banner" class="muted" style="font-size:0.8rem;padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,0.25);background:rgba(148,163,184,0.06);color:#cbd5e1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <div id="build-banner" class="muted" style="font-size:var(--font-base);padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,0.25);background:rgba(148,163,184,0.06);color:#cbd5e1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <span>Build: <span id="build-version">—</span> • <span id="build-status">initializing…</span></span>
       </div>
     </div>
@@ -732,11 +732,11 @@ body{
         </div>
         <div class="kpi" style="min-width:140px;">
           <div class="kpi-label">Phase</div>
-          <div class="kpi-value" id="schedule-phase-kpi" style="font-size:0.9rem;">—</div>
+          <div class="kpi-value" id="schedule-phase-kpi" style="font-size:var(--font-lg);">—</div>
         </div>
         <div class="kpi" style="min-width:140px;">
           <div class="kpi-label">Grow Start</div>
-          <div class="kpi-value" id="schedule-grow-start-kpi" style="font-size:0.8rem;">—</div>
+          <div class="kpi-value" id="schedule-grow-start-kpi" style="font-size:var(--font-base);">—</div>
         </div>
         <div class="kpi" style="min-width:140px;">
           <div class="kpi-label">Day in Grow</div>
@@ -751,7 +751,7 @@ body{
         <button id="schedule-refresh-btn" class="btn-secondary btn-small">Refresh</button>
       </div>
       <div id="schedule-timeline-lanes" class="schedule-timeline-lanes" style="min-height:120px;position:relative;overflow:hidden;margin-bottom:12px;">
-        <div class="muted" style="font-size:0.75rem;opacity:.6;">Loading schedule…</div>
+        <div class="muted" style="font-size:var(--font-sm);opacity:.6;">Loading schedule…</div>
       </div>
       <div id="schedule-week-selector" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px;"></div>
 
@@ -759,40 +759,40 @@ body{
       <hr class="separator" />
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
         <div class="muted" style="font-weight:600;">This Week Targets</div>
-        <span id="schedule-phase-pill" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(148,163,184,0.10);border:1px solid rgba(148,163,184,0.25);font-size:0.7rem;">—</span>
+        <span id="schedule-phase-pill" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(148,163,184,0.10);border:1px solid rgba(148,163,184,0.25);font-size:var(--font-xs);">—</span>
       </div>
       <div id="schedule-targets-body" style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);min-height:100px;">
-        <div class="muted" style="font-size:0.8rem;opacity:.7;">Select a week…</div>
+        <div class="muted" style="font-size:var(--font-base);opacity:.7;">Select a week…</div>
       </div>
 
       <!-- Next 48h Plan -->
       <hr class="separator" />
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
         <div class="muted" style="font-weight:600;">Next 48h Plan</div>
-        <div class="muted" id="schedule-plan-updated" style="font-size:0.7rem;opacity:.7;">—</div>
+        <div class="muted" id="schedule-plan-updated" style="font-size:var(--font-xs);opacity:.7;">—</div>
       </div>
-      <div id="schedule-plan-list" style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);max-height:200px;overflow:auto;font-size:0.8rem;line-height:1.4;">
+      <div id="schedule-plan-list" style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);max-height:200px;overflow:auto;font-size:var(--font-base);line-height:1.4;">
         <div class="muted" style="opacity:.6;">Loading plan…</div>
       </div>
 
       <!-- Settings -->
       <details style="margin-top:12px;">
-        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Schedule Settings</summary>
+        <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">⚙️ Schedule Settings</summary>
         <div class="details-content">
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:var(--space-lg);">
             <button id="scheduleSeedBtn" class="btn-secondary primary" title="Seed default 12-week schedule (non-destructive)">Seed Defaults</button>
           </div>
           
-          <div id="schedule-status-badges" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;"></div>
+          <div id="schedule-status-badges" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--space-lg);"></div>
           
           <div style="padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
-            <div class="muted" style="font-size:0.8rem;margin-bottom:10px;font-weight:600;">Rapid Test Helper (EC interval)</div>
+            <div class="muted" style="font-size:var(--font-base);margin-bottom:var(--space-md);font-weight:600;">Rapid Test Helper (EC interval)</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
               <button class="btn-secondary btn-xs" id="schedule-rapid-10">10s</button>
               <button class="btn-secondary btn-xs" id="schedule-rapid-300">300s</button>
-              <span id="schedule-rapid-current" class="muted" style="font-size:0.75rem;">Current: —</span>
+              <span id="schedule-rapid-current" class="muted" style="font-size:var(--font-sm);">Current: —</span>
             </div>
-            <div class="muted" style="font-size:0.7rem;opacity:.7;">Preview-only — no automatic dosing from this tab.</div>
+            <div class="muted" style="font-size:var(--font-xs);opacity:.7;">Preview-only — no automatic dosing from this tab.</div>
           </div>
         </div>
       </details>
@@ -803,39 +803,39 @@ body{
     <section id="calibration-card" class="card card-wide tab-section" data-tab="calibration" style="display:none;">
       <div class="card-header">
         <h3 class="card-title">🎯 Calibration</h3>
-        <div class="muted" style="margin-top:8px;font-size:0.85rem;">
+        <div class="muted" style="margin-top:8px;font-size:var(--font-md);">
           Calibrate sensors and dosing pumps for accurate control
         </div>
       </div>
       <div class="card-body">
-        <div id="calib-banner" class="muted" style="display:none;margin-bottom:16px;padding:10px 14px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:#fecaca;font-size:0.9rem;">
+        <div id="calib-banner" class="muted" style="display:none;margin-bottom:var(--space-lg);padding:10px 14px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:#fecaca;font-size:var(--font-lg);">
           ⚠️ Writes are disabled. Set CALIB_ENABLE=1 and restart service to enable calibration commands.
         </div>
 
         <!-- pH Probe Calibration -->
-        <details open class="minimal-settings" style="margin-bottom:20px;">
+        <details open class="minimal-settings" style="margin-bottom:var(--space-xl);">
           <summary class="muted minimal">
             🧪 pH Probe Calibration
           </summary>
           <div style="padding:16px 12px;">
             <div style="margin-bottom:12px;">
               <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                <label style="font-size:0.9rem;">Current pH:</label>
-                <span id="ph-current-calib" style="font-weight:600;color:#93c5fd;font-size:1.1rem;">—</span>
+                <label style="font-size:var(--font-lg);">Current pH:</label>
+                <span id="ph-current-calib" style="font-weight:600;color:#93c5fd;font-size:var(--font-heading);">—</span>
                 <button id="btnPhRead" class="btn-secondary btn-sm">Read</button>
                 <button id="btnPhStabilize" class="btn-secondary btn-sm" title="Read until stable or timeout">Stabilize</button>
                 <button id="btnPhStatus" class="btn-secondary btn-sm">Status</button>
               </div>
             </div>
             <div style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
-                <label style="font-size:0.9rem;font-weight:500;">Buffer Solution:</label>
-                <select id="ph-buffer-kind" style="padding:6px 10px;border-radius:6px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;font-size:0.9rem;">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:var(--space-md);">
+                <label style="font-size:var(--font-lg);font-weight:500;">Buffer Solution:</label>
+                <select id="ph-buffer-kind" style="padding:6px 10px;border-radius:6px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;font-size:var(--font-lg);">
                   <option value="mid" data-default="7.00">Mid (7.00)</option>
                   <option value="low" data-default="4.00">Low (4.00)</option>
                   <option value="high" data-default="10.00">High (10.00)</option>
                 </select>
-                <input id="ph-buffer-val" type="number" step="0.01" min="0" max="14" value="7.00" style="width:100px;padding:6px 10px;border-radius:6px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;font-size:0.9rem;" />
+                <input id="ph-buffer-val" type="number" step="0.01" min="0" max="14" value="7.00" style="width:100px;padding:6px 10px;border-radius:6px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;font-size:var(--font-lg);" />
               </div>
               <div style="display:flex;gap:10px;flex-wrap:wrap;">
                 <button id="btnPhCalibrate" class="btn-secondary btn-md">Calibrate</button>
@@ -843,31 +843,31 @@ body{
               </div>
             </div>
             <div style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-              <label style="display:block;font-size:0.9rem;font-weight:500;margin-bottom:10px;">Probe LEDs:</label>
+              <label style="display:block;font-size:var(--font-lg);font-weight:500;margin-bottom:var(--space-md);">Probe LEDs:</label>
               <div style="display:flex;gap:10px;flex-wrap:wrap;">
                 <button id="btnLedsOn" class="btn-secondary btn-sm" title="Turn LEDs on (all probes)">On</button>
                 <button id="btnLedsOff" class="btn-secondary btn-sm" title="Turn LEDs off (all probes)">Off</button>
                 <button id="btnLedsBlink" class="btn-secondary btn-sm" title="Blink LEDs to locate probes">Blink</button>
               </div>
             </div>
-            <div id="ph-calib-msg" class="muted" style="padding:10px 12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:50px;font-size:0.85rem;"></div>
+            <div id="ph-calib-msg" class="muted" style="padding:10px 12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:50px;font-size:var(--font-md);"></div>
             <div id="ph-calib-log" class="muted" style="margin-top:10px;max-height:160px;overflow:auto;font-family:ui-monospace,monospace;font-size:11px;border-top:1px dashed rgba(148,163,184,0.2);padding-top:10px;"></div>
           </div>
         </details>
 
         <!-- Dosing Pump Calibration -->
-        <details class="minimal-settings" style="margin-bottom:20px;">
+        <details class="minimal-settings" style="margin-bottom:var(--space-xl);">
           <summary class="muted minimal">
             💧 Dosing Pump Calibration
           </summary>
           <div style="padding:16px 12px;">
-            <div class="muted" style="margin-bottom:12px;font-size:0.8rem;">
+            <div class="muted" style="margin-bottom:12px;font-size:var(--font-base);">
               ℹ️ Run each pump for a known duration, measure output volume, then commit to save ml/s rates.
             </div>
             <div id="dose-calib-pumps" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
               <!-- Pump cards will be injected here by JS -->
             </div>
-            <div id="dose-calib-msg" class="muted" style="margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:40px;font-size:0.85rem;"></div>
+            <div id="dose-calib-msg" class="muted" style="margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:40px;font-size:var(--font-md);"></div>
           </div>
         </details>
       </div>
@@ -951,7 +951,7 @@ body{
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <div style="display:flex;align-items:baseline;gap:10px;">
         <h3 class="card-title" style="margin:0;">System Controller</h3>
-        <span style="font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">Controllers</span>
+        <span style="font-size:var(--font-xs);letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">Controllers</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"></div>
     </div>
@@ -1051,7 +1051,7 @@ body{
     <!-- Camera (moved to bottom and height-limited) -->
     <div style="margin-top:16px;">
       <h3>Camera — Live (USB/OpenCV)</h3>
-      <div class="muted" style="font-size:0.75rem;margin-top:-6px;margin-bottom:8px;">
+      <div class="muted" style="font-size:var(--font-sm);margin-top:-6px;margin-bottom:8px;">
         <span id="camera-status-pill">Status: streaming</span>
       </div>
       <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;height:var(--h-camera);max-height:calc(100vh - 520px);overflow:hidden;width:100%;">
@@ -1093,68 +1093,68 @@ body{
     <!-- Chiller automation controlled via header chips only - redundant buttons removed -->
 
     <details style="margin-top:8px;">
-      <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Temperature & Chiller Settings</summary>
+      <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">⚙️ Temperature & Chiller Settings</summary>
       <div class="system-card">
         <div class="info-banner-blue">
           <div class="info-banner-blue-content">
             Configure temperature targets, alert thresholds, and chiller compressor protection timings.
           </div>
         </div>
-        <div style="margin-bottom:16px;">
-          <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Temperature Settings</div>
+        <div style="margin-bottom:var(--space-lg);">
+          <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-lg);">Temperature Settings</div>
           <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
             <div>
-              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Target (°C)</label>
-              <input type="number" id="tempTarget" step="0.1" min="14" max="26" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Target (°C)</label>
+              <input type="number" id="tempTarget" step="0.1" min="14" max="26" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
             </div>
             <div>
-              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Hysteresis (°C)</label>
-              <input type="number" id="chillerHysteresis" step="0.1" min="0.1" max="3.0" value="0.5" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Hysteresis (°C)</label>
+              <input type="number" id="chillerHysteresis" step="0.1" min="0.1" max="3.0" value="0.5" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
             </div>
           </div>
           <div style="margin-top:8px;">
-            <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Growth Stage</label>
-            <select id="chillerStage" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;">
+            <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Growth Stage</label>
+            <select id="chillerStage" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
               <option value="default">Default (18-20°C optimal)</option>
               <option value="veg">Vegetative (18-20°C)</option>
               <option value="flower">Flowering (18-20°C)</option>
             </select>
           </div>
         </div>
-        <div style="margin-bottom:16px;padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
-          <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Alert Thresholds</div>
+        <div style="margin-bottom:var(--space-lg);padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
+          <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-lg);">Alert Thresholds</div>
           <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
             <div>
-              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Low Alert (°C)</label>
-              <input type="number" id="tempAlertLow" step="0.1" min="10" max="30" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Low Alert (°C)</label>
+              <input type="number" id="tempAlertLow" step="0.1" min="10" max="30" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
             </div>
             <div>
-              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">High Alert (°C)</label>
-              <input type="number" id="tempAlertHigh" step="0.1" min="10" max="30" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">High Alert (°C)</label>
+              <input type="number" id="tempAlertHigh" step="0.1" min="10" max="30" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
             </div>
           </div>
         </div>
-        <div style="margin-bottom:16px;padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
-          <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Chiller Safety</div>
+        <div style="margin-bottom:var(--space-lg);padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
+          <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-lg);">Chiller Safety</div>
           <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
             <div>
-              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Min OFF time (s)</label>
-              <input type="number" id="chillerMinOff" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min OFF time (s)</label>
+              <input type="number" id="chillerMinOff" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
             </div>
             <div>
-              <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Min ON time (s)</label>
-              <input type="number" id="chillerMinOn" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min ON time (s)</label>
+              <input type="number" id="chillerMinOn" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
             </div>
           </div>
         </div>
         <button id="btnSaveTempSettings" class="btn-secondary btn-full" style="margin-bottom:12px;">Save Temperature Settings</button>
         <div style="border-top:1px solid rgba(148,163,184,0.2);padding-top:12px;">
-          <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Manual Override (Emergency)</div>
-          <div class="muted" style="font-size:0.75rem;margin-bottom:8px;">Force chiller ON/OFF for specified duration (bypasses automation)</div>
+          <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-lg);">Manual Override (Emergency)</div>
+          <div class="muted" style="font-size:var(--font-sm);margin-bottom:8px;">Force chiller ON/OFF for specified duration (bypasses automation)</div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <button id="btnChillerForceOn" class="btn-secondary">Force ON</button>
             <button id="btnChillerForceOff" class="btn-secondary">Force OFF</button>
-            <select id="chillerForceDuration" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;">
+            <select id="chillerForceDuration" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
               <option value="30">30 minutes</option>
               <option value="60">1 hour</option>
               <option value="240">4 hours</option>
@@ -1165,7 +1165,7 @@ body{
       </div>
     </details>
 
-    <div class="muted" style="font-size:0.75rem;margin-top:12px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+    <div class="muted" style="font-size:var(--font-sm);margin-top:12px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
       <strong>Hailea HS-52A:</strong> Compressor-protected (5min min ON, 10min min OFF) • Cannabis-optimized temps (16-24°C safe, 18-20°C optimal) • RDWC circulation required
     </div>
   </section>
@@ -1190,7 +1190,7 @@ body{
         </div>
         <div class="kpi" style="min-width:140px;">
           <div class="kpi-label">Schedule</div>
-          <div class="kpi-value" id="lights-sched-kpi" style="font-size:0.85rem;">—</div>
+          <div class="kpi-value" id="lights-sched-kpi" style="font-size:var(--font-md);">—</div>
         </div>
         <div class="kpi" style="min-width:160px;">
           <div class="kpi-label">Window</div>
@@ -1201,21 +1201,21 @@ body{
       <div id="lights-manual-content" style="display:block;">
         <div class="bop-relay-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:0.95rem;">💡 Lights</div>
+            <div style="font-weight:600;font-size:var(--font-lg);">💡 Lights</div>
             <span class="bop-status-badge" id="lights-status">—</span>
           </div>
           <button class="relay-btn btn-full" id="btnLightsToggle">
             <span class="relay-label" id="lights-label">Lights</span>
           </button>
-          <div class="muted" style="font-size:0.75rem;margin-top:4px;">Honors cooldowns and mode</div>
+          <div class="muted" style="font-size:var(--font-sm);margin-top:4px;">Honors cooldowns and mode</div>
         </div>
       </div>
       <div id="lights-auto-content" style="display:none;" class="muted">Automation follows the configured on/off window. Manual toggles disabled.</div>
       <div id="lights-maint-content" style="display:none;" class="muted">Maintenance mode: schedule paused; manual toggle available with safety guards.</div>
       <hr class="separator" style="margin:20px 0;" />
       <details>
-        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Lights Info</summary>
-        <div class="details-content" style="font-size:0.8rem;">
+        <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">⚙️ Lights Info</summary>
+        <div class="details-content" style="font-size:var(--font-base);">
           <ul style="margin:0;padding-left:18px;line-height:1.4;">
             <li>Edge-only scheduler sets two transitions per day (no periodic enforcement).</li>
             <li>Manual mode ignores schedule; Auto enforces window; Maintenance keeps relay state but suppresses auto edges.</li>
@@ -1242,14 +1242,14 @@ body{
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
         <div class="bop-relay-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:0.95rem;">🔄 Main Pump</div>
+            <div style="font-weight:600;font-size:var(--font-lg);">🔄 Main Pump</div>
             <span class="bop-status-badge" id="circ-main-pump">—</span>
           </div>
           <button class="relay-btn btn-full" id="btnMainPump"><span class="relay-label">Toggle Main Pump</span></button>
         </div>
         <div class="bop-relay-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:0.95rem;">🌊 Chiller Pump</div>
+            <div style="font-weight:600;font-size:var(--font-lg);">🌊 Chiller Pump</div>
             <span class="bop-status-badge" id="circ-chiller-pump">—</span>
           </div>
           <button class="relay-btn btn-full" id="btnChillerPump"><span class="relay-label">Toggle Chiller Pump</span></button>
@@ -1259,23 +1259,23 @@ body{
 
       <!-- Circulation Settings -->
       <details style="margin-top:12px;">
-        <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Pump Safety Settings</summary>
+        <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">⚙️ Pump Safety Settings</summary>
         <div class="details-content">
           <div class="info-banner-blue">
             <div class="info-banner-blue-content">
               Configure minimum off times to prevent rapid cycling and extend pump lifespan.
             </div>
           </div>
-          <div style="margin-bottom:16px;">
-            <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Pump Minimum Off Times</div>
+          <div style="margin-bottom:var(--space-lg);">
+            <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-lg);">Pump Minimum Off Times</div>
             <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;">
               <div>
-                <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Main Pump Min OFF (s)</label>
-                <input type="number" id="mainPumpMinOff" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Main Pump Min OFF (s)</label>
+                <input type="number" id="mainPumpMinOff" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
               </div>
               <div>
-                <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Chiller Pump Min OFF (s)</label>
-                <input type="number" id="chillerPumpMinOff" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Chiller Pump Min OFF (s)</label>
+                <input type="number" id="chillerPumpMinOff" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
               </div>
             </div>
           </div>
@@ -1299,7 +1299,7 @@ body{
 
     <div class="card-body">
       <!-- KPI badges -->
-      <div class="kpi-row" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+      <div class="kpi-row" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
       <div class="kpi kpi-ph">
         <div class="kpi-label">pH</div>
         <div class="kpi-value" id="kpiPh">—</div>
@@ -1315,14 +1315,14 @@ body{
       </div>
       
       <hr class="separator" />
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:var(--space-sm);">
         <div class="muted">Sensor History</div>
       </div>
       <canvas id="trendChart" height="120"></canvas>
       <div id="trendEmpty" style="display:none;margin-top:8px;opacity:.7;">No data for selected period.</div>
       <!-- Time range selector -->
       <div class="trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
-        <select id="trendRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.8rem;cursor:pointer;min-width:100px;">
+        <select id="trendRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:100px;">
           <option value="24h" selected>Last 24 Hours</option>
           <option value="7d">Last 7 Days</option>
           <option value="30d">Last 30 Days</option>
@@ -1333,7 +1333,7 @@ body{
         </select>
         <div id="trendCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
           <input type="datetime-local" id="trendFrom" class="dt-input">
-          <span style="opacity:0.5;font-size:0.75rem;">to</span>
+          <span style="opacity:0.5;font-size:var(--font-sm);">to</span>
           <input type="datetime-local" id="trendTo" class="dt-input">
           <button class="btn btn-secondary btn-compact" id="trendApply">Apply</button>
         </div>
@@ -1341,56 +1341,56 @@ body{
       </div>
       <!-- Settings with exclusive-open accordions -->
       <div style="margin-top:12px;">
-        <div class="muted" style="cursor:default;font-size:0.9rem;margin-bottom:8px;">⚙️ Settings</div>
+        <div class="muted" style="cursor:default;font-size:var(--font-lg);margin-bottom:8px;">⚙️ Settings</div>
         
         <!-- Sensor Reading Section -->
         <details class="sensors-settings-accordion" style="margin-top:8px;">
-          <summary class="muted" style="cursor:pointer;font-size:0.85rem;">📊 Sensor Reading</summary>
+          <summary class="muted" style="cursor:pointer;font-size:var(--font-md);">📊 Sensor Reading</summary>
           <div class="details-content-accent">
-            <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Live Sensors are cached by the background poller. Use "Read now" for an immediate sample (only available in Manual/Maintenance mode). Health details are available from the green "OK" badge.</div>
+            <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Live Sensors are cached by the background poller. Use "Read now" for an immediate sample (only available in Manual/Maintenance mode). Health details are available from the green "OK" badge.</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
               <button id="btnSensorsReadNow" class="btn-secondary btn-xs">Read now</button>
-              <span id="sensors-updated" class="muted" style="font-size:0.7rem;">—</span>
+              <span id="sensors-updated" class="muted" style="font-size:var(--font-xs);">—</span>
             </div>
-            <div style="font-weight:600;margin-bottom:6px;font-size:0.8rem;">Recent Readings (last 5)</div>
-            <div id="s-recent" class="muted" style="font-size:0.7rem;opacity:0.8;"></div>
+            <div style="font-weight:600;margin-bottom:var(--space-sm);font-size:var(--font-base);">Recent Readings (last 5)</div>
+            <div id="s-recent" class="muted" style="font-size:var(--font-xs);opacity:0.8;"></div>
           </div>
         </details>
         
         <!-- pH Probe Calibration Section -->
         <details class="sensors-settings-accordion" style="margin-top:8px;">
-          <summary class="muted" style="cursor:pointer;font-size:0.85rem;">🧪 pH Probe Calibration</summary>
+          <summary class="muted" style="cursor:pointer;font-size:var(--font-md);">🧪 pH Probe Calibration</summary>
           <div class="details-content-accent">
-          <div style="font-weight:600;margin-bottom:8px;font-size:0.8rem;">pH Probe Calibration</div>
-          <div id="ph-calib-banner-inline" style="display:none;font-size:0.7rem;padding:6px 8px;border-radius:6px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);color:#fecaca;margin-bottom:10px;">
+          <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-base);">pH Probe Calibration</div>
+          <div id="ph-calib-banner-inline" style="display:none;font-size:var(--font-xs);padding:6px 8px;border-radius:6px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);color:#fecaca;margin-bottom:var(--space-md);">
             ⚠️ Writes are disabled. Set CALIB_ENABLE=1 and restart service to enable calibration commands.
           </div>
           
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-            <span style="font-size:0.7rem;color:#9ca3af;">Current pH:</span>
-            <span id="ph-current-inline" style="font-weight:600;color:#93c5fd;font-size:0.9rem;">—</span>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
+            <span style="font-size:var(--font-xs);color:#9ca3af;">Current pH:</span>
+            <span id="ph-current-inline" style="font-weight:600;color:#93c5fd;font-size:var(--font-lg);">—</span>
             <button id="btnPhReadInline" class="btn-secondary btn-xs">Read</button>
             <button id="btnPhStabilizeInline" class="btn-secondary btn-xs" title="Read until stable or timeout">Stabilize</button>
             <button id="btnPhStatusInline" class="btn-secondary btn-xs">Status</button>
           </div>
           
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-            <span style="font-size:0.7rem;color:#9ca3af;">Buffer Solution:</span>
-            <select id="ph-buffer-kind-inline" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
+            <span style="font-size:var(--font-xs);color:#9ca3af;">Buffer Solution:</span>
+            <select id="ph-buffer-kind-inline" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
               <option value="mid" data-default="7.00">Mid (7.00)</option>
               <option value="low" data-default="4.00">Low (4.00)</option>
               <option value="high" data-default="10.00">High (10.00)</option>
             </select>
-            <input id="ph-buffer-val-inline" type="number" step="0.01" min="0" max="14" value="7.00" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+            <input id="ph-buffer-val-inline" type="number" step="0.01" min="0" max="14" value="7.00" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
           </div>
           
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
             <button id="btnPhCalibrateInline" class="btn-secondary btn-xs">Calibrate</button>
             <button id="btnPhClearInline" class="btn-secondary btn-xs">Clear Calibration</button>
           </div>
           
-          <div style="margin-bottom:10px;">
-            <div style="font-size:0.7rem;color:#9ca3af;margin-bottom:6px;">Probe LEDs:</div>
+          <div style="margin-bottom:var(--space-md);">
+            <div style="font-size:var(--font-xs);color:#9ca3af;margin-bottom:var(--space-sm);">Probe LEDs:</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
               <button id="btnLedsOnInline" class="btn-secondary btn-xs" title="Turn LEDs on (all probes)">On</button>
               <button id="btnLedsOffInline" class="btn-secondary btn-xs" title="Turn LEDs off (all probes)">Off</button>
@@ -1398,41 +1398,41 @@ body{
             </div>
           </div>
           
-          <div id="ph-calib-msg-inline" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
-          <div id="ph-calib-log-inline" class="muted" style="font-size:0.65rem;padding:6px;background:rgba(0,0,0,0.2);border:1px solid rgba(148,163,184,0.2);border-radius:4px;margin-top:6px;max-height:150px;overflow-y:auto;display:none;"></div>
+          <div id="ph-calib-msg-inline" class="muted" style="font-size:var(--font-xs);padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
+          <div id="ph-calib-log-inline" class="muted" style="font-size:var(--font-xs);padding:6px;background:rgba(0,0,0,0.2);border:1px solid rgba(148,163,184,0.2);border-radius:4px;margin-top:6px;max-height:150px;overflow-y:auto;display:none;"></div>
           </div>
         </details>
         
         <!-- EC Probe Calibration Section -->
         <details class="sensors-settings-accordion" style="margin-top:8px;">
-          <summary class="muted" style="cursor:pointer;font-size:0.85rem;">⚡ EC Probe Calibration</summary>
+          <summary class="muted" style="cursor:pointer;font-size:var(--font-md);">⚡ EC Probe Calibration</summary>
           <div class="details-content-accent">
-          <div style="font-weight:600;margin-bottom:8px;font-size:0.8rem;">EC Probe Calibration</div>
+          <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-base);">EC Probe Calibration</div>
           
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-            <span style="font-size:0.7rem;color:#9ca3af;">Current EC:</span>
-            <span id="ec-current-calib" style="font-weight:600;color:#93c5fd;font-size:0.9rem;">—</span>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
+            <span style="font-size:var(--font-xs);color:#9ca3af;">Current EC:</span>
+            <span id="ec-current-calib" style="font-weight:600;color:#93c5fd;font-size:var(--font-lg);">—</span>
             <button id="btnEcStatus" class="btn-secondary btn-xs">Status</button>
           </div>
           
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
             <button id="btnEcCalClear" class="btn-secondary btn-xs">Clear Calibration</button>
           </div>
           
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-            <span style="font-size:0.7rem;color:#9ca3af;">Low Point (1413 µS/cm):</span>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
+            <span style="font-size:var(--font-xs);color:#9ca3af;">Low Point (1413 µS/cm):</span>
             <button id="btnEcCalLow" class="btn-secondary btn-xs">Calibrate Low</button>
           </div>
           
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-            <span style="font-size:0.7rem;color:#9ca3af;">High Point (12,880 µS/cm):</span>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
+            <span style="font-size:var(--font-xs);color:#9ca3af;">High Point (12,880 µS/cm):</span>
             <button id="btnEcCalHigh" class="btn-secondary btn-xs">Calibrate High</button>
           </div>
           
-          <div style="margin-bottom:10px;">
-            <div style="font-size:0.7rem;color:#9ca3af;margin-bottom:6px;">Probe Constant (K):</div>
+          <div style="margin-bottom:var(--space-md);">
+            <div style="font-size:var(--font-xs);color:#9ca3af;margin-bottom:var(--space-sm);">Probe Constant (K):</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <select id="ec-k-select" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;">
+              <select id="ec-k-select" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
                 <option value="0.1">K=0.1</option>
                 <option value="1.0" selected>K=1.0</option>
                 <option value="10.0">K=10.0</option>
@@ -1441,7 +1441,7 @@ body{
             </div>
           </div>
           
-          <div id="ec-calib-msg" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
+          <div id="ec-calib-msg" class="muted" style="font-size:var(--font-xs);padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
           </div>
         </details>
         
@@ -1470,14 +1470,14 @@ body{
               Reservoir set to 0 L — dosing disabled
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
             <div class="kpi kpi-ph">
               <div class="kpi-label">pH</div>
               <div class="kpi-value" id="ph-current">—</div>
             </div>
             <div class="kpi kpi-ph" style="min-width:140px;">
               <div class="kpi-label">Guards</div>
-              <div class="kpi-value" id="ph-guards" style="font-size:0.85rem;">—</div>
+              <div class="kpi-value" id="ph-guards" style="font-size:var(--font-md);">—</div>
             </div>
             <div class="kpi kpi-ph" style="min-width:110px;">
               <div class="kpi-label">Targets</div>
@@ -1485,7 +1485,7 @@ body{
             </div>
             <div class="kpi kpi-ph" id="ph-learned-kpi" style="min-width:110px;display:none;">
               <div class="kpi-label">Learned</div>
-              <div class="kpi-value" id="ph-learned-value-kpi" style="font-size:0.85rem;">—</div>
+              <div class="kpi-value" id="ph-learned-value-kpi" style="font-size:var(--font-md);">—</div>
             </div>
             <span id="ph-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
           </div>
@@ -1514,14 +1514,14 @@ body{
               <button id="btnPrimeMaint" class="btn-secondary" title="Prime (200 ms)">Prime</button>
               <button id="btnDose1Maint" class="btn-secondary">+1 ml</button>
               <button id="btnDose5Maint" class="btn-secondary">+5 ml</button>
-              <input id="phCustomMlMaint" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:28px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;"/>
+              <input id="phCustomMlMaint" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:28px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);"/>
               <button id="btnDoseCustomMaint" class="btn-secondary">Dose</button>
             </div>
           </div>
 
           <!-- 3. Graph (Dose History Chart) -->
           <hr class="separator" style="margin:20px 0;" />
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-sm);">
             <div class="muted">Dose History</div>
           </div>
           <div id="ph-dose-chart-wrap" class="chart-card">
@@ -1532,7 +1532,7 @@ body{
           </div>
           <!-- 4. Graph Controls (Standardized dropdown + always-visible datetime inputs) -->
           <div class="ph-dose-controls trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
-            <select id="phDoseRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.8rem;cursor:pointer;min-width:110px;">
+            <select id="phDoseRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
               <option value="24h">Last 24 Hours</option>
               <option value="7d">Last 7 Days</option>
               <option value="30d">Last 30 Days</option>
@@ -1543,7 +1543,7 @@ body{
             </select>
             <div id="phDoseCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
               <input type="datetime-local" id="phDoseFrom" class="dt-input" />
-              <span style="opacity:0.5;font-size:0.75rem;">to</span>
+              <span style="opacity:0.5;font-size:var(--font-sm);">to</span>
               <input type="datetime-local" id="phDoseTo" class="dt-input" />
               <button class="btn btn-secondary btn-compact" id="phDoseApply">Apply</button>
             </div>
@@ -1553,61 +1553,61 @@ body{
           <!-- 5. Settings -->
 
           <details style="margin-top:12px;">
-            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Parameters</summary>
+            <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Parameters</summary>
             <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
-              <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Configure pH targets, dosing parameters, and alert thresholds.</div>
+              <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure pH targets, dosing parameters, and alert thresholds.</div>
               <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                 <div>
-                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Low pH</label>
-                  <input type="number" id="phTargetLow" step="0.1" min="4.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Low pH</label>
+                  <input type="number" id="phTargetLow" step="0.1" min="4.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                 </div>
                 <div>
-                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">High pH</label>
-                  <input type="number" id="phTargetHigh" step="0.1" min="4.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">High pH</label>
+                  <input type="number" id="phTargetHigh" step="0.1" min="4.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                 </div>
               </div>
               <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                 <div>
-                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Low Alert pH</label>
-                  <input type="number" id="phAlertLow" step="0.1" min="3.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Low Alert pH</label>
+                  <input type="number" id="phAlertLow" step="0.1" min="3.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                 </div>
                 <div>
-                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">High Alert pH</label>
-                  <input type="number" id="phAlertHigh" step="0.1" min="3.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">High Alert pH</label>
+                  <input type="number" id="phAlertHigh" step="0.1" min="3.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                 </div>
               </div>
               <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                 <div>
-                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Micro (ml)</label>
-                  <input type="number" id="phPulseMicro" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0.0" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Micro (ml)</label>
+                  <input type="number" id="phPulseMicro" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.0" />
                 </div>
                 <div>
-                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Grow (ml)</label>
-                  <input type="number" id="phPulseGrow" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0.0" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Grow (ml)</label>
+                  <input type="number" id="phPulseGrow" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.0" />
                 </div>
                 <div>
-                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Bloom (ml)</label>
-                  <input type="number" id="phPulseBloom" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0.0" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Bloom (ml)</label>
+                  <input type="number" id="phPulseBloom" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.0" />
                 </div>
               </div>
               <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                 <div>
-                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">pH Up ml/s</label>
-                  <input type="number" id="phUpMlPerSec" step="0.01" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0.83" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">pH Up ml/s</label>
+                  <input type="number" id="phUpMlPerSec" step="0.01" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.83" />
                 </div>
                 <div>
-                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Mix delay (s)</label>
-                  <input type="number" id="phMixDelay" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Mix delay (s)</label>
+                  <input type="number" id="phMixDelay" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0" />
                 </div>
               </div>
-              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:10px;align-items:end;">
+              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:var(--space-md);align-items:end;">
                 <div>
-                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Max ml/hour</label>
-                  <input type="number" id="phMaxMlHour" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Max ml/hour</label>
+                  <input type="number" id="phMaxMlHour" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0" />
                 </div>
                 <div>
-                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Max ml/day</label>
-                  <input type="number" id="phMaxMlDay" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Max ml/day</label>
+                  <input type="number" id="phMaxMlDay" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0" />
                 </div>
               </div>
               <button id="btnSavePhSettings" class="btn-secondary btn-full">Save pH Settings</button>
@@ -1616,55 +1616,55 @@ body{
 
           <!-- pH Pump Calibration (moved from Sensors tab) -->
           <details style="margin-top:12px;">
-            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">💧 Pump Calibration</summary>
+            <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">💧 Pump Calibration</summary>
             <div class="details-content-accent">
-              <div style="font-weight:600;margin-bottom:8px;font-size:0.8rem;">pH Up Pump Flow Rate</div>
-              <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Run pump for known duration, measure output, then commit to save ml/s rate.</div>
-              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:10px;">
+              <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-base);">pH Up Pump Flow Rate</div>
+              <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Run pump for known duration, measure output, then commit to save ml/s rate.</div>
+              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:var(--space-md);">
                 <div>
-                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
-                  <input type="number" id="phPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
+                  <input type="number" id="phPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                 </div>
                 <div>
-                  <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
-                  <input type="number" id="phPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
+                  <input type="number" id="phPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                 </div>
               </div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-md);">
                 <button id="btnPhPumpPrime" class="btn-secondary btn-xs">Prime (3s)</button>
                 <button id="btnPhPumpRun" class="btn-secondary btn-xs">Run</button>
                 <button id="btnPhPumpCommit" class="btn-secondary btn-xs">Commit Rate</button>
               </div>
-              <div style="font-size:0.7rem;color:#9ca3af;margin-top:8px;">Current rate: <span id="phPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s</div>
-              <div id="phPumpCalibMsg" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
+              <div style="font-size:var(--font-xs);color:#9ca3af;margin-top:8px;">Current rate: <span id="phPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s</div>
+              <div id="phPumpCalibMsg" class="muted" style="font-size:var(--font-xs);padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
             </div>
           </details>
 
           <details style="margin-top:12px;">
-            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Automation</summary>
+            <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Automation</summary>
             <div class="details-content">
-              <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">pH automation learning and control.</div>
-              <div id="ph-learned-display" style="display:none;margin-bottom:10px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
-                <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Learned ml/pH:</div>
-                <div style="font-size:1.1rem;font-weight:600;color:#60a5fa;" id="ph-learned-display-value">—</div>
+              <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">pH automation learning and control.</div>
+              <div id="ph-learned-display" style="display:none;margin-bottom:var(--space-md);padding:8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+                <div class="muted" style="font-size:var(--font-sm);margin-bottom:4px;">Learned ml/pH:</div>
+                <div style="font-size:var(--font-heading);font-weight:600;color:#60a5fa;" id="ph-learned-display-value">—</div>
               </div>
               <button id="btnClearPhLearned" class="btn-secondary btn-full" title="Reset pH automation learned value">Clear Learned Value</button>
             </div>
           </details>
 
           <details style="margin-top:12px;">
-            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Manual Dosing (Volume)</summary>
+            <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Manual Dosing (Volume)</summary>
             <div class="details-content-accent">
-              <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Dose pH Up manually with safety caps enforced.</div>
+              <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">Dose pH Up manually with safety caps enforced.</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
                 <button id="btnPrime" class="btn-secondary" title="Prime (200 ms)">Prime</button>
                 <button id="btnDose1" class="btn-secondary">+1 ml</button>
                 <button id="btnDose5" class="btn-secondary">+5 ml</button>
-                <input id="phCustomMl" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:28px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;"/>
+                <input id="phCustomMl" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:28px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);"/>
                 <button id="btnDoseCustom" class="btn-secondary">Dose</button>
-                <span id="phMaintBadge" class="muted" style="display:none;margin-left:6px;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.85rem;" title="Bypasses cooldown/daily cap; clamps single dose; E-STOP/empty reservoir still enforced.">Maintenance override active</span>
+                <span id="phMaintBadge" class="muted" style="display:none;margin-left:6px;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:var(--font-md);" title="Bypasses cooldown/daily cap; clamps single dose; E-STOP/empty reservoir still enforced.">Maintenance override active</span>
               </div>
-              <div class="muted" style="font-size:0.75rem;margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(148,163,184,0.05);">
+              <div class="muted" style="font-size:var(--font-sm);margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(148,163,184,0.05);">
                 Max per press: <span id="phCapMaxPress">1.5s</span> • Daily cap: <span id="phCapDaily">120s</span> • Min off: <span id="phCapMinOff">2s</span>
               </div>
               </div>
@@ -1673,9 +1673,9 @@ body{
 
           <!-- pH Direct Pump Control (Time-based) -->
           <details style="margin-top:12px;">
-            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Pump Control (Time)</summary>
+            <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Pump Control (Time)</summary>
             <div class="details-content-accent">
-              <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Press and hold pattern for the pH Up pump. Safety caps enforced.</div>
+              <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">Press and hold pattern for the pH Up pump. Safety caps enforced.</div>
               <div>
                 <button id="btnPhPulse03" class="btn-secondary btn-full" title="Dose pH Up for 0.3s">pH Up (0.3s)</button>
                 <div class="ec-v1-ui row" style="margin-top:6px;">
@@ -1690,22 +1690,22 @@ body{
 
           <!-- pH Dose Log (Last 20) -->
           <details style="margin-top:12px;">
-            <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Dose Log (Last 20)</summary>
+            <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Dose Log (Last 20)</summary>
             <div class="details-content">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <div class="muted" style="font-weight:600;font-size:0.9rem;">Recent pH Doses</div>
+                <div class="muted" style="font-weight:600;font-size:var(--font-lg);">Recent pH Doses</div>
                 <button id="btnRefreshDoseLog" class="btn-secondary btn-xs" title="Refresh dose log">Refresh</button>
               </div>
               <div style="max-height:180px;overflow-y:auto;border-radius:4px;border:1px solid rgba(148,163,184,0.15);background:#0d1117;">
-                <table style="width:100%;font-size:0.8rem;">
+                <table style="width:100%;font-size:var(--font-base);">
                   <thead style="position:sticky;top:0;background:#0d1117;border-bottom:1px solid rgba(148,163,184,0.25);">
                     <tr>
-                      <th style="padding:5px 6px;text-align:left;color:#9ca3af;font-size:0.75rem;">Time</th>
-                      <th style="padding:5px 6px;text-align:left;color:#9ca3af;font-size:0.75rem;">Pump</th>
-                      <th style="padding:5px 6px;text-align:right;color:#9ca3af;font-size:0.75rem;">Seconds</th>
-                      <th style="padding:5px 6px;text-align:right;color:#9ca3af;font-size:0.75rem;">pH Before</th>
-                      <th style="padding:5px 6px;text-align:right;color:#9ca3af;font-size:0.75rem;">pH After</th>
-                      <th style="padding:5px 6px;text-align:left;color:#9ca3af;font-size:0.75rem;">Note</th>
+                      <th style="padding:5px 6px;text-align:left;color:#9ca3af;font-size:var(--font-sm);">Time</th>
+                      <th style="padding:5px 6px;text-align:left;color:#9ca3af;font-size:var(--font-sm);">Pump</th>
+                      <th style="padding:5px 6px;text-align:right;color:#9ca3af;font-size:var(--font-sm);">Seconds</th>
+                      <th style="padding:5px 6px;text-align:right;color:#9ca3af;font-size:var(--font-sm);">pH Before</th>
+                      <th style="padding:5px 6px;text-align:right;color:#9ca3af;font-size:var(--font-sm);">pH After</th>
+                      <th style="padding:5px 6px;text-align:left;color:#9ca3af;font-size:var(--font-sm);">Note</th>
                     </tr>
                   </thead>
                   <tbody id="phDoseLogTable" class="muted">
@@ -1719,7 +1719,7 @@ body{
   </section>
 
   <!-- Sensors Health Popover (hidden by default; positioned via JS) -->
-  <div id="sensors-health-popover" style="display:none;position:absolute;z-index:9999;min-width:260px;max-width:360px;padding:10px 12px;border-radius:8px;background:#0b0f1a;border:1px solid #334155;box-shadow:0 8px 24px rgba(0,0,0,0.4);color:#e5e7eb;font-size:0.9rem;line-height:1.35;"></div>
+  <div id="sensors-health-popover" style="display:none;position:absolute;z-index:9999;min-width:260px;max-width:360px;padding:10px 12px;border-radius:8px;background:#0b0f1a;border:1px solid #334155;box-shadow:0 8px 24px rgba(0,0,0,0.4);color:#e5e7eb;font-size:var(--font-lg);line-height:1.35;"></div>
 
     <!-- 5. EC Control Card -->
   <section id="ec-card" class="card card-wide tab-section" data-tab="ec" style="display:none;">
@@ -1739,7 +1739,7 @@ body{
                 Reservoir set to 0 L — dosing disabled
               </div>
             </div>
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
               <div class="kpi kpi-ec">
                 <div class="kpi-label">EC</div>
                 <div class="kpi-value" id="ec-current">—</div>
@@ -1755,10 +1755,10 @@ body{
               </div>
               <div class="kpi kpi-ec" id="ec-learned-kpi" style="min-width:110px;display:none;">
                 <div class="kpi-label">Learned</div>
-                <div class="kpi-value" id="ec-learned-value-kpi" style="font-size:0.85rem;">—</div>
+                <div class="kpi-value" id="ec-learned-value-kpi" style="font-size:var(--font-md);">—</div>
               </div>
               <!-- age chip and freshness dot removed (header health indicator is sufficient) -->
-              <span id="ecOverrideBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:0.75rem;" title="OVERRIDE ON">OVERRIDE ON</span>
+              <span id="ecOverrideBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:var(--font-sm);" title="OVERRIDE ON">OVERRIDE ON</span>
               
               <!-- Debug button removed (unused in production UI) -->
               <span id="ec-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
@@ -1787,7 +1787,7 @@ body{
 
             <!-- History chart under KPI + summary; graph buttons under the graph -->
             <hr class="separator" />
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:var(--space-sm);">
               <div class="muted">Dose History</div>
             </div>
             <div id="ec-dose-chart-wrap" class="chart-card">
@@ -1797,7 +1797,7 @@ body{
               </div>
             </div>
             <div class="trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
-              <select id="ecDoseRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:0.8rem;cursor:pointer;min-width:110px;">
+              <select id="ecDoseRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
                 <option value="24h" selected>Last 24 Hours</option>
                 <option value="7d">Last 7 Days</option>
                 <option value="30d">Last 30 Days</option>
@@ -1808,7 +1808,7 @@ body{
               </select>
               <div id="ecDoseCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
                 <input type="datetime-local" id="ecDoseFrom" class="dt-input" />
-                <span style="opacity:0.5;font-size:0.75rem;">to</span>
+                <span style="opacity:0.5;font-size:var(--font-sm);">to</span>
                 <input type="datetime-local" id="ecDoseTo" class="dt-input" />
                 <button class="btn btn-secondary btn-compact" id="ecDoseApply">Apply</button>
               </div>
@@ -1819,59 +1819,59 @@ body{
 
             <!-- EC-Specific Settings at the very bottom -->
             <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Parameters</summary>
+              <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Parameters</summary>
               <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
-                <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Configure EC targets, dosing parameters, and alert thresholds.</div>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+                <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure EC targets, dosing parameters, and alert thresholds.</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--space-md);align-items:center;">
                   <span class="pill-muted nowrap" id="ecKChip">K=—</span>
                   <span class="pill-muted nowrap" id="ecCalChip">Cal: —</span>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
-                    <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Low EC (mS/cm)</label>
-                    <input type="number" id="ecTargetLow" step="0.1" min="0.0" max="4.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Low EC (mS/cm)</label>
+                    <input type="number" id="ecTargetLow" step="0.1" min="0.0" max="4.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                   </div>
                   <div>
-                    <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">High EC (mS/cm)</label>
-                    <input type="number" id="ecTargetHigh" step="0.1" min="0.0" max="4.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">High EC (mS/cm)</label>
+                    <input type="number" id="ecTargetHigh" step="0.1" min="0.0" max="4.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                   </div>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
-                    <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Micro ml/s</label>
-                    <input type="number" id="ecMicroMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="25" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Micro ml/s</label>
+                    <input type="number" id="ecMicroMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="25" />
                   </div>
                   <div>
-                    <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Grow ml/s</label>
-                    <input type="number" id="ecGrowMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="25" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Grow ml/s</label>
+                    <input type="number" id="ecGrowMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="25" />
                   </div>
                   <div>
-                    <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Bloom ml/s</label>
-                    <input type="number" id="ecBloomMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="25" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Bloom ml/s</label>
+                    <input type="number" id="ecBloomMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="25" />
                   </div>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
-                    <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Step Min (ml)</label>
-                    <input type="number" id="ecStepMinMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="10" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Step Min (ml)</label>
+                    <input type="number" id="ecStepMinMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="10" />
                   </div>
                   <div>
-                    <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Step Max (ml)</label>
-                    <input type="number" id="ecStepMaxMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="120" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Step Max (ml)</label>
+                    <input type="number" id="ecStepMaxMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="120" />
                   </div>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
-                    <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Safety Factor</label>
-                    <input type="number" id="ecSafetyFactor" step="0.1" min="0" max="1" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0.6" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Safety Factor</label>
+                    <input type="number" id="ecSafetyFactor" step="0.1" min="0" max="1" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.6" />
                   </div>
                   <div>
-                    <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Min Interval (s)</label>
-                    <input type="number" id="ecMinInterval" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="300" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min Interval (s)</label>
+                    <input type="number" id="ecMinInterval" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="300" />
                   </div>
                   <div>
-                    <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Max ml/day</label>
-                    <input type="number" id="ecMaxMlDay" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Max ml/day</label>
+                    <input type="number" id="ecMaxMlDay" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0" />
                   </div>
                 </div>
                 <button id="btnSaveEcSettings" class="btn-secondary btn-full">Save EC Settings</button>
@@ -1880,21 +1880,21 @@ body{
 
             <!-- EC Pumps Calibration (moved from Sensors tab) -->
             <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:0.9rem;">🌿 Pumps Calibration</summary>
+              <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">🌿 Pumps Calibration</summary>
               <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
-                <div style="font-weight:600;margin-bottom:8px;font-size:0.8rem;">EC Nutrient Pumps Flow Rates</div>
-                <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Calibrate all three EC pumps (Grow, Micro, Bloom) for accurate nutrient dosing.</div>
+                <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-base);">EC Nutrient Pumps Flow Rates</div>
+                <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Calibrate all three EC pumps (Grow, Micro, Bloom) for accurate nutrient dosing.</div>
                 <!-- Grow Pump -->
-                <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(148,163,184,0.2);">
-                  <div style="font-weight:600;margin-bottom:6px;font-size:0.75rem;color:#a7f3d0;">Grow Pump</div>
+                <div style="margin-bottom:var(--space-lg);padding-bottom:12px;border-bottom:1px solid rgba(148,163,184,0.2);">
+                  <div style="font-weight:600;margin-bottom:var(--space-sm);font-size:var(--font-sm);color:#a7f3d0;">Grow Pump</div>
                   <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:8px;">
                     <div>
-                      <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
-                      <input type="number" id="growPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                      <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
+                      <input type="number" id="growPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                     </div>
                     <div>
-                      <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
-                      <input type="number" id="growPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                      <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
+                      <input type="number" id="growPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                     </div>
                   </div>
                   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
@@ -1902,19 +1902,19 @@ body{
                     <button id="btnGrowPumpRun" class="btn-secondary btn-xs">Run</button>
                     <button id="btnGrowPumpCommit" class="btn-secondary btn-xs">Commit</button>
                   </div>
-                  <div style="font-size:0.7rem;color:#9ca3af;">Rate: <span id="growPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s</div>
+                  <div style="font-size:var(--font-xs);color:#9ca3af;">Rate: <span id="growPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s</div>
                 </div>
                 <!-- Micro Pump -->
-                <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(148,163,184,0.2);">
-                  <div style="font-weight:600;margin-bottom:6px;font-size:0.75rem;color:#a7f3d0;">Micro Pump</div>
+                <div style="margin-bottom:var(--space-lg);padding-bottom:12px;border-bottom:1px solid rgba(148,163,184,0.2);">
+                  <div style="font-weight:600;margin-bottom:var(--space-sm);font-size:var(--font-sm);color:#a7f3d0;">Micro Pump</div>
                   <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:8px;">
                     <div>
-                      <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
-                      <input type="number" id="microPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                      <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
+                      <input type="number" id="microPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                     </div>
                     <div>
-                      <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
-                      <input type="number" id="microPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                      <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
+                      <input type="number" id="microPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                     </div>
                   </div>
                   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
@@ -1922,19 +1922,19 @@ body{
                     <button id="btnMicroPumpRun" class="btn-secondary btn-xs">Run</button>
                     <button id="btnMicroPumpCommit" class="btn-secondary btn-xs">Commit</button>
                   </div>
-                  <div style="font-size:0.7rem;color:#9ca3af;">Rate: <span id="microPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s</div>
+                  <div style="font-size:var(--font-xs);color:#9ca3af;">Rate: <span id="microPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s</div>
                 </div>
                 <!-- Bloom Pump -->
                 <div>
-                  <div style="font-weight:600;margin-bottom:6px;font-size:0.75rem;color:#a7f3d0;">Bloom Pump</div>
+                  <div style="font-weight:600;margin-bottom:var(--space-sm);font-size:var(--font-sm);color:#a7f3d0;">Bloom Pump</div>
                   <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:8px;">
                     <div>
-                      <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
-                      <input type="number" id="bloomPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                      <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
+                      <input type="number" id="bloomPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                     </div>
                     <div>
-                      <label style="display:block;font-size:0.7rem;margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
-                      <input type="number" id="bloomPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" />
+                      <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
+                      <input type="number" id="bloomPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                     </div>
                   </div>
                   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
@@ -1942,19 +1942,19 @@ body{
                     <button id="btnBloomPumpRun" class="btn-secondary btn-xs">Run</button>
                     <button id="btnBloomPumpCommit" class="btn-secondary btn-xs">Commit</button>
                   </div>
-                  <div style="font-size:0.7rem;color:#9ca3af;">Rate: <span id="bloomPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s</div>
+                  <div style="font-size:var(--font-xs);color:#9ca3af;">Rate: <span id="bloomPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s</div>
                 </div>
-                <div id="ecPumpsCalibMsg" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
+                <div id="ecPumpsCalibMsg" class="muted" style="font-size:var(--font-xs);padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
               </div>
             </details>
 
             <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Automation</summary>
+              <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Automation</summary>
               <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
-                <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">EC automation learning and control.</div>
-                <div id="ec-learned-display" style="display:none;margin-bottom:10px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
-                  <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Learned ml/mS/cm:</div>
-                  <div style="font-size:1.1rem;font-weight:600;color:#60a5fa;" id="ec-learned-display-value">—</div>
+                <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">EC automation learning and control.</div>
+                <div id="ec-learned-display" style="display:none;margin-bottom:var(--space-md);padding:8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+                  <div class="muted" style="font-size:var(--font-sm);margin-bottom:4px;">Learned ml/mS/cm:</div>
+                  <div style="font-size:var(--font-heading);font-weight:600;color:#60a5fa;" id="ec-learned-display-value">—</div>
                 </div>
                 <button id="btnClearEcLearned" class="btn-secondary btn-full" title="Reset EC automation learned value">Clear Learned Value</button>
               </div>
@@ -1962,9 +1962,9 @@ body{
 
             <!-- EC Manual Dosing (ML-based) -->
             <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Manual Dosing (Volume)</summary>
+              <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Manual Dosing (Volume)</summary>
               <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
-                <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Dose EC nutrients by volume (ml). System calculates pump time based on calibrated flow rates.</div>
+                <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">Dose EC nutrients by volume (ml). System calculates pump time based on calibrated flow rates.</div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                   <button id="btnEcDose10" class="btn-secondary">+10 ml</button>
                   <button id="btnEcDose50" class="btn-secondary">+50 ml</button>
@@ -1977,9 +1977,9 @@ body{
 
             <!-- EC Direct Pump Control (Time-based) -->
             <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Pump Control (Time)</summary>
+              <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Pump Control (Time)</summary>
               <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
-                <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Press and hold pattern for individual nutrient pumps. Safety caps enforced.</div>
+                <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">Press and hold pattern for individual nutrient pumps. Safety caps enforced.</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
                   <div>
                     <button id="btnDoseGrow" class="btn-secondary btn-full" title="Dose Grow for 0.3s">Grow (0.3s)</button>
@@ -2009,12 +2009,12 @@ body{
                     </div>
                   </div>
                 </div>
-                <div class="muted" style="font-size:0.75rem;margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(148,163,184,0.05);">
+                <div class="muted" style="font-size:var(--font-sm);margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(148,163,184,0.05);">
                   Max per press: <span id="ecCapMaxPress">1.5s</span> • Daily cap: <span id="ecCapDaily">120s</span> • Min off: <span id="ecCapMinOff">2s</span>
                 </div>
                 <!-- Quick Test Row -->
                 <div class="ec-v1-ui row" style="margin-top:10px;align-items:center;">
-                  <span class="muted" style="font-size:0.7rem;">Rapid 0.4s test:</span>
+                  <span class="muted" style="font-size:var(--font-xs);">Rapid 0.4s test:</span>
                   <button id="btnRapidGrow" class="btn-mini" title="Grow 0.4s">Grow 0.4s</button>
                   <button id="btnRapidMicro" class="btn-mini" title="Micro 0.4s">Micro 0.4s</button>
                   <button id="btnRapidBloom" class="btn-mini" title="Bloom 0.4s">Bloom 0.4s</button>
@@ -2024,14 +2024,14 @@ body{
 
             <!-- EC Dose Log (Last 20) -->
             <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:0.9rem;">Dose Log (Last 20)</summary>
+              <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Dose Log (Last 20)</summary>
               <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                  <div class="muted" style="font-weight:600;font-size:0.9rem;">Recent EC Doses</div>
+                  <div class="muted" style="font-weight:600;font-size:var(--font-lg);">Recent EC Doses</div>
                   <button id="btnEcRefreshDoseLog" class="btn-secondary btn-small" title="Refresh dose log">Refresh</button>
                 </div>
                 <div style="max-height:200px;overflow-y:auto;border-radius:6px;border:1px solid rgba(148,163,184,0.1);">
-                  <table style="width:100%;font-size:0.85rem;">
+                  <table style="width:100%;font-size:var(--font-md);">
                     <thead style="position:sticky;top:0;background:#111827;border-bottom:1px solid rgba(148,163,184,0.2);">
                       <tr>
                         <th style="padding:6px 8px;text-align:left;">Time</th>
@@ -2075,29 +2075,29 @@ body{
           <span class="system-card-icon">🍓</span>
           <h4 class="system-card-title">Raspberry Pi</h4>
         </div>
-        <div id="sys-pi-info" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;font-size:0.9rem;">
+        <div id="sys-pi-info" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;font-size:var(--font-lg);">
           <div>
-            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">CPU Usage</div>
+            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">CPU Usage</div>
             <div id="pi-cpu" style="font-weight:600;color:#93c5fd;">—</div>
           </div>
           <div>
-            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">CPU Freq</div>
+            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">CPU Freq</div>
             <div id="pi-cpu-freq" style="font-weight:600;color:#93c5fd;">—</div>
           </div>
           <div>
-            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">CPU Temp</div>
+            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">CPU Temp</div>
             <div id="pi-cpu-temp" style="font-weight:600;color:#93c5fd;">—</div>
           </div>
           <div>
-            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Memory</div>
+            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Memory</div>
             <div id="pi-memory" style="font-weight:600;color:#93c5fd;">—</div>
           </div>
           <div>
-            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Disk</div>
+            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Disk</div>
             <div id="pi-disk" style="font-weight:600;color:#93c5fd;">—</div>
           </div>
           <div>
-            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Uptime</div>
+            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Uptime</div>
             <div id="pi-uptime" style="font-weight:600;color:#93c5fd;">—</div>
           </div>
         </div>
@@ -2109,27 +2109,27 @@ body{
           <span class="system-card-icon">💻</span>
           <h4 class="system-card-title">Software</h4>
         </div>
-        <div id="sys-software-info" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;font-size:0.9rem;">
+        <div id="sys-software-info" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;font-size:var(--font-lg);">
           <div>
-            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">RDWC Version</div>
+            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">RDWC Version</div>
             <div id="sw-rdwc-version" style="font-weight:600;color:#a7f3d0;">—</div>
           </div>
           <div>
-            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Python Version</div>
+            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Python Version</div>
             <div id="sw-python-version" style="font-weight:600;color:#a7f3d0;">—</div>
           </div>
           <div>
-            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Git Commit</div>
-            <div id="sw-git-commit" style="font-weight:600;color:#a7f3d0;font-family:monospace;font-size:0.85rem;">—</div>
+            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Git Commit</div>
+            <div id="sw-git-commit" style="font-weight:600;color:#a7f3d0;font-family:monospace;font-size:var(--font-md);">—</div>
           </div>
           <div>
-            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Git Branch</div>
+            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Git Branch</div>
             <div id="sw-git-branch" style="font-weight:600;color:#a7f3d0;">—</div>
           </div>
         </div>
         <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(55,65,81,0.5);">
-          <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:8px;font-weight:600;">Service Status</div>
-          <div id="sw-services" style="display:flex;flex-direction:column;gap:6px;font-size:0.85rem;">
+          <div style="font-size:var(--font-sm);color:#9ca3af;margin-bottom:8px;font-weight:600;">Service Status</div>
+          <div id="sw-services" style="display:flex;flex-direction:column;gap:6px;font-size:var(--font-md);">
             <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:rgba(0,0,0,0.2);border-radius:6px;">
               <span>rdwc-api</span>
               <span id="svc-api" class="ui-status-chip neutral">—</span>
@@ -2149,20 +2149,20 @@ body{
           <h4 class="system-card-title">Hardware Environment</h4>
         </div>
         <div style="margin-bottom:14px;">
-          <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:8px;font-weight:600;">I²C Devices (EZO Sensors)</div>
+          <div style="font-size:var(--font-sm);color:#9ca3af;margin-bottom:8px;font-weight:600;">I²C Devices (EZO Sensors)</div>
           <div id="env-i2c-devices" style="display:flex;flex-wrap:wrap;gap:6px;">
             <!-- Populated dynamically -->
           </div>
         </div>
         <div style="margin-bottom:14px;padding-top:12px;border-top:1px solid rgba(55,65,81,0.5);">
-          <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:8px;font-weight:600;">Relay GPIO Pins</div>
-          <div id="env-gpio-pins" style="display:flex;flex-wrap:wrap;gap:6px;font-size:0.85rem;">
+          <div style="font-size:var(--font-sm);color:#9ca3af;margin-bottom:8px;font-weight:600;">Relay GPIO Pins</div>
+          <div id="env-gpio-pins" style="display:flex;flex-wrap:wrap;gap:6px;font-size:var(--font-md);">
             <!-- Populated dynamically -->
           </div>
         </div>
         <div style="padding-top:12px;border-top:1px solid rgba(55,65,81,0.5);">
-          <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:4px;">Sensor Power Pin</div>
-          <div id="env-sensor-power" style="font-weight:600;color:#f9a8d4;font-size:0.9rem;">—</div>
+          <div style="font-size:var(--font-sm);color:#9ca3af;margin-bottom:4px;">Sensor Power Pin</div>
+          <div id="env-sensor-power" style="font-weight:600;color:#f9a8d4;font-size:var(--font-lg);">—</div>
         </div>
       </div>
 
@@ -2172,27 +2172,27 @@ body{
           <span class="system-card-icon">🗄️</span>
           <h4 class="system-card-title">Database</h4>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;font-size:0.9rem;margin-bottom:14px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;font-size:var(--font-lg);margin-bottom:14px;">
           <div>
-            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">DB Size</div>
+            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">DB Size</div>
             <div id="db-size" style="font-weight:600;color:#fbbf24;">—</div>
           </div>
           <div>
-            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Readings</div>
+            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Readings</div>
             <div id="db-readings" style="font-weight:600;color:#fbbf24;">—</div>
           </div>
           <div>
-            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">pH Doses</div>
+            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">pH Doses</div>
             <div id="db-ph-doses" style="font-weight:600;color:#fbbf24;">—</div>
           </div>
           <div>
-            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">EC Doses</div>
+            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">EC Doses</div>
             <div id="db-ec-doses" style="font-weight:600;color:#fbbf24;">—</div>
           </div>
         </div>
         <div style="padding-top:12px;border-top:1px solid rgba(55,65,81,0.5);">
-          <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:8px;font-weight:600;">Data Range</div>
-          <div style="display:flex;flex-direction:column;gap:6px;font-size:0.85rem;">
+          <div style="font-size:var(--font-sm);color:#9ca3af;margin-bottom:8px;font-weight:600;">Data Range</div>
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:var(--font-md);">
             <div style="display:flex;justify-content:space-between;">
               <span>Oldest reading:</span>
               <span id="db-oldest" style="color:#d1d5db;">—</span>
@@ -2212,12 +2212,12 @@ body{
           <h4 class="system-card-title">Network</h4>
         </div>
         <div style="margin-bottom:14px;">
-          <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Hostname</div>
-          <div id="net-hostname" style="font-weight:600;color:#c084fc;font-size:0.95rem;">—</div>
+          <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Hostname</div>
+          <div id="net-hostname" style="font-weight:600;color:#c084fc;font-size:var(--font-lg);">—</div>
         </div>
         <div>
-          <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:8px;font-weight:600;">IP Addresses</div>
-          <div id="net-ips" style="display:flex;flex-direction:column;gap:6px;font-size:0.85rem;">
+          <div style="font-size:var(--font-sm);color:#9ca3af;margin-bottom:8px;font-weight:600;">IP Addresses</div>
+          <div id="net-ips" style="display:flex;flex-direction:column;gap:6px;font-size:var(--font-md);">
             <!-- Populated dynamically -->
           </div>
         </div>
@@ -2230,13 +2230,13 @@ body{
           <h4 class="system-card-title">RDWC Processes</h4>
         </div>
         <div style="overflow-x:auto;">
-          <table style="width:100%;font-size:0.85rem;border-collapse:collapse;">
+          <table style="width:100%;font-size:var(--font-md);border-collapse:collapse;">
             <thead>
               <tr style="border-bottom:1px solid rgba(55,65,81,0.5);">
-                <th style="padding:8px 10px;text-align:left;color:#9ca3af;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">PID</th>
-                <th style="padding:8px 10px;text-align:left;color:#9ca3af;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Name</th>
-                <th style="padding:8px 10px;text-align:left;color:#9ca3af;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">User</th>
-                <th style="padding:8px 10px;text-align:right;color:#9ca3af;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Memory</th>
+                <th style="padding:8px 10px;text-align:left;color:#9ca3af;font-size:var(--font-sm);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">PID</th>
+                <th style="padding:8px 10px;text-align:left;color:#9ca3af;font-size:var(--font-sm);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Name</th>
+                <th style="padding:8px 10px;text-align:left;color:#9ca3af;font-size:var(--font-sm);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">User</th>
+                <th style="padding:8px 10px;text-align:right;color:#9ca3af;font-size:var(--font-sm);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Memory</th>
               </tr>
             </thead>
             <tbody id="proc-table" style="color:#d1d5db;">
@@ -2922,11 +2922,11 @@ window.CircControl = (function(){
   <!-- EC Debug Modal -->
   <div id="ecDebugModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
     <div style="background:#1a1f2e;border-radius:12px;padding:24px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;border:1px solid rgba(148,163,184,0.25);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-lg);">
         <h3 style="margin:0;">EC Scale Diagnostics</h3>
         <button id="btnCloseEcDebug" class="btn-text" style="font-size:1.5rem;padding:0 8px;">×</button>
       </div>
-      <div id="ecDebugContent" style="font-family:monospace;font-size:0.9rem;line-height:1.6;">
+      <div id="ecDebugContent" style="font-family:monospace;font-size:var(--font-lg);line-height:1.6;">
         Loading...
       </div>
     </div>
@@ -2934,3 +2934,10 @@ window.CircControl = (function(){
 
 </body>
 </html>
+
+
+
+
+
+
+
