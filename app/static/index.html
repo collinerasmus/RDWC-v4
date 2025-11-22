@@ -6,7 +6,7 @@
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta name="version" content="20251115ac"/><!-- pH: add Pump Control; move Dose Log; tidy -->
-<link rel="stylesheet" href="/static/css/theme_v4.css?v=8" />
+<link rel="stylesheet" href="/static/css/theme_v4.css?v=9" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
     (function(){
@@ -950,7 +950,7 @@ body{
   <section id="overview-card" class="card card-wide tab-section" data-tab="overview">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <div style="display:flex;align-items:baseline;gap:10px;">
-        <h3 class="card-title" style="margin:0;">System Controller</h3>
+        <h3 class="card-title" style="margin:0;">System</h3>
         <span style="font-size:var(--font-xs);letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">Controllers</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"></div>
@@ -964,7 +964,6 @@ body{
           <div class="controller-status-chips">
             <span class="ui-status-chip neutral" id="ov-sensors-health" title="Sensor poller health">Health</span>
             <span class="ui-status-chip neutral" id="ov-sensors-status" title="Sensor status">Status</span>
-            <span class="ui-status-chip neutral" id="ov-sensors-modechip" title="Sensors mode">Mode</span>
           </div>
         </div>
         <!-- 2. pH Controller -->
@@ -973,7 +972,6 @@ body{
           <div class="controller-status-chips">
             <span class="ui-status-chip neutral" id="ov-ph-health" title="Controller health">Health</span>
             <span class="ui-status-chip neutral" id="ov-ph-status" title="Controller status">Status</span>
-            <span class="ui-status-chip neutral" id="ov-ph-modechip" title="Mode">Mode</span>
           </div>
         </div>
         <!-- 3. EC Controller -->
@@ -982,7 +980,6 @@ body{
           <div class="controller-status-chips">
             <span class="ui-status-chip neutral" id="ov-ec-health" title="Controller health">Health</span>
             <span class="ui-status-chip neutral" id="ov-ec-status" title="Controller status">Status</span>
-            <span class="ui-status-chip neutral" id="ov-ec-modechip" title="Mode">Mode</span>
           </div>
         </div>
   <!-- 4. Chiller (Water Temperature + Pumps) -->
@@ -993,7 +990,6 @@ body{
             <span class="bop-status-badge" id="ov-chiller-pump" title="Chiller Pump" aria-label="Chiller Pump">Pump</span>
             <span class="ui-status-chip neutral" id="ov-chiller-health" title="Chiller health">Health</span>
             <span class="ui-status-chip neutral" id="ov-chiller-status" title="Chiller status">Status</span>
-            <span class="ui-status-chip neutral" id="ov-chiller-modechip" title="Chiller mode">Mode</span>
           </div>
         </div>
         <!-- 5. Circulation -->
@@ -1003,7 +999,6 @@ body{
             <span class="bop-status-badge" id="ov-main-pump" title="Main Pump" aria-label="Main Pump">Pump</span>
             <span class="ui-status-chip neutral" id="ov-main-pump-health" title="Main pump health">Health</span>
             <span class="ui-status-chip neutral" id="ov-main-pump-status" title="Main pump status">Status</span>
-            <span class="ui-status-chip neutral" id="ov-main-pump-modechip" title="Main pump mode">Mode</span>
           </div>
         </div>
         <!-- 6. Lights -->
@@ -1013,7 +1008,6 @@ body{
             <span class="bop-status-badge" id="ov-lights" aria-label="Lights">Lights</span>
             <span class="ui-status-chip neutral" id="ov-lights-health" title="Lights health">Health</span>
             <span class="ui-status-chip neutral" id="ov-lights-status" title="Lights status">Status</span>
-            <span class="ui-status-chip neutral" id="ov-lights-modechip" title="Lights mode">Mode</span>
           </div>
         </div>
         <!-- 7. Schedule -->
@@ -1022,7 +1016,6 @@ body{
           <div class="controller-status-chips">
             <span class="ui-status-chip neutral" id="ov-schedule-chip" title="Schedule status">Status</span>
             <span class="ui-status-chip neutral" id="ov-schedule-status" title="Schedule activity">Health</span>
-            <span class="ui-status-chip neutral" id="ov-schedule-modechip" title="Schedule mode">Mode</span>
           </div>
         </div>
         <!-- 8. System -->
@@ -1031,7 +1024,6 @@ body{
           <div class="controller-status-chips">
             <span class="ui-status-chip neutral" id="ov-system-health" title="System health">Health</span>
             <span class="ui-status-chip neutral" id="ov-system-status" title="System status">Status</span>
-            <span class="ui-status-chip neutral" id="ov-system-modechip" title="System mode">Mode</span>
           </div>
         </div>
       </div>
@@ -1075,10 +1067,10 @@ body{
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px;">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
       <div class="kpi kpi-temp">
         <div class="kpi-label">Water Temp</div>
-        <div class="kpi-value" id="chiller-current-temp">—°C</div>
+        <div class="kpi-value" id="chiller-current-temp">23.2°C</div>
       </div>
       <div class="kpi kpi-temp">
         <div class="kpi-label">Target Temp</div>
@@ -1182,39 +1174,66 @@ body{
       </div>
     </div>
     <div class="card-body">
-      <!-- KPI style row (current state + schedule status) -->
-      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
-        <div class="kpi" style="min-width:120px;">
+      <!-- Readings Section -->
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:var(--space-md);">
+        <div class="kpi">
           <div class="kpi-label">State</div>
-          <div class="kpi-value" id="lights-state-kpi">—</div>
+          <div class="kpi-value"><span class="bop-status-badge" id="lights-status">—</span></div>
         </div>
-        <div class="kpi" style="min-width:140px;">
+        <div class="kpi">
           <div class="kpi-label">Schedule</div>
           <div class="kpi-value" id="lights-sched-kpi" style="font-size:var(--font-md);">—</div>
         </div>
-        <div class="kpi" style="min-width:160px;">
+        <div class="kpi">
           <div class="kpi-label">Window</div>
           <div class="kpi-value" id="lights-window-kpi">—</div>
         </div>
       </div>
-      <!-- Manual / Auto / Maintenance content (only manual needs toggle) -->
-      <div id="lights-manual-content" style="display:block;">
-        <div class="bop-relay-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:var(--font-lg);">💡 Lights</div>
-            <span class="bop-status-badge" id="lights-status">—</span>
+
+      <!-- Manual Control -->
+      <details open style="margin-top:12px;">
+        <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">🎮 Manual Control</summary>
+        <div class="details-content">
+          <div class="info-banner-blue">
+            <div class="info-banner-blue-content">
+              Manual relay control. Honors Auto/Manual mode and cooldowns. In Auto mode, schedule controls lights automatically.
+            </div>
           </div>
-          <button class="relay-btn btn-full" id="btnLightsToggle">
-            <span class="relay-label" id="lights-label">Lights</span>
+          <button class="btn-secondary btn-full" id="btnLightsToggle" style="margin-top:12px;">
+            <span class="relay-label" id="lights-label">Toggle Lights</span>
           </button>
-          <div class="muted" style="font-size:var(--font-sm);margin-top:4px;">Honors cooldowns and mode</div>
         </div>
-      </div>
-      <div id="lights-auto-content" style="display:none;" class="muted">Automation follows the configured on/off window. Manual toggles disabled.</div>
-      <div id="lights-maint-content" style="display:none;" class="muted">Maintenance mode: schedule paused; manual toggle available with safety guards.</div>
-      <hr class="separator" style="margin:20px 0;" />
-      <details>
-        <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">⚙️ Lights Info</summary>
+      </details>
+
+      <!-- Settings -->
+      <details style="margin-top:12px;">
+        <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">⚙️ Settings</summary>
+        <div class="details-content">
+          <div class="info-banner-blue">
+            <div class="info-banner-blue-content">
+              Configure light schedule and timing. Edge-only scheduler: two transitions per day (lights on, lights off).
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-lg);">Light Schedule</div>
+            <div style="display:grid;grid-template-columns:repeat(2,max-content);gap:10px 10px;align-items:end;">
+              <div>
+                <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Lights On Time</label>
+                <input type="time" id="lightsOnTime" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+              </div>
+              <div>
+                <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Lights Off Time</label>
+                <input type="time" id="lightsOffTime" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+              </div>
+            </div>
+          </div>
+          <button id="btnSaveLightsSettings" class="btn-secondary btn-full" style="margin-top:12px;">Save Light Settings</button>
+        </div>
+      </details>
+
+      <!-- Info -->
+      <details style="margin-top:12px;">
+        <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">ℹ️ Info</summary>
         <div class="details-content" style="font-size:var(--font-base);">
           <ul style="margin:0;padding-left:18px;line-height:1.4;">
             <li>Edge-only scheduler sets two transitions per day (no periodic enforcement).</li>
@@ -1239,27 +1258,37 @@ body{
     </div>
 
     <div class="card-body">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
-        <div class="bop-relay-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:var(--font-lg);">🔄 Main Pump</div>
-            <span class="bop-status-badge" id="circ-main-pump">—</span>
-          </div>
-          <button class="relay-btn btn-full" id="btnMainPump"><span class="relay-label">Toggle Main Pump</span></button>
+      <!-- Readings Section -->
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
+        <div class="kpi">
+          <div class="kpi-label">🔄 Main Pump</div>
+          <div class="kpi-value"><span class="bop-status-badge" id="circ-main-pump">—</span></div>
         </div>
-        <div class="bop-relay-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-weight:600;font-size:var(--font-lg);">🌊 Chiller Pump</div>
-            <span class="bop-status-badge" id="circ-chiller-pump">—</span>
-          </div>
-          <button class="relay-btn btn-full" id="btnChillerPump"><span class="relay-label">Toggle Chiller Pump</span></button>
+        <div class="kpi">
+          <div class="kpi-label">🌊 Chiller Pump</div>
+          <div class="kpi-value"><span class="bop-status-badge" id="circ-chiller-pump">—</span></div>
         </div>
       </div>
-      <div class="muted" style="margin-top:8px;">Honors Auto/Manual mode and E‑STOP protections</div>
 
-      <!-- Circulation Settings -->
+      <!-- Manual Control -->
+      <details open style="margin-top:12px;">
+        <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">🎮 Manual Control</summary>
+        <div class="details-content">
+          <div class="info-banner-blue">
+            <div class="info-banner-blue-content">
+              Manual relay control. Honors Auto/Manual mode and E‑STOP protections. Cooldowns enforced.
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+            <button class="btn-secondary btn-full" id="btnMainPump">Toggle Main Pump</button>
+            <button class="btn-secondary btn-full" id="btnChillerPump">Toggle Chiller Pump</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Settings -->
       <details style="margin-top:12px;">
-        <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">⚙️ Pump Safety Settings</summary>
+        <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">⚙️ Settings</summary>
         <div class="details-content">
           <div class="info-banner-blue">
             <div class="info-banner-blue-content">
@@ -1475,17 +1504,13 @@ body{
               <div class="kpi-label">pH</div>
               <div class="kpi-value" id="ph-current">—</div>
             </div>
-            <div class="kpi kpi-ph" style="min-width:140px;">
+            <div class="kpi kpi-ph">
               <div class="kpi-label">Guards</div>
-              <div class="kpi-value" id="ph-guards" style="font-size:var(--font-md);">—</div>
+              <div class="kpi-value" id="ph-guards" style="font-size:var(--font-md);">All clear</div>
             </div>
-            <div class="kpi kpi-ph" style="min-width:110px;">
+            <div class="kpi kpi-ph">
               <div class="kpi-label">Targets</div>
-              <div class="kpi-value" id="ph-band">5.8–6.2</div>
-            </div>
-            <div class="kpi kpi-ph" id="ph-learned-kpi" style="min-width:110px;display:none;">
-              <div class="kpi-label">Learned</div>
-              <div class="kpi-value" id="ph-learned-value-kpi" style="font-size:var(--font-md);">—</div>
+              <div class="kpi-value" id="ph-band">5.8 – 6.2</div>
             </div>
             <span id="ph-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
           </div>
@@ -1742,25 +1767,16 @@ body{
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
               <div class="kpi kpi-ec">
                 <div class="kpi-label">EC</div>
-                <div class="kpi-value" id="ec-current">—</div>
+                <div class="kpi-value" id="ec-current">310.50</div>
               </div>
-              <!-- PPM KPI removed (EC controller reads EC only) -->
-              <div class="kpi kpi-ec" style="min-width:140px;">
+              <div class="kpi kpi-ec">
                 <div class="kpi-label">Guards</div>
-                <div class="kpi-value" id="ec-guards">—</div>
+                <div class="kpi-value" id="ec-guards">All clear</div>
               </div>
-              <div class="kpi kpi-ec" style="min-width:110px;">
+              <div class="kpi kpi-ec">
                 <div class="kpi-label">Targets</div>
-                <div class="kpi-value" id="ec-band">0.8–1.2 mS/cm</div>
+                <div class="kpi-value" id="ec-band">0.8 – 1.2 mS/cm</div>
               </div>
-              <div class="kpi kpi-ec" id="ec-learned-kpi" style="min-width:110px;display:none;">
-                <div class="kpi-label">Learned</div>
-                <div class="kpi-value" id="ec-learned-value-kpi" style="font-size:var(--font-md);">—</div>
-              </div>
-              <!-- age chip and freshness dot removed (header health indicator is sufficient) -->
-              <span id="ecOverrideBadge" class="muted" style="display:none;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:var(--font-sm);" title="OVERRIDE ON">OVERRIDE ON</span>
-              
-              <!-- Debug button removed (unused in production UI) -->
               <span id="ec-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
             </div>
 
@@ -2934,6 +2950,7 @@ window.CircControl = (function(){
 
 </body>
 </html>
+
 
 
 
