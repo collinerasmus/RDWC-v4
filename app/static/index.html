@@ -2337,34 +2337,7 @@ body{
         </div>
       </div>
 
-      <!-- Settings Management (Accordion Style) -->
-      <div style="padding:20px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.5rem;">⚙️</span>
-            <h4 style="margin:0;font-size:1.15rem;font-weight:600;">Settings Management</h4>
-          </div>
-          <button id="btnSaveSettings" class="btn-secondary" disabled style="padding:8px 16px;border-radius:8px;font-weight:600;">💾 Save Changes</button>
-        </div>
-        
-        <div style="margin-bottom:18px;padding:12px 16px;border-radius:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
-          <div style="display:flex;align-items:start;gap:10px;">
-            <span style="font-size:1.2rem;">ℹ️</span>
-            <div style="font-size:0.85rem;color:#93c5fd;line-height:1.5;">
-              <strong>Note:</strong> Controller-specific settings (pH targets, EC targets, dosing, pump timings) are available in their respective controller tabs. Click any section below to expand/collapse.
-            </div>
-          </div>
-        </div>
-        
-        <!-- Settings Accordion Sections -->
-        <div id="settings-panels"></div>
-        
-        <div style="margin-top:16px;padding:10px 14px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);font-size:0.75rem;color:#9ca3af;">
-          💡 Changes apply immediately unless noted. Relays never energize on save.
-        </div>
-      </div>
-
-      <!-- Relays Panel -->
+      <!-- 7. Relays Panel (Manual Operation) -->
       <div style="padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
           <span style="font-size:1.5rem;">🔌</span>
@@ -2379,6 +2352,33 @@ body{
         <div id="relays-note" class="muted" style="margin-top:10px;font-size:12px;">
           <strong>Manual:</strong> relays stay OFF at boot. <strong>Auto:</strong> critical relays restore last state. 
           <span style="opacity:.8">Active-low; OFF = HIGH. Safe-off on boot.</span>
+        </div>
+      </div>
+
+      <!-- 8. Settings Management (Accordion Style) -->
+      <div style="padding:20px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:1.5rem;">⚙️</span>
+            <h4 style="margin:0;font-size:1.15rem;font-weight:600;">Settings Management</h4>
+          </div>
+          <button id="btnSaveSettings" class="btn-secondary" disabled style="padding:8px 16px;border-radius:8px;font-weight:600;">💾 Save Changes</button>
+        </div>
+        
+        <div style="margin-bottom:18px;padding:12px 16px;border-radius:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+          <div style="display:flex;align-items:start;gap:10px;">
+            <span style="font-size:1.2rem;">ℹ️</span>
+            <div style="font-size:0.85rem;color:#93c5fd;line-height:1.5;">
+              <strong>Note:</strong> Controller-specific settings (pH targets, EC targets, chiller controls, automation parameters) are available in their respective controller tabs. Click any section below to expand/collapse.
+            </div>
+          </div>
+        </div>
+        
+        <!-- Settings Accordion Sections -->
+        <div id="settings-panels"></div>
+        
+        <div style="margin-top:16px;padding:10px 14px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);font-size:0.75rem;color:#9ca3af;">
+          💡 Changes apply immediately unless noted. Relays never energize on save.
         </div>
       </div>
 
