@@ -6,7 +6,7 @@
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta name="version" content="20251115ac"/><!-- pH: add Pump Control; move Dose Log; tidy -->
-<link rel="stylesheet" href="/static/css/theme_v4.css?v=6" />
+<link rel="stylesheet" href="/static/css/theme_v4.css?v=7" />
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
     (function(){
@@ -788,8 +788,8 @@ body{
           <div style="padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
             <div class="muted" style="font-size:0.8rem;margin-bottom:10px;font-weight:600;">Rapid Test Helper (EC interval)</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
-              <button class="btn-secondary" id="schedule-rapid-10" style="padding:4px 10px;font-size:0.8rem;">10s</button>
-              <button class="btn-secondary" id="schedule-rapid-300" style="padding:4px 10px;font-size:0.8rem;">300s</button>
+              <button class="btn-secondary btn-xs" id="schedule-rapid-10">10s</button>
+              <button class="btn-secondary btn-xs" id="schedule-rapid-300">300s</button>
               <span id="schedule-rapid-current" class="muted" style="font-size:0.75rem;">Current: —</span>
             </div>
             <div class="muted" style="font-size:0.7rem;opacity:.7;">Preview-only — no automatic dosing from this tab.</div>
@@ -822,9 +822,9 @@ body{
               <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                 <label style="font-size:0.9rem;">Current pH:</label>
                 <span id="ph-current-calib" style="font-weight:600;color:#93c5fd;font-size:1.1rem;">—</span>
-                <button id="btnPhRead" class="btn-secondary" style="padding:6px 12px;">Read</button>
-                <button id="btnPhStabilize" class="btn-secondary" style="padding:6px 12px;" title="Read until stable or timeout">Stabilize</button>
-                <button id="btnPhStatus" class="btn-secondary" style="padding:6px 12px;">Status</button>
+                <button id="btnPhRead" class="btn-secondary btn-sm">Read</button>
+                <button id="btnPhStabilize" class="btn-secondary btn-sm" title="Read until stable or timeout">Stabilize</button>
+                <button id="btnPhStatus" class="btn-secondary btn-sm">Status</button>
               </div>
             </div>
             <div style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
@@ -838,16 +838,16 @@ body{
                 <input id="ph-buffer-val" type="number" step="0.01" min="0" max="14" value="7.00" style="width:100px;padding:6px 10px;border-radius:6px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;font-size:0.9rem;" />
               </div>
               <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                <button id="btnPhCalibrate" class="btn-secondary" style="padding:8px 16px;">Calibrate</button>
-                <button id="btnPhClear" class="btn-secondary" style="padding:8px 16px;">Clear Calibration</button>
+                <button id="btnPhCalibrate" class="btn-secondary btn-md">Calibrate</button>
+                <button id="btnPhClear" class="btn-secondary btn-md">Clear Calibration</button>
               </div>
             </div>
             <div style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
               <label style="display:block;font-size:0.9rem;font-weight:500;margin-bottom:10px;">Probe LEDs:</label>
               <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                <button id="btnLedsOn" class="btn-secondary" style="padding:6px 12px;" title="Turn LEDs on (all probes)">On</button>
-                <button id="btnLedsOff" class="btn-secondary" style="padding:6px 12px;" title="Turn LEDs off (all probes)">Off</button>
-                <button id="btnLedsBlink" class="btn-secondary" style="padding:6px 12px;" title="Blink LEDs to locate probes">Blink</button>
+                <button id="btnLedsOn" class="btn-secondary btn-sm" title="Turn LEDs on (all probes)">On</button>
+                <button id="btnLedsOff" class="btn-secondary btn-sm" title="Turn LEDs off (all probes)">Off</button>
+                <button id="btnLedsBlink" class="btn-secondary btn-sm" title="Blink LEDs to locate probes">Blink</button>
               </div>
             </div>
             <div id="ph-calib-msg" class="muted" style="padding:10px 12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);min-height:50px;font-size:0.85rem;"></div>
@@ -1147,7 +1147,7 @@ body{
             </div>
           </div>
         </div>
-        <button id="btnSaveTempSettings" class="btn-secondary" style="width:100%;margin-bottom:12px;">Save Temperature Settings</button>
+        <button id="btnSaveTempSettings" class="btn-secondary btn-full" style="margin-bottom:12px;">Save Temperature Settings</button>
         <div style="border-top:1px solid rgba(148,163,184,0.2);padding-top:12px;">
           <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Manual Override (Emergency)</div>
           <div class="muted" style="font-size:0.75rem;margin-bottom:8px;">Force chiller ON/OFF for specified duration (bypasses automation)</div>
@@ -1204,7 +1204,7 @@ body{
             <div style="font-weight:600;font-size:0.95rem;">💡 Lights</div>
             <span class="bop-status-badge" id="lights-status">—</span>
           </div>
-          <button class="relay-btn" id="btnLightsToggle" style="width:100%;">
+          <button class="relay-btn btn-full" id="btnLightsToggle">
             <span class="relay-label" id="lights-label">Lights</span>
           </button>
           <div class="muted" style="font-size:0.75rem;margin-top:4px;">Honors cooldowns and mode</div>
@@ -1245,14 +1245,14 @@ body{
             <div style="font-weight:600;font-size:0.95rem;">🔄 Main Pump</div>
             <span class="bop-status-badge" id="circ-main-pump">—</span>
           </div>
-          <button class="relay-btn" id="btnMainPump" style="width:100%;"><span class="relay-label">Toggle Main Pump</span></button>
+          <button class="relay-btn btn-full" id="btnMainPump"><span class="relay-label">Toggle Main Pump</span></button>
         </div>
         <div class="bop-relay-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <div style="font-weight:600;font-size:0.95rem;">🌊 Chiller Pump</div>
             <span class="bop-status-badge" id="circ-chiller-pump">—</span>
           </div>
-          <button class="relay-btn" id="btnChillerPump" style="width:100%;"><span class="relay-label">Toggle Chiller Pump</span></button>
+          <button class="relay-btn btn-full" id="btnChillerPump"><span class="relay-label">Toggle Chiller Pump</span></button>
         </div>
       </div>
       <div class="muted" style="margin-top:8px;">Honors Auto/Manual mode and E‑STOP protections</div>
@@ -1279,7 +1279,7 @@ body{
               </div>
             </div>
           </div>
-          <button id="btnSaveCircSettings" class="btn-secondary" style="width:100%;">Save Circulation Settings</button>
+          <button id="btnSaveCircSettings" class="btn-secondary btn-full">Save Circulation Settings</button>
         </div>
       </details>
 
@@ -1335,7 +1335,7 @@ body{
           <input type="datetime-local" id="trendFrom" class="dt-input">
           <span style="opacity:0.5;font-size:0.75rem;">to</span>
           <input type="datetime-local" id="trendTo" class="dt-input">
-          <button class="btn btn-secondary" id="trendApply" style="height:28px;padding:0 8px;font-size:0.75rem;white-space:nowrap;">Apply</button>
+          <button class="btn btn-secondary btn-compact" id="trendApply">Apply</button>
         </div>
         <button id="btnSensorsExport" class="btn-secondary btn-small" title="Export displayed graph data to CSV" onclick="exportCsv()" style="margin-left:auto;">Export CSV</button>
       </div>
@@ -1349,7 +1349,7 @@ body{
           <div class="details-content-accent">
             <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Live Sensors are cached by the background poller. Use "Read now" for an immediate sample (only available in Manual/Maintenance mode). Health details are available from the green "OK" badge.</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-              <button id="btnSensorsReadNow" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Read now</button>
+              <button id="btnSensorsReadNow" class="btn-secondary btn-xs">Read now</button>
               <span id="sensors-updated" class="muted" style="font-size:0.7rem;">—</span>
             </div>
             <div style="font-weight:600;margin-bottom:6px;font-size:0.8rem;">Recent Readings (last 5)</div>
@@ -1369,9 +1369,9 @@ body{
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
             <span style="font-size:0.7rem;color:#9ca3af;">Current pH:</span>
             <span id="ph-current-inline" style="font-weight:600;color:#93c5fd;font-size:0.9rem;">—</span>
-            <button id="btnPhReadInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Read</button>
-            <button id="btnPhStabilizeInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" title="Read until stable or timeout">Stabilize</button>
-            <button id="btnPhStatusInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Status</button>
+            <button id="btnPhReadInline" class="btn-secondary btn-xs">Read</button>
+            <button id="btnPhStabilizeInline" class="btn-secondary btn-xs" title="Read until stable or timeout">Stabilize</button>
+            <button id="btnPhStatusInline" class="btn-secondary btn-xs">Status</button>
           </div>
           
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
@@ -1385,16 +1385,16 @@ body{
           </div>
           
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-            <button id="btnPhCalibrateInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Calibrate</button>
-            <button id="btnPhClearInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Clear Calibration</button>
+            <button id="btnPhCalibrateInline" class="btn-secondary btn-xs">Calibrate</button>
+            <button id="btnPhClearInline" class="btn-secondary btn-xs">Clear Calibration</button>
           </div>
           
           <div style="margin-bottom:10px;">
             <div style="font-size:0.7rem;color:#9ca3af;margin-bottom:6px;">Probe LEDs:</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <button id="btnLedsOnInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" title="Turn LEDs on (all probes)">On</button>
-              <button id="btnLedsOffInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" title="Turn LEDs off (all probes)">Off</button>
-              <button id="btnLedsBlinkInline" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;" title="Blink LEDs to locate probes">Blink</button>
+              <button id="btnLedsOnInline" class="btn-secondary btn-xs" title="Turn LEDs on (all probes)">On</button>
+              <button id="btnLedsOffInline" class="btn-secondary btn-xs" title="Turn LEDs off (all probes)">Off</button>
+              <button id="btnLedsBlinkInline" class="btn-secondary btn-xs" title="Blink LEDs to locate probes">Blink</button>
             </div>
           </div>
           
@@ -1412,21 +1412,21 @@ body{
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
             <span style="font-size:0.7rem;color:#9ca3af;">Current EC:</span>
             <span id="ec-current-calib" style="font-weight:600;color:#93c5fd;font-size:0.9rem;">—</span>
-            <button id="btnEcStatus" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Status</button>
+            <button id="btnEcStatus" class="btn-secondary btn-xs">Status</button>
           </div>
           
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-            <button id="btnEcCalClear" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Clear Calibration</button>
+            <button id="btnEcCalClear" class="btn-secondary btn-xs">Clear Calibration</button>
           </div>
           
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
             <span style="font-size:0.7rem;color:#9ca3af;">Low Point (1413 µS/cm):</span>
-            <button id="btnEcCalLow" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Calibrate Low</button>
+            <button id="btnEcCalLow" class="btn-secondary btn-xs">Calibrate Low</button>
           </div>
           
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
             <span style="font-size:0.7rem;color:#9ca3af;">High Point (12,880 µS/cm):</span>
-            <button id="btnEcCalHigh" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Calibrate High</button>
+            <button id="btnEcCalHigh" class="btn-secondary btn-xs">Calibrate High</button>
           </div>
           
           <div style="margin-bottom:10px;">
@@ -1437,7 +1437,7 @@ body{
                 <option value="1.0" selected>K=1.0</option>
                 <option value="10.0">K=10.0</option>
               </select>
-              <button id="btnEcSetK" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Set K</button>
+              <button id="btnEcSetK" class="btn-secondary btn-xs">Set K</button>
             </div>
           </div>
           
@@ -1545,7 +1545,7 @@ body{
               <input type="datetime-local" id="phDoseFrom" class="dt-input" />
               <span style="opacity:0.5;font-size:0.75rem;">to</span>
               <input type="datetime-local" id="phDoseTo" class="dt-input" />
-              <button class="btn btn-secondary" id="phDoseApply" style="height:28px;padding:0 8px;font-size:0.75rem;white-space:nowrap;">Apply</button>
+              <button class="btn btn-secondary btn-compact" id="phDoseApply">Apply</button>
             </div>
             <button id="btnPhExport" class="btn-secondary btn-small" title="Export displayed pH dose history to CSV" style="margin-left:auto;">Export CSV</button>
           </div>
@@ -1610,7 +1610,7 @@ body{
                   <input type="number" id="phMaxMlDay" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0" />
                 </div>
               </div>
-              <button id="btnSavePhSettings" class="btn-secondary" style="width:100%;">Save pH Settings</button>
+              <button id="btnSavePhSettings" class="btn-secondary btn-full">Save pH Settings</button>
             </div>
           </details>
 
@@ -1631,9 +1631,9 @@ body{
                 </div>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-                <button id="btnPhPumpPrime" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Prime (3s)</button>
-                <button id="btnPhPumpRun" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Run</button>
-                <button id="btnPhPumpCommit" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Commit Rate</button>
+                <button id="btnPhPumpPrime" class="btn-secondary btn-xs">Prime (3s)</button>
+                <button id="btnPhPumpRun" class="btn-secondary btn-xs">Run</button>
+                <button id="btnPhPumpCommit" class="btn-secondary btn-xs">Commit Rate</button>
               </div>
               <div style="font-size:0.7rem;color:#9ca3af;margin-top:8px;">Current rate: <span id="phPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s</div>
               <div id="phPumpCalibMsg" class="muted" style="font-size:0.7rem;padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
@@ -1648,7 +1648,7 @@ body{
                 <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Learned ml/pH:</div>
                 <div style="font-size:1.1rem;font-weight:600;color:#60a5fa;" id="ph-learned-display-value">—</div>
               </div>
-              <button id="btnClearPhLearned" class="btn-secondary" style="width:100%;" title="Reset pH automation learned value">Clear Learned Value</button>
+              <button id="btnClearPhLearned" class="btn-secondary btn-full" title="Reset pH automation learned value">Clear Learned Value</button>
             </div>
           </details>
 
@@ -1677,7 +1677,7 @@ body{
             <div class="details-content-accent">
               <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Press and hold pattern for the pH Up pump. Safety caps enforced.</div>
               <div>
-                <button id="btnPhPulse03" class="btn-secondary" style="width:100%;" title="Dose pH Up for 0.3s">pH Up (0.3s)</button>
+                <button id="btnPhPulse03" class="btn-secondary btn-full" title="Dose pH Up for 0.3s">pH Up (0.3s)</button>
                 <div class="ec-v1-ui row" style="margin-top:6px;">
                   <button id="btnPhPulse05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
                   <button id="btnPhPulse10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
@@ -1694,7 +1694,7 @@ body{
             <div class="details-content">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                 <div class="muted" style="font-weight:600;font-size:0.9rem;">Recent pH Doses</div>
-                <button id="btnRefreshDoseLog" class="btn-secondary btn-small" style="padding:3px 8px;font-size:0.8rem;" title="Refresh dose log">Refresh</button>
+                <button id="btnRefreshDoseLog" class="btn-secondary btn-xs" title="Refresh dose log">Refresh</button>
               </div>
               <div style="max-height:180px;overflow-y:auto;border-radius:4px;border:1px solid rgba(148,163,184,0.15);background:#0d1117;">
                 <table style="width:100%;font-size:0.8rem;">
@@ -1810,7 +1810,7 @@ body{
                 <input type="datetime-local" id="ecDoseFrom" class="dt-input" />
                 <span style="opacity:0.5;font-size:0.75rem;">to</span>
                 <input type="datetime-local" id="ecDoseTo" class="dt-input" />
-                <button class="btn btn-secondary" id="ecDoseApply" style="height:28px;padding:0 8px;font-size:0.75rem;white-space:nowrap;">Apply</button>
+                <button class="btn btn-secondary btn-compact" id="ecDoseApply">Apply</button>
               </div>
               <button id="btnEcExport" class="btn-secondary btn-small" title="Export displayed EC dose history to CSV" style="margin-left:auto;">Export CSV</button>
             </div>
@@ -1874,7 +1874,7 @@ body{
                     <input type="number" id="ecMaxMlDay" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;" placeholder="0" />
                   </div>
                 </div>
-                <button id="btnSaveEcSettings" class="btn-secondary" style="width:100%;">Save EC Settings</button>
+                <button id="btnSaveEcSettings" class="btn-secondary btn-full">Save EC Settings</button>
               </div>
             </details>
 
@@ -1898,9 +1898,9 @@ body{
                     </div>
                   </div>
                   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                    <button id="btnGrowPumpPrime" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Prime</button>
-                    <button id="btnGrowPumpRun" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Run</button>
-                    <button id="btnGrowPumpCommit" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Commit</button>
+                    <button id="btnGrowPumpPrime" class="btn-secondary btn-xs">Prime</button>
+                    <button id="btnGrowPumpRun" class="btn-secondary btn-xs">Run</button>
+                    <button id="btnGrowPumpCommit" class="btn-secondary btn-xs">Commit</button>
                   </div>
                   <div style="font-size:0.7rem;color:#9ca3af;">Rate: <span id="growPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s</div>
                 </div>
@@ -1918,9 +1918,9 @@ body{
                     </div>
                   </div>
                   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                    <button id="btnMicroPumpPrime" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Prime</button>
-                    <button id="btnMicroPumpRun" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Run</button>
-                    <button id="btnMicroPumpCommit" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Commit</button>
+                    <button id="btnMicroPumpPrime" class="btn-secondary btn-xs">Prime</button>
+                    <button id="btnMicroPumpRun" class="btn-secondary btn-xs">Run</button>
+                    <button id="btnMicroPumpCommit" class="btn-secondary btn-xs">Commit</button>
                   </div>
                   <div style="font-size:0.7rem;color:#9ca3af;">Rate: <span id="microPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s</div>
                 </div>
@@ -1938,9 +1938,9 @@ body{
                     </div>
                   </div>
                   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                    <button id="btnBloomPumpPrime" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Prime</button>
-                    <button id="btnBloomPumpRun" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Run</button>
-                    <button id="btnBloomPumpCommit" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Commit</button>
+                    <button id="btnBloomPumpPrime" class="btn-secondary btn-xs">Prime</button>
+                    <button id="btnBloomPumpRun" class="btn-secondary btn-xs">Run</button>
+                    <button id="btnBloomPumpCommit" class="btn-secondary btn-xs">Commit</button>
                   </div>
                   <div style="font-size:0.7rem;color:#9ca3af;">Rate: <span id="bloomPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s</div>
                 </div>
@@ -1956,7 +1956,7 @@ body{
                   <div class="muted" style="font-size:0.75rem;margin-bottom:4px;">Learned ml/mS/cm:</div>
                   <div style="font-size:1.1rem;font-weight:600;color:#60a5fa;" id="ec-learned-display-value">—</div>
                 </div>
-                <button id="btnClearEcLearned" class="btn-secondary" style="width:100%;" title="Reset EC automation learned value">Clear Learned Value</button>
+                <button id="btnClearEcLearned" class="btn-secondary btn-full" title="Reset EC automation learned value">Clear Learned Value</button>
               </div>
             </details>
 
@@ -1982,7 +1982,7 @@ body{
                 <div class="muted" style="font-size:0.75rem;margin-bottom:12px;">Press and hold pattern for individual nutrient pumps. Safety caps enforced.</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
                   <div>
-                    <button id="btnDoseGrow" class="btn-secondary" style="width:100%;" title="Dose Grow for 0.3s">Grow (0.3s)</button>
+                    <button id="btnDoseGrow" class="btn-secondary btn-full" title="Dose Grow for 0.3s">Grow (0.3s)</button>
                     <div class="ec-v1-ui row" style="margin-top:6px;">
                       <button id="btnDoseGrow05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
                       <button id="btnDoseGrow10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
@@ -1991,7 +1991,7 @@ body{
                     </div>
                   </div>
                   <div>
-                    <button id="btnDoseMicro" class="btn-secondary" style="width:100%;" title="Dose Micro for 0.3s">Micro (0.3s)</button>
+                    <button id="btnDoseMicro" class="btn-secondary btn-full" title="Dose Micro for 0.3s">Micro (0.3s)</button>
                     <div class="ec-v1-ui row" style="margin-top:6px;">
                       <button id="btnDoseMicro05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
                       <button id="btnDoseMicro10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
@@ -2000,7 +2000,7 @@ body{
                     </div>
                   </div>
                   <div>
-                    <button id="btnDoseBloom" class="btn-secondary" style="width:100%;" title="Dose Bloom for 0.3s">Bloom (0.3s)</button>
+                    <button id="btnDoseBloom" class="btn-secondary btn-full" title="Dose Bloom for 0.3s">Bloom (0.3s)</button>
                     <div class="ec-v1-ui row" style="margin-top:6px;">
                       <button id="btnDoseBloom05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
                       <button id="btnDoseBloom10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
