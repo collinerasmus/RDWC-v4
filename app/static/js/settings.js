@@ -92,20 +92,22 @@
   function renderGroup(ns){
     const panel = document.createElement('div');
     panel.dataset.ns = ns;
+    panel.style.cssText = 'display:flex;flex-direction:column;gap:16px;';
+    
     // Custom panel for Calibration
     if (ns === 'calibration'){
       const title = document.createElement('h3');
       title.textContent = 'Calibration';
-      title.className = 'muted';
-      title.style.margin = '0 0 8px 0';
+      title.style.cssText = 'margin:0 0 12px 0;font-size:1.1rem;font-weight:600;color:#e0e0e0;';
 
       // EC Calibration (full wizard moved from EC Controller card)
       const ecWrap = document.createElement('div');
-      ecWrap.className = 'card';
-      ecWrap.style.padding = '12px';
-      ecWrap.style.marginTop = '12px';
+      ecWrap.style.cssText = 'padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;';
       ecWrap.innerHTML = `
-        <h3 style="margin-top:0;">EC Calibration</h3>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <span style="font-size:1.3rem;">⚡</span>
+          <h4 style="margin:0;font-size:1.05rem;font-weight:600;">EC Calibration</h4>
+        </div>
         <div style="padding:12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;margin-bottom:16px;color:#fecaca;">
           ⚠️ <strong>Warning:</strong> Calibration affects all EC readings. Follow Atlas Scientific calibration procedure precisely. Rinse probe between steps.
         </div>
@@ -145,11 +147,12 @@
 
       // Dosing calibration
       const doseWrap = document.createElement('div');
-      doseWrap.className = 'card';
-      doseWrap.style.padding = '12px';
-      doseWrap.style.marginTop = '12px';
+      doseWrap.style.cssText = 'padding:16px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;';
       doseWrap.innerHTML = `
-        <h3 style="margin-top:0;">Dosing Calibration</h3>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <span style="font-size:1.3rem;">💧</span>
+          <h4 style="margin:0;font-size:1.05rem;font-weight:600;">Dosing Calibration</h4>
+        </div>
         <div id="dose-calib-banner" class="row" style="margin-bottom:6px;display:none">
           <span class="muted">Writes are disabled. Set CALIB_ENABLE=1 and restart service to enable calibration commands.</span>
         </div>
@@ -340,22 +343,56 @@
       ecStatus(); renderPumps(); refreshPrimeState();
       return panel;
     }
+    
+    // Standard fields - modern card-based layout
+    const def = GROUP_DEF[ns];
+    if (!def) return panel;
+    
+    // Create a card wrapper for this group
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:20px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-radius:12px;';
+    
+    // Add group title with icon
+    const icons = {
+      general: '🏠',
+      safety: '🛡️',
+      alerts: '🔔',
+      ui: '🎨',
+      chiller: '🧊',
+      automation: '🤖'
+    };
+    const titleWrap = document.createElement('div');
+    titleWrap.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:18px;';
+    titleWrap.innerHTML = `<span style="font-size:1.3rem;">${icons[ns] || '⚙️'}</span><h4 style="margin:0;font-size:1.05rem;font-weight:600;">${def.title}</h4>`;
+    card.appendChild(titleWrap);
+    
+    // Create grid for fields
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;';
+    
     const fields = GROUP_DEF[ns].fields;
     Object.entries(fields).forEach(([key, meta]) => {
       const val = current[key] ?? '';
       const wrap = document.createElement('div');
-      wrap.className = 'row';
-      const id = `f_${key.replace(/\./g,'_')}`;
+      wrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
+      
+      const labelRow = document.createElement('div');
+      labelRow.style.cssText = 'display:flex;align-items:center;gap:8px;';
+      
       const label = document.createElement('label');
-      label.textContent = meta.label + ':';
+      const id = `f_${key.replace(/\./g,'_')}`;
+      label.htmlFor = id;
+      label.style.cssText = 'font-size:0.85rem;font-weight:500;color:#d1d5db;';
+      label.textContent = meta.label;
       let input;
       if (meta.type === 'checkbox'){
         input = document.createElement('input');
         input.type = 'checkbox';
         input.checked = String(val).toLowerCase() === 'true';
+        input.style.cssText = 'width:20px;height:20px;cursor:pointer;accent-color:#3b82f6;';
       } else if (meta.type === 'select'){
         input = document.createElement('select');
-        input.style.cssText = 'margin-left:8px;padding:4px 8px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;cursor:pointer;';
+        input.style.cssText = 'width:100%;height:38px;padding:8px 12px;border-radius:8px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;cursor:pointer;font-size:0.9rem;';
         if (meta.options && Array.isArray(meta.options)) {
           meta.options.forEach(opt => {
             const option = document.createElement('option');
@@ -373,7 +410,7 @@
         if (meta.step!=null) input.step = meta.step;
         if (meta.placeholder) input.placeholder = meta.placeholder;
         input.value = val;
-        input.style.cssText = 'margin-left:8px;padding:4px;border-radius:4px;border:1px solid #1f2937;background:#111827;color:#e6edf3;';
+        input.style.cssText = 'width:100%;height:38px;padding:8px 12px;border-radius:8px;border:1px solid #374151;background:#1f2937;color:#e0e0e0;font-size:0.9rem;';
         // For date inputs, set max to today
         if (meta.type === 'date') {
           const today = new Date().toISOString().split('T')[0];
@@ -397,35 +434,55 @@
       if (meta.type === 'select') {
         input.addEventListener('change', handleChange);
       }
-      wrap.appendChild(label);
-      wrap.appendChild(input);
-      if (meta.tooltip){
-        const tip = document.createElement('span');
-        tip.className = 'muted';
-        tip.style.marginLeft = '8px';
-        tip.textContent = meta.tooltip;
-        wrap.appendChild(tip);
-      }
-      // Optional badge (e.g., TEST)
+      
+      // Optional badge (e.g., TEST) - add to label row
       if (meta.badge){
         const badge = document.createElement('span');
         badge.textContent = meta.badge;
-        badge.style.cssText = 'margin-left:8px;padding:2px 6px;border-radius:6px;background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);color:#fca5a5;font-size:0.75rem;';
-        wrap.appendChild(badge);
+        badge.style.cssText = 'padding:2px 6px;border-radius:6px;background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);color:#fca5a5;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;';
+        labelRow.appendChild(label);
+        labelRow.appendChild(badge);
+      } else {
+        labelRow.appendChild(label);
+      }
+      
+      wrap.appendChild(labelRow);
+      
+      // For checkbox, add special inline layout
+      if (meta.type === 'checkbox'){
+        const checkWrap = document.createElement('div');
+        checkWrap.style.cssText = 'display:flex;align-items:center;gap:8px;';
+        checkWrap.appendChild(input);
+        if (meta.tooltip){
+          const tip = document.createElement('span');
+          tip.style.cssText = 'font-size:0.75rem;color:#9ca3af;line-height:1.4;';
+          tip.textContent = meta.tooltip;
+          checkWrap.appendChild(tip);
+        }
+        wrap.appendChild(checkWrap);
+      } else {
+        wrap.appendChild(input);
+        if (meta.tooltip){
+          const tip = document.createElement('div');
+          tip.style.cssText = 'font-size:0.75rem;color:#9ca3af;line-height:1.4;margin-top:2px;';
+          tip.textContent = meta.tooltip;
+          wrap.appendChild(tip);
+        }
       }
       
       // Add Day N badge after grow_start_date input
       if (key === 'general.grow_start_date') {
-        const badge = document.createElement('span');
+        const badge = document.createElement('div');
         badge.id = 'grow-day-n-badge';
-        badge.className = 'muted';
-        badge.style.cssText = 'margin-left:8px;padding:4px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;';
-        badge.style.display = 'none';
+        badge.style.cssText = 'margin-top:6px;padding:6px 10px;border-radius:8px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;font-weight:500;display:none;';
         wrap.appendChild(badge);
       }
       
-      panel.appendChild(wrap);
+      grid.appendChild(wrap);
     });
+    
+    card.appendChild(grid);
+    panel.appendChild(card);
     return panel;
   }
 
