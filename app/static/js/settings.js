@@ -112,25 +112,6 @@
     summary.addEventListener('mouseleave', () => summary.style.background = 'rgba(31,41,55,0.6)');
     panel.appendChild(summary);
 
-    const card = document.createElement('div');
-    card.style.cssText = 'padding:20px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-top:none;border-radius:0 0 12px 12px;margin-top:-2px;';
-    
-    // Add group title with icon as summary (clickable header)
-    const icons = {
-      general: '🏠',
-      safety: '🛡️',
-      alerts: '🔔',
-      ui: '🎨',
-      chiller: '🧊',
-      automation: '🤖'
-    };
-    const summary = document.createElement('summary');
-    summary.style.cssText = 'cursor:pointer;padding:16px 20px;background:rgba(31,41,55,0.6);border:1px solid rgba(55,65,81,0.5);border-radius:12px;display:flex;align-items:center;gap:10px;font-size:1.05rem;font-weight:600;transition:all 0.2s ease;margin-bottom:2px;';
-    summary.innerHTML = `<span style="font-size:1.3rem;">${icons[ns] || '⚙️'}</span><span>${def.title}</span><span style="margin-left:auto;font-size:0.8rem;color:#9ca3af;">▼</span>`;
-    summary.addEventListener('mouseenter', () => summary.style.background = 'rgba(31,41,55,0.8)');
-    summary.addEventListener('mouseleave', () => summary.style.background = 'rgba(31,41,55,0.6)');
-    panel.appendChild(summary);
-    
     // Create content wrapper
     const card = document.createElement('div');
     card.style.cssText = 'padding:20px;background:rgba(31,41,55,0.4);border:1px solid rgba(55,65,81,0.5);border-top:none;border-radius:0 0 12px 12px;margin-top:-2px;';
