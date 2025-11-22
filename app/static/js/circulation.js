@@ -144,9 +144,9 @@
       const chillerPump = rel.chiller_pump || {};
       const chiller = rel.chiller_power || {};
       
-      mainPumpOn = !!main.state;
-      chillerPumpOn = !!chillerPump.state;
-      chillerOn = !!chiller.state;
+      mainPumpOn = !!main.is_on;
+      chillerPumpOn = !!chillerPump.is_on;
+      chillerOn = !!chiller.is_on;
       
       // Update badges
       const mainBadge = document.getElementById('circ-main-pump');
@@ -159,8 +159,14 @@
       }
       
       if (chillerPumpBadge) {
-        chillerPumpBadge.textContent = chillerPumpOn ? 'ON' : 'OFF';
-        chillerPumpBadge.className = 'bop-status-badge ' + (chillerPumpOn ? 'on' : 'off');
+        // Show "Standby" when chiller is OFF and pump is OFF (semantic difference)
+        if (!chillerOn && !chillerPumpOn) {
+          chillerPumpBadge.textContent = 'STANDBY';
+          chillerPumpBadge.className = 'bop-status-badge neutral';
+        } else {
+          chillerPumpBadge.textContent = chillerPumpOn ? 'ON' : 'OFF';
+          chillerPumpBadge.className = 'bop-status-badge ' + (chillerPumpOn ? 'on' : 'off');
+        }
       }
       
       if (chillerStatus) {
