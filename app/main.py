@@ -1055,19 +1055,27 @@ def api_chiller_force(req: dict):
     Force chiller ON or OFF for specified duration (emergency/maintenance override).
     Body: {"on": true/false, "duration_minutes": 60} (duration optional)
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[api/chiller/force] Request received: {req}")
+    
     from app.chiller_control import force_chiller_state
     from app.relays_core import get_relay_status
     
     desired_on = bool(req.get("on", False))
     duration = req.get("duration_minutes")  # None = indefinite
+    logger.info(f"[api/chiller/force] Processing: desired_on={desired_on}, duration={duration}")
     
     # Check prerequisites before attempting
     if desired_on:
+        logger.info(f"[api/chiller/force] Checking prerequisites...")
         relays = get_relay_status()
         main_pump_on = relays.get('main_pump', {}).get('state', False)
         chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
+        logger.info(f"[api/chiller/force] Prerequisites: main_pump={main_pump_on}, chiller_pump={chiller_pump_on}")
         
         if not main_pump_on:
+            logger.info(f"[api/chiller/force] Returning error: main_pump_required")
             return {
                 'success': False,
                 'error': 'main_pump_required',
@@ -1076,6 +1084,7 @@ def api_chiller_force(req: dict):
             }
         
         if not chiller_pump_on:
+            logger.info(f"[api/chiller/force] Returning error: chiller_pump_required")
             return {
                 'success': False,
                 'error': 'chiller_pump_required',
@@ -1083,7 +1092,9 @@ def api_chiller_force(req: dict):
                 'required_relays': ['chiller_pump']
             }
     
+    logger.info(f"[api/chiller/force] Calling force_chiller_state...")
     result = force_chiller_state(desired_on, duration)
+    logger.info(f"[api/chiller/force] Returning result: {result}")
     return result
 
 @app.post("/api/chiller/settings")
@@ -2013,6 +2024,10 @@ def relay_debug():
 @app.post("/relay/set")
 def relay_set_new(body: dict = Body(...)):
     """Set relay state using proper relays_core with whitelisted 'override' reason"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[relay/set] Request received: {body}")
+    
     from app.relays_core import (
         set_lights, set_main_pump, set_chiller_pump, set_chiller_power,
         set_dosing_grow, set_dosing_micro, set_dosing_bloom, set_dosing_ph_up, RELAY_PINS
@@ -2020,6 +2035,7 @@ def relay_set_new(body: dict = Body(...)):
     
     name = body.get("name")
     on = body.get("on", False)
+    logger.info(f"[relay/set] Processing: name={name}, on={on}")
     
     # Validate relay name
     if name not in RELAY_PINS:
@@ -2056,8 +2072,11 @@ def relay_set_new(body: dict = Body(...)):
         from app.relays_core import set_relay
         result = set_relay(name, bool(on), reason="override", force=force_flag)
     
+    logger.info(f"[relay/set] Function result: {result}")
+    
     # Check if operation was blocked by interlock
     if result.get("blocked", False):
+        logger.info(f"[relay/set] Operation blocked, preparing error response")
         # Generate user-friendly error message
         reason = result.get("reason", "unknown")
         interlock_info = result.get("interlock", {})
@@ -2082,7 +2101,7 @@ def relay_set_new(body: dict = Body(...)):
         except Exception:
             pass
         
-        return {
+        response = {
             "ok": False,
             "changed": False,
             "state": result.get("state", False),
@@ -2092,6 +2111,8 @@ def relay_set_new(body: dict = Body(...)):
             "interlock": interlock_info,
             "cooldown_remaining": 0
         }
+        logger.info(f"[relay/set] Returning blocked response: {response}")
+        return response
     
     # Trace via debug module
     try:
@@ -2104,13 +2125,15 @@ def relay_set_new(body: dict = Body(...)):
     except Exception:
         pass
     
-    return {
+    response = {
         "ok": True,
         "changed": result.get("changed", False),
         "state": result.get("state", False),
         "reason": result.get("reason", "unknown"),
         "cooldown_remaining": result.get("cooldown_remaining", 0)
     }
+    logger.info(f"[relay/set] Returning success response: {response}")
+    return response
 
 @app.get("/api/estop")
 def api_estop_status():
