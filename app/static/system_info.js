@@ -64,24 +64,32 @@
     el('pi-cpu-freq', data.cpu_freq_mhz ? `${data.cpu_freq_mhz.toFixed(0)} MHz` : '—');
     el('pi-cpu-temp', data.temperature_c ? `${data.temperature_c.toFixed(1)}°C` : '—');
     
-    // Memory from direct properties (not nested)
+    // Memory from direct properties (not nested) - split into 3 blocks
     if (data.memory_total_mb) {
       const total = data.memory_total_mb * 1024 * 1024; // Convert MB to bytes
       const used = data.memory_used_mb * 1024 * 1024;
       const pct = data.memory_percent ? data.memory_percent.toFixed(1) : 0;
-      el('pi-memory', `${formatBytes(used)} / ${formatBytes(total)} (${pct}%)`);
+      el('pi-memory-used', formatBytes(used));
+      el('pi-memory-total', formatBytes(total));
+      el('pi-memory-pct', `${pct}%`);
     } else {
-      el('pi-memory', '—');
+      el('pi-memory-used', '—');
+      el('pi-memory-total', '—');
+      el('pi-memory-pct', '—');
     }
     
-    // Disk from direct properties (not nested)
+    // Disk from direct properties (not nested) - split into 3 blocks
     if (data.disk_total_gb) {
       const total = data.disk_total_gb * 1024 * 1024 * 1024; // Convert GB to bytes
       const used = data.disk_used_gb * 1024 * 1024 * 1024;
       const pct = data.disk_percent ? data.disk_percent.toFixed(1) : 0;
-      el('pi-disk', `${formatBytes(used)} / ${formatBytes(total)} (${pct}%)`);
+      el('pi-disk-used', formatBytes(used));
+      el('pi-disk-total', formatBytes(total));
+      el('pi-disk-pct', `${pct}%`);
     } else {
-      el('pi-disk', '—');
+      el('pi-disk-used', '—');
+      el('pi-disk-total', '—');
+      el('pi-disk-pct', '—');
     }
     
     el('pi-uptime', data.uptime_seconds ? formatUptime(data.uptime_seconds) : '—');
