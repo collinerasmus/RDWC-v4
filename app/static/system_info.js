@@ -107,25 +107,25 @@
     }
 
     // Service status chips - services is nested
-    const updateServiceChip = (id, status) => {
-      const chip = document.getElementById(id);
-      if (!chip) return;
+    const updateServiceValue = (id, status) => {
+      const elem = document.getElementById(id);
+      if (!elem) return;
       
       if (status === 'active') {
-        chip.className = 'ui-status-chip success';
-        chip.textContent = 'Active';
+        elem.textContent = 'Active';
+        elem.style.color = '#10b981'; // success green
       } else if (status === 'inactive') {
-        chip.className = 'ui-status-chip neutral';
-        chip.textContent = 'Inactive';
+        elem.textContent = 'Inactive';
+        elem.style.color = '#9ca3af'; // neutral gray
       } else {
-        chip.className = 'ui-status-chip error';
-        chip.textContent = 'Error';
+        elem.textContent = 'Error';
+        elem.style.color = '#ef4444'; // error red
       }
     };
 
     if (data.services) {
-      updateServiceChip('svc-api', data.services['rdwc-api']);
-      updateServiceChip('svc-sensors', data.services['rdwc-sensors']);
+      updateServiceValue('svc-api', data.services['rdwc-api']);
+      updateServiceValue('svc-sensors', data.services['rdwc-sensors']);
     }
   }
 
@@ -226,28 +226,14 @@
     }
 
     if (ipsContainer) {
-      ipsContainer.innerHTML = '';
       if (data.ip_addresses && data.ip_addresses.length > 0) {
-        data.ip_addresses.forEach(ipInfo => {
-          const row = document.createElement('div');
-          row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:rgba(0,0,0,0.2);border-radius:6px;';
-          
-          const iface = document.createElement('span');
-          iface.style.cssText = 'font-weight:600;color:#c084fc;';
-          iface.textContent = ipInfo.interface;
-          
-          const ip = document.createElement('span');
-          ip.style.cssText = 'color:#d1d5db;font-family:monospace;';
-          ip.textContent = `${ipInfo.address}${ipInfo.netmask ? '/' + ipInfo.netmask : ''}`;
-          
-          row.appendChild(iface);
-          row.appendChild(ip);
-          ipsContainer.appendChild(row);
-        });
+        const ips = data.ip_addresses.map(ipInfo => {
+          const netmask = ipInfo.netmask ? `/${ipInfo.netmask}` : '';
+          return `${ipInfo.interface}: ${ipInfo.address}${netmask}`;
+        }).join(' • ');
+        ipsContainer.textContent = ips;
       } else {
-        const msg = document.createElement('span');
-        msg.style.cssText = 'color:#9ca3af;font-size:0.85rem;';
-        msg.textContent = 'No network interfaces found';
+        ipsContainer.textContent = 'No interfaces found';
         ipsContainer.appendChild(msg);
       }
     }

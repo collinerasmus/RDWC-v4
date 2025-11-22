@@ -2135,30 +2135,30 @@ body{
           <span class="system-card-icon">🍓</span>
           <h4 class="system-card-title">Raspberry Pi</h4>
         </div>
-        <div id="sys-pi-info" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;font-size:var(--font-lg);">
-          <div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">CPU Usage</div>
-            <div id="pi-cpu" style="font-weight:600;color:#93c5fd;">—</div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div class="kpi">
+            <div class="kpi-label">CPU Usage</div>
+            <div class="kpi-value" id="pi-cpu">—</div>
           </div>
-          <div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">CPU Freq</div>
-            <div id="pi-cpu-freq" style="font-weight:600;color:#93c5fd;">—</div>
+          <div class="kpi">
+            <div class="kpi-label">CPU Freq</div>
+            <div class="kpi-value" id="pi-cpu-freq">—</div>
           </div>
-          <div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">CPU Temp</div>
-            <div id="pi-cpu-temp" style="font-weight:600;color:#93c5fd;">—</div>
+          <div class="kpi">
+            <div class="kpi-label">CPU Temp</div>
+            <div class="kpi-value" id="pi-cpu-temp">—</div>
           </div>
-          <div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Memory</div>
-            <div id="pi-memory" style="font-weight:600;color:#93c5fd;">—</div>
+          <div class="kpi">
+            <div class="kpi-label">Memory</div>
+            <div class="kpi-value" id="pi-memory">—</div>
           </div>
-          <div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Disk</div>
-            <div id="pi-disk" style="font-weight:600;color:#93c5fd;">—</div>
+          <div class="kpi">
+            <div class="kpi-label">Disk</div>
+            <div class="kpi-value" id="pi-disk">—</div>
           </div>
-          <div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Uptime</div>
-            <div id="pi-uptime" style="font-weight:600;color:#93c5fd;">—</div>
+          <div class="kpi">
+            <div class="kpi-label">Uptime</div>
+            <div class="kpi-value" id="pi-uptime">—</div>
           </div>
         </div>
       </div>
@@ -2169,35 +2169,33 @@ body{
           <span class="system-card-icon">💻</span>
           <h4 class="system-card-title">Software</h4>
         </div>
-        <div id="sys-software-info" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;font-size:var(--font-lg);">
-          <div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">RDWC Version</div>
-            <div id="sw-rdwc-version" style="font-weight:600;color:#a7f3d0;">—</div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div class="kpi">
+            <div class="kpi-label">RDWC Version</div>
+            <div class="kpi-value" id="sw-rdwc-version">—</div>
           </div>
-          <div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Python Version</div>
-            <div id="sw-python-version" style="font-weight:600;color:#a7f3d0;">—</div>
+          <div class="kpi">
+            <div class="kpi-label">Python Version</div>
+            <div class="kpi-value" id="sw-python-version">—</div>
           </div>
-          <div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Git Commit</div>
-            <div id="sw-git-commit" style="font-weight:600;color:#a7f3d0;font-family:monospace;font-size:var(--font-md);">—</div>
+          <div class="kpi">
+            <div class="kpi-label">Git Commit</div>
+            <div class="kpi-value" id="sw-git-commit" style="font-family:monospace;font-size:var(--font-base);">—</div>
           </div>
-          <div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Git Branch</div>
-            <div id="sw-git-branch" style="font-weight:600;color:#a7f3d0;">—</div>
+          <div class="kpi">
+            <div class="kpi-label">Git Branch</div>
+            <div class="kpi-value" id="sw-git-branch">—</div>
           </div>
         </div>
-        <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(55,65,81,0.5);">
-          <div style="font-size:var(--font-sm);color:#9ca3af;margin-bottom:8px;font-weight:600;">Service Status</div>
-          <div id="sw-services" style="display:flex;flex-direction:column;gap:6px;font-size:var(--font-md);">
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:rgba(0,0,0,0.2);border-radius:6px;">
-              <span>rdwc-api</span>
-              <span id="svc-api" class="ui-status-chip neutral">—</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:rgba(0,0,0,0.2);border-radius:6px;">
-              <span>rdwc-sensors</span>
-              <span id="svc-sensors" class="ui-status-chip neutral">—</span>
-            </div>
+        <hr class="separator" style="margin:16px 0;" />
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div class="kpi">
+            <div class="kpi-label">rdwc-api</div>
+            <div class="kpi-value" id="svc-api">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">rdwc-sensors</div>
+            <div class="kpi-value" id="svc-sensors">—</div>
           </div>
         </div>
       </div>
@@ -2232,35 +2230,30 @@ body{
           <span class="system-card-icon">🗄️</span>
           <h4 class="system-card-title">Database</h4>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;font-size:var(--font-lg);margin-bottom:14px;">
-          <div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">DB Size</div>
-            <div id="db-size" style="font-weight:600;color:#fbbf24;">—</div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div class="kpi">
+            <div class="kpi-label">DB Size</div>
+            <div class="kpi-value" id="db-size">—</div>
           </div>
-          <div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Readings</div>
-            <div id="db-readings" style="font-weight:600;color:#fbbf24;">—</div>
+          <div class="kpi">
+            <div class="kpi-label">Readings</div>
+            <div class="kpi-value" id="db-readings">—</div>
           </div>
-          <div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">pH Doses</div>
-            <div id="db-ph-doses" style="font-weight:600;color:#fbbf24;">—</div>
+          <div class="kpi">
+            <div class="kpi-label">pH Doses</div>
+            <div class="kpi-value" id="db-ph-doses">—</div>
           </div>
-          <div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">EC Doses</div>
-            <div id="db-ec-doses" style="font-weight:600;color:#fbbf24;">—</div>
+          <div class="kpi">
+            <div class="kpi-label">EC Doses</div>
+            <div class="kpi-value" id="db-ec-doses">—</div>
           </div>
-        </div>
-        <div style="padding-top:12px;border-top:1px solid rgba(55,65,81,0.5);">
-          <div style="font-size:var(--font-sm);color:#9ca3af;margin-bottom:8px;font-weight:600;">Data Range</div>
-          <div style="display:flex;flex-direction:column;gap:6px;font-size:var(--font-md);">
-            <div style="display:flex;justify-content:space-between;">
-              <span>Oldest reading:</span>
-              <span id="db-oldest" style="color:#d1d5db;">—</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;">
-              <span>Newest reading:</span>
-              <span id="db-newest" style="color:#d1d5db;">—</span>
-            </div>
+          <div class="kpi">
+            <div class="kpi-label">Oldest Reading</div>
+            <div class="kpi-value" id="db-oldest">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Newest Reading</div>
+            <div class="kpi-value" id="db-newest">—</div>
           </div>
         </div>
       </div>
@@ -2271,14 +2264,14 @@ body{
           <span class="system-card-icon">🌐</span>
           <h4 class="system-card-title">Network</h4>
         </div>
-        <div style="margin-bottom:14px;">
-          <div style="font-size:var(--font-xs);color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Hostname</div>
-          <div id="net-hostname" style="font-weight:600;color:#c084fc;font-size:var(--font-lg);">—</div>
-        </div>
-        <div>
-          <div style="font-size:var(--font-sm);color:#9ca3af;margin-bottom:8px;font-weight:600;">IP Addresses</div>
-          <div id="net-ips" style="display:flex;flex-direction:column;gap:6px;font-size:var(--font-md);">
-            <!-- Populated dynamically -->
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div class="kpi">
+            <div class="kpi-label">Hostname</div>
+            <div class="kpi-value" id="net-hostname">—</div>
+          </div>
+          <div class="kpi" style="flex:1 1 300px;">
+            <div class="kpi-label">IP Addresses</div>
+            <div class="kpi-value" id="net-ips" style="font-size:var(--font-base);line-height:1.4;">—</div>
           </div>
         </div>
       </div>
