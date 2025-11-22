@@ -274,18 +274,25 @@ class RequestAuditMiddleware(BaseHTTPMiddleware):
 
         # Only audit write methods to reduce noise
         if method in ("POST", "PUT", "PATCH"):
+            # Skip body reading for JSON API endpoints to avoid body consumption issues
+            # The middleware was consuming request.body() which prevents FastAPI from
+            # parsing it properly in the handler. Log metadata only for these paths.
+            skip_body_paths = {"/relay/set", "/test/echo", "/api/chiller/force", "/api/relay/", "/api/"}
+            should_skip_body = any(path.startswith(prefix) for prefix in skip_body_paths)
+            
             body_preview = ""
-            try:
-                body_bytes = await request.body()
-                # Restore body for downstream handlers
-                request._body = body_bytes
-                if len(body_bytes) > 0:
-                    preview_len = min(256, len(body_bytes))
-                    body_preview = body_bytes[:preview_len].decode('utf-8', errors='replace')
-                    if len(body_bytes) > 256:
-                        body_preview += f"... ({len(body_bytes)} bytes total)"
-            except Exception as e:
-                body_preview = f"[body read error: {e}]"
+            if not should_skip_body:
+                try:
+                    body_bytes = await request.body()
+                    # Restore body for downstream handlers
+                    request._body = body_bytes
+                    if len(body_bytes) > 0:
+                        preview_len = min(256, len(body_bytes))
+                        body_preview = body_bytes[:preview_len].decode('utf-8', errors='replace')
+                        if len(body_bytes) > 256:
+                            body_preview += f"... ({len(body_bytes)} bytes total)"
+                except Exception as e:
+                    body_preview = f"[body read error: {e}]"
 
             # Structured audit line
             log_msg = f"request_audit method={method} path={path} actor={client}"
@@ -293,6 +300,8 @@ class RequestAuditMiddleware(BaseHTTPMiddleware):
                 log_msg += f" query={query}"
             if body_preview:
                 log_msg += f" body={body_preview}"
+            elif should_skip_body:
+                log_msg += " body=[skipped for JSON endpoint]"
             self.logger.info(log_msg)
 
             # Per-minute write counts
