@@ -1,5 +1,46 @@
 # Changelog
 
+## v4.3.0 (2025-11-22)
+
+**Phase 5: Schedule Controller - 12-Week Grow Timeline**
+
+### Added
+- 12-week grow schedule with phase tracking (seedling → veg → preflower → flower → flush)
+- Calendar-style 4x3 grid timeline UI (no horizontal scroll)
+- Per-week targets: EC, pH band (low/high), temperature, nutrients (Grow/Micro/Bloom ml/10L), lights schedule
+- Current week KPI display (week number, phase, grow start date, day-in-grow)
+- AUTO_DEFAULTS optimized for RDWC autoflowers based on industry best practices
+- Schedule endpoints:
+  - `GET /api/nutrient_schedule` - Retrieve full 12-week schedule with metadata
+  - `PUT /api/nutrient_schedule/week/{n}` - Update specific week parameters
+  - `POST /api/nutrient_schedule/reset` - Reset to AUTO_DEFAULTS
+  - `GET /api/schedule/current_week` - Current week info with targets
+  - `GET /api/schedule/plan` - Preview upcoming controller actions (48h dry-run)
+- Schedule rendering with phase-specific colors and icons (🌱🌿🌸🌺💧)
+- "Seed Defaults" workflow for first-time setup
+- Prompt-based week editing (inline grid editing deferred to Phase 6+)
+
+### Database Schema
+- `nutrient_schedule` table with columns: week, phase, grow_ml10, micro_ml10, bloom_ml10, ec_target, ph_low, ph_high, temp_target, lights, notes
+- Auto-migration for new columns (ph_low, ph_high, temp_target) on existing installs
+- Current week calculation from `general.grow_start_date` setting
+
+### UI Layout
+- Grid-based timeline (4 columns × 3 rows) replacing horizontal scroll
+- Week selector chips (W1-W12) for quick navigation
+- Targets panel showing selected week details with Edit/Reset buttons
+- Plan preview (upcoming 48h actions)
+- Status badges (water-only mode, automation state, EC interval)
+
+### Technical Details
+- Backend: `app/schedule_api.py` with SQLite persistence
+- Frontend: `app/static/js/schedule.js` with calendar-style rendering
+- Phase support: seedling (W1-2), veg (W3-6), preflower (W7-8), flower (W9-10), flush (W11-12)
+- Deployed to Pi at commit de7b073
+
+### Documentation
+- Research completed for future Grow Diary feature (Phase 6+): `docs/GROW_DIARY_RESEARCH.md`
+
 ## v4.2.0 (2025-11-20)
 
 **UI Simplification - Backend-First Focus**
