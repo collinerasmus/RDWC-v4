@@ -164,6 +164,53 @@ def get_chiller_events(limit: int = 200) -> list[dict]:
         return []
 
 
+def check_interlock_status() -> Dict[str, Any]:
+    """
+    Check if circulation interlock prerequisites are met for safe chiller operation.
+    
+    Returns:
+        Dict with:
+            - interlock_ok: bool - True if all prerequisites met
+            - main_pump_on: bool - Main RDWC circulation pump state
+            - chiller_pump_on: bool - Chiller circulation pump state
+            - chiller_running: bool - Current chiller state
+            - violations: List[str] - List of active violations (empty if ok)
+    """
+    try:
+        relays = get_relay_status()
+        main_pump_on = relays.get('main_pump', {}).get('state', False)
+        chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
+        chiller_running = _chiller_state.get('is_running', False)
+        
+        violations = []
+        
+        # Check if chiller is running without required pumps
+        if chiller_running:
+            if not main_pump_on:
+                violations.append('main_pump_off')
+            if not chiller_pump_on:
+                violations.append('chiller_pump_off')
+        
+        interlock_ok = len(violations) == 0
+        
+        return {
+            'interlock_ok': interlock_ok,
+            'main_pump_on': main_pump_on,
+            'chiller_pump_on': chiller_pump_on,
+            'chiller_running': chiller_running,
+            'violations': violations if violations else None
+        }
+    except Exception as e:
+        log.error(f'[CHILLER] Interlock check failed: {e}')
+        return {
+            'interlock_ok': False,
+            'main_pump_on': False,
+            'chiller_pump_on': False,
+            'chiller_running': False,
+            'violations': ['check_failed']
+        }
+
+
 def get_chiller_state() -> Dict[str, Any]:
     """Get current chiller state for API/UI."""
     with _control_lock:
@@ -180,6 +227,11 @@ def get_chiller_state() -> Dict[str, Any]:
         state['target_temp'] = float(get_setting('chiller.target_temp', '19.0'))
         state['hysteresis'] = float(get_setting('chiller.hysteresis', '0.5'))
         state['auto_enabled'] = bool(int(get_setting('chiller.auto_enabled', '0')))
+        
+        # Add interlock status
+        interlock = check_interlock_status()
+        state['interlock_ok'] = interlock['interlock_ok']
+        state['interlock_details'] = interlock
         
         return state
 

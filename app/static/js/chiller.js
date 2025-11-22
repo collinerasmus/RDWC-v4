@@ -263,6 +263,9 @@
       }
     }
     
+    // Update interlock banner
+    updateInterlockBanner();
+    
     // Update settings inputs
     const targetInput = q('#chillerTargetTemp');
     const hysteresisInput = q('#chillerHysteresis');
@@ -271,6 +274,50 @@
     if (targetInput) targetInput.value = state.target_temp.toFixed(1);
     if (hysteresisInput) hysteresisInput.value = state.hysteresis.toFixed(1);
     if (stageSelect) stageSelect.value = state.stage || 'default';
+  }
+
+  // Update interlock status banner
+  function updateInterlockBanner() {
+    const banner = q('#chiller-interlock-banner');
+    if (!banner) return;
+    
+    const state = chillerState;
+    const details = state.interlock_details;
+    
+    if (!details) {
+      banner.style.display = 'none';
+      return;
+    }
+    
+    banner.style.display = 'block';
+    
+    if (details.interlock_ok) {
+      // Green banner - all good
+      banner.style.background = 'rgba(34,197,94,0.15)';
+      banner.style.borderColor = 'rgba(34,197,94,0.45)';
+      banner.style.color = '#a7f3d0';
+      banner.innerHTML = '🟢 <strong>INTERLOCK ACTIVE:</strong> Chiller running with circulated pumps';
+    } else {
+      // Red banner - violation
+      banner.style.background = 'rgba(239,68,68,0.15)';
+      banner.style.borderColor = 'rgba(239,68,68,0.45)';
+      banner.style.color = '#fca5a5';
+      
+      let message = '⚠️ <strong>INTERLOCK VIOLATION:</strong> ';
+      const violations = details.violations || [];
+      
+      if (violations.includes('main_pump_off')) {
+        message += 'Main pump is OFF (RDWC circulation required)';
+      } else if (violations.includes('chiller_pump_off')) {
+        message += 'Chiller pump is OFF (water circulation required)';
+      } else if (violations.length > 0) {
+        message += violations.join(', ');
+      } else {
+        message += 'Unknown violation';
+      }
+      
+      banner.innerHTML = message;
+    }
   }
 
   // Enable auto control
