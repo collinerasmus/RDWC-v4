@@ -778,7 +778,7 @@ body{
       <!-- Settings -->
       <details style="margin-top:12px;">
         <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Schedule Settings</summary>
-        <div style="margin-top:12px;">
+        <div class="details-content">
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
             <button id="scheduleSeedBtn" class="btn-secondary primary" title="Seed default 12-week schedule (non-destructive)">Seed Defaults</button>
           </div>
@@ -1215,7 +1215,7 @@ body{
       <hr class="separator" style="margin:20px 0;" />
       <details>
         <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Lights Info</summary>
-        <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);font-size:0.8rem;">
+        <div class="details-content" style="font-size:0.8rem;">
           <ul style="margin:0;padding-left:18px;line-height:1.4;">
             <li>Edge-only scheduler sets two transitions per day (no periodic enforcement).</li>
             <li>Manual mode ignores schedule; Auto enforces window; Maintenance keeps relay state but suppresses auto edges.</li>
@@ -1260,9 +1260,11 @@ body{
       <!-- Circulation Settings -->
       <details style="margin-top:12px;">
         <summary class="muted" style="cursor:pointer;font-size:0.9rem;">⚙️ Pump Safety Settings</summary>
-        <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.2);">
-          <div class="muted" style="font-size:0.7rem;margin-bottom:10px;padding:6px 8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
-            Configure minimum off times to prevent rapid cycling and extend pump lifespan.
+        <div class="details-content">
+          <div class="info-banner-blue">
+            <div class="info-banner-blue-content">
+              Configure minimum off times to prevent rapid cycling and extend pump lifespan.
+            </div>
           </div>
           <div style="margin-bottom:16px;">
             <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Pump Minimum Off Times</div>
@@ -1344,7 +1346,7 @@ body{
         <!-- Sensor Reading Section -->
         <details class="sensors-settings-accordion" style="margin-top:8px;">
           <summary class="muted" style="cursor:pointer;font-size:0.85rem;">📊 Sensor Reading</summary>
-          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+          <div class="details-content-accent">
             <div class="muted" style="font-size:0.7rem;margin-bottom:10px;">Live Sensors are cached by the background poller. Use "Read now" for an immediate sample (only available in Manual/Maintenance mode). Health details are available from the green "OK" badge.</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
               <button id="btnSensorsReadNow" class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Read now</button>
@@ -1358,7 +1360,7 @@ body{
         <!-- pH Probe Calibration Section -->
         <details class="sensors-settings-accordion" style="margin-top:8px;">
           <summary class="muted" style="cursor:pointer;font-size:0.85rem;">🧪 pH Probe Calibration</summary>
-          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+          <div class="details-content-accent">
           <div style="font-weight:600;margin-bottom:8px;font-size:0.8rem;">pH Probe Calibration</div>
           <div id="ph-calib-banner-inline" style="display:none;font-size:0.7rem;padding:6px 8px;border-radius:6px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);color:#fecaca;margin-bottom:10px;">
             ⚠️ Writes are disabled. Set CALIB_ENABLE=1 and restart service to enable calibration commands.
@@ -1404,7 +1406,7 @@ body{
         <!-- EC Probe Calibration Section -->
         <details class="sensors-settings-accordion" style="margin-top:8px;">
           <summary class="muted" style="cursor:pointer;font-size:0.85rem;">⚡ EC Probe Calibration</summary>
-          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+          <div class="details-content-accent">
           <div style="font-weight:600;margin-bottom:8px;font-size:0.8rem;">EC Probe Calibration</div>
           
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
