@@ -102,6 +102,12 @@ body{
   width:9px; height:9px; border-radius:50%; background:#4b5563; display:inline-block; box-shadow:0 0 0 2px rgba(0,0,0,0.4); flex-shrink:0; transition:background .2s ease, transform .2s ease;
 }
 .ctrl-health-dot.changed{ transform:scale(1.4); }
+/* Health dot state colors */
+.ctrl-health-dot.ok{ background:#10b981; }
+.ctrl-health-dot.warn{ background:#f59e0b; }
+.ctrl-health-dot.bad{ background:#ef4444; }
+.ctrl-health-dot.offline{ background:#6b7280; }
+.ctrl-health-dot.maint{ background:#8b5cf6; }
   content: '';
   position: absolute;
   bottom: 0;
