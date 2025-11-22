@@ -491,3 +491,27 @@ details > summary { list-style:none; }
   font-size: var(--font-xs);
   color: var(--fg-muted);
 }
+
+/* Controller status row for Overview tab */
+.controller-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-normal);
+}
+
+.controller-status-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--fg-primary);
+}
+
+.controller-status-chips {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
