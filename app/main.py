@@ -1050,7 +1050,7 @@ def api_chiller_auto_disable():
     return {"ok": True, "auto_enabled": False}
 
 @app.post("/api/chiller/force")
-def api_chiller_force(req: dict):
+async def api_chiller_force(req: dict):
     """
     Force chiller ON or OFF for specified duration (emergency/maintenance override).
     Body: {"on": true/false, "duration_minutes": 60} (duration optional)
@@ -2030,7 +2030,7 @@ def test_ping():
     return {"ok": True, "message": "pong"}
 
 @app.post("/test/echo")
-def test_echo(body: dict = Body(...)):
+async def test_echo(body: dict = Body(...)):
     """Simple test endpoint to verify POST is working at all"""
     import logging
     logger = logging.getLogger(__name__)
@@ -2038,7 +2038,7 @@ def test_echo(body: dict = Body(...)):
     return {"ok": True, "echo": body, "message": "POST endpoint is working"}
 
 @app.post("/relay/set")
-def relay_set_new(body: dict = Body(...)):
+async def relay_set_new(body: dict = Body(...)):
     """Set relay state using proper relays_core with whitelisted 'override' reason"""
     import logging
     logger = logging.getLogger(__name__)
