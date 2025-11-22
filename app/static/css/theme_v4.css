@@ -1,27 +1,65 @@
 /* RDWC v4 Unified Theme (lockdown) */
 :root {
+  /* Background Colors */
   --bg-root: #0b0f14;
   --bg-surface: #0d1117;
   --bg-pill: #111827;
+  --bg-card: rgba(31,41,55,0.4);
+  --bg-card-elevated: rgba(31,41,55,0.6);
+  
+  /* Foreground Colors */
   --fg-primary: #e0e0e0;
   --fg-muted: #9ca3af;
+  --fg-bright: #ffffff;
+  
+  /* Accent Colors */
   --accent: #3b82f6;
   --accent-rgba: 59,130,246;
+  --accent-hover: #2563eb;
+  --success: #10b981;
+  --success-rgba: 16,185,129;
+  --warning: #f59e0b;
+  --warning-rgba: 245,158,11;
   --danger: #ef4444;
   --danger-rgba: 239,68,68;
+  
+  /* Border Colors */
   --border-muted: rgba(148,163,184,0.15);
+  --border-normal: rgba(55,65,81,0.5);
   --border-strong: rgba(148,163,184,0.25);
+  
+  /* Border Radius */
   --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
   --radius-pill: 999px;
+  
+  /* Spacing */
   --space-xs: 4px;
   --space-sm: 6px;
   --space-md: 10px;
   --space-lg: 16px;
+  --space-xl: 20px;
+  
+  /* Typography */
   --font-xs: 0.7rem;
   --font-sm: 0.75rem;
   --font-base: 0.8rem;
   --font-md: 0.85rem;
   --font-lg: 0.95rem;
+  --font-xl: 1.05rem;
+  --font-heading: 1.15rem;
+  
+  /* Info Banner Backgrounds */
+  --info-banner-blue-bg: rgba(59,130,246,0.08);
+  --info-banner-blue-border: rgba(59,130,246,0.25);
+  --info-banner-blue-text: #93c5fd;
+  --info-banner-warning-bg: rgba(245,158,11,0.08);
+  --info-banner-warning-border: rgba(245,158,11,0.35);
+  --info-banner-warning-text: #fbbf24;
+  --info-banner-danger-bg: rgba(239,68,68,0.12);
+  --info-banner-danger-border: rgba(239,68,68,0.45);
+  --info-banner-danger-text: #fecaca;
 }
 
 body { background: var(--bg-root); color: var(--fg-primary); }
@@ -351,3 +389,105 @@ details > summary { list-style:none; }
 
 /* Finalization marker */
 /* VERSION: theme_v4 locked */
+
+/* Phase 7: Reusable Card & Banner Classes */
+/* Standard card container */
+.system-card {
+  padding: var(--space-lg);
+  background: var(--bg-card);
+  border: 1px solid var(--border-normal);
+  border-radius: var(--radius-lg);
+}
+
+.system-card-xl {
+  padding: var(--space-xl);
+  background: var(--bg-card);
+  border: 1px solid var(--border-normal);
+  border-radius: var(--radius-lg);
+}
+
+/* Card header with icon */
+.system-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: 14px;
+}
+
+.system-card-icon {
+  font-size: 1.5rem;
+}
+
+.system-card-title {
+  margin: 0;
+  font-size: var(--font-xl);
+  font-weight: 600;
+}
+
+/* Info banners */
+.info-banner-blue {
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: var(--info-banner-blue-bg);
+  border: 1px solid var(--info-banner-blue-border);
+  display: flex;
+  align-items: start;
+  gap: var(--space-md);
+}
+
+.info-banner-blue-content {
+  font-size: var(--font-md);
+  color: var(--info-banner-blue-text);
+  line-height: 1.5;
+}
+
+.info-banner-warning {
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: var(--info-banner-warning-bg);
+  border: 1px solid var(--info-banner-warning-border);
+  display: flex;
+  align-items: start;
+  gap: var(--space-md);
+}
+
+.info-banner-warning-content {
+  font-size: var(--font-md);
+  color: var(--info-banner-warning-text);
+  line-height: 1.5;
+}
+
+.info-banner-danger {
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: var(--info-banner-danger-bg);
+  border: 1px solid var(--info-banner-danger-border);
+  display: flex;
+  align-items: start;
+  gap: var(--space-md);
+}
+
+.info-banner-danger-content {
+  font-size: var(--font-md);
+  color: var(--info-banner-danger-text);
+  line-height: 1.5;
+}
+
+.info-banner-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+/* Card footer note */
+.system-card-footer {
+  margin-top: var(--space-lg);
+  padding: var(--space-md) 14px;
+  border-radius: var(--radius-md);
+  background: rgba(148,163,184,0.05);
+  border: 1px solid rgba(148,163,184,0.2);
+  font-size: var(--font-xs);
+  color: var(--fg-muted);
+}
