@@ -93,7 +93,8 @@ class Scheduler:
     def _update_lights_schedule(self):
         """Update lights schedule based on current settings"""
         try:
-            from .settings import get_settings, get_todays_lights_window
+            from .settings import get_settings, get_todays_lights_window, lights_window, SA_TZ
+            from datetime import datetime
             
             settings = get_settings()
             
@@ -106,26 +107,55 @@ class Scheduler:
             
             # Get today's window
             on_dt, off_dt = get_todays_lights_window()
+            now = datetime.now(SA_TZ)
             
-            # Store times for catch-up logic
+            # Store times for edge detection
             self._current_lights_on_time = on_dt.strftime("%H:%M")
             self._current_lights_off_time = off_dt.strftime("%H:%M")
             
-            log_event({
-                "kind": "lights_schedule_updated",
-                "on_time": self._current_lights_on_time,
-                "off_time": self._current_lights_off_time,
-                "on_datetime": on_dt.isoformat(),
-                "off_datetime": off_dt.isoformat()
-            })
-            
-            # Handle case where lights span midnight (off_time < on_time the next day)
+            # Handle midnight-spanning windows: check if we're currently in yesterday's window
             if off_dt.date() > on_dt.date():
-                # Split into two spans: today->midnight and midnight->off_time
-                # Edge-only design: we end today at 23:59 and rely on the next day's
-                # _update_lights_schedule() to set the new ON/OFF edge across midnight.
-                # This avoids periodic catch-up loops by construction.
-                self._current_lights_off_time = "23:59"  # end today; midnight portion handled next day
+                # Window spans midnight (e.g., 22:00 today -> 10:00 tomorrow)
+                # Check if current time is after midnight but before off_time
+                if now.date() > on_dt.date() and now < off_dt:
+                    # We're in the continuation of yesterday's window (after midnight, before off_time)
+                    # Get yesterday's window to find when lights actually turned ON
+                    yesterday = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+                    yesterday_on_dt, yesterday_off_dt = lights_window(yesterday)
+                    
+                    # Set the on_time to yesterday's time (already passed, won't trigger edge)
+                    # But keep the off_time from today (will trigger OFF edge at correct time)
+                    self._current_lights_on_time = yesterday_on_dt.strftime("%H:%M")
+                    self._current_lights_off_time = off_dt.strftime("%H:%M")
+                    
+                    log_event({
+                        "kind": "lights_schedule_midnight_continuation",
+                        "on_time_yesterday": self._current_lights_on_time,
+                        "off_time_today": self._current_lights_off_time,
+                        "on_datetime": yesterday_on_dt.isoformat(),
+                        "off_datetime": off_dt.isoformat(),
+                        "note": "Currently in window that started yesterday"
+                    })
+                else:
+                    # We're before the ON time today, or after the OFF time
+                    # Keep normal schedule (ON time today, OFF time tomorrow)
+                    log_event({
+                        "kind": "lights_schedule_updated",
+                        "on_time": self._current_lights_on_time,
+                        "off_time": self._current_lights_off_time,
+                        "on_datetime": on_dt.isoformat(),
+                        "off_datetime": off_dt.isoformat(),
+                        "note": "Window spans midnight"
+                    })
+            else:
+                # Normal case: window doesn't span midnight
+                log_event({
+                    "kind": "lights_schedule_updated",
+                    "on_time": self._current_lights_on_time,
+                    "off_time": self._current_lights_off_time,
+                    "on_datetime": on_dt.isoformat(),
+                    "off_datetime": off_dt.isoformat()
+                })
             
         except Exception as e:
             log_event({"kind": "lights_schedule_error", "error": str(e)})
