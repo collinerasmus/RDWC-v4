@@ -42,8 +42,8 @@
     dosing_ph_up: 5,
   };
 
-  // Global UI state
-  const state = { systemMode: 'manual', relays: {}, estop: false, restoredBoot: false };
+  // Global UI state (estop removed - now from estopStore)
+  const state = { systemMode: 'manual', relays: {}, restoredBoot: false };
 
   async function getJSON(url){
     // Append cache-buster to avoid stale responses when user requests a full refresh
