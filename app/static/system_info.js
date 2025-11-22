@@ -240,21 +240,37 @@
   // Populate Network Information section
   function populateNetworkInfo(data) {
     const hostnameEl = document.getElementById('net-hostname');
-    const ipsContainer = document.getElementById('net-ips');
+    const ipsContainer = document.getElementById('net-ips-container');
 
     if (hostnameEl) {
       hostnameEl.textContent = data.hostname || '—';
     }
 
     if (ipsContainer) {
+      ipsContainer.innerHTML = '';
       if (data.ip_addresses && data.ip_addresses.length > 0) {
-        const ips = data.ip_addresses.map(ipInfo => {
+        data.ip_addresses.forEach(ipInfo => {
+          const kpi = document.createElement('div');
+          kpi.className = 'kpi';
+          
+          const label = document.createElement('div');
+          label.className = 'kpi-label';
+          label.textContent = ipInfo.interface;
+          
+          const value = document.createElement('div');
+          value.className = 'kpi-value';
           const netmask = ipInfo.netmask ? `/${ipInfo.netmask}` : '';
-          return `${ipInfo.interface}: ${ipInfo.address}${netmask}`;
-        }).join(' • ');
-        ipsContainer.textContent = ips;
+          value.textContent = `${ipInfo.address}${netmask}`;
+          value.style.color = '#93c5fd';
+          
+          kpi.appendChild(label);
+          kpi.appendChild(value);
+          ipsContainer.appendChild(kpi);
+        });
       } else {
-        ipsContainer.textContent = 'No interfaces found';
+        const msg = document.createElement('div');
+        msg.className = 'muted';
+        msg.textContent = 'No interfaces found';
         ipsContainer.appendChild(msg);
       }
     }

@@ -64,42 +64,32 @@
       const grp = GROUP_DEF[ns];
       if (!grp) return;
 
-      // Create grid for fields
+      // Create grid for fields (matching pH/EC Parameters style)
       const grid = document.createElement('div');
-      grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:12px;';
+      grid.style.cssText = 'display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;';
       
       const fields = grp.fields;
       Object.entries(fields).forEach(([key, meta]) => {
         const val = current[key] ?? '';
         const wrap = document.createElement('div');
-        wrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
-        
-        const labelRow = document.createElement('div');
-        labelRow.style.cssText = 'display:flex;align-items:center;gap:8px;';
         
         const label = document.createElement('label');
         const id = `f_${key.replace(/\./g,'_')}`;
         label.htmlFor = id;
-        label.style.cssText = 'font-size:var(--font-sm);color:#9ca3af;font-weight:500;';
-        label.textContent = meta.label;
-        labelRow.appendChild(label);
+        label.style.cssText = 'display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;';
         
-        if (meta.badge){
-          const badge = document.createElement('span');
-          badge.style.cssText = 'padding:2px 6px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:4px;color:#fca5a5;font-size:0.65rem;font-weight:600;text-transform:uppercase;';
-          badge.textContent = meta.badge;
-          labelRow.appendChild(badge);
+        // Label text with optional badge
+        let labelText = meta.label;
+        if (meta.badge) {
+          labelText += ` (${meta.badge})`;
+        }
+        label.textContent = labelText;
+        
+        if (meta.tooltip) {
+          label.title = meta.tooltip;
         }
         
-        if (meta.tooltip){
-          const icon = document.createElement('span');
-          icon.textContent = 'ℹ️';
-          icon.style.cssText = 'cursor:help;font-size:0.85rem;';
-          icon.title = meta.tooltip;
-          labelRow.appendChild(icon);
-        }
-        
-        wrap.appendChild(labelRow);
+        wrap.appendChild(label);
         
         let inp;
         if (meta.type === 'checkbox'){
@@ -118,9 +108,11 @@
           if (meta.min !== undefined) inp.min = meta.min;
           if (meta.max !== undefined) inp.max = meta.max;
           if (meta.step !== undefined) inp.step = meta.step;
-          inp.style.cssText = 'height:32px;padding:0 10px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);';
+          inp.style.cssText = 'width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);';
           inp.addEventListener('input', ()=>{ current[key] = inp.value; markDirty(); });
         }
+        
+        wrap.appendChild(inp);
         
         // Add Day N badge after grow_start_date input
         if (key === 'general.grow_start_date') {
@@ -130,7 +122,6 @@
           wrap.appendChild(badge);
         }
         
-        wrap.appendChild(inp);
         grid.appendChild(wrap);
       });
       

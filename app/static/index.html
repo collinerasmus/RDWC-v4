@@ -2267,9 +2267,8 @@ body{
             <div class="kpi-label">Hostname</div>
             <div class="kpi-value" id="net-hostname">—</div>
           </div>
-          <div class="kpi" style="flex:1 1 300px;">
-            <div class="kpi-label">IP Addresses</div>
-            <div class="kpi-value" id="net-ips" style="font-size:var(--font-base);line-height:1.4;">—</div>
+          <div id="net-ips-container" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <!-- Individual IP interface blocks populated dynamically -->
           </div>
         </div>
       </div>
@@ -2323,8 +2322,11 @@ body{
         </div>
         <details style="margin-top:12px;">
           <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">General</summary>
-          <div class="details-content" id="settings-general">
-            <!-- Populated by settings.js -->
+          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure grow identification, timezone, and reservoir parameters.</div>
+            <div id="settings-general">
+              <!-- Populated by settings.js -->
+            </div>
           </div>
         </details>
       </div>
@@ -2337,8 +2339,11 @@ body{
         </div>
         <details style="margin-top:12px;">
           <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Safety</summary>
-          <div class="details-content" id="settings-safety">
-            <!-- Populated by settings.js -->
+          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure E-STOP behavior, maintenance mode, and dosing safety limits.</div>
+            <div id="settings-safety">
+              <!-- Populated by settings.js -->
+            </div>
           </div>
         </details>
       </div>
@@ -2351,8 +2356,11 @@ body{
         </div>
         <details style="margin-top:12px;">
           <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Alerts</summary>
-          <div class="details-content" id="settings-alerts">
-            <!-- Populated by settings.js -->
+          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure alert notification email and cooldown periods.</div>
+            <div id="settings-alerts">
+              <!-- Populated by settings.js -->
+            </div>
           </div>
         </details>
       </div>
@@ -2365,8 +2373,11 @@ body{
         </div>
         <details style="margin-top:12px;">
           <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">UI</summary>
-          <div class="details-content" id="settings-ui">
-            <!-- Populated by settings.js -->
+          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure dashboard behavior, polling intervals, and display preferences.</div>
+            <div id="settings-ui">
+              <!-- Populated by settings.js -->
+            </div>
           </div>
         </details>
         <div style="display:flex;justify-content:flex-end;margin-top:var(--space-md);">
