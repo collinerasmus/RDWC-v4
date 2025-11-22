@@ -661,9 +661,9 @@ body{
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <!-- Global Mode Controls (single source of truth) -->
       <div class="system-mode-buttons" style="display:flex;gap:6px;">
-        <button id="mode-auto" class="btn-chip" title="System Auto">Auto</button>
-        <button id="mode-manual" class="btn-chip active" title="System Manual">Manual</button>
-        <button id="mode-maint" class="btn-chip" title="Maintenance Mode">Maintenance</button>
+        <button id="system-mode-auto" class="btn-chip" title="System Auto">Auto</button>
+        <button id="system-mode-manual" class="btn-chip" title="System Manual">Manual</button>
+        <button id="system-mode-maint" class="btn-chip" title="Maintenance Mode">Maintenance</button>
       </div>
       <button id="estop-btn" class="btn-secondary danger" title="Emergency Stop: forces all relays OFF and blocks ON until released">E‑STOP</button>
       <div id="build-banner" class="muted" style="font-size:var(--font-base);padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,0.25);background:rgba(148,163,184,0.06);color:#cbd5e1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -671,6 +671,44 @@ body{
       </div>
     </div>
   </div>
+
+  <script>
+  // Initialize header mode buttons: wire click handlers and sync with API
+  (function(){
+    function initHeaderModeButtons(){
+      var btnAuto = document.getElementById('system-mode-auto');
+      var btnManual = document.getElementById('system-mode-manual');
+      var btnMaint = document.getElementById('system-mode-maint');
+      
+      // Wire up click handlers to call systemSetMode (exposed by system.js)
+      if (btnAuto) btnAuto.addEventListener('click', function(){ if(window.systemSetMode) window.systemSetMode('auto'); });
+      if (btnManual) btnManual.addEventListener('click', function(){ if(window.systemSetMode) window.systemSetMode('manual'); });
+      if (btnMaint) btnMaint.addEventListener('click', function(){ if(window.systemSetMode) window.systemSetMode('maintenance'); });
+      
+      // Fetch current mode from API and sync button state
+      fetch('/api/relays/status', {cache:'no-store'})
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          var currentMode = data.mode || 'manual';
+          // Set active class on correct button
+          if (btnAuto) btnAuto.classList.toggle('active', currentMode === 'auto');
+          if (btnManual) btnManual.classList.toggle('active', currentMode === 'manual');
+          if (btnMaint) btnMaint.classList.toggle('active', currentMode === 'maintenance');
+        })
+        .catch(function(err){
+          console.warn('[Header Mode] Failed to fetch current mode:', err);
+          // Fallback to manual if API fails
+          if (btnManual) btnManual.classList.add('active');
+        });
+    }
+    
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initHeaderModeButtons);
+    } else {
+      initHeaderModeButtons();
+    }
+  })();
+  </script>
 
   <!-- Top-level Tabs Navigation -->
   <nav id="tabs-nav" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px 0;padding-bottom:4px;" aria-label="Primary sections">
