@@ -211,17 +211,22 @@
   }
 
   function updateEstopButton() {
+    // Update both E-STOP buttons (global and System tab)
     const btn = q('#estop-btn');
-    if (!btn) return;
-    if (state.estop) {
-      btn.classList.add('active');
-      btn.textContent = 'E‑STOP ACTIVE';
-      btn.title = 'E-Stop is engaged: all relays forced OFF and blocked until release';
-    } else {
-      btn.classList.remove('active');
-      btn.textContent = 'E‑STOP';
-      btn.title = 'Emergency Stop: forces all relays OFF and blocks ON until released';
-    }
+    const globalBtn = q('#global-estop-btn');
+    
+    const buttons = [btn, globalBtn].filter(b => b);
+    buttons.forEach(button => {
+      if (state.estop) {
+        button.classList.add('active');
+        button.textContent = 'E‑STOP ACTIVE';
+        button.title = 'E-Stop is engaged: all relays forced OFF and blocked until release';
+      } else {
+        button.classList.remove('active');
+        button.textContent = 'E‑STOP';
+        button.title = 'Emergency Stop: forces all relays OFF and blocks ON until released';
+      }
+    });
   }
 
   // --- Relay Status with Lockout Info (smart fallback) ----------------------
@@ -471,7 +476,9 @@
     // Wire mode toggle buttons
   const autoBtn = q('#mode-auto');
   const manualBtn = q('#mode-manual');
-  const estopBtn = q('#estop-btn');
+  // Wire up global E-STOP button (in main header) and legacy button (in System tab)
+  const estopBtn = q('#estop-btn');  // Legacy button in System tab
+  const globalEstopBtn = q('#global-estop-btn');  // New global button in header
     
     if (autoBtn) {
       autoBtn.addEventListener('click', () => {
@@ -496,14 +503,21 @@
         }
       });
     }
+    
+    // Wire both E-STOP buttons
+    const handleEstopClick = () => {
+      if (!state.estop) {
+        const ok = confirm('Engage E-STOP?\nThis will immediately turn all relays OFF and block ON commands until released.');
+        if (!ok) return;
+      }
+      toggleEstop();
+    };
+    
     if (estopBtn) {
-      estopBtn.addEventListener('click', () => {
-        if (!state.estop) {
-          const ok = confirm('Engage E-STOP?\nThis will immediately turn all relays OFF and block ON commands until released.');
-          if (!ok) return;
-        }
-        toggleEstop();
-      });
+      estopBtn.addEventListener('click', handleEstopClick);
+    }
+    if (globalEstopBtn) {
+      globalEstopBtn.addEventListener('click', handleEstopClick);
     }
   }
 
