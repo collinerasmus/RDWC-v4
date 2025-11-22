@@ -2206,21 +2206,19 @@ body{
           <span class="system-card-icon">⚙️</span>
           <h4 class="system-card-title">Hardware Environment</h4>
         </div>
-        <div style="margin-bottom:14px;">
-          <div style="font-size:var(--font-sm);color:#9ca3af;margin-bottom:8px;font-weight:600;">I²C Devices (EZO Sensors)</div>
-          <div id="env-i2c-devices" style="display:flex;flex-wrap:wrap;gap:6px;">
-            <!-- Populated dynamically -->
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div class="kpi" style="flex:1 1 300px;">
+            <div class="kpi-label">I²C Devices (EZO Sensors)</div>
+            <div class="kpi-value" id="env-i2c-devices" style="font-size:var(--font-base);line-height:1.4;">—</div>
           </div>
-        </div>
-        <div style="margin-bottom:14px;padding-top:12px;border-top:1px solid rgba(55,65,81,0.5);">
-          <div style="font-size:var(--font-sm);color:#9ca3af;margin-bottom:8px;font-weight:600;">Relay GPIO Pins</div>
-          <div id="env-gpio-pins" style="display:flex;flex-wrap:wrap;gap:6px;font-size:var(--font-md);">
-            <!-- Populated dynamically -->
+          <div class="kpi" style="flex:1 1 400px;">
+            <div class="kpi-label">Relay GPIO Pins</div>
+            <div class="kpi-value" id="env-gpio-pins" style="font-size:var(--font-base);line-height:1.4;">—</div>
           </div>
-        </div>
-        <div style="padding-top:12px;border-top:1px solid rgba(55,65,81,0.5);">
-          <div style="font-size:var(--font-sm);color:#9ca3af;margin-bottom:4px;">Sensor Power Pin</div>
-          <div id="env-sensor-power" style="font-weight:600;color:#f9a8d4;font-size:var(--font-lg);">—</div>
+          <div class="kpi">
+            <div class="kpi-label">Sensor Power Pin</div>
+            <div class="kpi-value" id="env-sensor-power">—</div>
+          </div>
         </div>
       </div>
 
@@ -2314,27 +2312,23 @@ body{
         </div>
       </div>
 
-      <!-- 8. Settings Management (Accordion Style) -->
-      <div class="system-card-xl">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px;">
-          <div class="system-card-header">
-            <span class="system-card-icon">⚙️</span>
-            <h4 class="system-card-title">Settings Management</h4>
-          </div>
-          <button id="btnSaveSettings" class="btn-secondary" disabled style="padding:8px 16px;border-radius:8px;font-weight:600;">💾 Save Changes</button>
+      <!-- 8. Settings Management -->
+      <div class="system-card">
+        <div class="system-card-header">
+          <span class="system-card-icon">⚙️</span>
+          <h4 class="system-card-title">Settings Management</h4>
         </div>
-        
-        <div class="info-banner-blue">
-          <span class="info-banner-icon">ℹ️</span>
-          <div class="info-banner-blue-content">
-              <strong>Note:</strong> Controller-specific settings (pH targets, EC targets, chiller controls, automation parameters) are available in their respective controller tabs. Click any section below to expand/collapse.
-            </div>
+        <div class="muted" style="font-size:var(--font-sm);margin-bottom:var(--space-md);padding:8px 12px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:6px;">
+          <strong>Note:</strong> Controller-specific settings (pH targets, EC targets, chiller controls, automation parameters) are available in their respective controller tabs.
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:var(--space-md);">
+          <button id="btnSaveSettings" class="btn-secondary" disabled style="padding:8px 16px;border-radius:8px;font-weight:600;">💾 Save Changes</button>
         </div>
         
         <!-- Settings Accordion Sections -->
         <div id="settings-panels"></div>
         
-        <div class="system-card-footer">
+        <div class="muted" style="font-size:var(--font-xs);margin-top:var(--space-md);padding-top:var(--space-md);border-top:1px solid rgba(55,65,81,0.5);">
           💡 Changes apply immediately unless noted. Relays never energize on save.
         </div>
       </div>

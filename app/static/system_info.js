@@ -135,47 +135,30 @@
     const gpioContainer = document.getElementById('env-gpio-pins');
     const sensorPowerEl = document.getElementById('env-sensor-power');
 
-    // I²C devices
+    // I²C devices - display as inline text
     if (i2cContainer) {
-      i2cContainer.innerHTML = '';
       if (data.i2c_devices && data.i2c_devices.length > 0) {
-        data.i2c_devices.forEach(device => {
-          const badge = document.createElement('span');
-          badge.style.cssText = 'padding:4px 10px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.35);border-radius:6px;color:#93c5fd;font-size:0.85rem;white-space:nowrap;';
-          badge.textContent = `${device.address} ${device.name}`;
-          i2cContainer.appendChild(badge);
-        });
+        const devices = data.i2c_devices.map(device => `${device.address} ${device.name}`).join(' • ');
+        i2cContainer.textContent = devices;
       } else {
-        const msg = document.createElement('span');
-        msg.style.cssText = 'color:#9ca3af;font-size:0.85rem;';
-        msg.textContent = 'No I²C devices detected';
-        i2cContainer.appendChild(msg);
+        i2cContainer.textContent = 'No I²C devices detected';
       }
     }
 
-    // GPIO pins - relay_pins not relay_gpio_pins
+    // GPIO pins - display as inline text
     if (gpioContainer) {
-      gpioContainer.innerHTML = '';
       if (data.relay_pins && Object.keys(data.relay_pins).length > 0) {
-        Object.entries(data.relay_pins).forEach(([name, pin]) => {
-          const badge = document.createElement('span');
-          badge.style.cssText = 'padding:4px 8px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.35);border-radius:6px;color:#a7f3d0;font-size:0.8rem;white-space:nowrap;';
-          badge.textContent = `${name}: GPIO ${pin}`;
-          gpioContainer.appendChild(badge);
-        });
+        const pins = Object.entries(data.relay_pins).map(([name, pin]) => `${name}: GPIO ${pin}`).join(' • ');
+        gpioContainer.textContent = pins;
       } else {
-        const msg = document.createElement('span');
-        msg.style.cssText = 'color:#9ca3af;font-size:0.85rem;';
-        msg.textContent = 'No GPIO pins configured';
-        gpioContainer.appendChild(msg);
+        gpioContainer.textContent = 'No GPIO pins configured';
       }
     }
 
     // Sensor power pin
     if (sensorPowerEl) {
       if (data.sensor_power_pin && data.sensor_power_pin !== 'not configured') {
-        sensorPowerEl.textContent = data.sensor_power_pin;
-        sensorPowerEl.style.color = '#f9a8d4';
+        sensorPowerEl.textContent = `GPIO ${data.sensor_power_pin}`;
       } else {
         sensorPowerEl.textContent = 'Not configured';
         sensorPowerEl.style.color = '#9ca3af';
