@@ -1,5 +1,36 @@
 # Changelog
 
+## v4.3.0 (2025-11-22)
+
+**Lights Schedule Midnight Fix (CRITICAL)**
+
+### Fixed
+- **Midnight boundary handling** for lights schedule when window spans midnight
+  - Previously: lights incorrectly turned OFF at 23:59 when schedule crossed midnight (e.g., ON at 22:00, OFF at 10:00 next day)
+  - Now: lights correctly stay ON through midnight and turn OFF at scheduled time next day
+  - Root cause: `_update_lights_schedule()` truncated off_time to "23:59" for midnight-spanning windows
+  - Solution: detect when current time is in yesterday's window continuation, set correct on/off times
+
+### Added
+- Comprehensive test suite for midnight boundary cases (`tests/test_scheduler_midnight.py`)
+  - 7 tests covering all midnight scenarios (same-day, spanning, exactly at midnight)
+  - Validates edge-only behavior is preserved (no periodic catch-up loops)
+  - Tests midnight detection logic for windows starting yesterday
+
+### Technical Details
+- Modified `app/scheduler.py::_update_lights_schedule()`:
+  - Removed truncation to "23:59" for midnight-spanning windows
+  - Added detection for current time within yesterday's window continuation
+  - When after midnight but before actual off_time: set on_time to yesterday, off_time to today
+  - Maintains pure edge-only control (no periodic enforcement)
+- All existing tests pass (107 tests) - no regressions
+
+### Deployment
+- Drop-in replacement for existing scheduler
+- No database migrations required
+- No configuration changes needed
+- Recommended: monitor schedule logs for first 24h after deployment
+
 ## v4.2.0 (2025-11-20)
 
 **UI Simplification - Backend-First Focus**

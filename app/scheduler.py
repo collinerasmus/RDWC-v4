@@ -94,7 +94,7 @@ class Scheduler:
         """Update lights schedule based on current settings"""
         try:
             from .settings import get_settings, get_todays_lights_window, lights_window, SA_TZ
-            from datetime import datetime
+            from datetime import datetime, timedelta
             
             settings = get_settings()
             
