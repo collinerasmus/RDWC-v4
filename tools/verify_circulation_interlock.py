@@ -31,6 +31,15 @@ def fetch_json(url: str, timeout: float = 5.0) -> Dict[str, Any]:
         r = requests.get(url, timeout=timeout)
         r.raise_for_status()
         return r.json()
+    except requests.exceptions.HTTPError as e:
+        print(f"ERROR: GET {url} failed with HTTP {e.response.status_code}: {e}", file=sys.stderr)
+        return {}
+    except requests.exceptions.ConnectionError as e:
+        print(f"ERROR: GET {url} failed - connection error: {e}", file=sys.stderr)
+        return {}
+    except requests.exceptions.Timeout as e:
+        print(f"ERROR: GET {url} failed - timeout: {e}", file=sys.stderr)
+        return {}
     except Exception as e:
         print(f"ERROR: GET {url} failed: {e}", file=sys.stderr)
         return {}
@@ -66,7 +75,18 @@ def verify_controllers_status_field(base: str) -> Dict[str, Any]:
     main_pump_controller = circulation.get("main_pump")
     main_pump_relay = relays.get("main_pump", {}).get("is_on")
     
-    if main_pump_controller == main_pump_relay:
+    # Ensure we have valid boolean values, not None from failed API calls
+    if main_pump_controller is None or main_pump_relay is None:
+        results["ok"] = False
+        results["checks"].append({
+            "name": "main_pump_state_match",
+            "ok": False,
+            "controller_value": main_pump_controller,
+            "relay_value": main_pump_relay,
+            "error": "API call failed or returned invalid data"
+        })
+        print(f"✗ main_pump data missing: controller={main_pump_controller}, relay={main_pump_relay}")
+    elif main_pump_controller == main_pump_relay:
         results["checks"].append({
             "name": "main_pump_state_match",
             "ok": True,
@@ -89,7 +109,18 @@ def verify_controllers_status_field(base: str) -> Dict[str, Any]:
     chiller_pump_controller = circulation.get("chiller_pump")
     chiller_pump_relay = relays.get("chiller_pump", {}).get("is_on")
     
-    if chiller_pump_controller == chiller_pump_relay:
+    # Ensure we have valid boolean values, not None from failed API calls
+    if chiller_pump_controller is None or chiller_pump_relay is None:
+        results["ok"] = False
+        results["checks"].append({
+            "name": "chiller_pump_state_match",
+            "ok": False,
+            "controller_value": chiller_pump_controller,
+            "relay_value": chiller_pump_relay,
+            "error": "API call failed or returned invalid data"
+        })
+        print(f"✗ chiller_pump data missing: controller={chiller_pump_controller}, relay={chiller_pump_relay}")
+    elif chiller_pump_controller == chiller_pump_relay:
         results["checks"].append({
             "name": "chiller_pump_state_match",
             "ok": True,
@@ -127,7 +158,18 @@ def verify_estop_status(base: str) -> Dict[str, Any]:
     estop_controllers = controllers_data.get("estop")
     estop_relays = relays_data.get("estop")
     
-    if estop_controllers == estop_relays:
+    # Check for valid data before comparison
+    if estop_controllers is None or estop_relays is None:
+        results["ok"] = False
+        results["checks"].append({
+            "name": "estop_consistency",
+            "ok": False,
+            "controllers_value": estop_controllers,
+            "relays_value": estop_relays,
+            "error": "API calls failed or returned invalid data"
+        })
+        print(f"✗ E-STOP data missing: controllers={estop_controllers}, relays={estop_relays}")
+    elif estop_controllers == estop_relays:
         results["checks"].append({
             "name": "estop_consistency",
             "ok": True,
