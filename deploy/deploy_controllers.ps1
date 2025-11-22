@@ -6,7 +6,7 @@
 #
 
 param(
-    [string]$PiHost = "raspberrypi.local",
+    [string]$PiHost = "192.168.88.49",
     [string]$User = "pi",
     [string]$Branch = "feat/manual-dosing-safe-caps"
 )
