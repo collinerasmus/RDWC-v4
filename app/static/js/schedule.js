@@ -158,9 +158,9 @@
     const currentWeek = sched.current_week || 1;
     if(!selectedWeek) selectedWeek = currentWeek;
 
-    // Simple linear rendering of all 12 weeks (supports seedling/preflower/flower phases)
-    let html = '<div style="position:relative;overflow-x:auto;padding:12px 0;">';
-    html += '<div style="display:flex;gap:4px;min-width:860px;">';
+    // Calendar-style grid layout (4 columns x 3 rows for 12 weeks)
+    let html = '<div style="padding:16px 0;">';
+    html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;max-width:100%;">';
 
     sched.weeks.forEach(w => {
       const phase = w.phase || 'week';
@@ -180,19 +180,53 @@
         flower:'rgba(217,70,239,0.55)',
         flush:'rgba(59,130,246,0.50)'
       };
+      const phaseIcons = {
+        seedling:'🌱',
+        veg:'🌿',
+        preflower:'🌸',
+        flower:'🌺',
+        flush:'💧'
+      };
       const bg = phaseColors[phase] || 'rgba(148,163,184,0.15)';
       const bd = borderColors[phase] || 'rgba(148,163,184,0.40)';
+      const icon = phaseIcons[phase] || '📅';
+      
       const boxStyle = `
-        flex:0 0 auto;min-width:110px;padding:12px 8px;border:2px solid ${isSelected?bd.replace('0.40','0.85'):bd};
-        border-radius:8px;background:${bg};cursor:pointer;position:relative;transition:all .2s ease;`;
+        padding:14px 12px;
+        border:2px solid ${isSelected?bd.replace('0.40','0.85'):bd};
+        border-radius:10px;
+        background:${bg};
+        cursor:pointer;
+        position:relative;
+        transition:all .2s ease;
+        min-height:110px;
+        display:flex;
+        flex-direction:column;
+      `;
+      
       html += `<div style="${boxStyle}" data-week="${w.week}" class="week-block">`;
-      html += `<div style="font-size:0.65rem;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;">${phase}</div>`;
-      html += `<div style="font-weight:600;font-size:0.9rem;">Week ${w.week}</div>`;
-      html += `<div style="font-size:0.7rem;color:#cbd5e1;margin-top:2px;">EC ${w.ec_target}</div>`;
+      
+      // Header row with phase icon and week number
+      html += `<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">`;
+      html += `<div style="font-size:1.3rem;line-height:1;">${icon}</div>`;
+      html += `<div style="font-size:0.85rem;font-weight:700;color:#e0e0e0;">W${w.week}</div>`;
+      html += `</div>`;
+      
+      // Phase name
+      html += `<div style="font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">${phase}</div>`;
+      
+      // Target values
+      html += `<div style="flex:1;display:flex;flex-direction:column;gap:3px;font-size:0.75rem;color:#cbd5e1;">`;
+      html += `<div><span style="color:#94a3b8;">EC:</span> <strong>${w.ec_target}</strong></div>`;
+      html += `<div><span style="color:#94a3b8;">pH:</span> ${w.ph_low}-${w.ph_high}</div>`;
+      html += `<div><span style="color:#94a3b8;">🌡:</span> ${w.temp_target}°C</div>`;
+      html += `</div>`;
+      
+      // Current week indicator
       if(isCurrent){
-        html += `<div style="position:absolute;top:-8px;right:8px;background:#ef4444;color:#fff;padding:2px 8px;border-radius:10px;font-size:0.6rem;font-weight:700;">NOW</div>`;
-        html += `<div style="position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);width:2px;height:18px;background:#ef4444;"></div>`;
+        html += `<div style="position:absolute;top:8px;right:8px;background:#ef4444;color:#fff;padding:3px 8px;border-radius:12px;font-size:0.65rem;font-weight:700;box-shadow:0 2px 8px rgba(239,68,68,0.4);">NOW</div>`;
       }
+      
       html += '</div>';
     });
 
