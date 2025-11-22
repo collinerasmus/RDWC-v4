@@ -342,10 +342,25 @@
       const ok = confirm(`Force chiller ${action} ${durationText}?\n\nThis will override automation until the duration expires or you manually disable it.`);
       if (!ok) return;
       
-      await postJSON('/api/chiller/force', {
+      const result = await postJSON('/api/chiller/force', {
         on: desiredOn,
         duration_minutes: duration
       });
+      
+      // Check if operation was blocked due to prerequisites
+      if (result.success === false) {
+        const errorMessages = {
+          'main_pump_required': 'Cannot start chiller: Main pump must be running first.\n\nPlease turn ON the main pump before starting the chiller.',
+          'chiller_pump_required': 'Cannot start chiller: Chiller pump must be running first.\n\nThe circulation interlock requires the chiller pump to be active.'
+        };
+        
+        const userMessage = errorMessages[result.error] || result.message || 'Operation blocked by safety interlock';
+        showToast(userMessage, 'error');
+        
+        // Optionally log for debugging
+        console.warn('[Chiller] Force operation blocked:', result);
+        return;
+      }
       
       showToast(`Chiller forced ${action} ${durationText}`, 'warning');
       setTimeout(refreshChillerStatus, 200);

@@ -565,11 +565,30 @@ def set_lights(on: bool, reason: str, force: bool = False) -> Dict[str, Any]:
 
 def set_chiller_power(on: bool, reason: str, force: bool = False) -> Dict[str, Any]:
     """
-    Set chiller power with safety interlock: chiller requires chiller pump running.
+    Set chiller power with safety interlock: chiller requires main pump and chiller pump running.
     Auto-starts chiller pump if needed when turning chiller ON.
     """
     if on and not force:
-        # SAFETY INTERLOCK: Chiller requires chiller pump to be running
+        # SAFETY INTERLOCK 1: Chiller requires main pump (RDWC circulation)
+        main_pump_state = _last_state.get("main_pump", False)
+        
+        if not main_pump_state:
+            logger.warning(
+                "Chiller BLOCKED: Cannot start chiller because main pump is OFF "
+                "(RDWC circulation required)"
+            )
+            return {
+                "changed": False,
+                "state": False,
+                "reason": "interlock_main_pump_required",
+                "blocked": True,
+                "interlock": {
+                    "required": "main_pump",
+                    "message": "Main pump must be running for chiller operation"
+                }
+            }
+        
+        # SAFETY INTERLOCK 2: Chiller requires chiller pump to be running
         current_pump_state = _last_state.get("chiller_pump", False)
         
         if not current_pump_state:

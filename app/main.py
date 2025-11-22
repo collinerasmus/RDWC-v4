@@ -1056,8 +1056,33 @@ def api_chiller_force(req: dict):
     Body: {"on": true/false, "duration_minutes": 60} (duration optional)
     """
     from app.chiller_control import force_chiller_state
+    from app.relays_core import get_relay_status
+    
     desired_on = bool(req.get("on", False))
     duration = req.get("duration_minutes")  # None = indefinite
+    
+    # Check prerequisites before attempting
+    if desired_on:
+        relays = get_relay_status()
+        main_pump_on = relays.get('main_pump', {}).get('state', False)
+        chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
+        
+        if not main_pump_on:
+            return {
+                'success': False,
+                'error': 'main_pump_required',
+                'message': 'Main pump must be running before starting chiller',
+                'required_relays': ['main_pump']
+            }
+        
+        if not chiller_pump_on:
+            return {
+                'success': False,
+                'error': 'chiller_pump_required',
+                'message': 'Chiller pump must be running before starting chiller',
+                'required_relays': ['chiller_pump']
+            }
+    
     result = force_chiller_state(desired_on, duration)
     return result
 
@@ -2030,6 +2055,44 @@ def relay_set_new(body: dict = Body(...)):
         # Fallback for any other relays
         from app.relays_core import set_relay
         result = set_relay(name, bool(on), reason="override", force=force_flag)
+    
+    # Check if operation was blocked by interlock
+    if result.get("blocked", False):
+        # Generate user-friendly error message
+        reason = result.get("reason", "unknown")
+        interlock_info = result.get("interlock", {})
+        
+        if reason == "interlock_main_pump_required":
+            message = "Cannot start chiller: Main pump must be running first"
+        elif reason == "interlock_pump_failed":
+            message = "Cannot start chiller: Chiller pump must be running first"
+        elif reason == "interlock_chiller_running":
+            message = "Cannot turn OFF chiller pump while chiller is running"
+        else:
+            message = result.get("message", f"Operation blocked: {reason}")
+        
+        # Trace via debug module
+        try:
+            trace_relay_request(name, bool(on), "post", {
+                "changed": False,
+                "state": result.get("state", False),
+                "blocked": True,
+                "reason": reason
+            })
+        except Exception:
+            pass
+        
+        return {
+            "ok": False,
+            "changed": False,
+            "state": result.get("state", False),
+            "reason": reason,
+            "message": message,
+            "blocked": True,
+            "interlock": interlock_info,
+            "cooldown_remaining": 0
+        }
+    
     # Trace via debug module
     try:
         trace_relay_request(name, bool(on), "post", {
