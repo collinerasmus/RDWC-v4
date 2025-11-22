@@ -1,5 +1,84 @@
 # Changelog
 
+## v4.3.0 (2025-11-22) - Session #72 GA Release
+
+**Chiller Circulation Safety + UI Consolidation**
+
+### Added
+- **Chiller Circulation Interlock System**
+  - Three-way safety validation: main pump, chiller pump, and chiller state
+  - Real-time interlock status banner in Chiller tab UI (green when safe, red with details on violations)
+  - API endpoint `/api/chiller/status` returns interlock status with detailed violation information
+  - Continuous 30-second validation loop with auto-remediation
+  - Emergency chiller shutdown on circulation loss
+  - AUTO mode enforcement: automatically enables chiller_pump when main_pump is ON
+
+- **Auto-Remediation System**
+  - Detects and corrects interlock violations automatically
+  - Forces chiller_pump ON in AUTO mode when main_pump is running
+  - Emergency shutdown of chiller when pumps fail during operation
+  - Comprehensive logging of all remediation actions
+
+- **Comprehensive Test Coverage**
+  - 8 pytest cases in `tests/test_chiller_interlock.py`
+  - Covers all interlock scenarios: pump failures, mode mismatches, auto-remediation
+  - Validates emergency shutdown behavior
+  - Tests chiller power-ON blocking when prerequisites not met
+
+### Changed
+- **UI Consolidation and Cleanup**
+  - Single global E-STOP button in header (top-right, next to build info)
+  - Removed duplicate E-STOP buttons from tab navigation
+  - Mode control buttons (Auto/Manual/Maintenance/E-STOP) now only appear on System tab
+  - Clean tab headers across all controller tabs (pH, EC, Chiller, Circulation, Lights, Schedule)
+  - Consistent UI experience across all tabs
+
+- **Chiller Controller Enhancement**
+  - Chiller cannot start without both main pump and chiller pump running
+  - Interlock status continuously monitored and displayed
+  - Improved safety with circulation prerequisite enforcement
+
+### Fixed
+- UI navigation clutter with redundant control buttons
+- Missing safety interlock for chiller operation without circulation
+- Potential for silent chiller-without-circulation operation (safety hazard)
+- Inconsistent mode control placement across tabs
+
+### Technical Details
+- **Interlock Logic** (`app/chiller_control.py`):
+  - Violation types: `main_pump_off`, `chiller_pump_off`, `auto_mode_mismatch`
+  - 30-second control loop with auto-remediation
+  - Emergency shutdown protocol on circulation loss
+  
+- **UI Implementation** (`app/static/js/chiller.js`):
+  - Real-time banner updates from API
+  - Green banner: "🟢 INTERLOCK ACTIVE: Chiller running with circulated pumps"
+  - Red banner: "⚠️ INTERLOCK VIOLATION: [specific violation]"
+
+- **API Enhancements**:
+  - `interlock_ok` boolean field in `/api/chiller/status`
+  - `interlock_details` object with pump states and violation messages
+  - Compatible with existing monitoring tools
+
+### Known Limitations
+- **Relay POST Timeout**: `/relay/set` endpoint experiencing delays on feature branch (UI controls functional, deferred to Phase 8)
+- **Remediation Latency**: 30-second validation loop (future enhancement: event-driven model for <1s latency)
+
+### Deployment
+- **Branch**: `copilot/remove-duplicate-pump-calibrations-again`
+- **Production Validated**: Pi @ 192.168.88.49:8080
+- **Services**: rdwc.service + rdwc-sensors.service (both active)
+- **Commits**: 8dbe584, 46f8809, 14396a4, 20ab7f2, e7c9863, a4bac9e
+
+### Safety Impact
+This release significantly improves system safety by preventing chiller operation without proper water circulation, which could lead to equipment damage or unsafe temperature conditions. The auto-remediation system provides additional reliability by automatically correcting common operational issues.
+
+**Status**: APPROVED FOR GA MERGE - All acceptance criteria met, production validated.
+
+See `SESSION_72_GA_HANDOFF.md` for detailed implementation notes, screenshots, and merge instructions.
+
+---
+
 ## v4.2.0 (2025-11-20)
 
 **UI Simplification - Backend-First Focus**
