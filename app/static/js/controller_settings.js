@@ -292,6 +292,11 @@
           const targetDisplay = document.getElementById('chiller-target-temp');
           if (targetDisplay) targetDisplay.textContent = `${tempTarget.toFixed(1)}°C`;
           
+          // Reload settings from backend to ensure form reflects saved values
+          setTimeout(() => {
+            loadTempSettings();
+          }, 100);
+          
           setTimeout(() => {
             btn.textContent = originalText;
             btn.disabled = false;
