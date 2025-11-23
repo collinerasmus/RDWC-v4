@@ -56,7 +56,7 @@ def check_imports():
 
 def check_project_structure():
     """Verify key project files exist."""
-    repo_root = Path(__file__).parent.parent
+    repo_root = Path(__file__).resolve().parents[1]
     required_files = [
         "app/main.py",
         "requirements.txt",

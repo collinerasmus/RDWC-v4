@@ -78,11 +78,17 @@ All tests use mocked GPIO and I²C interfaces, so they work perfectly in Codespa
 
 ## Environment Variables
 
-The devcontainer attempts to mount `.env` file if it exists locally. For Codespaces, you'll need to:
+In Codespaces, environment variables are optional. If you need them:
 
-1. Copy `.env.example` to `.env`
-2. Use mock/test values for hardware pins and I²C addresses
-3. Or work without `.env` (code has sensible defaults)
+```bash
+# Copy the example file
+cp .env.example .env
+
+# Edit with mock/test values
+nano .env
+```
+
+**Note:** The code has sensible defaults, so you can develop and test without `.env` in most cases. The `.env` file is mainly needed for deployment to physical hardware.
 
 ## Cost and Limits
 

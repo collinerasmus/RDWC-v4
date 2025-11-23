@@ -6,7 +6,7 @@
     "ghcr.io/devcontainers/features/git:1": {}
   },
   
-  "postCreateCommand": "pip install --upgrade pip && pip install -r requirements.txt -r requirements-dev.txt && python .devcontainer/validate.py || true",
+  "postCreateCommand": "pip install --upgrade pip && pip install -r requirements.txt -r requirements-dev.txt && echo '\\n--- Environment Validation ---' && python .devcontainer/validate.py",
   
   "customizations": {
     "vscode": {
@@ -54,9 +54,5 @@
     }
   },
   
-  "remoteUser": "vscode",
-  
-  "mounts": [
-    "source=${localWorkspaceFolder}/.env,target=/workspaces/RDWC-v4/.env,type=bind,consistency=cached"
-  ]
+  "remoteUser": "vscode"
 }
