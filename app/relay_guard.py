@@ -172,15 +172,21 @@ def safe_set(name: str, desired_on: bool, reason: str, actor: str) -> dict:
         GPIO.output(pin, pin_level)
         time.sleep(0.01)  # 10ms settle
         level_after = GPIO.input(pin)
-        logical_after = (level_after == GPIO.LOW)
+        if name in NC_RELAYS:
+            logical_after = (level_after == GPIO.HIGH)
+        else:
+            logical_after = (level_after == GPIO.LOW)
         if logical_after != desired_on:
             # First mismatch - retry once
-            logger.warning(f"[GuardSet] GUARD_MISMATCH initial name={name} bcm={pin} expected={'LOW' if desired_on else 'HIGH'} actual={level_str(level_after)} reason={reason} actor={actor} retry=1")
+            logger.warning(f"[GuardSet] GUARD_MISMATCH initial name={name} bcm={pin} expected={'HIGH' if (desired_on and name in NC_RELAYS) or (not desired_on and name not in NC_RELAYS) else 'LOW'} actual={level_str(level_after)} reason={reason} actor={actor} retry=1")
             mismatch_retries = 1
             GPIO.output(pin, pin_level)
             time.sleep(0.01)
             level_after2 = GPIO.input(pin)
-            logical_after2 = (level_after2 == GPIO.LOW)
+            if name in NC_RELAYS:
+                logical_after2 = (level_after2 == GPIO.HIGH)
+            else:
+                logical_after2 = (level_after2 == GPIO.LOW)
             if logical_after2 != desired_on:
                 # Persistent mismatch - coerce shadow to actual, record anomaly
                 logger.error(f"[GuardSet] GUARD_MISMATCH persistent name={name} bcm={pin} expected={'LOW' if desired_on else 'HIGH'} actual={level_str(level_after2)} reason={reason} actor={actor} COERCE_SHADOW")

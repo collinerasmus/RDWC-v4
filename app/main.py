@@ -526,10 +526,19 @@ async def _start_tasks():
                 # Check for unexpected LOW (active-low: LOW = ON/energized)
                 for relay_name, shadow_is_on in shadow_state.items():
                     actual_level = actual_levels.get(relay_name)
-                    
-                    # Expected: shadow_is_on=True → actual=LOW, shadow_is_on=False → actual=HIGH
-                    expected_level = "LOW" if shadow_is_on else "HIGH"
-                    
+
+                    # Determine expected pin level per wiring (NO vs NC)
+                    try:
+                        from app.relay_guard import NC_RELAYS
+                        is_nc = relay_name in NC_RELAYS
+                    except Exception:
+                        is_nc = False
+                    # For NO: ON->LOW, OFF->HIGH; For NC: ON->HIGH, OFF->LOW
+                    if is_nc:
+                        expected_level = "HIGH" if shadow_is_on else "LOW"
+                    else:
+                        expected_level = "LOW" if shadow_is_on else "HIGH"
+
                     if actual_level != expected_level:
                         # ANOMALY: Actual pin state doesn't match shadow state
                         anomaly_reason = f"watchdog_anomaly:expected={expected_level},actual={actual_level}"
@@ -1110,13 +1119,33 @@ def api_relays_status():
         'chiller_power': 'Water Chiller (AC)',
         'lights': 'Grow Lights (AC)',
     }
+    # Prefer actual pin levels translated via NO/NC wiring; fallback to guard shadow/state
+    try:
+        from app.relay_guard import get_pin_levels, NC_RELAYS, get_shadow_state
+        _levels = get_pin_levels() or {}
+        _shadow = get_shadow_state() or {}
+    except Exception:
+        _levels = {}
+        _shadow = {}
     rel = {}
     for name, pin in RELAY_PINS.items():
         info = status.get(name, {})
+        level = _levels.get(name)
+        if level is not None:
+            is_nc = name in (_locals := locals()).get('NC_RELAYS', set()) if False else False  # safety default
+        try:
+            from app.relay_guard import NC_RELAYS as _NC
+            is_nc = name in _NC
+        except Exception:
+            is_nc = False
+        if level in ("HIGH","LOW"):
+            is_on = (level == "HIGH") if is_nc else (level == "LOW")
+        else:
+            is_on = bool(_shadow.get(name, info.get("state", False)))
         rel[name] = {
             "pin_bcm": pin,
             "active_low": (not bool(ACTIVE_HIGH.get(name, False))),
-            "is_on": bool(info.get("state", False)),
+            "is_on": is_on,
             "label": LABELS.get(name, name)
         }
     restore = get_last_restore_event() if mode == 'auto' else {"restored": False}
