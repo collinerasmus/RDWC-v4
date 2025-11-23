@@ -179,7 +179,8 @@ def upsert_settings(partial: Dict[str, Any]) -> Dict[str, Any]:
     """Upsert partial settings dict where keys are fully qualified (e.g. 'ui.relays_poll_ms').
     Returns dict of actually updated keys.
     """
-    _ensure_table_seed_defaults()
+    # DON'T call _ensure_table_seed_defaults() here - too slow on every save
+    # Table initialization happens once at startup via get_all_settings
     changed: Dict[str, Any] = {}
     with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
         cur = conn.cursor()
