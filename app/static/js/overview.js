@@ -13,6 +13,8 @@
       
       // System-wide state
       const systemMode = data.system_mode || 'manual';
+      // Expose system mode globally for other modules that rely on it
+      window.__systemMode = systemMode;
       const estop = !!data.estop;
       const maintOverride = !!data.maintenance_override;
       
@@ -214,6 +216,8 @@
       setBadge('#ov-chiller-pump', !!(rel.chiller_pump && rel.chiller_pump.is_on));
       setBadge('#ov-chiller', !!(rel.chiller_power && rel.chiller_power.is_on));
       const mode = wrap.mode || 'manual';
+      // Legacy path: expose mode globally
+      window.__systemMode = mode;
       const estop = !!wrap.estop;
       
       // Update mode chips for each controller (compact, unified)

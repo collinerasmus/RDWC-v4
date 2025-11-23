@@ -76,6 +76,19 @@
       const cdMain = main.cooldown_remaining || main.cooldown || 0;
       const cdChill = chill.cooldown_remaining || chill.cooldown || 0;
       circCooldown = (cdMain>0) || (cdChill>0);
+      // Update pump ON/OFF badges (previously only updated in inline script, which might not run)
+      const badgeMain = document.getElementById('circ-main-pump');
+      if (badgeMain){
+        const on = !!main.is_on;
+        badgeMain.textContent = on ? 'ON':'OFF';
+        badgeMain.className = 'bop-status-badge ' + (on ? 'on':'off');
+      }
+      const badgeChill = document.getElementById('circ-chiller-pump');
+      if (badgeChill){
+        const on = !!chill.is_on;
+        badgeChill.textContent = on ? 'ON':'OFF';
+        badgeChill.className = 'bop-status-badge ' + (on ? 'on':'off');
+      }
     }catch(e){ /* leave previous state */ }
     updateCircHealth();
   }
@@ -90,5 +103,5 @@
   // Refresh health every 5s from relays
   setInterval(() => {
     if (document.getElementById('circ-health-indicator')) { refreshCirc(); }
-  }, 5000);
+  }, 4000); // 4s refresh for parity with lights
 })();

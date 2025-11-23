@@ -53,14 +53,14 @@
     else { el.textContent = 'Window: —'; }
   }
 
-  function updateKpis(){
+  function updateKpis(modeVal){
     const state = $('lights-state-kpi');
     const sched = $('lights-sched-kpi');
     if (state) state.textContent = lightsIsOn ? 'ON' : 'OFF';
     if (sched){
       // Basic hint based on mode and current state
-      if (mode==='auto') sched.textContent = 'Following schedule';
-      else if (mode==='maintenance') sched.textContent = 'Maintenance';
+      if (modeVal==='auto') sched.textContent = 'Following schedule';
+      else if (modeVal==='maintenance') sched.textContent = 'Maintenance';
       else sched.textContent = 'Manual control';
     }
   }
@@ -90,6 +90,8 @@
       const btn = $('btnLightsToggle');
       if (badge){ badge.textContent = lightsIsOn? 'ON':'OFF'; badge.className = 'bop-status-badge '+(lightsIsOn?'on':'off'); }
       if (label){ label.textContent = (lightsIsOn? '● ':'○ ') + 'Lights'; }
+      // Determine current system mode (prefer relays response; fallback to global system mode)
+      const mode = (wrap && wrap.mode) || window.__systemMode || 'manual';
       if (btn){
         const disabled = (mode==='auto' && !localStorage.getItem('safety.allow_force')) || !!wrap.estop;
         btn.className = 'relay-btn ' + (lightsIsOn? 'relay-on':'relay-off');
@@ -102,7 +104,7 @@
         const s = await (await fetch('/settings?'+Date.now(), {cache:'no-store'})).json();
         updateWindowPreview(s.today_window);
       }catch(e){}
-      updateKpis();
+      updateKpis((wrap && wrap.mode) || window.__systemMode || 'manual');
       updateHealth();
     }catch(e){ console.warn('[LightsV2] refresh failed', e); }
   }

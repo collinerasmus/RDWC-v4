@@ -172,51 +172,52 @@ def safe_set(name: str, desired_on: bool, reason: str, actor: str) -> dict:
         GPIO.output(pin, pin_level)
         time.sleep(0.01)  # 10ms settle
         level_after = GPIO.input(pin)
-        if name in NC_RELAYS:
-            logical_after = (level_after == GPIO.HIGH)
-        else:
-            logical_after = (level_after == GPIO.LOW)
+        logical_after = (level_after == (GPIO.HIGH if name in NC_RELAYS else GPIO.LOW))
         if logical_after != desired_on:
-            # First mismatch - retry once
-            logger.warning(f"[GuardSet] GUARD_MISMATCH initial name={name} bcm={pin} expected={'HIGH' if (desired_on and name in NC_RELAYS) or (not desired_on and name not in NC_RELAYS) else 'LOW'} actual={level_str(level_after)} reason={reason} actor={actor} retry=1")
-            mismatch_retries = 1
-            GPIO.output(pin, pin_level)
-            time.sleep(0.01)
-            level_after2 = GPIO.input(pin)
-            if name in NC_RELAYS:
-                logical_after2 = (level_after2 == GPIO.HIGH)
+            # Debounce pass: re-read quickly before declaring mismatch (helps NC contact bounce)
+            time.sleep(0.005)
+            level_after_db = GPIO.input(pin)
+            logical_after_db = (level_after_db == (GPIO.HIGH if name in NC_RELAYS else GPIO.LOW))
+            if logical_after_db == desired_on:
+                level_after = level_after_db
+                logical_after = logical_after_db
             else:
-                logical_after2 = (level_after2 == GPIO.LOW)
-            if logical_after2 != desired_on:
-                # Persistent mismatch - coerce shadow to actual, record anomaly
-                logger.error(f"[GuardSet] GUARD_MISMATCH persistent name={name} bcm={pin} expected={'LOW' if desired_on else 'HIGH'} actual={level_str(level_after2)} reason={reason} actor={actor} COERCE_SHADOW")
-                _anomaly_count += 1
-                _anomalies.append({
-                    'ts': datetime.utcnow().isoformat(),
-                    'relay': name,
-                    'anomaly': 'mismatch_persistent',
-                    'expected_on': desired_on,
-                    'actual_on': logical_after2,
-                    'reason': reason,
-                    'actor': actor
-                })
-                _shadow_state[name] = logical_after2
-                caller_frame = traceback.extract_stack()[-2]
-                caller_loc = f"{caller_frame.filename}:{caller_frame.lineno}"
-                mono_ts = time.monotonic()
-                _append_recent({
-                    'ts': datetime.utcnow().isoformat(),
-                    'relay': name,
-                    'desired_on': desired_on,
-                    'final_on': logical_after2,
-                    'changed': logical_after2 != current_on,
-                    'reason': reason,
-                    'actor': actor,
-                    'coerced': True,
-                    'mismatch_retries': mismatch_retries,
-                    'status': 'mismatch_persistent'
-                })
-                return {"changed": logical_after2 != current_on, "ok": False, "coerced": True, "mismatch_retries": mismatch_retries, "shadow": _shadow_state[name], "caller": caller_loc, "mono_ts": mono_ts}
+                logger.warning(f"[GuardSet] GUARD_MISMATCH initial name={name} bcm={pin} expected={'HIGH' if (desired_on and name in NC_RELAYS) or (not desired_on and name not in NC_RELAYS) else 'LOW'} actual={level_str(level_after)} reason={reason} actor={actor} retry=1")
+                mismatch_retries = 1
+                GPIO.output(pin, pin_level)
+                time.sleep(0.01)
+                level_after2 = GPIO.input(pin)
+                logical_after2 = (level_after2 == (GPIO.HIGH if name in NC_RELAYS else GPIO.LOW))
+                if logical_after2 != desired_on:
+                    # Persistent mismatch - coerce shadow to actual, record anomaly
+                    logger.error(f"[GuardSet] GUARD_MISMATCH persistent name={name} bcm={pin} expected={'LOW' if desired_on else 'HIGH'} actual={level_str(level_after2)} reason={reason} actor={actor} COERCE_SHADOW")
+                    _anomaly_count += 1
+                    _anomalies.append({
+                        'ts': datetime.utcnow().isoformat(),
+                        'relay': name,
+                        'anomaly': 'mismatch_persistent',
+                        'expected_on': desired_on,
+                        'actual_on': logical_after2,
+                        'reason': reason,
+                        'actor': actor
+                    })
+                    _shadow_state[name] = logical_after2
+                    caller_frame = traceback.extract_stack()[-2]
+                    caller_loc = f"{caller_frame.filename}:{caller_frame.lineno}"
+                    mono_ts = time.monotonic()
+                    _append_recent({
+                        'ts': datetime.utcnow().isoformat(),
+                        'relay': name,
+                        'desired_on': desired_on,
+                        'final_on': logical_after2,
+                        'changed': logical_after2 != current_on,
+                        'reason': reason,
+                        'actor': actor,
+                        'coerced': True,
+                        'mismatch_retries': mismatch_retries,
+                        'status': 'mismatch_persistent'
+                    })
+                    return {"changed": logical_after2 != current_on, "ok": False, "coerced": True, "mismatch_retries": mismatch_retries, "shadow": _shadow_state[name], "caller": caller_loc, "mono_ts": mono_ts}
         # Success path
         _shadow_state[name] = desired_on
         caller_frame = traceback.extract_stack()[-2]
