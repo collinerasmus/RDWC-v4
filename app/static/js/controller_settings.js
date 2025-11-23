@@ -264,7 +264,7 @@
       
       const updates = {
         'targets.temp_target_c': tempTarget,
-        'chiller.target_temp': tempTarget,  // Keep chiller.target_temp in sync
+        'chiller.target_temp': tempTarget,  // Keep both target fields consistent for legacy compatibility
         'chiller.hysteresis': hysteresis,
         'chiller.stage': stage,
         'alerts.temp_lo_alert': parseFloat(document.getElementById('tempAlertLow').value) || 0,
