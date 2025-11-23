@@ -74,10 +74,19 @@ Single source of truth for remaining commissioning + verification work. All prio
 - [ ] Begin 24h soak: monitor sensor freshness, interlock state, dosing inactivity (unless testing dosing).
 - [ ] End-of-soak snapshot JSON (same fields as baseline + anomalies).
 
-## Deprecated / To Close
-- PR #72 (UI cleanup & interlock) – superseded by merged logic and this unified doc.
-- PR #75 (midnight schedule fix) – integrate changes; retain tests; merge then close.
-- PR #77 (WIP rollout) – roll tasks into this file; close after merging scheduling + interlock parity confirmations.
+## Status Update (2025-11-23)
+✅ **All Prior PRs Closed** - Work merged to main
+- PR #72 (UI cleanup & interlock) – CLOSED, superseded  
+- PR #75 (midnight schedule fix) – CLOSED, merged via PR #77
+- PR #77 (WIP rollout) – COMPLETED & MERGED (interlock status, midnight tests, relay timeout investigation)
+
+**Current Main Branch:** 6d2412a
+- Interlock status API working (`interlock_ok`, `interlock_details`)
+- Midnight schedule tests passing (7/7)
+- Chiller input focus fix deployed
+- All 16 new tests passing
+
+**You are working with this agent** - No separate GA session open.
 
 ## Unified Command Reference
 ```powershell
