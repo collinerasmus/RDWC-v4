@@ -277,14 +277,20 @@
       stateLabel.textContent = label;
     }
     
-    // Update settings inputs
+    // Update settings inputs (but not if user is actively editing them)
     const targetInput = q('#tempTarget');
     const hysteresisInput = q('#chillerHysteresis');
     const stageSelect = q('#chillerStage');
     
-    if (targetInput) targetInput.value = state.target_temp.toFixed(1);
-    if (hysteresisInput) hysteresisInput.value = state.hysteresis.toFixed(1);
-    if (stageSelect) stageSelect.value = state.stage || 'default';
+    if (targetInput && document.activeElement !== targetInput) {
+      targetInput.value = state.target_temp.toFixed(1);
+    }
+    if (hysteresisInput && document.activeElement !== hysteresisInput) {
+      hysteresisInput.value = state.hysteresis.toFixed(1);
+    }
+    if (stageSelect && document.activeElement !== stageSelect) {
+      stageSelect.value = state.stage || 'default';
+    }
   }
 
   // Enable auto control
