@@ -1,5 +1,4 @@
 """Test chiller interlock status API and enforcement."""
-import pytest
 from app.chiller_control import get_interlock_status, get_chiller_state, set_chiller_relay, _chiller_state
 from app.controller_modes import set_mode
 from app.settings import upsert_settings

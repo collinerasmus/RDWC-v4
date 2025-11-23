@@ -1,7 +1,6 @@
 """Test scheduler midnight boundary handling and edge-only behavior."""
 import types
-import time
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 from app.scheduler import Scheduler
 from app.hardware import RelayBank
 
@@ -74,7 +73,7 @@ def test_lights_edge_only_no_catchup():
     edge_calls = []
     
     def mock_set_lights(state, reason):
-        edge_calls.append({'state': state, 'reason': reason, 'time': time.time()})
+        edge_calls.append({'state': state, 'reason': reason})
         return {'changed': True}
     
     # Simulate multiple ticks at the same time (should only trigger once at s=0)
