@@ -261,6 +261,7 @@ def get_chiller_state() -> Dict[str, Any]:
             _t = get_setting('targets.temp_target_c', '19.0')
         state['target_temp'] = float(_t)
         state['hysteresis'] = float(get_setting('chiller.hysteresis', '0.5'))
+        state['stage'] = get_setting('chiller.stage', 'default')
         state['auto_enabled'] = bool(int(get_setting('chiller.auto_enabled', '0')))
         
         # Add interlock status

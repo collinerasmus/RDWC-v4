@@ -380,8 +380,9 @@
   function wireChillerControls() {
     const btnEnable = q('#btnChillerAutoEnable');
     const btnDisable = q('#btnChillerAutoDisable');
-    // Support both legacy and current save button ids
-    const btnSaveSettings = q('#btnChillerSaveSettings') || q('#btnSaveTempSettings');
+    // Only bind to #btnChillerSaveSettings, not #btnSaveTempSettings
+    // (controller_settings.js handles #btnSaveTempSettings with complete field set)
+    const btnSaveSettings = q('#btnChillerSaveSettings');
     const btnForceOn = q('#btnChillerForceOn');
     const btnForceOff = q('#btnChillerForceOff');
     
