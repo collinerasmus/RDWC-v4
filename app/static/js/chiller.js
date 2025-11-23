@@ -5,6 +5,8 @@
 (() => {
   // Verbosity flag to silence non-critical logs
   const UI_VERBOSE = false;
+  // Guard against multiple initializations
+  let _refreshInterval = null;
   // ===== SIMPLIFIED HOLD SYSTEM =====
   let isHeld = false;
 
@@ -380,8 +382,9 @@
   function wireChillerControls() {
     const btnEnable = q('#btnChillerAutoEnable');
     const btnDisable = q('#btnChillerAutoDisable');
-    // Support both legacy and current save button ids
-    const btnSaveSettings = q('#btnChillerSaveSettings') || q('#btnSaveTempSettings');
+    // Only bind to #btnChillerSaveSettings, not #btnSaveTempSettings
+    // (controller_settings.js handles #btnSaveTempSettings with complete field set)
+    const btnSaveSettings = q('#btnChillerSaveSettings');
     const btnForceOn = q('#btnChillerForceOn');
     const btnForceOff = q('#btnChillerForceOff');
     
@@ -398,6 +401,12 @@
     const currentTempEl = q('#chiller-current-temp');
     if (!currentTempEl) return;
     
+    // Prevent multiple initializations
+    if (_refreshInterval) {
+      console.log('Chiller control already initialized, skipping');
+      return;
+    }
+    
     // Wire controls
     wireChillerControls();
     
@@ -405,7 +414,7 @@
     refreshChillerStatus();
     
     // Periodic refresh (every 5 seconds)
-    setInterval(refreshChillerStatus, 5000);
+    _refreshInterval = setInterval(refreshChillerStatus, 5000);
     
     console.log('Intelligent chiller control initialized');
   }

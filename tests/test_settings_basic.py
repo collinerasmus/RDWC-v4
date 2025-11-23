@@ -16,6 +16,9 @@ def test_upsert_and_get_all_settings_isolated():
     tmp_path = temp_db_path()
     settings.DB_PATH = tmp_path
     try:
+        # Initialize the table before using it
+        settings._ensure_table_seed_defaults()
+        
         changed = settings.upsert_settings({
             'general.grow_name': 'TestGrow',
             'targets.ph_low': '5.7'
@@ -60,6 +63,9 @@ def test_import_all_success():
     tmp_path = temp_db_path()
     settings.DB_PATH = tmp_path
     try:
+        # Initialize the table before using it
+        settings._ensure_table_seed_defaults()
+        
         resp = settings.import_all({'targets.ph_low': 5.8, 'targets.ph_high': 6.2})
         assert resp['ok'] is True
         all_flat = settings.get_all_settings()

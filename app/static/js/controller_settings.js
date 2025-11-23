@@ -237,6 +237,10 @@
         if (settings.targets && settings.targets.temp_target_c !== undefined) {
           document.getElementById('tempTarget').value = parseFloat(settings.targets.temp_target_c);
         }
+        if (settings.chiller) {
+          if (settings.chiller.hysteresis !== undefined) document.getElementById('chillerHysteresis').value = parseFloat(settings.chiller.hysteresis);
+          if (settings.chiller.stage !== undefined) document.getElementById('chillerStage').value = settings.chiller.stage;
+        }
         if (settings.alerts) {
           if (settings.alerts.temp_lo_alert !== undefined) document.getElementById('tempAlertLow').value = parseFloat(settings.alerts.temp_lo_alert);
           if (settings.alerts.temp_hi_alert !== undefined) document.getElementById('tempAlertHigh').value = parseFloat(settings.alerts.temp_hi_alert);
@@ -255,9 +259,14 @@
       if (!btn) return;
       
       const tempTarget = parseFloat(document.getElementById('tempTarget').value) || 19;
+      const hysteresis = parseFloat(document.getElementById('chillerHysteresis').value) || 0.5;
+      const stage = document.getElementById('chillerStage').value || 'default';
       
       const updates = {
         'targets.temp_target_c': tempTarget,
+        'chiller.target_temp': tempTarget,  // Keep both target fields consistent for legacy compatibility
+        'chiller.hysteresis': hysteresis,
+        'chiller.stage': stage,
         'alerts.temp_lo_alert': parseFloat(document.getElementById('tempAlertLow').value) || 0,
         'alerts.temp_hi_alert': parseFloat(document.getElementById('tempAlertHigh').value) || 0,
         'safety.chiller_min_off_s': parseInt(document.getElementById('chillerMinOff').value) || 300,
@@ -282,6 +291,11 @@
           
           const targetDisplay = document.getElementById('chiller-target-temp');
           if (targetDisplay) targetDisplay.textContent = `${tempTarget.toFixed(1)}°C`;
+          
+          // Reload settings from backend to ensure form reflects saved values
+          setTimeout(() => {
+            loadTempSettings();
+          }, 100);
           
           setTimeout(() => {
             btn.textContent = originalText;
