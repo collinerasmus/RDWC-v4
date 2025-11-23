@@ -2770,13 +2770,17 @@ function toggleRecentReadings(){
     img.src = streamUrl;
 
     img.onerror = () => {
-      console.warn(`[Camera] Stream error (retry ${retryCount}), retrying in ${retryMs}ms`);
+      // Silent: no console spam
       img.src = '';
-      setTimeout(startStream, retryMs);
+      // Only retry max 3 times then give up silently
+      if (retryCount < 3) {
+        setTimeout(startStream, retryMs);
+      } else {
+        if (overlay) overlay.textContent = 'Camera unavailable';
+      }
     };
 
     img.onload = () => {
-      console.log('[Camera] First bytes received, hiding overlay');
       retryCount = 0;
       lastFrameCheck = Date.now();
       if (overlay) overlay.style.display = 'none';
@@ -2814,34 +2818,12 @@ function toggleRecentReadings(){
   }
   
   async function watchdog(){
-    try{
-      // Check if we haven't received frames recently (5s threshold)
-      const timeSinceFrame = Date.now() - lastFrameCheck;
-      if (timeSinceFrame > 5000) {
-        frameStallCount++;
-        console.warn(`[Camera] Frame stall detected (${Math.round(timeSinceFrame/1000)}s), count=${frameStallCount}`);
-        if (frameStallCount >= 2) {
-          console.warn('[Camera] Multiple stalls, restarting stream');
-          frameStallCount = 0;
-          stopStream();
-          setTimeout(() => startStream(), 500);
-          return;
-        }
-      }
-      
-      const r = await fetch('/camera/stream/health', {cache:'no-store'});
-      if (r.status !== 204){
-        console.warn('[Camera] Stream health not OK (', r.status, '), restarting');
-        stopStream();
-        setTimeout(() => startStream(), 500);
-      }
-    }catch(e){
-      console.warn('[Camera] Watchdog health check error, restarting', e);
-      stopStream();
-      setTimeout(() => startStream(), 500);
-    }
+    // Disabled: aggressive watchdog causes console spam and restart loops
+    // Camera will auto-reconnect on page refresh if needed
+    return;
   }
-  watchdogTimer = setInterval(watchdog, WATCHDOG_INTERVAL);
+  // Watchdog disabled to prevent console spam
+  // watchdogTimer = setInterval(watchdog, WATCHDOG_INTERVAL);
 
   // Expose for external control if needed
   window.cameraControl = { startStream, stopStream, refreshStatus };
