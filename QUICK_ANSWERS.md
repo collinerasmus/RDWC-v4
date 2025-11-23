@@ -92,7 +92,7 @@ GitHub shows these reminders to **all** repositories, but they're designed for d
 |---------|--------------|-----------------|
 | **GitHub Organizations** | Companies, teams 3+ people | ❌ **No** - Solo/2-person project |
 | **GitHub Projects** | Visual planning, open source | ⚠️ **Optional** - Nice for roadmaps |
-| **GitHub Codespaces** | Cloud development, onboarding | ⚠️ **Optional** - Can't test hardware |
+| **GitHub Codespaces** | Cloud development, onboarding | ✅ **NOW AVAILABLE** - See `.devcontainer/` |
 | **GitHub Discussions** | User community, Q&A | ❌ **No** - Private project |
 
 **Important:** These are **suggestions**, not requirements. Many successful projects don't use them.
@@ -148,12 +148,14 @@ GitHub shows these reminders to **all** repositories, but they're designed for d
    - ✅ Issue templates
    - ✅ PROJECT_MANAGEMENT.md
 
-2. **Priority 2 (Optional):**
+2. **Priority 2 (Now Done ✅):**
+   - ✅ Codespaces config added (see `.devcontainer/`)
+   
+3. **Priority 3 (Optional):**
    - Verify security features are enabled in GitHub settings
-   - Add Codespaces config if you want cloud dev
    - Create Project board for visual roadmap
 
-3. **Priority 3 (Only If Needed):**
+4. **Priority 4 (Only If Needed):**
    - Create Organization if going commercial
    - Enable Discussions if open-sourcing
 
@@ -229,9 +231,8 @@ GitHub shows these reminders to **all** repositories, but they're designed for d
    - Share CONTRIBUTING.md if you have collaborators
 
 ### Optional Enhancements (only if you want)
-3. Add Codespaces config for cloud development
-4. Create GitHub Project board for visual planning
-5. Enable Discussions if open-sourcing
+3. Create GitHub Project board for visual planning
+4. Enable Discussions if open-sourcing
 
 ---
 
@@ -250,8 +251,8 @@ GitHub shows these reminders to **all** repositories, but they're designed for d
 3. **GitHub Reminders Are Generic**
    - Organizations → for companies/teams
    - Projects → for visual planning
-   - Codespaces → for cloud dev
-   - **None are required for success**
+   - Codespaces → ✅ **NOW AVAILABLE** (see `.devcontainer/`)
+   - These are suggestions, not requirements
 
 4. **Focus on What Matters**
    - Ship working code safely ✅

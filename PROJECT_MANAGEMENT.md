@@ -218,7 +218,9 @@ RDWC-v4/
 
 ---
 
-### 3. **GitHub Codespaces**
+### 3. **GitHub Codespaces** ✅
+
+**Status:** ✅ **NOW CONFIGURED** - See `.devcontainer/` directory
 
 **What It Is:**
 - Cloud-based development environment (VS Code in browser)
@@ -249,33 +251,22 @@ RDWC-v4/
 - ❌ Hardware commissioning (needs real Pi)
 - ❌ End-to-end testing with sensors/relays
 
-**How to Set Up:**
-1. Create `.devcontainer/devcontainer.json` in your repo
-2. Configure Python version, extensions, install commands
-3. Click **Code** → **Open with Codespaces** on GitHub
+**How to Use:**
+1. Go to the repository on GitHub
+2. Click **Code** → **Codespaces** → **Create codespace on [branch]**
+3. Wait for environment to build (~2-3 minutes first time)
+4. Start developing!
 
-**Example `.devcontainer/devcontainer.json`:**
-```json
-{
-  "name": "RDWC-v4 Dev Environment",
-  "image": "mcr.microsoft.com/devcontainers/python:3.11",
-  "postCreateCommand": "pip install -r requirements.txt -r requirements-dev.txt",
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "ms-python.python",
-        "ms-python.vscode-pylance",
-        "github.copilot"
-      ]
-    }
-  }
-}
-```
+**Configuration:**
+- Located in `.devcontainer/devcontainer.json`
+- Python 3.11 environment
+- All dependencies auto-installed (requirements.txt + requirements-dev.txt)
+- VS Code extensions: Python, Pylance, Copilot, Playwright
+- Port 8080 auto-forwarded for FastAPI server
 
-**Recommendation for RDWC-v4:**
-- **Optional** - Nice to have, not essential
-- **Consider** if you work from multiple machines or want to onboard contributors
-- **Skip** if you're happy with local dev environment
+**Documentation:**
+- See [.devcontainer/README.md](.devcontainer/README.md) for detailed usage guide
+- Includes limitations, troubleshooting, and best practices
 
 ---
 

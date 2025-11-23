@@ -1,0 +1,62 @@
+{
+  "name": "RDWC-v4 Development Environment",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  
+  "postCreateCommand": "pip install --upgrade pip && pip install -r requirements.txt -r requirements-dev.txt",
+  
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.black-formatter",
+        "github.copilot",
+        "github.copilot-chat",
+        "ms-playwright.playwright"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": false,
+        "python.formatting.provider": "none",
+        "python.testing.pytestEnabled": true,
+        "python.testing.unittestEnabled": false,
+        "python.testing.pytestArgs": [
+          "."
+        ],
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.black-formatter",
+          "editor.formatOnSave": false,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "never"
+          }
+        },
+        "files.exclude": {
+          "**/__pycache__": true,
+          "**/*.pyc": true,
+          ".pytest_cache": true,
+          ".coverage": true,
+          "htmlcov": true
+        }
+      }
+    }
+  },
+  
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": {
+      "label": "RDWC API Server",
+      "onAutoForward": "notify"
+    }
+  },
+  
+  "remoteUser": "vscode",
+  
+  "mounts": [
+    "source=${localWorkspaceFolder}/.env,target=/workspaces/RDWC-v4/.env,type=bind,consistency=cached"
+  ]
+}

@@ -50,7 +50,30 @@ All controller actions are logged to SQLite database (`/data/rdwc.db`):
 
 ## Development Workflow
 
-### Environment Setup
+### Option 1: GitHub Codespaces (Cloud Development)
+
+**Quick Start in Browser:**
+1. Click **Code** → **Codespaces** → **Create codespace** on GitHub
+2. Wait for environment to build (~2-3 minutes)
+3. Start coding immediately with all dependencies pre-installed
+
+**What You Can Do:**
+- ✅ Write and edit Python code
+- ✅ Run all pytest tests (with mocked hardware)
+- ✅ Review PRs with live code context
+- ✅ Use GitHub Copilot for assistance
+- ✅ Update documentation
+
+**Limitations:**
+- ❌ Cannot access physical hardware (GPIO, I²C sensors)
+- ❌ Cannot perform hardware commissioning
+- ❌ Cannot test actual relay control
+
+**See:** [.devcontainer/README.md](.devcontainer/README.md) for detailed Codespaces documentation
+
+---
+
+### Option 2: Local Development Environment (Full Control)
 
 **1. Clone the Repository**
 ```bash
