@@ -141,17 +141,28 @@ DEFAULTS: Dict[str, str] = {
     "ui.relays_poll_ms": "1000",
     "ui.sensors_poll_ms": "5000",
     # sensors
-    "sensors.leds_enabled": "1",  # default: keep EZO LEDs ON for visual diagnostics
+    'sensors.leds_enabled': '1',  # default: keep EZO LEDs ON for visual diagnostics
 }
 
+# Module-level flag to ensure we only seed defaults once per process
+_defaults_seeded = False
+
 def _ensure_table_seed_defaults() -> None:
-    """Ensure settings table exists and DEFAULTS are present (without overriding)."""
+    """Ensure settings table exists and DEFAULTS are present (without overriding).
+    Only runs once per process to avoid blocking on every read.
+    """
+    global _defaults_seeded
+    if _defaults_seeded:
+        return
+    
     _init_settings_table()
     with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
         cur = conn.cursor()
         for key, val in DEFAULTS.items():
             cur.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (key, val))
         conn.commit()
+    
+    _defaults_seeded = True
 
 def get_all_settings() -> Dict[str, str]:
     """Return flat dict of all settings (string values)."""
