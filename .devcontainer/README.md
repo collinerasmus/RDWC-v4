@@ -39,7 +39,8 @@ This devcontainer configuration enables cloud-based development using GitHub Cod
 1. Go to the repository on GitHub
 2. Click **Code** → **Codespaces** → **Create codespace on [branch]**
 3. Wait for environment to build (~2-3 minutes first time)
-4. Start developing!
+4. A validation script will run automatically to verify the setup
+5. Start developing!
 
 ### Using VS Code Remote Containers (Local)
 
@@ -124,6 +125,22 @@ If `pip install` fails during container creation:
 This is expected in Codespaces. The tests should automatically use mocked GPIO via pytest fixtures. If they don't:
 1. Check that `conftest.py` is present in the repository root
 2. Ensure pytest is discovering the fixtures correctly
+
+## Validating Your Environment
+
+After the devcontainer is created, you can manually run the validation script:
+
+```bash
+python .devcontainer/validate.py
+```
+
+This checks:
+- ✅ Configuration file is valid
+- ✅ Python version is correct (3.9+)
+- ✅ All dependencies are installed
+- ✅ Project structure is intact
+
+The validation script runs automatically during setup, but you can re-run it anytime.
 
 ## More Information
 
