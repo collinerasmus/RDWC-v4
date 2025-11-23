@@ -13,8 +13,11 @@ def temp_db_path():
 
 def test_upsert_and_get_all_settings_isolated():
     original = settings.DB_PATH
+    original_seeded = settings._defaults_seeded
     tmp_path = temp_db_path()
     settings.DB_PATH = tmp_path
+    # Reset the seeded flag to ensure table initialization for temporary DB
+    settings._defaults_seeded = False
     try:
         # Initialize the table before using it
         settings._ensure_table_seed_defaults()
@@ -33,6 +36,7 @@ def test_upsert_and_get_all_settings_isolated():
         assert grouped['targets']['ph_low'] == '5.7'
     finally:
         settings.DB_PATH = original
+        settings._defaults_seeded = original_seeded
         try:
             os.unlink(tmp_path)
         except Exception:
@@ -60,8 +64,11 @@ def test_import_all_rejects_invalid():
 
 def test_import_all_success():
     original = settings.DB_PATH
+    original_seeded = settings._defaults_seeded
     tmp_path = temp_db_path()
     settings.DB_PATH = tmp_path
+    # Reset the seeded flag to ensure table initialization for temporary DB
+    settings._defaults_seeded = False
     try:
         # Initialize the table before using it
         settings._ensure_table_seed_defaults()
@@ -73,6 +80,7 @@ def test_import_all_success():
         assert all_flat['targets.ph_high'] == '6.2'
     finally:
         settings.DB_PATH = original
+        settings._defaults_seeded = original_seeded
         try:
             os.unlink(tmp_path)
         except Exception:
