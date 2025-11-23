@@ -51,6 +51,7 @@ from commission_utils import (
 )
 
 SCRIPT_VERSION = "1.0.0"
+PHASE_TIMEOUT_SECONDS = 300  # 5 minute timeout per phase
 
 # Phase configuration
 PHASES = {
@@ -232,7 +233,7 @@ class CommissioningOrchestrator:
                 cmd,
                 capture_output=False,
                 text=True,
-                timeout=300,  # 5 minute timeout per phase
+                timeout=PHASE_TIMEOUT_SECONDS,
             )
             
             # Load the report
@@ -256,7 +257,7 @@ class CommissioningOrchestrator:
                 "phase": phase_id,
                 "exit_code": -1,
                 "success": False,
-                "error": "Timeout after 5 minutes",
+                "error": f"Timeout after {PHASE_TIMEOUT_SECONDS} seconds",
             }
         except Exception as e:
             print_status(f"Phase {phase_id} failed: {e}", "error")
@@ -447,4 +448,5 @@ Examples:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    exit_code = main()
+    sys.exit(exit_code)

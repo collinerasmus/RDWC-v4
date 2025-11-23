@@ -111,7 +111,7 @@ Each script:
 After successful commissioning:
 
 1. **Review Reports** - Check `commissioning_reports/` directory
-2. **Check Web UI** - Open http://192.168.88.49:8080 and verify:
+2. **Check Web UI** - Open http://YOUR-PI-IP:8080 (e.g., http://192.168.88.49:8080) and verify:
    - Sensors tab shows fresh data
    - Relays tab shows correct states
    - pH/EC tabs show calibration status (if calibrated)
