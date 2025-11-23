@@ -168,6 +168,30 @@ def get_chiller_state() -> Dict[str, Any]:
     """Get current chiller state for API/UI."""
     with _control_lock:
         state = _chiller_state.copy()
+        # Reconcile with actual relay state to avoid stale/is_running mismatches
+        try:
+            rel = get_relay_status().get('chiller_power', {})
+            relay_on = bool(rel.get('state')) or bool(rel.get('is_on'))  # support both key styles
+        except Exception:
+            relay_on = state.get('is_running', False)
+        now_reconcile = time.time()
+        # If relay physically ON but internal state says OFF, treat as ON transition
+        if relay_on and not state.get('is_running'):
+            _chiller_state['is_running'] = True
+            # Preserve existing last_on_time if already set; else seed
+            if not _chiller_state.get('last_on_time'):
+                _chiller_state['last_on_time'] = now_reconcile
+            _chiller_state['last_off_time'] = None
+            _chiller_state['in_cooldown'] = False
+            # Increment cycles_today only if this looks like a new cycle
+            _chiller_state['cycles_today'] += 1
+            state = _chiller_state.copy()
+        # If relay physically OFF but internal state says ON, treat as OFF transition
+        elif (not relay_on) and state.get('is_running'):
+            _chiller_state['is_running'] = False
+            _chiller_state['last_off_time'] = now_reconcile
+            _chiller_state['min_runtime_active'] = False
+            state = _chiller_state.copy()
         
         # Add computed fields
         now = time.time()
