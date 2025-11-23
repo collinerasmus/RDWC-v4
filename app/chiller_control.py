@@ -164,6 +164,61 @@ def get_chiller_events(limit: int = 200) -> list[dict]:
         return []
 
 
+def get_interlock_status() -> Dict[str, Any]:
+    """
+    Check current interlock conditions for chiller operation.
+    
+    Returns:
+        Dict with interlock_ok (bool) and interlock_details (dict)
+    """
+    try:
+        relays = get_relay_status()
+        main_pump_on = relays.get('main_pump', {}).get('state', False)
+        chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
+        chiller_running = relays.get('chiller_power', {}).get('state', False)
+        
+        # Get auto enabled status
+        auto_enabled = bool(int(get_setting('chiller.auto_enabled', '0')))
+        try:
+            from app.controller_modes import get_mode
+            mode = get_mode('chiller')
+            auto_enabled = auto_enabled and mode == 'auto'
+        except Exception:
+            pass
+        
+        # Determine violations
+        violations = []
+        if chiller_running and not main_pump_on:
+            violations.append('main_pump_off')
+        if chiller_running and not chiller_pump_on:
+            violations.append('chiller_pump_off')
+        
+        interlock_ok = len(violations) == 0
+        
+        return {
+            'interlock_ok': interlock_ok,
+            'interlock_details': {
+                'main_pump_on': main_pump_on,
+                'chiller_pump_on': chiller_pump_on,
+                'chiller_running': chiller_running,
+                'auto_enabled': auto_enabled,
+                'violations': violations if violations else None
+            }
+        }
+    except Exception as e:
+        log.error(f'[CHILLER] Failed to get interlock status: {e}')
+        return {
+            'interlock_ok': False,
+            'interlock_details': {
+                'main_pump_on': False,
+                'chiller_pump_on': False,
+                'chiller_running': False,
+                'auto_enabled': False,
+                'violations': ['error_reading_status']
+            }
+        }
+
+
 def get_chiller_state() -> Dict[str, Any]:
     """Get current chiller state for API/UI."""
     with _control_lock:
@@ -207,6 +262,10 @@ def get_chiller_state() -> Dict[str, Any]:
         state['target_temp'] = float(_t)
         state['hysteresis'] = float(get_setting('chiller.hysteresis', '0.5'))
         state['auto_enabled'] = bool(int(get_setting('chiller.auto_enabled', '0')))
+        
+        # Add interlock status
+        interlock_status = get_interlock_status()
+        state.update(interlock_status)
         
         return state
 
