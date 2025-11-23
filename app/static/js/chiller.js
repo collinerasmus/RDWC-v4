@@ -3,6 +3,8 @@
  * Hailea HS-52A - Cannabis-optimized temperature automation
  */
 (() => {
+  // Verbosity flag to silence non-critical logs
+  const UI_VERBOSE = false;
   // ===== SIMPLIFIED HOLD SYSTEM =====
   let isHeld = false;
 
@@ -178,7 +180,7 @@
       updateEnvHealth();
 
     } catch (e) {
-      console.error('Failed to refresh chiller status:', e);
+      if (UI_VERBOSE) console.error('Failed to refresh chiller status:', e);
     }
   }
 
@@ -262,9 +264,21 @@
         statusMsg.textContent = '';
       }
     }
+
+    // Explicit state label
+    const stateLabel = q('#chiller-state-label');
+    if (stateLabel) {
+      let label = 'IDLE';
+      if (state.estop) label = 'BLOCKED';
+      else if (isHeld) label = 'HELD';
+      else if (state.in_cooldown || state.min_runtime_active) label = 'WAITING';
+      else if (state.is_running) label = 'COOLING';
+      else if (!state.auto_enabled) label = 'MANUAL';
+      stateLabel.textContent = label;
+    }
     
     // Update settings inputs
-    const targetInput = q('#chillerTargetTemp');
+    const targetInput = q('#tempTarget');
     const hysteresisInput = q('#chillerHysteresis');
     const stageSelect = q('#chillerStage');
     
@@ -300,7 +314,7 @@
   // Save settings
   async function saveSettings() {
     try {
-      const targetTemp = parseFloat(q('#chillerTargetTemp').value);
+      const targetTemp = parseFloat(q('#tempTarget').value);
       const hysteresis = parseFloat(q('#chillerHysteresis').value);
       const stage = q('#chillerStage').value;
       

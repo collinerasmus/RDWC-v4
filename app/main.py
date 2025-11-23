@@ -1363,6 +1363,10 @@ def api_chiller_settings_update(req: dict):
     for key, setting_key in settings_map.items():
         if key in req:
             updates[setting_key] = str(req[key])
+
+    # Keep legacy target in sync for older UI components
+    if 'target_temp' in req:
+        updates['targets.temp_target_c'] = str(req['target_temp'])
     
     # Validate
     ok, error = validate_partial(updates)

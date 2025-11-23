@@ -178,13 +178,12 @@ def get_chiller_state() -> Dict[str, Any]:
         # If relay physically ON but internal state says OFF, treat as ON transition
         if relay_on and not state.get('is_running'):
             _chiller_state['is_running'] = True
-            # Preserve existing last_on_time if already set; else seed
+            # If we have no last_on_time this is a fresh ON transition not yet counted
             if not _chiller_state.get('last_on_time'):
                 _chiller_state['last_on_time'] = now_reconcile
+                _chiller_state['cycles_today'] += 1  # count cycle only once
             _chiller_state['last_off_time'] = None
             _chiller_state['in_cooldown'] = False
-            # Increment cycles_today only if this looks like a new cycle
-            _chiller_state['cycles_today'] += 1
             state = _chiller_state.copy()
         # If relay physically OFF but internal state says ON, treat as OFF transition
         elif (not relay_on) and state.get('is_running'):
@@ -201,7 +200,11 @@ def get_chiller_state() -> Dict[str, Any]:
             state['current_runtime'] = int(now - state['last_on_time'])
         
         # Add settings
-        state['target_temp'] = float(get_setting('chiller.target_temp', '19.0'))
+        # Unified target temp: prefer chiller.target_temp, fallback to legacy targets.temp_target_c
+        _t = get_setting('chiller.target_temp', None)
+        if _t is None:
+            _t = get_setting('targets.temp_target_c', '19.0')
+        state['target_temp'] = float(_t)
         state['hysteresis'] = float(get_setting('chiller.hysteresis', '0.5'))
         state['auto_enabled'] = bool(int(get_setting('chiller.auto_enabled', '0')))
         
