@@ -2,7 +2,25 @@
 Relay Guard Module - Safe GPIO control with active-low logic, shadow state, and anomaly detection.
 
 Prime directive: No unintended relay toggles ever.
-Active-low: HIGH = OFF (safe), LOW = ON (energized).
+
+Electrical model (mixed NO/NC wiring after hardware change):
+    - All physical relay boards are still active-low electrically (coil energized when BCM pin drives LOW).
+    - MOST loads (dosing pumps, lights) remain on the relay's Normally Open (NO) contact:
+                LOW (energize) -> closes NO -> device ON
+                HIGH (de-energize) -> NO open -> device OFF
+    - Critical circulation/cooling loads (main_pump, chiller_pump, chiller_power) have been rewired to Normally Closed (NC):
+                LOW (energize) -> opens NC -> device OFF
+                HIGH (de-energize) -> NC closed -> device ON (fail-safe on Pi crash / power loss)
+
+Logical abstraction:
+    desired_on == True  means "device should be ON" regardless of NO/NC wiring.
+    We translate desired_on -> pin_level with per-relay inversion for NC group.
+
+Resulting mapping implemented below:
+    NO relays: desired_on -> GPIO.LOW, desired_off -> GPIO.HIGH
+    NC relays: desired_on -> GPIO.HIGH, desired_off -> GPIO.LOW
+
+Shadow state (_shadow_state[name]) always tracks logical device ON/OFF, never raw pin level.
 """
 try:  # Hardware GPIO path (Pi)
     import RPi.GPIO as GPIO  # type: ignore
@@ -46,6 +64,10 @@ RELAY_PINS = {
     'lights': 21,
 }
 
+# Relays rewired to NC (fail-safe ON when controller inactive / Pi crash)
+NC_RELAYS = {'main_pump', 'chiller_pump', 'chiller_power'}
+NO_RELAYS = {name for name in RELAY_PINS.keys() if name not in NC_RELAYS}
+
 # Shadow state: logical ON/OFF (not pin levels)
 _shadow_state: Dict[str, bool] = {}
 _initialized = False
@@ -79,9 +101,11 @@ def init_safe(relays: Optional[Dict[str, int]] = None):
         # Set each pin to OUTPUT with initial HIGH (OFF)
         # Note: pull_up_down is not valid for outputs
         for name, pin in pins_map.items():
-            GPIO.setup(pin, GPIO.OUT, initial=GPIO.HIGH)
-            _shadow_state[name] = False  # Logical OFF
-            logger.info(f"[GuardInit] {name} (BCM {pin}) → OUTPUT HIGH (OFF)")
+            # For NC loads OFF requires energizing coil (LOW). For NO loads OFF is HIGH.
+            initial_level = GPIO.HIGH if name in NO_RELAYS else GPIO.LOW
+            GPIO.setup(pin, GPIO.OUT, initial=initial_level)
+            _shadow_state[name] = False  # Logical OFF regardless of pin wiring
+            logger.info(f"[GuardInit] {name} (BCM {pin}) → OUTPUT {'HIGH' if initial_level==GPIO.HIGH else 'LOW'} (device OFF; wiring={'NC' if name in NC_RELAYS else 'NO'})")
         
         _initialized = True
         logger.info(f"[GuardInit] Initialized {len(pins_map)} relays; all safe OFF")
@@ -133,9 +157,14 @@ def safe_set(name: str, desired_on: bool, reason: str, actor: str) -> dict:
         })
         return {"changed": False, "ok": True, "coerced": False, "mismatch_retries": 0, "shadow": current_on}
     
-    # Translate logical to pin level (active-low)
+    # Translate logical to pin level with NO/NC awareness (still active-low electrically)
     pin = RELAY_PINS[name]
-    pin_level = GPIO.LOW if desired_on else GPIO.HIGH
+    if name in NC_RELAYS:
+        # NC: ON => de-energize (HIGH), OFF => energize (LOW)
+        pin_level = GPIO.HIGH if desired_on else GPIO.LOW
+    else:
+        # NO: ON => energize (LOW), OFF => de-energize (HIGH)
+        pin_level = GPIO.LOW if desired_on else GPIO.HIGH
     
     # Single write
     mismatch_retries = 0
@@ -249,8 +278,12 @@ def sync_from_actual():
     for name, pin in RELAY_PINS.items():
         try:
             level = GPIO.input(pin)
-            # Active-low: LOW = ON, HIGH = OFF
-            logical_on = (level == GPIO.LOW)
+            if name in NC_RELAYS:
+                # NC wiring: HIGH (de-energized) closes NC -> device ON
+                logical_on = (level == GPIO.HIGH)
+            else:
+                # NO wiring: LOW (energized) closes NO -> device ON
+                logical_on = (level == GPIO.LOW)
             _shadow_state[name] = logical_on
             logger.info(f"[GuardSync] {name}: actual={level_str(level)} → shadow={'ON' if logical_on else 'OFF'}")
         except Exception as e:

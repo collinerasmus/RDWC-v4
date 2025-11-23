@@ -1,3 +1,25 @@
+## [Unreleased]
+### Planned
+- Finalize v1.0.0 stable after Phase 11 soak testing and user approval.
+
+## [1.0.0-rc1] - 2025-11-23
+### Changed
+- Migrated relay wiring to mixed NC/NO configuration (P-301, P-302, C-401 now NC fail-ON; lights & all dosing pumps remain NO fail-OFF).
+- Documentation updates across Operating Philosophy, P&ID, Electrical Schematic, I/O & Signal List to reflect fail-safe strategy.
+- Version bump to 1.0.0-rc1 (pre-release candidate).
+
+### Added
+- `docs/RELAY_FAILSAFE_MATRIX.md` quick-reference table and commissioning checks.
+- Phase 11 manual verification checklist appended to `FINAL_VERIFICATION.md`.
+
+### Verified
+- Full backend test suite: 171/171 passing in ~15s.
+- No regressions introduced by mixed NC/NO wiring (software abstraction handles polarity).
+
+### Upgrade Notes
+- No database migrations required.
+- After deploying, perform Phase 11 fail-safe verification (simulate controller stop, confirm pumps/chiller ON; lights/dosing OFF).
+
 # Changelog
 
 ## v4.4.0 (2025-11-22)

@@ -1,3 +1,68 @@
+# Final Verification Guide
+## Phase 11 Manual Frontend & Fail-Safe Checklist (Added 2025-11-23)
+
+Perform these manual checks after documentation updates and before tagging `v1.0.0-rc1`.
+
+### 1. UI Navigation & Layout
+- Visit all tabs: Overview, Sensors, pH, EC, Chiller, Circulation, Lights, Schedule, Calibration, System.
+- Confirm KPI blocks consistent (size, padding) on each tab.
+- Collapse/expand each details section; verify 2‑column grid alignment.
+- Mobile viewport (<720px width): ensure relays grid collapses to single column; no horizontal scroll.
+
+### 2. Live Data & Freshness
+- Sensors tab: pH/EC/Temp timestamps <120s age.
+- Trigger `POST /read_now` (or UI equivalent) → values update within one poll cycle.
+- Stale simulation: Stop sensor poller service, observe stale indicators after >130s, restart service.
+
+### 3. Controller Modes & Hold
+- System tab: Set each controller to manual, then back to auto; verify state badges update.
+- Activate hold on pH & EC; confirm no auto doses occur for at least one hysteresis cycle; release hold.
+
+### 4. Dosing Simulation (Dry Run)
+- Manual pH dose (small) → log entry appears; daily & press caps show remaining.
+- Manual EC dose for one nutrient pump → log entry appears.
+- Confirm dose guards block second immediate press (press cap) and reflect in diagnostics.
+
+### 5. Chiller & Interlock
+- With main pump ON, turn chiller ON manually; verify chiller pump ON.
+- Turn main pump OFF → chiller and chiller pump forced OFF.
+- Restore main pump → chiller resumes per temperature logic.
+
+### 6. Lights Schedule Cross-Midnight (If feasible)
+- Set ON time 20:00, duration 12h; simulate time advance (or adjust system clock) to ensure OFF edge triggers next morning.
+- Manual override requires whitelisted reason; attempt unauthorized override (expect rejection if implemented).
+
+### 7. Mixed NC / NO Fail-Safe Verification
+- Stop API service (`systemctl stop rdwc.service`) WITHOUT cutting board power.
+- Observe: P-301, P-302, C-401 remain ON; all dosing pumps & lights remain OFF.
+- Restart service; confirm controller reconciles states within one control cycle; no erroneous dosing or light activation.
+
+### 8. Relay Guard & Anomalies
+- Query `/api/relays/guard/anomalies` → empty or expected reconciliation entries only.
+- Toggle a relay manually; verify recent events buffer updates.
+
+### 9. Logging Integrity
+- Trigger a frontend JS error (open console, `throw new Error('test frontend logging')`).
+- Confirm entry appears in `frontend_logs` table via API/DB inspection.
+
+### 10. Settings Persistence
+- Change a setting (e.g., `targets.ph_low`), restart API; confirm setting retained.
+- Import settings JSON backup; verify diff applied.
+
+### 11. Backup & Recovery Drill
+- Copy `data/rdwc.db` to backup location; corrupt working copy intentionally (optional test) and restore from backup; services restart cleanly.
+
+### 12. Pre-Release Snapshot
+- Capture JSON snapshot: relay status, sensor status, mode map, last 5 dose events.
+- Store alongside commissioning report for audit.
+
+Completion Criteria:
+- All checks pass; anomalies documented & resolved.
+- No unhandled exceptions in logs.
+- Fail-safe behavior verified.
+- Test suite still 171 passing after any incidental changes.
+
+Proceed to version tagging only after successful completion: `v1.0.0-rc1`.
 # Final Verification Summary
 
 **Date:** November 16, 2025  
