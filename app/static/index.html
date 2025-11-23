@@ -2705,6 +2705,7 @@ function toggleRecentReadings(){
 
 // Camera auto-reconnect with exponential backoff
 (function initCamera() {
+  const CAM_UI_VERBOSE = false;
   const img = document.getElementById('camera-stream');
   const objElem = document.getElementById('camera-object');
   const overlay = document.getElementById('camera-overlay');
@@ -2746,7 +2747,7 @@ function toggleRecentReadings(){
       }
       return data;
     } catch (err) {
-      console.warn('[Camera] Status check failed:', err);
+      if (CAM_UI_VERBOSE) console.warn('[Camera] Status check failed:', err);
       if (pill) pill.textContent = '(status unavailable)';
       return { available: false };
     }
@@ -2781,6 +2782,7 @@ function toggleRecentReadings(){
         setTimeout(startStream, retryMs);
       } else {
         if (overlay) overlay.textContent = 'Camera unavailable';
+        if (pill) pill.textContent = '(offline)';
       }
     };
 
@@ -2822,12 +2824,46 @@ function toggleRecentReadings(){
   }
   
   async function watchdog(){
-    // Disabled: aggressive watchdog causes console spam and restart loops
-    // Camera will auto-reconnect on page refresh if needed
-    return;
+    try {
+      if (document.hidden) return; // pause checks in background tabs
+      const resp = await fetch(`/camera/stream/health?t=${Date.now()}`, {cache: 'no-store'});
+      if (resp.status === 204) {
+        // Healthy
+        if (pill && img && img.src) pill.textContent = '(streaming)';
+        frameStallCount = 0;
+        // If img not attached, reattach quietly
+        if (img && !img.src) startStream();
+        // If no new frames for >15s, refresh stream even if health is OK
+        if (Date.now() - lastFrameCheck > 15000) {
+          if (overlay) overlay.textContent = 'Refreshing stream...';
+          startStream();
+        }
+        return;
+      }
+      // Unhealthy
+      frameStallCount++;
+      if (overlay) overlay.textContent = 'Reconnecting...';
+      if (pill) pill.textContent = '(reconnecting)';
+      if (frameStallCount <= 3) startStream();
+    } catch (e) {
+      // Network/health request failed; treat as one failure but keep quiet
+      frameStallCount++;
+      if (frameStallCount <= 3) startStream();
+      if (CAM_UI_VERBOSE) console.debug('[Camera] watchdog error', e);
+    }
   }
-  // Watchdog disabled to prevent console spam
-  // watchdogTimer = setInterval(watchdog, WATCHDOG_INTERVAL);
+  // Low-noise watchdog enabled
+  watchdogTimer = setInterval(watchdog, WATCHDOG_INTERVAL);
+
+  // Pause stream when tab hidden; resume when visible
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopStream();
+      if (pill) pill.textContent = '(paused)';
+    } else {
+      startStream();
+    }
+  });
 
   // Expose for external control if needed
   window.cameraControl = { startStream, stopStream, refreshStatus };
