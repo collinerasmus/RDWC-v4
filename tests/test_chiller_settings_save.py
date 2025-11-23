@@ -21,9 +21,12 @@ def client():
     tmp.close()
     tmp_path = Path(tmp.name)
     
-    # Save original DB path
+    # Save original DB path and seeded flag
     original = settings.DB_PATH
+    original_seeded = settings._defaults_seeded
     settings.DB_PATH = tmp_path
+    # Reset the seeded flag to ensure table initialization for temporary DB
+    settings._defaults_seeded = False
     
     # Initialize database table
     settings._ensure_table_seed_defaults()
@@ -44,6 +47,7 @@ def client():
     
     # Cleanup
     settings.DB_PATH = original
+    settings._defaults_seeded = original_seeded
     try:
         os.unlink(tmp_path)
     except Exception:
