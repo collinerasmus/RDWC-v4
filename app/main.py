@@ -398,7 +398,7 @@ async def sensor_loop():
 async def _start_tasks():
     global sensor_task, watchdog_task
     # Initialize system mode tables
-    from app.system_mode import _init_tables
+    from app.unified_mode import _init_tables
     _init_tables()
     
     # Initialize relay guard (shadow state tracking + structured logging)
@@ -1104,7 +1104,7 @@ def api_relays_status():
     Shape: {"mode":"manual|auto","estop":bool,"relays":{ name: {pin_bcm, active_low, is_on, label} }}
     """
     from app.relays_core import get_relay_status, RELAY_PINS, get_estop_status, get_last_restore_event, ACTIVE_HIGH
-    from app.system_mode import get_system_mode
+    from app.unified_mode import get_mode as get_system_mode
     status = get_relay_status()
     mode = get_system_mode() or 'manual'
     estop = bool(get_estop_status())
@@ -1415,8 +1415,7 @@ def api_controllers_status():
     }
     """
     import time
-    from app.controller_modes import get_all_modes
-    from app.system_mode import get_system_mode
+    from app.unified_mode import get_all_status, get_mode as get_system_mode
     from app.settings import get_setting_key
     from app.relays_core import get_estop_status, get_relay_status
     
@@ -2316,7 +2315,7 @@ def relay_set_new(body: dict = Body(...)):
     
     # Determine if manual mode should bypass protections
     try:
-        from app.system_mode import get_system_mode
+        from app.unified_mode import get_mode as get_system_mode
         force_flag = (get_system_mode() == 'manual')
     except Exception:
         force_flag = False
@@ -2407,7 +2406,7 @@ def relay_set_query(name: str = Query(...), on: int = Query(...)):
     
     # Determine if manual mode should bypass protections
     try:
-        from app.system_mode import get_system_mode
+        from app.unified_mode import get_mode as get_system_mode
         force_flag = (get_system_mode() == 'manual')
     except Exception:
         force_flag = False
@@ -2851,27 +2850,27 @@ def api_sensors():
 
 @app.get("/api/sensors/mode")
 def api_sensors_mode():
-    from app.sensors_mode import get_sensor_mode, VALID_MODES
+    from app.unified_mode import get_sensor_mode, VALID_MODES
     m = get_sensor_mode()
     return {"mode": m, "valid_modes": sorted(list(VALID_MODES))}
 
 @app.post("/api/sensors/mode")
 def api_sensors_mode_set(payload: dict):
-    from app.sensors_mode import set_sensor_mode, get_sensor_mode, VALID_MODES
+    from app.unified_mode import set_sensor_mode, get_sensor_mode, VALID_MODES
     mode = payload.get("mode") if isinstance(payload, dict) else None
     ok = set_sensor_mode(mode) if mode in VALID_MODES else False
     return {"ok": ok, "mode": get_sensor_mode()}
 
 @app.get("/api/sensors/override")
 def api_sensors_override_get():
-    from app.sensors_mode import get_overrides, overrides_effective_age
+    from app.unified_mode import get_overrides, overrides_effective_age
     o = get_overrides()
     age = overrides_effective_age()
     return {"overrides": o, "age_seconds": age}
 
 @app.post("/api/sensors/override")
 def api_sensors_override_set(payload: dict):
-    from app.sensors_mode import set_overrides
+    from app.unified_mode import set_overrides
     if not isinstance(payload, dict):
         payload = {}
     updated = set_overrides(payload)
@@ -2879,7 +2878,7 @@ def api_sensors_override_set(payload: dict):
 
 @app.delete("/api/sensors/override/{field}")
 def api_sensors_override_clear(field: str):
-    from app.sensors_mode import clear_override_field, get_overrides
+    from app.unified_mode import clear_override_field, get_overrides
     ok = clear_override_field(field)
     return {"ok": ok, "overrides": get_overrides()}
 
@@ -3107,7 +3106,7 @@ def api_controller_hold_toggle(name: str, body: dict = None):
       - {"hold": false} - Resume (set to auto)
       - {} or null - Toggle current state
     """
-    from app.controller_modes import set_hold, is_held, CONTROLLERS
+    from app.unified_mode import set_hold, is_held, CONTROLLERS
     if name not in CONTROLLERS:
         return {"ok": False, "error": "unknown_controller", "controller": name}
     
@@ -3136,7 +3135,7 @@ def api_controller_hold_all(body: dict = None):
       - {"hold": false} - Resume all
       - {} or null - Not supported for all (must be explicit)
     """
-    from app.controller_modes import set_all_hold, get_all_modes
+    from app.unified_mode import set_all_hold, get_all_modes
     
     body = body or {}
     if "hold" not in body:

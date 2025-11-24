@@ -1130,8 +1130,7 @@ def _auto_worker():
         # Suppress auto when global maintenance override is active
         # Controller mode gating
         try:
-            from app.controller_modes import get_mode
-            if get_mode("ec") != "auto":
+            from app.unified_mode import get_controller_mode`n            if get_mode("ec")if get_controller_mode("ec") != "auto":
                 with _auto_lock:
                     _auto_last_holding_reason = "mode_hold"
                 continue

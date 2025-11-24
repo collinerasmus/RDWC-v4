@@ -160,8 +160,8 @@ class Scheduler:
             return
         # Lights mode gating: skip all automatic light edges unless mode=auto
         try:
-            from app.controller_modes import get_mode
-            lights_mode = get_mode("lights")
+            from app.unified_mode import get_mode
+            lights_mode = get_controller_mode("lights")
         except Exception:
             lights_mode = "auto"
 

@@ -196,7 +196,7 @@ def get_interlock_status() -> Dict[str, Any]:
         # Get auto enabled status (chiller-specific setting)
         auto_enabled = bool(int(get_setting('chiller.auto_enabled', '0')))
         try:
-            from app.controller_modes import get_mode
+            from app.unified_mode import get_mode
             mode = get_mode('chiller')
             auto_enabled = auto_enabled and mode == 'auto'
         except Exception:
@@ -407,7 +407,7 @@ def should_chiller_run() -> tuple[bool, str]:
     # Check if auto control is enabled
     # Controller mode gating
     try:
-        from app.controller_modes import get_mode
+        from app.unified_mode import get_mode
         mode = get_mode('chiller')
     except Exception:
         mode = 'auto'

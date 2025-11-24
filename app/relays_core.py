@@ -185,7 +185,7 @@ def _save_state():
             json.dump(state, f)
         
         # Database persistence for system_mode auto-restore
-        from app.system_mode import save_relay_state
+        from app.unified_mode import save_relay_state
         for name, state_val in state.items():
             save_relay_state(name, state_val)
     except Exception as e:
@@ -213,7 +213,7 @@ def smart_restore_critical_relays():
     Only restores critical relays (main_pump, chiller_pump, chiller_power, lights).
     Respects MIN_OFF timings - if a relay can't be turned on immediately, it stays off.
     """
-    from app.system_mode import should_auto_restore, get_critical_relay_states
+    from app.unified_mode import should_auto_restore, get_critical_relay_states
     
     if not should_auto_restore():
         logger.info("System mode is manual - skipping auto-restore")
@@ -370,8 +370,8 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False, act
 
     # Controller mode gating for circulation pumps (block non-forced automation when mode!=auto)
     try:
-        from app.controller_modes import get_mode
-        if name in ("main_pump", "chiller_pump") and get_mode("circulation") != "auto" and not force and reason not in (REASON_OVERRIDE, REASON_EMERGENCY, "restore"):
+        from app.unified_mode import get_mode
+        if name in ("main_pump", "chiller_pump") and get_controller_mode("circulation") != "auto" and not force and reason not in (REASON_OVERRIDE, REASON_EMERGENCY, "restore"):
             return {"changed": False, "state": current_state, "reason": "mode_hold", "cooldown_remaining": 0}
     except Exception:
         pass

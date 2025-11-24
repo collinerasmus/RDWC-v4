@@ -747,8 +747,7 @@ def _auto_loop():
         try:
             # Controller mode gating: suppress automation unless mode=auto
             try:
-                from app.controller_modes import get_mode
-                if get_mode("ph") != "auto":
+                from app.unified_mode import get_controller_mode`n                if get_mode("ph")if get_controller_mode("ph") != "auto":
                     _set_auto_block("mode_hold")
                     time.sleep(poll_s)
                     continue

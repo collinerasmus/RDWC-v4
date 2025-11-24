@@ -1,5 +1,5 @@
 """
-UNIFIED MODE SYSTEM - Single Source of Truth
+UNIFIED MODE SYSTEM - THE ONLY MODE SYSTEM
 Replaces: system_mode.py, controller_modes.py, sensors_mode.py
 
 ONE mode concept for entire system:
@@ -33,6 +33,9 @@ MODE_MANUAL = "manual"
 MODE_MAINTENANCE = "maintenance"
 VALID_MODES = {MODE_AUTO, MODE_MANUAL, MODE_MAINTENANCE}
 
+# Legacy constants for backward compatibility
+MODE_HOLD = "hold"  # Maps to MANUAL
+
 # Controllers that respect mode
 CONTROLLERS = ["ph", "ec", "lights", "chiller", "circulation", "sensors"]
 
@@ -48,6 +51,12 @@ def _ensure_db():
                 value TEXT NOT NULL
             )
         """)
+        # Set default mode to manual (safety first)
+        conn.execute(
+            "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+            ("system.mode", MODE_MANUAL)
+        )
+        conn.commit()
         
         # Set default mode to manual (safety first)
         conn.execute("""
@@ -175,3 +184,72 @@ def get_sensor_mode() -> str:
 def set_sensor_mode(mode: str) -> bool:
     """Legacy compatibility"""
     return set_mode(mode)
+
+
+def get_all_modes() -> Dict[str, str]:
+    """Legacy compatibility - returns dict of controller names to modes (as "hold" for backward compat)"""
+    mode = get_mode()
+    # Map to legacy "hold" format that old code expects
+    legacy_mode = "hold" if mode in (MODE_MANUAL, MODE_MAINTENANCE) else "auto"
+    return {controller: legacy_mode for controller in CONTROLLERS}
+
+
+def get_overrides() -> Dict[str, str]:
+    """Legacy compatibility - sensors module compatibility"""
+    return {}  # No per-sensor overrides in unified system
+
+
+# Legacy relay state persistence functions (moved from system_mode.py)
+def save_relay_state(relay: str, state: bool):
+    """Save relay state to database for restoration"""
+    _ensure_db()
+    db_path = _get_db_path()
+    try:
+        with sqlite3.connect(str(db_path), timeout=5) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS relay_state (
+                    relay TEXT PRIMARY KEY,
+                    last_state INTEGER NOT NULL,
+                    last_change_ts INTEGER NOT NULL
+                )
+            """)
+            import time
+            conn.execute("""
+                INSERT OR REPLACE INTO relay_state (relay, last_state, last_change_ts)
+                VALUES (?, ?, ?)
+            """, (relay, 1 if state else 0, int(time.time())))
+            conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to save relay state: {e}")
+
+
+def should_auto_restore() -> bool:
+    """Check if relays should be auto-restored on boot"""
+    return get_mode() == MODE_AUTO
+
+
+def get_critical_relay_states() -> Dict[str, bool]:
+    """Get last known states of critical relays"""
+    _ensure_db()
+    db_path = _get_db_path()
+    states = {}
+    try:
+        with sqlite3.connect(str(db_path), timeout=5) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS relay_state (
+                    relay TEXT PRIMARY KEY,
+                    last_state INTEGER NOT NULL,
+                    last_change_ts INTEGER NOT NULL
+                )
+            """)
+            rows = conn.execute("SELECT relay, last_state FROM relay_state").fetchall()
+            for relay, state in rows:
+                states[relay] = bool(state)
+    except Exception as e:
+        logger.error(f"Failed to get relay states: {e}")
+    return states
+
+
+def _init_tables():
+    """Legacy compatibility - initialize all tables"""
+    _ensure_db()

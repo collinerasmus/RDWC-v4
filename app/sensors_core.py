@@ -216,8 +216,8 @@ def read_sensors_from_db(db_path: str = None, max_age_sec: int = 60) -> Dict[str
         mode = "auto"
         overrides = {"temperature_c": None, "ph": None, "ec_mscm": None, "updated_ts": None}
         try:
-            from app.sensors_mode import get_sensor_mode, get_overrides, MODE_MAINTENANCE
-            mode = get_sensor_mode()
+            from app.unified_mode import get_sensor_mode, get_overrides, MODE_MAINTENANCE
+            mode = get_mode()
             if mode == MODE_MAINTENANCE:
                 overrides = get_overrides()
                 for k in ["temperature_c", "ph", "ec_mscm"]:

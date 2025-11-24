@@ -228,8 +228,8 @@ def poll_once() -> Dict[str, Any]:
     
     # Sensor mode check (manual mode pauses active reads while keeping heartbeat)
     try:
-        from app.sensors_mode import get_sensor_mode, MODE_MANUAL
-        _mode = get_sensor_mode()
+        from app.unified_mode import get_sensor_mode, MODE_MANUAL
+        _mode = get_mode()
     except Exception:
         _mode = "auto"
     if _mode == MODE_MANUAL:
