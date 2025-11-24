@@ -1,7 +1,16 @@
-# START HERE - Quick Guide
-**Date:** 2025-11-24 **Updated:** Mode sync fix applied
+# 🚀 START HERE
+**Last Updated:** 2024-11-24  
+**System Status:** Cleaned and operational  
+**Pi IP:** 192.168.88.49  
+**HMI IP:** 192.168.88.33
 
-## What Just Happened (Latest Update)
+## New User? Read This First
+
+This is a hydroponics automation system running on a Raspberry Pi with a dedicated HMI (Human-Machine Interface) laptop for operation.
+
+## Quick Setup
+
+### 1. System Layout
 
 ✅ **Found root cause:** Multiple AI implementations created conflicting mode systems  
 ✅ **Fixed:** Controllers now self-poll their mode every 5 seconds  
