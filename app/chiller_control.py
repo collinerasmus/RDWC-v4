@@ -38,6 +38,16 @@ def set_setting(key: str, value: str):
     from app.settings import upsert_settings
     upsert_settings({key: value})
 
+def get_mode():
+    """Get current mode using UNIFIED mode system"""
+    from app.unified_mode import get_mode as _get_mode
+    return _get_mode()
+
+def is_auto():
+    """Check if system is in auto mode using UNIFIED system"""
+    from app.unified_mode import is_auto as _is_auto
+    return _is_auto()
+
 def get_latest_reading():
     """Get cached sensor reading from main app's background loop."""
     try:
@@ -177,7 +187,13 @@ def get_interlock_status() -> Dict[str, Any]:
         chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
         chiller_running = relays.get('chiller_power', {}).get('state', False)
         
-        # Get auto enabled status
+        # Check if system is in AUTO mode (using UNIFIED mode)
+        if not is_auto():
+            state['auto_enabled'] = False
+            state['last_action'] = 'System not in AUTO mode'
+            return state
+        
+        # Get auto enabled status (chiller-specific setting)
         auto_enabled = bool(int(get_setting('chiller.auto_enabled', '0')))
         try:
             from app.controller_modes import get_mode
