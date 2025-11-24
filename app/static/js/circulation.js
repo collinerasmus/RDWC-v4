@@ -100,8 +100,13 @@
     await syncCircHoldState();
   });
 
-  // Refresh health every 5s from relays
+  // Refresh health every 4s from relays
   setInterval(() => {
     if (document.getElementById('circ-health-indicator')) { refreshCirc(); }
   }, 4000); // 4s refresh for parity with lights
+  
+  // Poll hold state every 5s to sync with system mode changes
+  setInterval(() => {
+    if (document.getElementById('circ-hold-btn')) { syncCircHoldState(); }
+  }, 5000);
 })();

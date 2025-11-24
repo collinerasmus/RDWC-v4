@@ -257,6 +257,8 @@
       const s = await fetchStatus();
       if(s) renderStatus(s);
     }, pollMs);
+    // Poll hold state every 5s to stay synced with system mode
+    setInterval(syncHoldState, 5000);
   }
 
   function stopPoll(){

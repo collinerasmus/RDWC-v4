@@ -293,6 +293,8 @@
   function schedule(){
     if(pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(tick, pollMs);
+    // Poll hold state every 5s to stay synced with system mode
+    setInterval(syncHoldState, 5000);
   }
 
   function startCountdown(){

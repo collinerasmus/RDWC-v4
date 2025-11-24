@@ -100,15 +100,30 @@
   }
   
   async function refreshAllControllerModes() {
-    // Notify each controller module to sync from backend (with delay between calls)
-    console.log('[System] Refreshing all controller modes from backend...');
+    // Note: Most controllers (pH, EC, Circulation, Lights) poll their own mode/hold state
+    // every 5 seconds and will self-update. We only need to explicitly sync controllers
+    // that have implemented sync functions.
+    console.log('[System] Notifying controllers with sync functions...');
     const refreshes = [];
-    if (window.refreshServerMode) refreshes.push(window.refreshServerMode()); // Sensors
-    if (window.syncCircModeFromBackend) refreshes.push(window.syncCircModeFromBackend()); // Circulation
-    if (window.syncLightsModeFromBackend) refreshes.push(window.syncLightsModeFromBackend()); // Lights
-    if (window.syncScheduleModeFromBackend) refreshes.push(window.syncScheduleModeFromBackend()); // Schedule
+    
+    // Sensors has explicit sync function
+    if (window.refreshServerMode) {
+      refreshes.push(window.refreshServerMode());
+      console.log('[System] - Syncing Sensors mode');
+    }
+    
+    // Schedule has explicit sync function
+    if (window.syncScheduleModeFromBackend) {
+      refreshes.push(window.syncScheduleModeFromBackend());
+      console.log('[System] - Syncing Schedule mode');
+    }
+    
+    // Note: Circulation, Lights, pH, EC will self-update via their existing polling
+    // Backend maps: system "manual" → controller "hold", system "auto" → controller "auto"
+    console.log('[System] - Other controllers will self-update within 5 seconds');
+    
     await Promise.all(refreshes);
-    console.log('[System] All controller modes refreshed');
+    console.log('[System] Sync complete (remaining controllers polling)');
   }
   
   async function syncSystemModeFromControllers() {
