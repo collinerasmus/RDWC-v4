@@ -44,6 +44,9 @@
 
   // Global UI state
   const state = { systemMode: 'manual', relays: {}, estop: false, restoredBoot: false };
+  
+  // Debouncing: track last manual mode change to avoid poll conflicts
+  let lastModeChangeTimestamp = 0;
 
   async function getJSON(url){
     // Append cache-buster to avoid stale responses when user requests a full refresh
@@ -75,6 +78,9 @@
 
   async function setSystemMode(mode) {
     try {
+      // Mark that we just changed mode manually - prevent polling interference
+      lastModeChangeTimestamp = Date.now();
+      
       await postJSON('/api/system_mode', { mode });
       currentMode = mode;
       state.systemMode = mode;
@@ -522,12 +528,21 @@
   }
   async function refreshSystemMode(){
     try{
+      // Skip polling if we just changed mode manually (avoid race condition)
+      const timeSinceManualChange = Date.now() - lastModeChangeTimestamp;
+      if (timeSinceManualChange < 5000) {
+        console.log(`[System] Skipping mode poll (manual change ${Math.round(timeSinceManualChange/1000)}s ago)`);
+        return;
+      }
+      
       const data = await getSystemMode();
       currentMode = data || 'manual';
       state.systemMode = currentMode;
       updateModeButtons();
       renderModeHint();
-    }catch(_){ }
+    }catch(e){ 
+      console.error('[System] Failed to refresh system mode:', e);
+    }
   }
   async function refreshEstop(){
     try {
@@ -551,16 +566,18 @@
     refreshRelays();
     wire();
     // Dynamic polling intervals from settings (fallbacks)
-    window.APP_POLL = window.APP_POLL || { relays: 1000, sensors: 5000 };
-    let relaysTimer = setInterval(refreshRelays, window.APP_POLL.relays || 1000);
-    let estopTimer = setInterval(refreshEstop, 2000);
-    let systemModeTimer = setInterval(refreshSystemMode, 3000); // Poll system mode every 3s
+    // Reduced frequencies to prevent backend overload and improve stability
+    window.APP_POLL = window.APP_POLL || { relays: 3000, sensors: 10000 };
+    let relaysTimer = setInterval(refreshRelays, window.APP_POLL.relays || 3000);
+    let estopTimer = setInterval(refreshEstop, 5000);  // E-stop check every 5s
+    let systemModeTimer = setInterval(refreshSystemMode, 5000); // Poll system mode every 5s
 
     window.addEventListener('settings:ui', (ev)=>{
       try {
         const poll = (ev.detail && ev.detail.poll) || window.APP_POLL || {};
         if (relaysTimer) clearInterval(relaysTimer);
-        relaysTimer = setInterval(refreshRelays, Math.max(250, parseInt(poll.relays||1000,10)));
+        // Minimum 1s, recommended 3s for stability
+        relaysTimer = setInterval(refreshRelays, Math.max(1000, parseInt(poll.relays||3000,10)));
       } catch(e) { /* noop */ }
     });
   }
