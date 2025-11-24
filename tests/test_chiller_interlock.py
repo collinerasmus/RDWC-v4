@@ -1,6 +1,6 @@
 """Test chiller interlock status API and enforcement."""
 from app.chiller_control import get_interlock_status, get_chiller_state, set_chiller_relay, _chiller_state
-from app.controller_modes import set_mode
+from app.unified_mode import set_controller_mode
 from app.settings import upsert_settings
 
 
@@ -31,7 +31,7 @@ def test_interlock_status_all_ok():
     # Set up: all pumps and chiller running
     cc.get_relay_status = _mock_relay_status(main_pump=True, chiller_pump=True, chiller_power=True)
     upsert_settings({'chiller.auto_enabled': '1'})
-    set_mode('chiller', 'auto')
+    set_controller_mode('chiller', 'auto')
     
     status = get_interlock_status()
     
@@ -104,7 +104,7 @@ def test_chiller_state_includes_interlock():
     _reset_chiller_state()
     cc.get_relay_status = _mock_relay_status(main_pump=True, chiller_pump=True, chiller_power=False)
     upsert_settings({'chiller.auto_enabled': '1'})
-    set_mode('chiller', 'auto')
+    set_controller_mode('chiller', '')
     
     state = get_chiller_state()
     

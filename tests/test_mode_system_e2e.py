@@ -62,7 +62,7 @@ def test_complete_mode_system_workflow(temp_db):
     """
     # Import after setting environment variables
     from app.main import app
-    from app.controller_modes import get_mode, set_mode, get_all_modes
+    from app.unified_mode import get_mode, set_mode, get_all_modes
     
     client = TestClient(app)
     
@@ -144,9 +144,9 @@ def test_complete_mode_system_workflow(temp_db):
     import app.controller_modes as cm
     cm = importlib.reload(cm)
     
-    assert cm.get_mode("ph") == "hold"  # manual -> hold
-    assert cm.get_mode("ec") == "auto"
-    assert cm.get_mode("chiller") == "hold"  # maintenance -> hold
+    assert cm.get_controller_mode("ph") == "hold"  # manual -> hold
+    assert cm.get_controller_mode("ec") == "auto"
+    assert cm.get_controller_mode("chiller") == "hold"  # maintenance -> hold
     print("  ✓ Modes persisted across module reload")
     
     # Step 7: Test mode transitions (legacy modes map to hold)
@@ -198,7 +198,7 @@ def test_controller_automation_respects_mode_manual():
     
     This simulates what each controller does in its automation loop.
     """
-    from app.controller_modes import get_mode, set_mode
+    from app.unified_mode import get_mode, set_mode
     
     # Set controller to manual
     set_mode("ph", "manual")
@@ -214,7 +214,7 @@ def test_controller_automation_respects_mode_auto():
     """
     Verify that automation checks would allow auto mode.
     """
-    from app.controller_modes import get_mode, set_mode
+    from app.unified_mode import get_mode, set_mode
     
     # Set controller to auto
     set_mode("ec", "auto")

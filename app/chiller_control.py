@@ -187,17 +187,11 @@ def get_interlock_status() -> Dict[str, Any]:
         chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
         chiller_running = relays.get('chiller_power', {}).get('state', False)
         
-        # Check if system is in AUTO mode (using UNIFIED mode)
-        if not is_auto():
-            state['auto_enabled'] = False
-            state['last_action'] = 'System not in AUTO mode'
-            return state
-        
         # Get auto enabled status (chiller-specific setting)
         auto_enabled = bool(int(get_setting('chiller.auto_enabled', '0')))
         try:
-            from app.unified_mode import get_mode
-            mode = get_mode('chiller')
+            from app.unified_mode import get_controller_mode
+            mode = get_controller_mode('chiller')
             auto_enabled = auto_enabled and mode == 'auto'
         except Exception:
             pass
