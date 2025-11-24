@@ -105,12 +105,16 @@
 
   async function poll(){
     try {
-  const relaysP = fetch('/api/relays/status',{cache:'no-store'}).then(r=>r.ok?r.json():null);
-  const sensorsStatusP = fetch('/api/sensors/status',{cache:'no-store'}).then(r=>r.ok?r.json():null);
-      const phP = fetch('/api/ph/status',{cache:'no-store'}).then(r=>r.ok?r.json():null);
-      const ecP = fetch('/api/ec/status',{cache:'no-store'}).then(r=>r.ok?r.json():null);
-      const chillerP = fetch('/api/chiller/status',{cache:'no-store'}).then(r=>r.ok?r.json():null);
-  const [relays, sensorsStatus, ph, ec, chiller] = await Promise.all([relaysP,sensorsStatusP,phP,ecP,chillerP]);
+      // Use polling manager for deduplicated requests
+      const fetchJSON = window.pollingManager?.fetchJSON || (url => fetch(url,{cache:'no-store'}).then(r=>r.ok?r.json():null));
+      
+      const [relays, sensorsStatus, ph, ec, chiller] = await Promise.all([
+        fetchJSON('/api/relays/status').catch(()=>null),
+        fetchJSON('/api/sensors/status').catch(()=>null),
+        fetchJSON('/api/ph/status').catch(()=>null),
+        fetchJSON('/api/ec/status').catch(()=>null),
+        fetchJSON('/api/chiller/status').catch(()=>null)
+      ]);
 
   const sSensors = classifySensorsFromStatus(sensorsStatus);
       const sPh = classifyPh(ph);
@@ -148,7 +152,19 @@
     }
   }
 
-  function start(){ poll(); setInterval(poll, POLL_MS); }
+  // Register with polling manager instead of own setInterval
+  function start(){
+    if (window.pollingManager) {
+      // Use polling manager for coordinated updates
+      window.pollingManager.register('global-health', poll, 'health');
+    } else {
+      // Fallback if polling manager not loaded yet
+      console.warn('[global_health] Polling manager not found, using fallback');
+      poll();
+      setInterval(poll, POLL_MS);
+    }
+  }
+  
   if (document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', start);
   } else {
