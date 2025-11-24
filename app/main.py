@@ -2094,15 +2094,15 @@ def health_override():
 # System Mode endpoints (Auto/Manual)
 @app.get("/api/system_mode")
 def get_system_mode_api():
-    """Get current system mode (auto or manual)"""
-    from app.system_mode import get_system_mode
-    mode = get_system_mode()
+    """Get current system mode - UNIFIED"""
+    from app.unified_mode import get_mode
+    mode = get_mode()
     return {"mode": mode}
 
 @app.post("/api/system_mode")
 def set_system_mode_api(body: dict = Body(...)):
-    """Set system mode (auto, manual, or maintenance)"""
-    from app.system_mode import set_system_mode, VALID_MODES
+    """Set system mode - UNIFIED (sets mode for ALL controllers)"""
+    from app.unified_mode import set_mode, VALID_MODES
     
     mode = body.get("mode")
     
@@ -2112,9 +2112,10 @@ def set_system_mode_api(body: dict = Body(...)):
             content={"error": f"Invalid mode '{mode}'. Must be one of: {', '.join(VALID_MODES)}"}
         )
     
-    success = set_system_mode(mode)
+    success = set_mode(mode)
     
     if success:
+        logger.info(f"✅ System mode changed to: {mode}")
         return {"mode": mode, "success": True}
     else:
         return JSONResponse(
@@ -2124,37 +2125,23 @@ def set_system_mode_api(body: dict = Body(...)):
 
 @app.post("/api/system_mode/fast")
 def api_system_mode_fast(body: dict = Body(...)):
-    """Lightweight system mode setter using settings upsert to avoid long DB locks.
-    Returns {mode, success}. Falls back handled by caller if needed."""
-    from app.settings import upsert_settings
+    """Fast system mode setter - UNIFIED"""
+    from app.unified_mode import set_mode
     mode = (body.get("mode") or "").lower()
     if mode not in ("auto", "manual", "maintenance"):
         return JSONResponse(status_code=400, content={"error": "invalid_mode"})
-    try:
-        upsert_settings({"system_mode": mode})
-        # Also propagate to controllers
-        try:
-            from app.controller_modes import set_mode, CONTROLLERS
-            for controller in CONTROLLERS:
-                set_mode(controller, mode)
-        except Exception:
-            pass  # Best effort
-        return {"mode": mode, "success": True, "fast": True}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": "fast_set_failed", "detail": str(e)})
+    success = set_mode(mode)
+    return {"mode": mode, "success": success, "fast": True}
 
 @app.get("/api/system_mode/set")
 def api_system_mode_set(mode: str = Query("manual")):
-    """GET fallback to set system mode quickly without POST (UI workaround)."""
+    """GET fallback for system mode - UNIFIED"""
+    from app.unified_mode import set_mode
     m = (mode or "").lower()
-    if m not in ("auto", "manual"):
+    if m not in ("auto", "manual", "maintenance"):
         return JSONResponse(status_code=400, content={"error": "invalid_mode"})
-    try:
-        from app.settings import upsert_settings
-        upsert_settings({"system_mode": m})
-    except Exception:
-        pass
-    return {"mode": m, "ok": True, "method": "GET"}
+    success = set_mode(m)
+    return {"mode": m, "ok": success, "method": "GET"}
 
 # Override endpoints
 @app.get("/overrides")
@@ -3068,31 +3055,47 @@ def fix_ezo():
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
-# Generic controller mode endpoints
+# UNIFIED MODE: Controller mode endpoints now use unified_mode
 @app.get("/api/controller/modes")
 def api_controller_modes():
-    from app.controller_modes import get_all_modes, VALID_MODES
-    return {"modes": get_all_modes(), "valid": sorted(list(VALID_MODES))}
+    """Get all controller modes - UNIFIED (all use same mode)"""
+    from app.unified_mode import get_mode, CONTROLLERS
+    mode = get_mode()
+    return {
+        "system_mode": mode,
+        "modes": {c: mode for c in CONTROLLERS},
+        "unified": True
+    }
 
 @app.get("/api/controller/{name}/mode")
 def api_controller_mode_get(name: str):
-    from app.controller_modes import get_mode, CONTROLLERS, VALID_MODES
+    """Get controller mode - UNIFIED"""
+    from app.unified_mode import get_mode, get_controller_mode, CONTROLLERS
     if name not in CONTROLLERS:
         return {"ok": False, "error": "unknown_controller", "controller": name}
-    return {"ok": True, "controller": name, "mode": get_mode(name), "valid": sorted(list(VALID_MODES))}
+    # Return mode with legacy "hold" mapping for backward compatibility
+    mode = get_controller_mode(name)
+    return {"ok": True, "controller": name, "mode": mode}
 
 @app.post("/api/controller/{name}/mode")
 def api_controller_mode_set(name: str, body: dict):
-    from app.controller_modes import set_mode, get_mode, CONTROLLERS, VALID_MODES, LEGACY_MODE_MAP
+    """Set controller mode - UNIFIED (sets system-wide mode)"""
+    from app.unified_mode import set_mode, get_mode, CONTROLLERS
     if name not in CONTROLLERS:
         return {"ok": False, "error": "unknown_controller", "controller": name}
+    
     mode = body.get("mode") if isinstance(body, dict) else None
-    # Accept valid modes and legacy modes (which will be mapped internally)
-    if mode and (mode in VALID_MODES or mode in LEGACY_MODE_MAP):
-        ok = set_mode(name, mode)
+    # Map legacy "hold" to "manual"
+    if mode == "hold":
+        mode = "manual"
+    
+    if mode in ("auto", "manual", "maintenance"):
+        ok = set_mode(mode)
+        logger.info(f"✅ Mode set via controller '{name}' endpoint: {mode}")
     else:
         ok = False
-    return {"ok": ok, "controller": name, "mode": get_mode(name)}
+    
+    return {"ok": ok, "controller": name, "mode": get_mode()}
 
 # Simplified Hold button endpoints
 @app.post("/api/controller/{name}/hold")
