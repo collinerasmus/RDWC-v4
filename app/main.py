@@ -1255,7 +1255,27 @@ def api_relays_mode(body: dict = Body(...)):
         return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_mode"})
     # Prefer new fast path endpoint that uses settings upsert (avoids potential DB lock in legacy path).
     try:
-        return api_system_mode_fast({"mode": mode})  # type: ignore[arg-type]
+        fast_res = api_system_mode_fast({"mode": mode})  # type: ignore[arg-type]
+        # If fast path returns a JSONResponse with error status, or a dict without success, fall back.
+        try:
+            from fastapi.responses import JSONResponse as _JR  # local import to avoid top-level coupling
+            if isinstance(fast_res, _JR):
+                if getattr(fast_res, "status_code", 200) != 200:
+                    logger.warning(f"Fast system_mode set returned status {getattr(fast_res, 'status_code', None)}; falling back to legacy")
+                    return set_system_mode_api({"mode": mode})  # type: ignore[arg-type]
+                return fast_res
+        except Exception:
+            # If JSONResponse import/type-check fails, continue with dict checks
+            pass
+        if isinstance(fast_res, dict):
+            if fast_res.get("success"):
+                return fast_res
+            # If fast path indicates failure, fall back
+            logger.warning(f"Fast system_mode set indicated failure: {fast_res}")
+            return set_system_mode_api({"mode": mode})  # type: ignore[arg-type]
+        # Unknown type, fall back conservatively
+        logger.warning("Fast system_mode set returned unknown type; falling back to legacy")
+        return set_system_mode_api({"mode": mode})  # type: ignore[arg-type]
     except Exception as e:  # Fallback to legacy if fast path fails
         logger.warning(f"Fast system_mode set failed, falling back: {e}")
         return set_system_mode_api({"mode": mode})  # type: ignore[arg-type]

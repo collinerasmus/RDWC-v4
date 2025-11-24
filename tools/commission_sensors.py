@@ -56,8 +56,22 @@ def check_sensor_addresses(client: APIClient) -> dict:
         response = client.post("/fix_ezo")
         data = response.json()
         
-        # Extract detected addresses
+        # Extract detected addresses from /fix_ezo response
+        # Response format: {"detected": [...], "ph": {...}, "ec": {...}, "temperature": {...}}
         detected = set()
+        
+        # Check if there's a 'detected' key with addresses
+        if "detected" in data and isinstance(data["detected"], list):
+            for addr in data["detected"]:
+                if isinstance(addr, int):
+                    detected.add(addr)
+                elif isinstance(addr, str):
+                    try:
+                        detected.add(int(addr, 16) if addr.startswith("0x") else int(addr))
+                    except ValueError:
+                        pass
+        
+        # Also check each sensor type for address info
         for sensor_type, addr_info in data.items():
             if isinstance(addr_info, dict) and "address" in addr_info:
                 addr = addr_info["address"]
@@ -139,7 +153,16 @@ def check_sensor_data(client: APIClient, max_age_seconds: int = 60) -> dict:
         # Calculate age
         ts = data.get("ts")
         if ts:
-            age = int(time.time()) - int(ts)
+            # Handle both Unix timestamp and ISO format
+            if isinstance(ts, str):
+                from datetime import datetime
+                try:
+                    dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                    age = int(time.time()) - int(dt.timestamp())
+                except:
+                    age = 999  # Unknown age
+            else:
+                age = int(time.time()) - int(ts)
             results["age_seconds"] = age
             
             if age <= max_age_seconds:
