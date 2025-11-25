@@ -576,25 +576,15 @@
     if (_bootstrapped) return; _bootstrapped = true;
     // Fetch asset version early for consistent cache-busting tokens
     (async () => { try { const v = await getJSON('/api/version'); ASSET_VER = v.version || ''; } catch(_){ ASSET_VER=''; } })();
-    refreshSystemMode();
-    refreshEstop();
-    refreshRelays();
+    refreshSystemMode(); refreshEstop(); refreshRelays();
     wire();
     // Dynamic polling intervals from settings (fallbacks)
     // Reduced frequencies to prevent backend overload and improve stability
     window.APP_POLL = window.APP_POLL || { relays: 3000, sensors: 10000 };
-    let relaysTimer = setInterval(refreshRelays, window.APP_POLL.relays || 3000);
-    let estopTimer = setInterval(refreshEstop, 5000);  // E-stop check every 5s
-    let systemModeTimer = setInterval(refreshSystemMode, 5000); // Poll system mode every 5s
+    // Replace independent timers with controllers-status event listener
+    window.addEventListener('controllers-status', (ev)=>{ if(ev.detail){ try{ refreshRelaysFromSnapshot(ev.detail); }catch(_){ } }});
 
-    window.addEventListener('settings:ui', (ev)=>{
-      try {
-        const poll = (ev.detail && ev.detail.poll) || window.APP_POLL || {};
-        if (relaysTimer) clearInterval(relaysTimer);
-        // Minimum 1s, recommended 3s for stability
-        relaysTimer = setInterval(refreshRelays, Math.max(1000, parseInt(poll.relays||3000,10)));
-      } catch(e) { /* noop */ }
-    });
+    // Settings UI now handled centrally; no dynamic interval adjustments here.
   }
 
   if (document.readyState === 'loading') {

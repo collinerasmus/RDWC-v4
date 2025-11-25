@@ -7,6 +7,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta name="version" content="20251115ac"/><!-- pH: add Pump Control; move Dose Log; tidy -->
 <link rel="stylesheet" href="/static/css/theme_v4.css?v=10" />
+  <!-- Eager chart library load (was deferred) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
   <script>
     // Lightweight UI demo flag: enable with ?demo=1 or localStorage.ui_demo='1'
     (function(){
@@ -22,7 +26,7 @@
 <!-- Chart libraries deferred: will be loaded lazily after idle or when chart tabs opened -->
 <style>
 :root{
-  --maxw: 1280px;
+  --maxw: 1280px;  /* Fixed for dedicated HMI - no responsive */
   --gap: 12px;
   --radius: 16px;
   --pad: 16px;
@@ -70,14 +74,11 @@ body{
 }
 /* Constrain overall app width and center; allow body flex to push footer space */
 .container{
-  max-width: var(--maxw);
+  width: 1280px;  /* Fixed width for dedicated HMI (no responsive) */
   margin: 0 auto;
   padding: 0 16px 16px 16px;
   box-sizing: border-box;
   flex:1 0 auto;
-}
-@media (max-width: 1400px){
-  :root{ --maxw: 100%; }
 }
 /* Top-level tab chips */
 #tabs-nav .btn-chip{
@@ -140,11 +141,7 @@ body{
   gap: 24px;
   margin-top: 12px;
 }
-@media (max-width: 900px){
-  .settings-grid{
-    grid-template-columns: 1fr;
-  }
-}
+/* Mobile media query removed - HMI is fixed 1280px */
 
 /* Sensors/Trends Chart Controls */
 .trend-controls .btn-chip, #ph-card .btn.btn-chip, #settings-tabs .btn.btn-chip{
@@ -371,7 +368,7 @@ body{
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: .75rem;
   }
-  @media (max-width: 720px){ .relays-grid{ grid-template-columns: 1fr; } }
+  /* Mobile media query removed - HMI is fixed 1280px */
   .relay-on{ background: rgba(34,197,94,.15); border:1px solid rgba(34,197,94,.45); color:#a7f3d0; }
   .relay-off{ background: rgba(148,163,184,.08); border:1px solid rgba(148,163,184,.25); color:#cbd5e1; }
   .lock-pill{ font-size:.70rem; padding:2px 6px; border-radius:999px; margin-left:.5rem; opacity:.85; border:1px solid rgba(148,163,184,.35); }
@@ -2685,169 +2682,31 @@ function toggleRecentReadings(){
   }
 }
 
-// Camera auto-reconnect with exponential backoff
-(function initCamera() {
-  const CAM_UI_VERBOSE = false;
-  const img = document.getElementById('camera-stream');
-  const objElem = document.getElementById('camera-object');
-  const overlay = document.getElementById('camera-overlay');
+// Simplified camera: snapshot button handler (no streaming)
+(function initCameraSnapshot(){
   const pill = document.getElementById('camera-status-pill');
-  
-  let retryCount = 0;
-  const MAX_RETRIES = 10;
-  const BASE_DELAY_MS = 1000;
-  const MAX_DELAY_MS = 30000;
-  let statusCheckTimer = null;
-  let watchdogTimer = null;
-  const WATCHDOG_INTERVAL = 10000; // 10s
-  let streamMode = 'object'; // 'img' or 'object'
-
-  // Dynamically size the camera to avoid page scrollbars
+  const img = document.getElementById('camera-stream');
+  const overlay = document.getElementById('camera-overlay');
+  function refreshStatus(){
+    fetch('/camera/status').then(r=>r.json()).then(d=>{
+      if(pill) pill.textContent = d.available ? '(ready)' : '(unavailable)';
+    }).catch(()=>{ if(pill) pill.textContent='(status error)'; });
+  }
+  function loadSnapshot(){
+    if(!img) return;
+    img.src = '/camera/snapshot.jpg?t=' + Date.now();
+  }
+  const btn = document.createElement('button');
+  btn.textContent = 'Snapshot';
+  btn.className = 'btn-secondary';
+  btn.style.position='absolute';
+  btn.style.top='8px';
+  btn.style.right='8px';
+  btn.addEventListener('click', loadSnapshot);
   const frame = document.querySelector('#overview-card .camera-frame');
-  function adjustCameraFrameHeight(){
-    if (!frame) return;
-    // Measure available viewport space from the top of the frame
-    const rect = frame.getBoundingClientRect();
-    const margin = 16; // small breathing room at bottom
-    const available = Math.max(180, Math.floor(window.innerHeight - rect.top - margin));
-    frame.style.height = available + 'px';
-  }
-  // Run after layout, on resize, and after small delay to catch font/layout shifts
-  window.addEventListener('load', adjustCameraFrameHeight);
-  window.addEventListener('resize', adjustCameraFrameHeight);
-  document.addEventListener('visibilitychange', () => setTimeout(adjustCameraFrameHeight, 50));
-  setTimeout(adjustCameraFrameHeight, 150);
-
-  async function refreshStatus() {
-    try {
-      const resp = await fetch(`/camera/status?t=${Date.now()}`, {cache: 'no-store'});
-      const data = await resp.json();
-      if (pill) {
-        pill.textContent = data.available 
-          ? `(${data.mode || 'unknown'})` 
-          : `(unavailable: ${data.note || 'no driver'})`;
-      }
-      return data;
-    } catch (err) {
-      if (CAM_UI_VERBOSE) console.warn('[Camera] Status check failed:', err);
-      if (pill) pill.textContent = '(status unavailable)';
-      return { available: false };
-    }
-  }
-
-  function startStream() {
-    if (retryCount >= MAX_RETRIES) {
-      if (overlay) overlay.textContent = 'Max retries reached';
-      if (pill) pill.textContent = '(failed)';
-      return;
-    }
-
-    const retryMs = Math.min(MAX_DELAY_MS, BASE_DELAY_MS * Math.pow(2, retryCount));
-    retryCount++;
-
-    if (overlay) overlay.style.display = 'flex';
-    if (overlay) overlay.textContent = retryCount === 1 ? 'Connecting...' : `Reconnecting (${retryCount})...`;
-
-    const streamUrl = `/camera/stream?t=${Date.now()}&r=${retryCount}`;
-
-    // Always use img element with src (object element unreliable for MJPEG keepalive)
-    if (objElem) objElem.style.display = 'none';
-    img.style.display = 'block';
-    
-    img.src = streamUrl;
-
-    img.onerror = () => {
-      // Silent: no console spam
-      img.src = '';
-      // Only retry max 3 times then give up silently
-      if (retryCount < 3) {
-        setTimeout(startStream, retryMs);
-      } else {
-        if (overlay) overlay.textContent = 'Camera unavailable';
-        if (pill) pill.textContent = '(offline)';
-      }
-    };
-
-    img.onload = () => {
-      retryCount = 0;
-      lastFrameCheck = Date.now();
-      if (overlay) overlay.style.display = 'none';
-      if (statusCheckTimer) clearInterval(statusCheckTimer);
-      statusCheckTimer = setInterval(refreshStatus, 30000);
-    };
-  }
-
-  function stopStream() {
-    if (img) img.src = '';
-    if (objElem) objElem.data = '';
-    if (statusCheckTimer) clearInterval(statusCheckTimer);
-  }
-
-  // Initial status check, then start stream if available
-  refreshStatus().then(status => {
-    if (status.available) {
-      // Use object mode by default (most stable for MJPEG streams)
-      streamMode = 'object';
-      startStream();
-    } else {
-      if (overlay) overlay.textContent = status.note || 'Camera unavailable';
-    }
-  });
-  // Watchdog: periodically check for staleness and restart stream if needed
-  let lastFrameCheck = Date.now();
-  let frameStallCount = 0;
-  
-  // Monitor img element for actual frame updates (detect stalls)
-  if (img) {
-    img.addEventListener('load', () => {
-      lastFrameCheck = Date.now();
-      frameStallCount = 0;
-    });
-  }
-  
-  async function watchdog(){
-    try {
-      if (document.hidden) return; // pause checks in background tabs
-      const resp = await fetch(`/camera/stream/health?t=${Date.now()}`, {cache: 'no-store'});
-      if (resp.status === 204) {
-        // Healthy
-        if (pill && img && img.src) pill.textContent = '(streaming)';
-        frameStallCount = 0;
-        // If img not attached, reattach quietly
-        if (img && !img.src) startStream();
-        // If no new frames for >15s, refresh stream even if health is OK
-        if (Date.now() - lastFrameCheck > 15000) {
-          if (overlay) overlay.textContent = 'Refreshing stream...';
-          startStream();
-        }
-        return;
-      }
-      // Unhealthy
-      frameStallCount++;
-      if (overlay) overlay.textContent = 'Reconnecting...';
-      if (pill) pill.textContent = '(reconnecting)';
-      if (frameStallCount <= 3) startStream();
-    } catch (e) {
-      // Network/health request failed; treat as one failure but keep quiet
-      frameStallCount++;
-      if (frameStallCount <= 3) startStream();
-      if (CAM_UI_VERBOSE) console.debug('[Camera] watchdog error', e);
-    }
-  }
-  // Low-noise watchdog enabled
-  watchdogTimer = setInterval(watchdog, WATCHDOG_INTERVAL);
-
-  // Pause stream when tab hidden; resume when visible
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      stopStream();
-      if (pill) pill.textContent = '(paused)';
-    } else {
-      startStream();
-    }
-  });
-
-  // Expose for external control if needed
+  if(frame) frame.appendChild(btn);
+  refreshStatus();
+})();
   window.cameraControl = { startStream, stopStream, refreshStatus };
 })();
 // Calibration functions moved into Settings > Calibration panel (settings.js)
@@ -2962,38 +2821,7 @@ window.CircControl = (function(){
         });
       }, Promise.resolve());
     }
-    function deferCharts(version){
-      if (window.__charts_deferred) return; window.__charts_deferred=true;
-      var libs = [
-        'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
-        'https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3',
-        'https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3'
-      ];
-      // Chart-related app scripts
-      var chartsApp = ['range.js','trends.js','ph_chart.js','ph.js','ec_chart.js','ec.js'];
-      var base = '/static/js/';
-      libs.reduce(function(p,src){ return p.then(()=>loadScript(src,true)); }, Promise.resolve())
-        .then(function(){ return chartsApp.reduce(function(p,f){
-          return p.then(function(){
-            var cb='cb='+Date.now();
-            var ver = version?('v='+encodeURIComponent(version)):null;
-            var qs = ver?('?'+ver+'&'+cb):('?'+cb);
-            return loadScript(base+f+qs,true);
-          });
-        }, Promise.resolve()); })
-        .catch(function(e){ console.warn('[Loader] deferred chart load failed', e); });
-    }
-    function scheduleDeferred(version){
-      if (window.requestIdleCallback){ requestIdleCallback(()=>deferCharts(version), {timeout:2500}); }
-      else setTimeout(()=>deferCharts(version), 1500);
-    }
-    // Lazy trigger when user first opens a chart tab
-    document.addEventListener('click', function(e){
-      var t = e.target.closest('[data-tab]');
-      if (!t) return;
-      var tab = t.getAttribute('data-tab');
-      if (['ph','ec','trends'].includes(tab)){ deferCharts(window.__app_version); }
-    });
+    // Chart libraries now loaded eagerly (no deferred lazy loader)
     fetch('/api/version', {cache:'no-store'})
       .then(r=>r.json())
       .then(function(j){
@@ -3006,7 +2834,7 @@ window.CircControl = (function(){
         window.__app_version = (new Date()).toISOString().slice(0,10);
   return seq(['polling_manager.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
-      .finally(function(){ scheduleDeferred(window.__app_version); try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
+      .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();
   </script>
 

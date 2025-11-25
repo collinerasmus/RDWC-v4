@@ -320,6 +320,42 @@ app.include_router(ec_router)
 app.include_router(schedule_router)
 app.include_router(progress_router)
 
+# --- Server-Sent Events (SSE) sensor stream ---
+# Provides a lightweight continuous feed of consolidated sensor payloads.
+# Frontend subscribes via EventSource("/api/sensors/stream") and updates KPI elements
+# without maintaining multiple polling intervals. Falls back to legacy /api/sensors polling
+# automatically if the stream errors out.
+@app.get("/api/sensors/stream")
+async def api_sensors_stream():
+    import json, asyncio
+    from app.sensors_core import read_all_sensors  # cached / lock-aware read
+
+    async def _gen():
+        # Initial retry/backoff parameters (simple linear fallback on errors)
+        backoff_s = 0
+        while True:
+            try:
+                if backoff_s > 0:
+                    await asyncio.sleep(backoff_s)
+                payload = read_all_sensors()  # {temperature_c, ph, ec_mscm, online, ts, errors, cal?, original_*?}
+                data = json.dumps(payload, separators=(",", ":"))
+                # SSE format: optional event name for filtering
+                yield f"event: sensors\ndata: {data}\n\n"
+                backoff_s = 0  # reset after success
+                await asyncio.sleep(2)  # stream cadence (was multi-interval polling)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                # On error: send diagnostic event and apply bounded backoff
+                err = json.dumps({"error": str(e)[:160]})
+                yield f"event: sensors_error\ndata: {err}\n\n"
+                backoff_s = min(10, (backoff_s or 1) * 2)
+                await asyncio.sleep(backoff_s)
+        # Optional final event (client usually closed already)
+        yield "event: sensors_end\ndata: {}\n\n"
+
+    return StreamingResponse(_gen(), media_type="text/event-stream")
+
 # Mount static files directory for serving CSS/JS
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")

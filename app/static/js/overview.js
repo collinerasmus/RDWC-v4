@@ -402,7 +402,9 @@
       bindEstopBtn();
       return; // Skip network refresh in demo
     }
-    refresh(); setInterval(refresh, 3000); bindEstopBtn();
+    // Use centralized polling manager: listen for controllers-status events
+    window.addEventListener('controllers-status', (ev)=>{ if(ev.detail){ try{ applyControllersStatus(ev.detail); }catch(_){ } }});
+    refresh(); bindEstopBtn();
   }
   // System mode setter for UI buttons
   window.systemSetMode = async function(mode) {
@@ -423,12 +425,29 @@
       if (maintBtn) maintBtn.className = mode === 'maintenance' ? 'btn-chip active' : 'btn-chip';
       // Force immediate refresh after 100ms to allow backend propagation to complete
       // This debounce prevents race conditions between mode change API call and status refresh
-      setTimeout(() => { useConsolidated = true; refresh(); }, 100);
+      // Emit mode-changed event for other modules; polling manager will refresh consolidated snapshot
+      const evt = new CustomEvent('mode-changed', {detail:{mode}}); window.dispatchEvent(evt);
     } catch(e) {
       console.error('[Overview] Failed to set system mode:', e);
       alert('Failed to set system mode: ' + e.message);
     }
   };
+
+  function applyControllersStatus(payload){
+    // Minimal integration: reuse existing refresh path by mapping payload
+    // This avoids multiple network calls; payload expected from /api/controllers/status
+    try {
+      // Simulate parts of original refresh using consolidated payload
+      // Assign mode chips quickly
+      const mode = payload.mode || payload.system_mode || 'manual';
+      const autoBtn = q('#system-mode-auto');
+      const manualBtn = q('#system-mode-manual');
+      const maintBtn = q('#system-mode-maint');
+      if (autoBtn) autoBtn.className = mode==='auto' ? 'btn-chip active':'btn-chip';
+      if (manualBtn) manualBtn.className = mode==='manual' ? 'btn-chip active':'btn-chip';
+      if (maintBtn) maintBtn.className = mode==='maintenance' ? 'btn-chip active':'btn-chip';
+    }catch(_){ }
+  }
   
   function bindEstopBtn(){
     // Bind all E-STOP buttons across all tabs

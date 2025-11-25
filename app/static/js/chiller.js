@@ -6,7 +6,7 @@
   // Verbosity flag to silence non-critical logs
   const UI_VERBOSE = false;
   // Guard against multiple initializations
-  let _refreshInterval = null;
+  let _refreshInterval = null; // deprecated (pollingManager now drives refreshes)
   // ===== SIMPLIFIED HOLD SYSTEM =====
   let isHeld = false;
 
@@ -413,10 +413,15 @@
     // Initial refresh
     refreshChillerStatus();
     
-    // Periodic refresh (every 5 seconds)
-    _refreshInterval = setInterval(refreshChillerStatus, 5000);
-    
-    console.log('Intelligent chiller control initialized');
+    // Register with centralized polling manager (main loop ~6s)
+    if(window.pollingManager && !window.__chillerPollingRegistered){
+      window.__chillerPollingRegistered = true;
+      window.pollingManager.register('chiller-status', async ()=>{ await refreshChillerStatus(); await syncChillerHoldState(); }, 'main');
+    } else {
+      // Fallback: very slow local polling if manager missing
+      _refreshInterval = setInterval(refreshChillerStatus, 12000);
+    }
+    console.log('Intelligent chiller control initialized (event-driven)');
   }
 
   // Initialize when DOM is ready

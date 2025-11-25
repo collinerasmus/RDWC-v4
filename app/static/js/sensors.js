@@ -1,5 +1,5 @@
 /* Sensors real-time display with color thresholds and calibration status */
-(function(){
+ (function(){
   // Removed single-load guard to ensure latest script logic always applies even if included twice.
   // Any previous timers will be stopped by ensurePolling(); we now allow redefinition safely.
   if (window.__RDWC_SENSORS_POLL_RUNNING__) {
@@ -129,8 +129,10 @@
     return; // Abort real wiring
   }
   
-  // Runtime timers for network vs simulation
-  let netTimer = null, simTimer = null, ready = false;
+  // Runtime state (SSE vs fallback polling)
+  let sse = null;
+  let fallbackTimer = null; // slow polling fallback if SSE unavailable
+  let ready = false;
 
   const setMetric = (el, val, classes) => {
     if (!el) return;
@@ -190,13 +192,39 @@
     setOnline(true);
   }
 
-  function stopTimers(){ if (netTimer){ clearInterval(netTimer); netTimer=null; } if (simTimer){ clearInterval(simTimer); simTimer=null; } }
-  function ensurePolling(){
-    stopTimers();
-    // Always poll backend (maintenance mode now served via effective values)
-    tick();
-    const poll = (window.APP_POLL && window.APP_POLL.sensors) ? (parseInt(window.APP_POLL.sensors,10)||5000) : 5000;
-    netTimer = setInterval(tick, Math.max(1500, poll));
+  function stopFallback(){ if(fallbackTimer){ clearInterval(fallbackTimer); fallbackTimer=null; } }
+  function startFallback(){
+    stopFallback();
+    // Conservative slow polling (8s) – SSE handles real-time normally
+    fallbackTimer = setInterval(()=>{ tick(); }, 8000);
+    tick(); // immediate first fetch
+  }
+  function initSSE(){
+    if(sse){ try{sse.close();}catch(_){} sse=null; }
+    try{
+      sse = new EventSource('/api/sensors/stream');
+      sse.onmessage = (ev)=>{ // default event
+        // Ignore if custom event name used; we rely on 'sensors'
+      };
+      sse.addEventListener('sensors', (ev)=>{
+        try{
+          const data = JSON.parse(ev.data||'{}');
+          applySensorsPayload(data);
+        }catch(e){ console.warn('[Sensors] SSE parse error', e); }
+      });
+      sse.addEventListener('sensors_error', (ev)=>{
+        console.warn('[Sensors] SSE error event', ev.data);
+      });
+      sse.onerror = ()=>{
+        console.warn('[Sensors] SSE connection error – switching to fallback polling');
+        if(sse){ try{sse.close();}catch(_){} sse=null; }
+        startFallback();
+      };
+      console.log('[Sensors] SSE stream connected');
+    }catch(e){
+      console.warn('[Sensors] SSE init failed, using fallback', e);
+      startFallback();
+    }
   }
 
   async function fetchHealthDB(){
@@ -228,99 +256,45 @@
   }
   
   async function tick(){
-    // Always fetch; backend applies maintenance overrides
-    try{
-      const r = await fetch("/api/sensors", {cache:"no-store"});
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const j = await r.json();
-      
-      const t = j.temperature_c ?? null;
-      const e = j.ec_mscm ?? null;
-      const p = j.ph ?? null;
-      __lastSensorsOnline = !!j.online;
-      
-  // Adapted: use KPI elements directly (ids kpiTemp/kpiEc/kpiPh)
-  setMetric($("kpiTemp"), t, classify("temp", t));
-  setMetric($("kpiEc"),   e, classify("ec", e));
-  setMetric($("kpiPh"),   p, classify("ph", p));
-      
-  // Calibration badge elements may be absent in this layout; guard safely
-  setBadge($("cal-badge-temp"), j.cal?.temp?.is_calibrated === true, j.cal?.temp?.detail || "");
-  setBadge($("cal-badge-ec"),   j.cal?.ec?.is_calibrated === true,   j.cal?.ec?.detail || "");
-  setBadge($("cal-badge-ph"),   j.cal?.ph?.is_calibrated === true,   j.cal?.ph?.detail || "");
-      
-      setOnline(!!j.online);
-      
-      const updated = $("sensors-updated");
-      if (updated) {
-        let ts = j.ts ? new Date(j.ts) : new Date();
-        const age = Math.max(0, Math.round((Date.now() - ts.getTime())/1000));
-        // Show age in updated text with color coding
-        let ageColor = '#22c55e'; // green
-        if (age >= 300) ageColor = '#ef4444'; // red
-        else if (age >= 60) ageColor = '#f59e0b'; // yellow
-        updated.innerHTML = `Updated: ${ts.toLocaleTimeString()} <span style="color:${ageColor};">(${age}s ago)</span>`;
-      }
-      // Fetch sensor cache health and DB health in parallel (non-blocking)
-      fetch('/api/sensors/health', {cache:'no-store'})
-        .then(r=>r.ok?r.json():null)
-        .then(h=>{ if (h){ __lastSensorsHealth = h; renderHealthBadge(h); updateSensorsHealth(); } })
-        .catch(()=>{});
+    // Fallback polling path (only used if SSE unavailable)
+    try{ const r = await fetch('/api/sensors',{cache:'no-store'}); if(r.ok){ const j = await r.json(); applySensorsPayload(j); } }catch(e){ /* silent */ }
+  }
 
-      fetchHealthDB().then(health=>{
-        const dot = $("sensorsFreshnessDot");
-        if (health && dot){
-          const age = Number(health.age_seconds||0);
-          const rows5 = Number(health.recent_rows_5min||0);
-          if (age < 180){ dot.style.background = '#22c55e'; }
-          else if (age < 600){ dot.style.background = '#f59e0b'; }
-          else { dot.style.background = '#ef4444'; }
-          dot.title = `DB age: ${Math.round(age)}s, last 5m: ${rows5} rows`;
-        }
-      }).catch(()=>{});
-
-      // Update overrides panel (original vs effective)
-      updateOverridesPanel(j);
-    }catch(err){
-      console.error("[Sensors] Fetch error:", err);
-      setOnline(false);
-      __lastSensorsOnline = false;
-      updateSensorsHealth();
-      // Fallback: attempt /api/sensors/status then /api/sensors/read (db mode)
-      try {
-        const statusR = await fetch('/api/sensors/status',{cache:'no-store'});
-        if (statusR.ok){
-          const statusJ = await statusR.json();
-          if (Array.isArray(statusJ.recent) && statusJ.recent.length){
-            const row = statusJ.recent[0];
-            const t = row.temperature_c ?? row.temp_c ?? null;
-            const e = row.ec_mscm ?? row.ec_ms_cm ?? null;
-            const p = row.ph ?? null;
-            setMetric($("kpiTemp"), t, classify("temp", t));
-            setMetric($("kpiEc"),   e, classify("ec", e));
-            setMetric($("kpiPh"),   p, classify("ph", p));
-            const updated = $("sensors-updated");
-            if (updated && row.ts){
-              const ts = new Date(row.ts * 1000);
-              const age = Math.max(0, Math.round((Date.now() - ts.getTime())/1000));
-              updated.innerHTML = `Updated: ${ts.toLocaleTimeString()} <span style="color:${age>=300?'#ef4444':age>=60?'#f59e0b':'#22c55e'};">(${age}s ago)</span>`;
-            }
-            return; // Fallback satisfied
-          }
-        }
-        // Secondary fallback: /api/sensors/read (db)
-        const lastR = await fetch('/api/sensors/read',{cache:'no-store'});
-        if (lastR.ok){
-          const lastJ = await lastR.json();
-          const t = lastJ.temperature_c ?? null;
-          const e = lastJ.ec_mscm ?? null;
-          const p = lastJ.ph ?? null;
-          setMetric($("kpiTemp"), t, classify("temp", t));
-          setMetric($("kpiEc"),   e, classify("ec", e));
-          setMetric($("kpiPh"),   p, classify("ph", p));
-        }
-      } catch(_) { /* swallow fallback errors */ }
+  function applySensorsPayload(j){
+    const t = j.temperature_c ?? null;
+    const e = j.ec_mscm ?? null;
+    const p = j.ph ?? null;
+    __lastSensorsOnline = !!j.online;
+    setMetric($("kpiTemp"), t, classify("temp", t));
+    setMetric($("kpiEc"),   e, classify("ec", e));
+    setMetric($("kpiPh"),   p, classify("ph", p));
+    setBadge($("cal-badge-temp"), j.cal?.temp?.is_calibrated === true, j.cal?.temp?.detail || "");
+    setBadge($("cal-badge-ec"),   j.cal?.ec?.is_calibrated === true,   j.cal?.ec?.detail || "");
+    setBadge($("cal-badge-ph"),   j.cal?.ph?.is_calibrated === true,   j.cal?.ph?.detail || "");
+    setOnline(!!j.online);
+    const updated = $("sensors-updated");
+    if (updated){
+      let ts = j.ts ? new Date(j.ts) : new Date();
+      const age = Math.max(0, Math.round((Date.now() - ts.getTime())/1000));
+      let ageColor = '#22c55e'; if(age>=300) ageColor='#ef4444'; else if(age>=60) ageColor='#f59e0b';
+      updated.innerHTML = `Updated: ${ts.toLocaleTimeString()} <span style="color:${ageColor};">(${age}s ago)</span>`;
     }
+    fetch('/api/sensors/health',{cache:'no-store'})
+      .then(r=>r.ok?r.json():null)
+      .then(h=>{ if(h){ __lastSensorsHealth = h; renderHealthBadge(h); updateSensorsHealth(); } })
+      .catch(()=>{});
+    fetchHealthDB().then(health=>{
+      const dot = $("sensorsFreshnessDot");
+      if (health && dot){
+        const age = Number(health.age_seconds||0);
+        const rows5 = Number(health.recent_rows_5min||0);
+        if (age < 180){ dot.style.background = '#22c55e'; }
+        else if (age < 600){ dot.style.background = '#f59e0b'; }
+        else { dot.style.background = '#ef4444'; }
+        dot.title = `DB age: ${Math.round(age)}s, last 5m: ${rows5} rows`;
+      }
+    }).catch(()=>{});
+    updateOverridesPanel(j);
   }
   function toggleOverridesVisibility(){
     const wrap = $('sensor-overrides-wrapper');
@@ -405,7 +379,7 @@
   document.addEventListener("DOMContentLoaded", ()=>{
     console.log("[Sensors] Initializing real-time updates");
     ready = true;
-    ensurePolling();
+    initSSE(); // prefer streaming
     // Bind mode buttons via listeners (replace inline onclick for reliability)
     const autoBtn = $("sensors-mode-auto");
     const manualBtn = $("sensors-mode-manual");
@@ -416,11 +390,12 @@
     bindMode(maintBtn, 'maintenance');
     // Sync mode from backend and poll every 5s
     refreshServerMode();
-    setInterval(refreshServerMode, 5000);
+    // Mode refresh slower (SSE covers sensors values only)
+    setInterval(refreshServerMode, 15000);
     // Initialize recent readings list
     refreshRecent();
     // Periodically refresh recent list (every 45s)
-    setInterval(refreshRecent, 45000);
+    setInterval(refreshRecent, 60000);
     // Read now handler (only enabled in Manual/Maintenance mode)
     const btn = $("btnSensorsReadNow");
     if (btn){
@@ -533,7 +508,7 @@
     const clrEc = $('btnClearOverrideEc'); if(clrEc && !clrEc.__bound){ clrEc.addEventListener('click', ()=>clearSensorOverride('ec_mscm')); clrEc.__bound=true; }
     const clrT  = $('btnClearOverrideTemp'); if(clrT && !clrT.__bound){ clrT.addEventListener('click', ()=>clearSensorOverride('temperature_c')); clrT.__bound=true; }
     loadSensorOverrides();
-    setInterval(loadSensorOverrides, 15000);
+    setInterval(loadSensorOverrides, 30000);
     toggleOverridesVisibility();
   });
 })();

@@ -1,62 +1,32 @@
-﻿"""
-Camera module for RDWC v4 - Picamera2 MJPEG streaming with diagnostics
-No OpenCV dependency - uses Pillow (PIL) for JPEG encoding
-"""
+﻿"""Simplified camera module: snapshot-only OpenCV capture.
+Streaming and Picamera2 modes removed for stability and reduced load."""
 import io
-import time
 import threading
-from typing import Optional, Dict, Generator
+from typing import Optional, Dict
 
 
 class CameraManager:
     available: bool = False
     mode: str = "unavailable"
     last_error: Optional[str] = None
-    _picam = None
     _cap = None
     _Image = None
-    _Picamera2 = None
     _cv2 = None
     _lock = threading.Lock()
 
     @classmethod
     def _import_drivers(cls) -> bool:
-        """Import Pillow, Picamera2 (preferred), and OpenCV (fallback)."""
-        # Ensure system dist-packages are on sys.path for apt-installed modules (venv isolation fix)
-        try:
-            import sys
-            for p in ("/usr/lib/python3/dist-packages", "/usr/local/lib/python3/dist-packages"):
-                if p not in sys.path:
-                    sys.path.append(p)
-        except Exception:
-            pass
-
-        # Pillow is required for JPEG encoding
         try:
             from PIL import Image  # type: ignore
             cls._Image = Image
         except Exception as e:
             cls.last_error = f"import_failed_pillow: {e}"
             return False
-
-        # Picamera2 (try normal, now that sys.path is augmented)
-        cls._Picamera2 = None
-        try:
-            from picamera2 import Picamera2  # type: ignore
-            cls._Picamera2 = Picamera2
-        except Exception:
-            cls._Picamera2 = None
-
-        # OpenCV (optional fallback)
-        cls._cv2 = None
         try:
             import cv2  # type: ignore
             cls._cv2 = cv2
-        except Exception:
-            cls._cv2 = None
-
-        if cls._Picamera2 is None and cls._cv2 is None:
-            cls.last_error = "import_failed: no camera drivers (picamera2/opencv)"
+        except Exception as e:
+            cls.last_error = f"import_failed_opencv: {e}"
             return False
         return True
 
@@ -68,50 +38,31 @@ class CameraManager:
             cls.available = False
             cls.mode = "unavailable"
             return
-        # Use OpenCV for USB webcams (better format/resolution control than Picamera2/libcamera)
-        if cls._cv2 is not None:
-            try:
-                # Prefer V4L2 backend when available
-                cap = None
-                try:
-                    cap = cls._cv2.VideoCapture(0, cls._cv2.CAP_V4L2)
-                except Exception:
-                    cap = cls._cv2.VideoCapture(0)
-                if cap is not None and cap.isOpened():
-                    # Try to set higher resolution for wider field of view
-                    cap.set(3, 1280)  # WIDTH
-                    cap.set(4, 720)   # HEIGHT
-                    cls._cap = cap
-                    cls._picam = None
-                    cls.available = True
-                    cls.mode = "opencv"
-                    cls.last_error = None
-                    return
-                else:
-                    cls.last_error = "start_failed_opencv: camera not opened"
-            except Exception as e:
-                cls.last_error = f"start_failed_opencv: {e}"
-
-        # Nothing worked
-        cls.available = False
-        cls.mode = "unavailable"
+        try:
+            cap = cls._cv2.VideoCapture(0, cls._cv2.CAP_V4L2) if hasattr(cls._cv2, "CAP_V4L2") else cls._cv2.VideoCapture(0)
+            if cap is not None and cap.isOpened():
+                cap.set(3, 1280)
+                cap.set(4, 720)
+                cls._cap = cap
+                cls.available = True
+                cls.mode = "opencv"
+                cls.last_error = None
+            else:
+                cls.last_error = "start_failed: camera not opened"
+        except Exception as e:
+            cls.last_error = f"start_failed: {e}"
+            cls.available = False
+            cls.mode = "unavailable"
 
     @classmethod
     def shutdown(cls):
         with cls._lock:
             try:
-                if cls._picam:
-                    cls._picam.stop()
-                    cls._picam.close()
                 if cls._cap is not None:
-                    try:
-                        cls._cap.release()
-                    except Exception:
-                        pass
+                    cls._cap.release()
             except Exception:
                 pass
             finally:
-                cls._picam = None
                 cls._cap = None
                 cls.available = False
                 cls.mode = "unavailable"
@@ -122,146 +73,25 @@ class CameraManager:
             "available": cls.available,
             "mode": cls.mode,
             "last_error": cls.last_error,
-            "note": cls.last_error or "Camera ready",
+            "note": cls.last_error or ("Camera ready" if cls.available else "Unavailable"),
         }
 
     @classmethod
-    def mjpeg_generator(cls, fps: int = 5) -> Generator[bytes, None, None]:
-        """Multipart MJPEG stream with strict CRLF framing for browser compatibility."""
-        BOUNDARY = b"frame"
-        
-        if not cls.available or cls._Image is None:
-            yield (b"--" + BOUNDARY + b"\r\nContent-Type: application/json\r\n\r\n"
-                   b'{"ok":false,"reason":"camera_unavailable"}\r\n')
-            return
-
-        interval = max(0.001, 1.0 / float(fps))
-        frame_count = 0
-        
-        while True:
-            try:
-                jpeg_bytes = None
-                
-                if cls.mode == "picamera2" and cls._picam is not None:
-                    # Capture from picamera2 (non-blocking with buffer)
-                    frame = cls._picam.capture_array()
-                    if frame is None:
-                        time.sleep(0.05)
-                        continue
-                    img = cls._Image.fromarray(frame)
-                    # Log first frame info
-                    if frame_count == 0:
-                        print(f"[Camera] Frame shape: {frame.shape if hasattr(frame, 'shape') else 'N/A'}, PIL mode: {img.mode}")
-                    # Convert to RGB if needed (Pillow may return LA, P, or other modes)
-                    if img.mode != "RGB":
-                        img = img.convert("RGB")
-                    buf = io.BytesIO()
-                    img.save(buf, format="JPEG", quality=70)
-                    jpeg_bytes = buf.getvalue()
-                    
-                elif cls.mode == "opencv" and cls._cap is not None and cls._cv2 is not None:
-                    # Check if camera is healthy, reconnect if needed
-                    if not cls._cap.isOpened():
-                        print(f"[Camera] OpenCV camera closed, attempting reconnect...")
-                        try:
-                            cls._cap.release()
-                            cls._cap = cls._cv2.VideoCapture(0)
-                            if cls._cap.isOpened():
-                                print(f"[Camera] OpenCV camera reconnected successfully")
-                            else:
-                                print(f"[Camera] OpenCV camera reconnect failed")
-                                time.sleep(1.0)
-                                continue
-                        except Exception as e:
-                            print(f"[Camera] Reconnect error: {e}")
-                            time.sleep(1.0)
-                            continue
-                    
-                    ret, frame = cls._cap.read()
-                    if not ret:
-                        print(f"[Camera] Failed to read frame (frame_count={frame_count})")
-                        time.sleep(0.2)
-                        continue
-                    # Log first frame info
-                    if frame_count == 0:
-                        print(f"[Camera] OpenCV frame shape: {frame.shape if hasattr(frame, 'shape') else 'N/A'}")
-                    # Convert BGR to RGB for Pillow
-                    img = cls._Image.fromarray(frame[:, :, ::-1])
-                    buf = io.BytesIO()
-                    img.save(buf, format="JPEG", quality=70)
-                    jpeg_bytes = buf.getvalue()
-                else:
-                    # No active camera
-                    yield (b"--" + BOUNDARY + b"\r\nContent-Type: application/json\r\n\r\n"
-                           b'{"ok":false,"reason":"no_active_camera"}\r\n')
-                    time.sleep(0.5)
-                    continue
-
-                if jpeg_bytes:
-                    # Strict CRLF framing for browser compatibility
-                    part = (
-                        b"--" + BOUNDARY + b"\r\n"
-                        b"Content-Type: image/jpeg\r\n"
-                        + f"Content-Length: {len(jpeg_bytes)}\r\n\r\n".encode("ascii")
-                        + jpeg_bytes
-                        + b"\r\n"
-                    )
-                    yield part
-                    frame_count += 1
-                    if frame_count == 1:
-                        print(f"[Camera] First frame delivered (mode={cls.mode}, size={len(jpeg_bytes)})")
-                
-                time.sleep(interval)
-                
-            except GeneratorExit:
-                print(f"[Camera] Stream closed after {frame_count} frames")
-                break
-            except Exception as e:
-                cls.last_error = f"stream_error: {e}"
-                print(f"[Camera] Stream error: {e}")
-                time.sleep(0.2)
-
-    @classmethod
     def capture_single_frame(cls) -> Optional[bytes]:
-        """Capture a single JPEG frame. Returns None if camera unavailable."""
-        if not cls.available or cls._Image is None:
+        if not cls.available or cls._Image is None or cls._cap is None:
             return None
-        
         with cls._lock:
             try:
-                frame = None
-                if cls.mode == "picamera2" and cls._picam is not None:
-                    frame = cls._picam.capture_array()
-                    if frame is not None:
-                        img = cls._Image.fromarray(frame)
-                        if img.mode != "RGB":
-                            img = img.convert("RGB")
-                        buf = io.BytesIO()
-                        img.save(buf, format="JPEG", quality=70)
-                        return buf.getvalue()
-                
-                elif cls.mode == "opencv" and cls._cap is not None:
-                    ret, frame = cls._cap.read()
-                    if ret and frame is not None:
-                        # Convert BGR to RGB
-                        img = cls._Image.fromarray(frame[:, :, ::-1])
-                        buf = io.BytesIO()
-                        img.save(buf, format="JPEG", quality=70)
-                        return buf.getvalue()
-                
+                ret, frame = cls._cap.read()
+                if ret and frame is not None:
+                    img = cls._Image.fromarray(frame[:, :, ::-1])  # BGR->RGB
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=70)
+                    return buf.getvalue()
             except Exception as e:
                 cls.last_error = f"snapshot_error: {e}"
-                print(f"[Camera] Snapshot error: {e}")
-        
         return None
-    
+
     @classmethod
     def is_healthy(cls) -> bool:
-        """Check if camera capture is open and healthy."""
-        if not cls.available:
-            return False
-        if cls.mode == "opencv" and cls._cap is not None:
-            return cls._cap.isOpened()
-        if cls.mode == "picamera2" and cls._picam is not None:
-            return True  # If _picam exists and mode is set, assume healthy
-        return False
+        return bool(cls.available and cls._cap is not None and cls._cap.isOpened())

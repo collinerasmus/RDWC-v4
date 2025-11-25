@@ -1,8 +1,8 @@
 // pH Control UI
 (function(){
-  const POLL_DEFAULT = 5000;
-  let pollMs = POLL_DEFAULT;
-  let pollTimer = null;
+  const POLL_DEFAULT = 5000; // retained for potential fallback
+  let pollMs = POLL_DEFAULT; // no local interval; pollingManager drives updates
+  let pollTimer = null; // deprecated
   let lastStatus = null;
   let countdownTimer = null;
   let lastPollAt = Date.now();
@@ -290,12 +290,7 @@
     renderStatus(s||{});
   }
 
-  function schedule(){
-    if(pollTimer) clearInterval(pollTimer);
-    pollTimer = setInterval(tick, pollMs);
-    // Poll hold state every 5s to stay synced with system mode
-    setInterval(syncHoldState, 5000);
-  }
+  function schedule(){ /* legacy no-op; pollingManager now owns cadence */ }
 
   function startCountdown(){
     if(countdownTimer) return;
@@ -899,7 +894,11 @@
     setDoseLogCollapsed(doseLogCollapsed);
     
     tick();
-    schedule();
+    // Register with centralized polling manager (main loop ~6s)
+    if(window.pollingManager && !window.__phPollingRegistered){
+      window.__phPollingRegistered = true;
+      window.pollingManager.register('ph-status', async ()=>{ await tick(); await syncHoldState(); }, 'main');
+    }
     refreshSummary();
     // Ensure header text is set even before first status render
     const _hdr = document.getElementById('ph-recent-header');

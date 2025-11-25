@@ -167,10 +167,10 @@ def _ensure_table_seed_defaults() -> None:
 def get_all_settings() -> Dict[str, str]:
     """Return flat dict of all settings (string values)."""
     _ensure_table_seed_defaults()
-    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT key, value FROM settings")
-        return {k: (v if v is not None else "") for k, v in cur.fetchall()}
+    from app.db_pool import get_conn
+    conn = get_conn(readonly=True)
+    cur = conn.execute("SELECT key, value FROM settings")
+    return {k: (v if v is not None else "") for k, v in cur.fetchall()}
 
 def get_settings_grouped() -> Dict[str, Dict[str, Any]]:
     """Return grouped settings by namespace: {namespace: {key: value}}.
@@ -193,15 +193,16 @@ def upsert_settings(partial: Dict[str, Any]) -> Dict[str, Any]:
     # DON'T call _ensure_table_seed_defaults() here - too slow on every save
     # Table initialization happens once at startup via get_all_settings
     changed: Dict[str, Any] = {}
-    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
-        cur = conn.cursor()
-        for key, val in partial.items():
-            if not isinstance(key, str):
-                continue
-            sval = str(val)
-            cur.execute("INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)", (key, sval))
-            changed[key] = sval
-        conn.commit()
+    from app.db_pool import get_conn
+    conn = get_conn()
+    cur = conn.cursor()
+    for key, val in partial.items():
+        if not isinstance(key, str):
+            continue
+        sval = str(val)
+        cur.execute("INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)", (key, sval))
+        changed[key] = sval
+    conn.commit()
     # bust legacy cache only for legacy dataclass keys
     global _settings_cache
     _settings_cache = None
@@ -410,42 +411,34 @@ def _init_settings_table():
     """Initialize settings table if it doesn't exist"""
     DB_PATH.parent.mkdir(exist_ok=True)
     
-    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
-        cursor = conn.cursor()
-        
-        # Create settings table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            )
-        """)
-        
-        # Insert defaults if missing (production defaults)
-        defaults = {
-            'system_volume_liters': '25.0',
-            'lights_on_time': '20:00',
-            'lights_duration_hours': '16'
-        }
-        
-        for key, default_value in defaults.items():
-            cursor.execute("""
-                INSERT OR IGNORE INTO settings (key, value) 
-                VALUES (?, ?)
-            """, (key, default_value))
-        
-        conn.commit()
+    from app.db_pool import get_conn
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+    """)
+    defaults = {
+        'system_volume_liters': '25.0',
+        'lights_on_time': '20:00',
+        'lights_duration_hours': '16'
+    }
+    for key, default_value in defaults.items():
+        cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, default_value))
+    conn.commit()
 
 def get_setting_key(key: str, default: Optional[str] = None) -> Optional[str]:
     """Get a raw setting value by key (string), or default if missing."""
     _init_settings_table()
-    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT value FROM settings WHERE key = ?", (key,))
-        row = cur.fetchone()
-        if row and row[0] is not None:
-            return str(row[0])
-        return default
+    from app.db_pool import get_conn
+    conn = get_conn(readonly=True)
+    cur = conn.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    row = cur.fetchone()
+    if row and row[0] is not None:
+        return str(row[0])
+    return default
 
 def set_setting_key(key: str, value: str) -> None:
     """Set a raw setting value by key (string) with reduced busy wait.
@@ -453,42 +446,28 @@ def set_setting_key(key: str, value: str) -> None:
     If database is locked, silently skip (callers treat persistence as best-effort).
     """
     _init_settings_table()
+    from app.db_pool import get_conn
     try:
-        with sqlite3.connect(str(DB_PATH), timeout=0.5) as conn:  # short timeout
-            try:
-                conn.execute("PRAGMA busy_timeout=500")  # 0.5s busy timeout
-            except Exception:
-                pass
-            cur = conn.cursor()
-            cur.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-                (key, value)
-            )
-            conn.commit()
-    except sqlite3.OperationalError as e:
-        # Common lock contention - skip to keep endpoint responsive
-        if "locked" in str(e).lower():
-            return
-        raise
+        conn = get_conn()
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+        conn.commit()
+    except sqlite3.OperationalError:
+        return
 
 
 def _load_settings_from_db() -> Settings:
     """Load settings from database"""
     _init_settings_table()
     
-    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT key, value FROM settings")
-        rows = cursor.fetchall()
-        
-        settings_dict = {key: value for key, value in rows}
-        
-        return Settings(
-            system_volume_liters=float(settings_dict.get('system_volume_liters', '25.0')),
-            lights_on_time=settings_dict.get('lights_on_time', '20:00'),
-            lights_duration_hours=int(settings_dict.get('lights_duration_hours', '16'))
-        )
+    from app.db_pool import get_conn
+    conn = get_conn(readonly=True)
+    rows = conn.execute("SELECT key, value FROM settings").fetchall()
+    settings_dict = {key: value for key, value in rows}
+    return Settings(
+        system_volume_liters=float(settings_dict.get('system_volume_liters', '25.0')),
+        lights_on_time=settings_dict.get('lights_on_time', '20:00'),
+        lights_duration_hours=int(settings_dict.get('lights_duration_hours', '16'))
+    )
 
 
 def get_settings() -> Settings:
@@ -522,24 +501,18 @@ def update_settings(
     # Validation happens in __post_init__
     
     # Save to database
-    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
-        cursor = conn.cursor()
-        
-        updates = {}
-        if system_volume_liters is not None:
-            updates['system_volume_liters'] = str(system_volume_liters)
-        if lights_on_time is not None:
-            updates['lights_on_time'] = lights_on_time
-        if lights_duration_hours is not None:
-            updates['lights_duration_hours'] = str(lights_duration_hours)
-        
-        for key, value in updates.items():
-            cursor.execute("""
-                INSERT OR REPLACE INTO settings (key, value) 
-                VALUES (?, ?)
-            """, (key, value))
-        
-        conn.commit()
+    from app.db_pool import get_conn
+    conn = get_conn()
+    updates = {}
+    if system_volume_liters is not None:
+        updates['system_volume_liters'] = str(system_volume_liters)
+    if lights_on_time is not None:
+        updates['lights_on_time'] = lights_on_time
+    if lights_duration_hours is not None:
+        updates['lights_duration_hours'] = str(lights_duration_hours)
+    for key, value in updates.items():
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+    conn.commit()
     
     # Update cache
     _settings_cache = new_settings

@@ -20,11 +20,25 @@
 
   // Request cache - deduplicate concurrent fetches
   const requestCache = new Map();
-  const CACHE_TTL = 2000; // 2 seconds
+  const CACHE_TTL = 8000; // raised to 8s to reduce hammering
 
   // Connection state tracking
   let connectionLost = false;
   let lastSuccessfulFetch = Date.now();
+  let consecutiveFailures = 0;
+  let dynamicBackoffMs = 0; // increases on failures, reset on success
+
+  function showConnectionBanner(on){
+    let el = document.getElementById('conn-status-banner');
+    if(!el && on){
+      el = document.createElement('div');
+      el.id = 'conn-status-banner';
+      el.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:6px 12px;background:rgba(239,68,68,0.9);color:#fff;font-size:13px;font-weight:500;z-index:9999;text-align:center;letter-spacing:.5px;';
+      el.textContent = 'Connection lost – retrying...';
+      document.body.appendChild(el);
+    }
+    if(el && !on){ el.remove(); }
+  }
   
   // Fetch with deduplication and connection recovery
   async function fetchJSON(url, options = {}) {
@@ -61,6 +75,9 @@
         if (connectionLost) {
           console.log('[PollingManager] Connection restored');
           connectionLost = false;
+          consecutiveFailures = 0;
+          dynamicBackoffMs = 0;
+          showConnectionBanner(false);
         }
         requestCache.set(cacheKey, { data, timestamp: Date.now(), promise: null });
         return data;
@@ -68,10 +85,14 @@
       .catch(err => {
         clearTimeout(timeoutId);
         requestCache.delete(cacheKey);
-        if (!connectionLost && Date.now() - lastSuccessfulFetch > 30000) {
+        consecutiveFailures += 1;
+        // Escalate to connectionLost after 30s since last success or 5 consecutive failures
+        if (!connectionLost && (Date.now() - lastSuccessfulFetch > 30000 || consecutiveFailures >= 5)) {
           console.warn('[PollingManager] Connection appears lost');
-          connectionLost = true;
+          connectionLost = true; showConnectionBanner(true);
         }
+        // Dynamic backoff: increase delay for priority loops (capped)
+        dynamicBackoffMs = Math.min(20000, (dynamicBackoffMs || 1000) * 2);
         throw err;
       });
 
@@ -119,16 +140,19 @@
 
   // Main polling loop (6s)
   async function mainLoop() {
+    if(dynamicBackoffMs){ await new Promise(r=>setTimeout(r, dynamicBackoffMs)); }
     await executePriority('main');
   }
 
   // Health polling loop (3s)
   async function healthLoop() {
+    if(dynamicBackoffMs){ await new Promise(r=>setTimeout(r, dynamicBackoffMs)); }
     await executePriority('health');
   }
 
   // Slow polling loop (15s)
   async function slowLoop() {
+    if(dynamicBackoffMs){ await new Promise(r=>setTimeout(r, dynamicBackoffMs)); }
     await executePriority('slow');
   }
 

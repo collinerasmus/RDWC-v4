@@ -69,57 +69,33 @@ def _ensure_db():
 
 
 def get_mode() -> str:
-    """Get current system mode. Returns: 'auto', 'manual', or 'maintenance'
-    Uses shared read lock for better concurrency."""
+    """Get current system mode via single pooled connection."""
     _ensure_db()
-    db_path = _get_db_path()
-    
     try:
-        # Short timeout for reads, use deferred for no lock
-        with sqlite3.connect(str(db_path), timeout=2, isolation_level='DEFERRED') as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
-            row = conn.execute(
-                "SELECT value FROM settings WHERE key='unified_mode'"
-            ).fetchone()
-            
-            if row and row[0] in VALID_MODES:
-                return row[0]
-            
-            logger.warning("Unified mode not found, defaulting to manual")
-            return MODE_MANUAL
+        from app.db_pool import get_conn
+        conn = get_conn(readonly=True)
+        row = conn.execute("SELECT value FROM settings WHERE key='unified_mode'").fetchone()
+        if row and row[0] in VALID_MODES:
+            return row[0]
+        logger.warning("Unified mode not found, defaulting to manual")
+        return MODE_MANUAL
     except Exception as e:
         logger.error(f"Failed to get unified mode: {e}")
         return MODE_MANUAL
 
 
 def set_mode(mode: str) -> bool:
-    """Set system mode for ALL controllers. Returns success boolean.
-    Uses WAL mode and immediate transaction to prevent lock timeouts."""
+    """Set system mode using pooled connection (atomic)."""
     if mode not in VALID_MODES:
-        logger.error(f"Invalid mode: {mode}")
         return False
-    
     _ensure_db()
-    db_path = _get_db_path()
-    
     try:
-        # Use WAL mode for better concurrency
-        with sqlite3.connect(str(db_path), timeout=5, isolation_level='IMMEDIATE') as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('unified_mode', ?)",
-                (mode,)
-            )
-            conn.commit()
-        
+        from app.db_pool import get_conn
+        conn = get_conn()
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('unified_mode', ?)", (mode,))
+        conn.commit()
         logger.info(f"✅ Unified mode set to: {mode}")
         return True
-    except sqlite3.OperationalError as e:
-        if "locked" in str(e).lower():
-            logger.error(f"Database locked, cannot set mode. Sensor poller may be holding lock.")
-        else:
-            logger.error(f"Failed to set unified mode: {e}")
-        return False
     except Exception as e:
         logger.error(f"Failed to set unified mode: {e}")
         return False

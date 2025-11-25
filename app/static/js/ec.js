@@ -1,9 +1,9 @@
 // EC Control UI
 (function(){
-  const POLL_DEFAULT = 5000;
+  const POLL_DEFAULT = 5000; // retained for potential fallback (unused)
   let endpointMode = null; // 'dose_api' or 'relay_pulse'
-  let pollMs = POLL_DEFAULT;
-  let pollTimer = null;
+  let pollMs = POLL_DEFAULT; // no local interval; pollingManager drives updates
+  let pollTimer = null; // deprecated
   lastStatus = null;
   let countdownTimer = null;
   let lastPollAt = Date.now();
@@ -251,19 +251,9 @@
     }
   }
 
-  function startPoll(){
-    stopPoll();
-    pollTimer = setInterval(async ()=>{
-      const s = await fetchStatus();
-      if(s) renderStatus(s);
-    }, pollMs);
-    // Poll hold state every 5s to stay synced with system mode
-    setInterval(syncHoldState, 5000);
-  }
+  function startPoll(){ /* legacy no-op; pollingManager manages cadence */ }
 
-  function stopPoll(){
-    if(pollTimer){ clearInterval(pollTimer); pollTimer = null; }
-  }
+  function stopPoll(){ /* legacy no-op */ }
 
   async function doseEC(ml){
     // Mix ratio managed via Settings (dosing.ec_mix_ratio, dosing.ec_custom_*)
@@ -450,7 +440,13 @@
     
     const s = await fetchStatus();
     if(s) renderStatus(s);
-    startPoll();
+    // Register with centralized polling manager (main loop ~6s)
+    if(window.pollingManager && !window.__ecPollingRegistered){
+      window.__ecPollingRegistered = true;
+      window.pollingManager.register('ec-status', async ()=>{
+        const s = await fetchStatus(); if(s) renderStatus(s); await syncHoldState();
+      }, 'main');
+    }
     setupMixRatioToggle();
 
     // New unified dose buttons (time-based)
