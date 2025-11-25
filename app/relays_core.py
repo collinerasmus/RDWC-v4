@@ -224,7 +224,15 @@ def smart_restore_critical_relays():
     saved_states = get_critical_relay_states()
     restored_list = []
     
-    for relay_name, (desired_state, saved_ts) in saved_states.items():
+    for relay_name, state_data in saved_states.items():
+        # Handle both tuple (state, timestamp) and legacy bool formats
+        if isinstance(state_data, tuple):
+            desired_state, saved_ts = state_data
+        else:
+            # Legacy format - just a boolean
+            desired_state = bool(state_data)
+            saved_ts = "unknown"
+        
         if not desired_state:
             # Relay was OFF - keep it OFF
             logger.debug(f"Relay {relay_name} was OFF - keeping OFF")
