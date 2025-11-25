@@ -69,12 +69,15 @@ def _ensure_db():
 
 
 def get_mode() -> str:
-    """Get current system mode. Returns: 'auto', 'manual', or 'maintenance'"""
+    """Get current system mode. Returns: 'auto', 'manual', or 'maintenance'
+    Uses shared read lock for better concurrency."""
     _ensure_db()
     db_path = _get_db_path()
     
     try:
-        with sqlite3.connect(str(db_path), timeout=10) as conn:
+        # Short timeout for reads, use deferred for no lock
+        with sqlite3.connect(str(db_path), timeout=2, isolation_level='DEFERRED') as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
             row = conn.execute(
                 "SELECT value FROM settings WHERE key='unified_mode'"
             ).fetchone()
@@ -90,7 +93,8 @@ def get_mode() -> str:
 
 
 def set_mode(mode: str) -> bool:
-    """Set system mode for ALL controllers. Returns success boolean."""
+    """Set system mode for ALL controllers. Returns success boolean.
+    Uses WAL mode and immediate transaction to prevent lock timeouts."""
     if mode not in VALID_MODES:
         logger.error(f"Invalid mode: {mode}")
         return False
@@ -99,7 +103,9 @@ def set_mode(mode: str) -> bool:
     db_path = _get_db_path()
     
     try:
-        with sqlite3.connect(str(db_path), timeout=10) as conn:
+        # Use WAL mode for better concurrency
+        with sqlite3.connect(str(db_path), timeout=5, isolation_level='IMMEDIATE') as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
             conn.execute(
                 "INSERT OR REPLACE INTO settings (key, value) VALUES ('unified_mode', ?)",
                 (mode,)
@@ -108,6 +114,12 @@ def set_mode(mode: str) -> bool:
         
         logger.info(f"✅ Unified mode set to: {mode}")
         return True
+    except sqlite3.OperationalError as e:
+        if "locked" in str(e).lower():
+            logger.error(f"Database locked, cannot set mode. Sensor poller may be holding lock.")
+        else:
+            logger.error(f"Failed to set unified mode: {e}")
+        return False
     except Exception as e:
         logger.error(f"Failed to set unified mode: {e}")
         return False
@@ -158,14 +170,9 @@ def set_system_mode(mode: str, propagate_to_controllers: bool = True) -> bool:
 
 
 def get_controller_mode(controller: str) -> str:
-    """Legacy compatibility - all controllers use same mode now"""
-    mode = get_mode()
-    # For legacy code expecting "hold" instead of "manual"
-    if mode == MODE_MANUAL:
-        return "hold"  # Legacy mapping
-    elif mode == MODE_MAINTENANCE:
-        return "hold"  # Legacy mapping
-    return mode  # "auto"
+    """Get mode for a specific controller.
+    In unified mode, returns system-wide mode without legacy mapping."""
+    return get_mode()  # Returns: "auto", "manual", or "maintenance"
 
 
 def set_controller_mode(controller: str, mode: str) -> bool:
