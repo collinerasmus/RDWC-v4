@@ -380,6 +380,10 @@
     console.log("[Sensors] Initializing real-time updates");
     ready = true;
     initSSE(); // prefer streaming
+    // Populate immediately once regardless of SSE timing
+    setTimeout(()=>{ try{ tick(); }catch(_){ } }, 200);
+    // Safety: periodic light refresh even when SSE is connected
+    setInterval(()=>{ try{ tick(); }catch(_){ } }, 30000);
     // Bind mode buttons via listeners (replace inline onclick for reliability)
     const autoBtn = $("sensors-mode-auto");
     const manualBtn = $("sensors-mode-manual");
