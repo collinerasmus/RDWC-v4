@@ -235,8 +235,8 @@ def should_auto_restore() -> bool:
     return get_mode() == MODE_AUTO
 
 
-def get_critical_relay_states() -> Dict[str, bool]:
-    """Get last known states of critical relays"""
+def get_critical_relay_states() -> Dict[str, tuple]:
+    """Get last known states of critical relays with timestamps"""
     _ensure_db()
     db_path = _get_db_path()
     states = {}
@@ -249,9 +249,9 @@ def get_critical_relay_states() -> Dict[str, bool]:
                     last_change_ts INTEGER NOT NULL
                 )
             """)
-            rows = conn.execute("SELECT relay, last_state FROM relay_state").fetchall()
-            for relay, state in rows:
-                states[relay] = bool(state)
+            rows = conn.execute("SELECT relay, last_state, last_change_ts FROM relay_state").fetchall()
+            for relay, state, ts in rows:
+                states[relay] = (bool(state), ts)
     except Exception as e:
         logger.error(f"Failed to get relay states: {e}")
     return states
