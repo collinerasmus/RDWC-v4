@@ -1451,7 +1451,7 @@ def api_controllers_status():
     }
     """
     import time
-    from app.unified_mode import get_all_status, get_mode as get_system_mode
+    from app.unified_mode import get_all_status, get_mode as get_system_mode, get_all_modes
     from app.settings import get_setting_key
     from app.relays_core import get_estop_status, get_relay_status
     

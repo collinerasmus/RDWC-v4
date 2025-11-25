@@ -13,20 +13,19 @@
   // Fetch current pump rates
   async function fetchPumpRates() {
     try {
-      const r = await fetch('/calib/dose/pumps', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({})
-      });
-      if (r.ok) {
-        const data = await r.json();
-        // Update pump rates from response
-        if (data.ph_up_ml_per_s !== undefined) pumpRates.ph = data.ph_up_ml_per_s;
-        if (data.grow_ml_per_s !== undefined) pumpRates.grow = data.grow_ml_per_s;
-        if (data.micro_ml_per_s !== undefined) pumpRates.micro = data.micro_ml_per_s;
-        if (data.bloom_ml_per_s !== undefined) pumpRates.bloom = data.bloom_ml_per_s;
-        
-        // Update UI displays
+      const r = await fetch('/calib/dose/pumps', {cache:'no-store'});
+      if (!r.ok) return;
+      const data = await r.json();
+      if (data && Array.isArray(data.pumps)) {
+        // Reset
+        pumpRates = { ph:0, grow:0, micro:0, bloom:0 };
+        for (const p of data.pumps) {
+          const k = p.key; const rate = typeof p.ml_per_sec === 'number' ? p.ml_per_sec : 0;
+          if (k === 'ph_up') pumpRates.ph = rate;
+          else if (k === 'grow') pumpRates.grow = rate;
+          else if (k === 'micro') pumpRates.micro = rate;
+          else if (k === 'bloom') pumpRates.bloom = rate;
+        }
         updatePumpRateDisplays();
       }
     } catch(e) {

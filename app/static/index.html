@@ -2707,7 +2707,8 @@ function toggleRecentReadings(){
   if(frame) frame.appendChild(btn);
   refreshStatus();
 })();
-  window.cameraControl = { startStream, stopStream, refreshStatus };
+  // Expose minimal camera control (snapshot only)
+  window.cameraControl = { refreshStatus: typeof refreshStatus === 'function' ? refreshStatus : function(){} };
 })();
 // Calibration functions moved into Settings > Calibration panel (settings.js)
 
