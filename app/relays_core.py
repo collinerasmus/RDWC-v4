@@ -224,6 +224,15 @@ def smart_restore_critical_relays():
     saved_states = get_critical_relay_states()
     restored_list = []
     
+    # In AUTO mode, main_pump should be ON by default for system operation
+    # If no saved state exists, ensure main_pump is turned ON
+    if "main_pump" not in saved_states:
+        logger.info("AUTO mode: Ensuring main_pump is ON (no saved state)")
+        result = set_relay("main_pump", True, reason="auto_default", force=False)
+        if result.get("changed"):
+            restored_list.append("main_pump")
+            logger.info("✓ Main pump turned ON for AUTO mode operation")
+    
     for relay_name, state_data in saved_states.items():
         # Handle both tuple (state, timestamp) and legacy bool formats
         if isinstance(state_data, tuple):
