@@ -1,0 +1,24 @@
+═══════════════════════════════════════════════════════════
+  GET THE ACTUAL ERROR FROM PI
+═══════════════════════════════════════════════════════════
+
+In PuTTY, run this command to see what failed:
+
+sudo journalctl -u rdwc.service -n 50 --no-pager
+
+Copy the error message and paste it here.
+
+═══════════════════════════════════════════════════════════
+OR check the service status:
+
+sudo systemctl status rdwc-api
+
+═══════════════════════════════════════════════════════════
+OR check if Python can import:
+
+cd /home/pi/RDWC-v4
+python3 -c "from app.main import app; print('OK')"
+
+═══════════════════════════════════════════════════════════
+
+I need to see the actual error message to fix it.

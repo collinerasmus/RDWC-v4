@@ -32,7 +32,7 @@ sudo systemctl status rdwc-api
 # Press 'q' to exit status view
 
 # Check the logs for any errors:
-sudo journalctl -u rdwc-api -n 50 --no-pager
+sudo journalctl -u rdwc.service -n 50 --no-pager
 
 ═══════════════════════════════════════════════════════════
 STEP 2: FIX THE HMI BROWSER
@@ -102,10 +102,10 @@ IF PROBLEMS PERSIST
    sudo systemctl status rdwc-sensors
 
 3. View recent errors:
-   sudo journalctl -u rdwc-api -n 100 --no-pager | grep -i error
+   sudo journalctl -u rdwc.service -n 100 --no-pager | grep -i error
 
 4. Restart everything:
-   sudo systemctl restart rdwc-api rdwc-sensors
+   sudo systemctl restart rdwc.service rdwc-sensors
    
 Tell me the error messages and I'll fix them.
 

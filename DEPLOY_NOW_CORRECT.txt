@@ -1,0 +1,39 @@
+═══════════════════════════════════════════════════════════
+  SIMPLE DEPLOYMENT - CORRECT PATHS
+═══════════════════════════════════════════════════════════
+
+The directory is: /home/pi/RDWC-v4  (capital letters!)
+
+═══════════════════════════════════════════════════════════
+OPTION 1: Copy/Paste Into PuTTY (EASIEST)
+═══════════════════════════════════════════════════════════
+
+cd /home/pi/RDWC-v4
+git pull
+sudo systemctl restart rdwc.service
+sudo systemctl restart rdwc-sensors
+sudo systemctl status rdwc.service
+
+Press 'q' to exit status, then:
+
+sudo journalctl -u rdwc.service -n 20 --no-pager
+
+═══════════════════════════════════════════════════════════
+OPTION 2: Use The Deploy Script (ONE COMMAND)
+═══════════════════════════════════════════════════════════
+
+From Windows PowerShell (in this repo folder):
+
+.\deploy\deploy_controllers.ps1
+
+This script does everything automatically.
+
+═══════════════════════════════════════════════════════════
+THEN: Fix Your Browser
+═══════════════════════════════════════════════════════════
+
+1. Close browser completely
+2. Reopen, go to http://192.168.88.49:8080
+3. Press Ctrl+Shift+F5
+
+═══════════════════════════════════════════════════════════
