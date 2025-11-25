@@ -264,6 +264,13 @@
     const t = j.temperature_c ?? null;
     const e = j.ec_mscm ?? null;
     const p = j.ph ?? null;
+    // Debug assist: log once when pH present but element empty
+    if (p!=null && !Number.isNaN(p)) {
+      const phEl = $("kpiPh");
+      if (phEl && (phEl.textContent === '—' || phEl.textContent === '--')) {
+        console.log('[Sensors] Forcing initial pH render', p);
+      }
+    }
     __lastSensorsOnline = !!j.online;
     setMetric($("kpiTemp"), t, classify("temp", t));
     setMetric($("kpiEc"),   e, classify("ec", e));
