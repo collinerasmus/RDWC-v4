@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Body, Query, APIRouter
+from fastapi import FastAPI, Body, Query, APIRouter, Response
 from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -355,6 +355,11 @@ async def api_sensors_stream():
         yield "event: sensors_end\ndata: {}\n\n"
 
     return StreamingResponse(_gen(), media_type="text/event-stream")
+
+# Handle favicon to avoid 404 noise in browser console
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon_placeholder():
+    return Response(status_code=204)
 
 # Mount static files directory for serving CSS/JS
 static_dir = os.path.join(os.path.dirname(__file__), "static")
