@@ -22,7 +22,11 @@
   const requestCache = new Map();
   const CACHE_TTL = 2000; // 2 seconds
 
-  // Fetch with deduplication
+  // Connection state tracking
+  let connectionLost = false;
+  let lastSuccessfulFetch = Date.now();
+  
+  // Fetch with deduplication and connection recovery
   async function fetchJSON(url, options = {}) {
     const cacheKey = url + JSON.stringify(options);
     const cached = requestCache.get(cacheKey);
@@ -38,18 +42,36 @@
       return cached.promise;
     }
 
-    // Make new request
-    const promise = fetch(url, { cache: 'no-store', ...options })
+    // Make new request with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+    const promise = fetch(url, { 
+        cache: 'no-store', 
+        signal: controller.signal,
+        ...options 
+      })
       .then(r => {
+        clearTimeout(timeoutId);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then(data => {
+        lastSuccessfulFetch = Date.now();
+        if (connectionLost) {
+          console.log('[PollingManager] Connection restored');
+          connectionLost = false;
+        }
         requestCache.set(cacheKey, { data, timestamp: Date.now(), promise: null });
         return data;
       })
       .catch(err => {
+        clearTimeout(timeoutId);
         requestCache.delete(cacheKey);
+        if (!connectionLost && Date.now() - lastSuccessfulFetch > 30000) {
+          console.warn('[PollingManager] Connection appears lost');
+          connectionLost = true;
+        }
         throw err;
       });
 
@@ -77,6 +99,8 @@
 
   // Execute all callbacks for a priority level
   async function executePriority(priority) {
+    if (paused) return; // Skip if paused
+    
     const items = callbacks[priority];
     if (items.length === 0) return;
 

@@ -25,10 +25,17 @@
   // ok   => fresh sample & online
   // Classify sensors using the same source as Overview: /api/sensors/status
   // running && age<60 => ok; running && age>=60 => warn; !running => offline; null => bad
+  // BUT: if age is extremely high (>5min), treat as "recovering from idle" not offline
   function classifySensorsFromStatus(status){
     if(!status) return {state:'bad', title:'No status'};
     const age = status.last_sample_ts ? (Date.now()/1000 - status.last_sample_ts) : Infinity;
     const running = !!status.running;
+    
+    // If age is > 5 minutes, page was idle - give it time to recover
+    if(age > 300) {
+      return {state:'warn', title:'Recovering from idle...'};
+    }
+    
     // Overview logic: online = running && age < 60. Age >=60 treated same as offline.
     if(!running) return {state:'offline', title:'Offline'};
     if(age >= 60) return {state:'offline', title:`Offline (stale ${Math.round(age)}s)`};
