@@ -2102,6 +2102,7 @@ def get_system_mode_api():
 def set_system_mode_api(body: dict = Body(...)):
     """Set system mode - UNIFIED (sets mode for ALL controllers)"""
     from app.unified_mode import set_mode, VALID_MODES
+    from app.relays_core import smart_restore_critical_relays
     
     mode = body.get("mode")
     
@@ -2115,6 +2116,12 @@ def set_system_mode_api(body: dict = Body(...)):
     
     if success:
         logger.info(f"✅ System mode changed to: {mode}")
+        # If switched to AUTO, restore critical relays (like main_pump)
+        if mode == "auto":
+            try:
+                smart_restore_critical_relays()
+            except Exception as e:
+                logger.error(f"Failed to restore relays on auto mode switch: {e}")
         return {"mode": mode, "success": True}
     else:
         return JSONResponse(
@@ -2126,20 +2133,32 @@ def set_system_mode_api(body: dict = Body(...)):
 def api_system_mode_fast(body: dict = Body(...)):
     """Fast system mode setter - UNIFIED"""
     from app.unified_mode import set_mode
+    from app.relays_core import smart_restore_critical_relays
     mode = (body.get("mode") or "").lower()
     if mode not in ("auto", "manual", "maintenance"):
         return JSONResponse(status_code=400, content={"error": "invalid_mode"})
     success = set_mode(mode)
+    if success and mode == "auto":
+        try:
+            smart_restore_critical_relays()
+        except:
+            pass
     return {"mode": mode, "success": success, "fast": True}
 
 @app.get("/api/system_mode/set")
 def api_system_mode_set(mode: str = Query("manual")):
     """GET fallback for system mode - UNIFIED"""
     from app.unified_mode import set_mode
+    from app.relays_core import smart_restore_critical_relays
     m = (mode or "").lower()
     if m not in ("auto", "manual", "maintenance"):
         return JSONResponse(status_code=400, content={"error": "invalid_mode"})
     success = set_mode(m)
+    if success and m == "auto":
+        try:
+            smart_restore_critical_relays()
+        except:
+            pass
     return {"mode": m, "ok": success, "method": "GET"}
 
 # Override endpoints
