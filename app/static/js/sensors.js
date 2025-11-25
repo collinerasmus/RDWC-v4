@@ -133,6 +133,7 @@
   let sse = null;
   let fallbackTimer = null; // slow polling fallback if SSE unavailable
   let ready = false;
+  let firstUpdateReceived = false;
 
   const setMetric = (el, val, classes) => {
     if (!el) return;
@@ -264,6 +265,10 @@
     const t = j.temperature_c ?? null;
     const e = j.ec_mscm ?? null;
     const p = j.ph ?? null;
+    if (!firstUpdateReceived && (t!=null || e!=null || p!=null)) {
+      firstUpdateReceived = true;
+      console.log('[Sensors] First sensor payload received');
+    }
     // Debug assist: log once when pH present but element empty
     if (p!=null && !Number.isNaN(p)) {
       const phEl = $("kpiPh");
@@ -391,6 +396,13 @@
     setTimeout(()=>{ try{ tick(); }catch(_){ } }, 200);
     // Safety: periodic light refresh even when SSE is connected
     setInterval(()=>{ try{ tick(); }catch(_){ } }, 30000);
+    // Aggressive bootstrap: poll every 5s until firstUpdateReceived
+    const bootstrap = setInterval(()=>{
+      if (firstUpdateReceived) { clearInterval(bootstrap); return; }
+      console.log('[Sensors] Bootstrap tick');
+      try{ tick(); }catch(_){ }
+    }, 5000);
+    window.forceSensorsTick = ()=>{ console.log('[Sensors] force tick'); tick(); };
     // Bind mode buttons via listeners (replace inline onclick for reliability)
     const autoBtn = $("sensors-mode-auto");
     const manualBtn = $("sensors-mode-manual");

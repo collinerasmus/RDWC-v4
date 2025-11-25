@@ -331,6 +331,7 @@ async def api_sensors_stream():
     from app.sensors_core import read_all_sensors  # cached / lock-aware read
 
     async def _gen():
+        logger.info("[SSE] /api/sensors/stream client connected")
         # Initial retry/backoff parameters (simple linear fallback on errors)
         backoff_s = 0
         while True:
