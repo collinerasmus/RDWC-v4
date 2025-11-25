@@ -1,5 +1,30 @@
 // pH Control UI
 (function(){
+  // Resilience stub: define rdwcRange if range.js failed to load so charts still work.
+  if (!window.rdwcRange) {
+    console.warn('[pH] rdwcRange missing — injecting fallback stub');
+    const DAY = 24*60*60*1000;
+    window.rdwcRange = {
+      RANGES: ['24h','7d','30d','90d','grow','custom'],
+      getLastPreset: (key, def='24h') => def,
+      saveLastPreset: ()=>{},
+      getCustomRange: ()=>({start:null,end:null}),
+      saveCustomRange: ()=>{},
+      rangeToStartEnd: async (preset, cStart, cEnd, growStartDate) => {
+        const now = Date.now();
+        let start = now - DAY;
+        if (preset==='7d') start = now - 7*DAY;
+        else if (preset==='30d') start = now - 30*DAY;
+        else if (preset==='90d') start = now - 90*DAY;
+        else if (preset==='custom' && cStart && cEnd) {
+          const s = new Date(cStart).getTime();
+          const e = new Date(cEnd).getTime();
+          if (!isNaN(s) && !isNaN(e) && s < e) return {start:s,end:e};
+        }
+        return {start, end: now};
+      }
+    };
+  }
   const POLL_DEFAULT = 5000; // retained for potential fallback
   let pollMs = POLL_DEFAULT; // no local interval; pollingManager drives updates
   let pollTimer = null; // deprecated

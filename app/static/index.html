@@ -2827,13 +2827,13 @@ window.CircControl = (function(){
       .then(function(j){
         window.__app_version = (j&&j.version)||null;
         try{ var vEl=document.getElementById('build-version'); if(vEl) vEl.textContent = window.__app_version || 'n/a'; }catch(e){}
-          // Load polling_manager FIRST (core system), then other scripts.
-          // Added range.js before ph.js to satisfy rdwcRange dependency used by pH dose chart logic.
-        return seq(['polling_manager.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','range.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
+            // Load polling_manager FIRST (core system), then range.js (date range utilities) BEFORE any controllers needing it.
+            // Reordered: range.js immediately after core to satisfy rdwcRange dependency for pH & EC charts before sensors/ph/ec modules run.
+          return seq(['polling_manager.js','range.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .catch(function(){
         window.__app_version = (new Date()).toISOString().slice(0,10);
-  return seq(['polling_manager.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','range.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
+  return seq(['polling_manager.js','range.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();
