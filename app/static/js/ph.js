@@ -199,6 +199,7 @@
     const p = el('ph-current');
     const band = el('ph-band');
     const guards = el('ph-guards');
+    const pumpState = el('ph-pump-state');
     const recent = el('ph-recent');
     const resBanner = el('ph-reservoir-banner');
     
@@ -217,6 +218,30 @@
     const cdPill = el('ph-countdown-pill');
     if(p){ p.textContent = (s && s.ph!=null) ? s.ph.toFixed(2) : '—'; }
     if(band && s){ band.textContent = `Targets ${s.targets.low} – ${s.targets.high}`; }
+    
+    // Update pump state KPI
+    if(pumpState && s){
+      const auto = s.auto || {};
+      const holding = auto.holding_reason;
+      const remaining = s.remaining_cooldown_s || 0;
+      
+      if (holding === 'cooldown' || remaining > 0) {
+        pumpState.textContent = `Cooldown ${remaining}s`;
+        pumpState.style.color = '#f59e0b';
+      } else if (holding === 'in_range') {
+        pumpState.textContent = 'In Range';
+        pumpState.style.color = '#16a34a';
+      } else if (holding) {
+        pumpState.textContent = holding.replace(/_/g, ' ');
+        pumpState.style.color = '#f59e0b';
+      } else if (auto.enabled && !isHeld) {
+        pumpState.textContent = 'Auto Ready';
+        pumpState.style.color = '#3b82f6';
+      } else {
+        pumpState.textContent = 'Idle';
+        pumpState.style.color = '#94a3b8';
+      }
+    }
     if(guards && s){
       const list = guardList(s.guards);
       guards.textContent = list.length ? list.join(' · ') : 'All clear';
