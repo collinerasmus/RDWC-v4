@@ -47,10 +47,10 @@
   }
 
   function updateWindowPreview(win){
-    const el = $('lights-window-preview');
+    const el = $('lights-window-kpi');
     if (!el) return;
-    if (win && !win.error && win.on_time && win.off_time){ el.textContent = `Window: ${win.on_time} → ${win.off_time}`; }
-    else { el.textContent = 'Window: —'; }
+    if (win && !win.error && win.on_time && win.off_time){ el.textContent = `${win.on_time} → ${win.off_time}`; }
+    else { el.textContent = '—'; }
   }
 
   function updateKpis(modeVal){
