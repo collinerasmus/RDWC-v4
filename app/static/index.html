@@ -2814,10 +2814,16 @@ window.CircControl = (function(){
       var base = '/static/js/';
       return baseFiles.reduce(function(p,f){
         return p.then(function(){
+          console.log('[Loader] Loading:', f);
           var cb='cb='+Date.now();
           var ver = version?('v='+encodeURIComponent(version)):null;
           var qs = ver?('?'+ver+'&'+cb):('?'+cb);
-          return loadScript(base+f+qs, false);
+          return loadScript(base+f+qs, false).then(function(){
+            console.log('[Loader] ✓ Loaded:', f);
+          }).catch(function(err){
+            console.error('[Loader] ✗ Failed:', f, err);
+            throw err;
+          });
         });
       }, Promise.resolve());
     }
