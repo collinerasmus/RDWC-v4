@@ -2,6 +2,25 @@
 ### Planned
 - Finalize v1.0.0 stable after Phase 11 soak testing and user approval.
 
+## [1.0.0-rc1-ui-stable] - 2025-11-26
+### Changed
+- Frontend cache-busting and version bump to `1.0.0-rc1-fix831-ui-stable`.
+- Service name alignment (`rdwc-api` → `rdwc`) in backend `/api/system/info` and frontend.
+- Trends chart: rolling window recalculation on auto-refresh; removed competing KPI updates.
+- Lights window KPI: fixed element ID mismatch to display schedule.
+- Relays panel: buttons now act as failsafe manual overrides in Auto mode (only E-STOP disables).
+- Relay buttons styling: theme-aligned muted ON/OFF states, consistent hover, cursor pointer.
+
+### Fixed
+- System tab service status showing "Inactive" due to wrong unit name.
+- EC KPI flicker caused by duplicate updates from `trends.js` and `sensors.js`.
+- Button styling inconsistencies (Reset Schedule button unified with theme).
+
+### Verification
+- Both services report Active on System tab.
+- Relay buttons clickable with hand cursor; E-STOP shows not-allowed cursor.
+- Trends chart time window rolls forward; sensors KPIs update live without flicker.
+
 ## [1.0.0-rc1] - 2025-11-23
 ### Changed
 - Migrated relay wiring to mixed NC/NO configuration (P-301, P-302, C-401 now NC fail-ON; lights & all dosing pumps remain NO fail-OFF).
