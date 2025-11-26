@@ -199,7 +199,8 @@
     const p = el('ph-current');
     const band = el('ph-band');
     const guards = el('ph-guards');
-    const pumpState = el('ph-pump-state');
+    const pumpEl = el('ph-pump');
+    const statusEl = el('ph-status');
     const recent = el('ph-recent');
     const resBanner = el('ph-reservoir-banner');
     
@@ -219,27 +220,42 @@
     if(p){ p.textContent = (s && s.ph!=null) ? s.ph.toFixed(2) : '—'; }
     if(band && s){ band.textContent = `Targets ${s.targets.low} – ${s.targets.high}`; }
     
-    // Update pump state KPI
-    if(pumpState && s){
+    // Fetch relay status for pump ON/OFF
+    fetch('/api/relays/status', {cache:'no-store'})
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if(pumpEl && data && data.relays){
+          const phPump = data.relays.find(r => r.name === 'dosing_ph_up');
+          if(phPump){
+            const isOn = phPump.state === true;
+            pumpEl.textContent = isOn ? 'ON' : 'OFF';
+            pumpEl.style.color = isOn ? '#16a34a' : '#94a3b8';
+          }
+        }
+      })
+      .catch(() => {});
+    
+    // Update controller status KPI
+    if(statusEl && s){
       const auto = s.auto || {};
       const holding = auto.holding_reason;
       const remaining = s.remaining_cooldown_s || 0;
       
       if (holding === 'cooldown' || remaining > 0) {
-        pumpState.textContent = `Cooldown ${remaining}s`;
-        pumpState.style.color = '#f59e0b';
+        statusEl.textContent = `Cooldown ${remaining}s`;
+        statusEl.style.color = '#f59e0b';
       } else if (holding === 'in_range') {
-        pumpState.textContent = 'In Range';
-        pumpState.style.color = '#16a34a';
+        statusEl.textContent = 'In Range';
+        statusEl.style.color = '#16a34a';
       } else if (holding) {
-        pumpState.textContent = holding.replace(/_/g, ' ');
-        pumpState.style.color = '#f59e0b';
+        statusEl.textContent = holding.replace(/_/g, ' ');
+        statusEl.style.color = '#f59e0b';
       } else if (auto.enabled && !isHeld) {
-        pumpState.textContent = 'Auto Ready';
-        pumpState.style.color = '#3b82f6';
+        statusEl.textContent = 'Auto Ready';
+        statusEl.style.color = '#3b82f6';
       } else {
-        pumpState.textContent = 'Idle';
-        pumpState.style.color = '#94a3b8';
+        statusEl.textContent = 'Idle';
+        statusEl.style.color = '#94a3b8';
       }
     }
     if(guards && s){
