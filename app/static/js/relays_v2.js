@@ -372,14 +372,12 @@
     if (isAutoMode && !isEstop) { badges += `<span class="lock-pill">Auto</span>`; }
     if (isEstop) { badges += `<span class="lock-pill" style="border-color: rgba(239,68,68,.65); color:#fecaca;">E‑Stop</span>`; }
 
-    const readonlyClass = (isAutoMode || isEstop) ? 'readonly' : '';
-    const disabledAttr = (isAutoMode || isEstop) ? 'disabled' : '';
-    const ariaDisabled = (isAutoMode || isEstop) ? 'aria-disabled="true"' : '';
+    const readonlyClass = isEstop ? 'readonly' : '';
+    const disabledAttr = isEstop ? 'disabled' : '';
+    const ariaDisabled = isEstop ? 'aria-disabled="true"' : '';
     const title = isEstop
       ? 'E-Stop engaged: controls disabled until released.'
-      : (isAutoMode
-        ? 'Auto mode: controls disabled. Switch to Manual to operate.'
-        : (isLocked ? `Cooldown active (${formatCountdown(lockout.seconds_remaining)}) — manual override allowed.` : ''));
+      : (isLocked ? `Cooldown active (${formatCountdown(lockout.seconds_remaining)}) — manual override allowed.` : 'Manual override always available');
 
     const pin = RELAY_PINS[key];
     const onOff = isOn ? 'ON' : 'OFF';
@@ -409,12 +407,11 @@
       el.textContent = 'E‑STOP ACTIVE: all relays are forced OFF and controls are disabled until released.';
       el.className = 'text-xs text-red-400 mt-2';
     } else if (currentMode === 'auto') {
-      const base = 'Auto: controls disabled. Switch to Manual to operate.';
-      const extra = state.restoredBoot ? ' \u2022 Restored critical relays from last state.' : '';
-      el.textContent = base + extra;
+      const extra = state.restoredBoot ? ' Restored critical relays from last state.' : '';
+      el.textContent = 'Auto: controllers active; manual overrides available.' + (extra ? ' \u2022' + extra : '');
       el.className = 'text-xs text-blue-400 mt-2';
     } else {
-      el.textContent = 'Manual: relays can be switched from the panel.';
+      el.textContent = 'Manual: relays stay OFF at boot. Auto: critical relays restore last state.';
       el.className = 'text-xs text-gray-400 mt-2';
     }
   }
@@ -438,16 +435,16 @@
         on,
         info.lockout
       );
-      // Readonly class in Auto mode
-  if (state.systemMode === 'auto' || state.estop) btn.classList.add('readonly');
+      // Readonly class only during E-STOP (manual override always available)
+  if (state.estop) btn.classList.add('readonly');
 
-      // Handlers (only in Manual)
+      // Handlers (disabled only during E-STOP)
       btn.onclick = () => {
-        if (state.systemMode === 'auto' || state.estop) return;
+        if (state.estop) return;
         requestToggle(key);
       };
       btn.onkeydown = (e) => {
-        if (state.systemMode === 'auto' || state.estop) return;
+        if (state.estop) return;
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); requestToggle(key); }
       };
 
