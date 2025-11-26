@@ -408,18 +408,40 @@
   document.addEventListener("DOMContentLoaded", ()=>{
     console.log("[Sensors] Initializing real-time updates");
     ready = true;
-    initSSE(); // prefer streaming
-    // Populate immediately once regardless of SSE timing
-    setTimeout(()=>{ try{ tick(); }catch(_){ } }, 200);
-    // Safety: periodic light refresh even when SSE is connected
-    setInterval(()=>{ try{ tick(); }catch(_){ } }, 30000);
-    // Aggressive bootstrap: poll every 5s until firstUpdateReceived
-    const bootstrap = setInterval(()=>{
-      if (firstUpdateReceived) { clearInterval(bootstrap); return; }
-      console.log('[Sensors] Bootstrap tick');
-      try{ tick(); }catch(_){ }
-    }, 5000);
-    window.forceSensorsTick = ()=>{ console.log('[Sensors] force tick'); tick(); };
+    
+    // SIMPLIFIED: Just poll every 5 seconds and update the DOM directly
+    async function simplePoll() {
+      try {
+        const response = await fetch('/api/sensors', {cache: 'no-store'});
+        const data = await response.json();
+        console.log('[Sensors] Fetched data:', data);
+        
+        // Direct DOM updates - no wrappers, no complexity
+        const tempEl = document.getElementById('kpiTemp');
+        const ecEl = document.getElementById('kpiEc');
+        const phEl = document.getElementById('kpiPh');
+        
+        if (tempEl && data.temperature_c != null) {
+          tempEl.textContent = data.temperature_c.toFixed(2);
+          console.log('[Sensors] Set temp to:', tempEl.textContent);
+        }
+        if (ecEl && data.ec_mscm != null) {
+          ecEl.textContent = data.ec_mscm.toFixed(2);
+          console.log('[Sensors] Set EC to:', ecEl.textContent);
+        }
+        if (phEl && data.ph != null) {
+          phEl.textContent = data.ph.toFixed(2);
+          console.log('[Sensors] Set pH to:', phEl.textContent);
+        }
+      } catch (e) {
+        console.error('[Sensors] Poll failed:', e);
+      }
+    }
+    
+    // Poll immediately and every 5 seconds
+    simplePoll();
+    setInterval(simplePoll, 5000);
+    window.forceSensorsTick = simplePoll;
     // Bind mode buttons via listeners (replace inline onclick for reliability)
     const autoBtn = $("sensors-mode-auto");
     const manualBtn = $("sensors-mode-manual");

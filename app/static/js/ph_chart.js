@@ -127,17 +127,8 @@
             type: 'linear',
             position: 'left',
             title: { display: true, text: axisTitle || 'Dose (ml)' },
-            suggestedMin: 0
-          },
-          y2: hasCumulative ? {
-            type: 'linear',
-            position: 'right',
-            title: { display: true, text: 'Cumulative (ml)' },
-            beginAtZero: true,
-            grid: {
-              drawOnChartArea: false
-            }
-          } : undefined
+            beginAtZero: true
+          }
         },
         plugins: {
           legend: { 
@@ -299,7 +290,7 @@
         pointRadius: 0,
         fill: false,
         tension: 0,
-        yAxisID: 'y2'
+        yAxisID: 'y'
       } : null,
       {
         type: 'scatter',
