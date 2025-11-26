@@ -1,5 +1,8 @@
 /* Sensors real-time display with color thresholds and calibration status */
  (function(){
+  // Execution sentinel to confirm script body runs
+  window.__SENSORS_SCRIPT_VERSION = '831ab9e';
+  console.log('[Sensors] Script executing; version', window.__SENSORS_SCRIPT_VERSION, 'readyState=', document.readyState);
   // Removed single-load guard to ensure latest script logic always applies even if included twice.
   // Any previous timers will be stopped by ensurePolling(); we now allow redefinition safely.
   if (window.__RDWC_SENSORS_POLL_RUNNING__) {
@@ -405,8 +408,9 @@
     }catch(e){ list.innerHTML = '<div style="padding:2px 0;color:#f59e0b;">Load error</div>'; }
   }
   
-  document.addEventListener("DOMContentLoaded", ()=>{
-    console.log("[Sensors] Initializing real-time updates");
+  // --- Bootstrap logic: ensure we initialize even if DOMContentLoaded already fired ---
+  function __rdwcSensorsBoot(){
+    console.log('[Sensors] Initializing real-time updates (boot)');
     ready = true;
     
     // SIMPLIFIED: Just poll every 5 seconds and update the DOM directly
@@ -589,5 +593,12 @@
         }
       } catch(e){ console.warn('[Sensors] KPI debug assist error', e); }
     }, 3000);
-  });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', __rdwcSensorsBoot);
+    console.log('[Sensors] Waiting for DOMContentLoaded');
+  } else {
+    console.log('[Sensors] DOM already loaded; booting immediately');
+    __rdwcSensorsBoot();
+  }
 })();
