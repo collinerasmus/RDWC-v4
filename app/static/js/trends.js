@@ -515,9 +515,14 @@
     if (state.window.end && Math.abs(state.window.end - now) < 5*60*1000) {
       console.log('[Sensors] Auto-refresh enabled (near real-time)');
       state.refreshTimer = setTimeout(async () => {
+        const preset = detectPreset();
+        if (preset && preset !== 'custom') {
+          // Rolling window: recalculate time range to keep end at "now"
+          const { start, end } = rangeFromPreset(preset);
+          state.window = { start, end };
+        }
         const fromISO = new Date(state.window.start).toISOString();
         const toISO = new Date(state.window.end).toISOString();
-        const preset = detectPreset();
         const { gran, max } = presetParams(preset || 'custom');
         const data = await fetchTrends(fromISO, toISO, gran, max);
         render(data);
