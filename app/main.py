@@ -812,7 +812,7 @@ def get_system_info():
         
         # Service status (systemd)
         services = {}
-        for service_name in ["rdwc-api", "rdwc-sensors"]:
+        for service_name in ["rdwc", "rdwc-sensors"]:
             try:
                 result = subprocess.run(
                     ["systemctl", "is-active", service_name],

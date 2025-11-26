@@ -132,7 +132,7 @@
     };
 
     if (data.services) {
-      updateServiceValue('svc-api', data.services['rdwc-api']);
+      updateServiceValue('svc-api', data.services['rdwc']);
       updateServiceValue('svc-sensors', data.services['rdwc-sensors']);
     }
   }
