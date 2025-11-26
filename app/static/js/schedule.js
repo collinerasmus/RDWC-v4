@@ -314,7 +314,7 @@
       </div>
       <div style="display:flex;gap:8px;margin-top:16px;">
         <button id="btnEditWeek" class="btn-secondary">Edit Selected Week…</button>
-        <button id="btnResetSchedule" class="btn-danger">Reset Schedule to Defaults</button>
+        <button id="btnResetSchedule" class="btn-secondary">Reset Schedule to Defaults</button>
       </div>
       ${week.notes ? `<div style="margin-top:12px;padding:10px;border-radius:6px;background:rgba(59,130,246,0.08);font-size:0.85rem;color:#93c5fd;"><strong>Notes:</strong> ${week.notes}</div>` : ''}
     `;
