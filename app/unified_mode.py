@@ -182,6 +182,21 @@ def get_overrides() -> Dict[str, str]:
     return {}  # No per-sensor overrides in unified system
 
 
+def overrides_effective_age() -> int:
+    """Legacy compatibility - return age of overrides (always 0 since unused)"""
+    return 0
+
+
+def set_overrides(payload: dict) -> dict:
+    """Legacy compatibility - ignore override attempts in unified system"""
+    return {}
+
+
+def clear_override_field(field: str) -> bool:
+    """Legacy compatibility - no-op since no overrides exist"""
+    return True
+
+
 # Legacy relay state persistence functions (moved from system_mode.py)
 def save_relay_state(relay: str, state: bool):
     """Save relay state to database for restoration"""
