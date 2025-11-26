@@ -372,7 +372,7 @@
     if (isAutoMode && !isEstop) { badges += `<span class="lock-pill">Auto</span>`; }
     if (isEstop) { badges += `<span class="lock-pill" style="border-color: rgba(239,68,68,.65); color:#fecaca;">E‑Stop</span>`; }
 
-    const readonlyClass = isEstop ? 'readonly' : '';
+    const readonlyClass = isEstop ? 'opacity-60 cursor-not-allowed' : '';
     const disabledAttr = isEstop ? 'disabled' : '';
     const ariaDisabled = isEstop ? 'aria-disabled="true"' : '';
     const title = isEstop
@@ -387,7 +387,7 @@
     return el(`
       <button 
         data-relay="${key}" 
-  class="relay-btn ${bgClass} ${readonlyClass} text-white rounded-lg py-2 px-3 text-sm font-medium transition-all duration-200 flex items-center justify-between"
+  class="relay-btn ${bgClass} ${readonlyClass} text-white rounded-lg py-2 px-3 text-sm font-medium transition-all duration-200 flex items-center justify-between cursor-pointer"
         ${disabledAttr}
         ${ariaDisabled}
         role="button" aria-pressed="${ariaPressed}"
@@ -436,7 +436,9 @@
         info.lockout
       );
       // Readonly class only during E-STOP (manual override always available)
-  if (state.estop) btn.classList.add('readonly');
+  if (state.estop) {
+    btn.classList.add('opacity-60', 'cursor-not-allowed');
+  }
 
       // Handlers (disabled only during E-STOP)
       btn.onclick = () => {
