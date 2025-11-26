@@ -117,7 +117,11 @@
     // Service status chips - services is nested
     const updateServiceValue = (id, status) => {
       const elem = document.getElementById(id);
-      if (!elem) return;
+      console.log(`[SystemInfo] Updating service ${id} with status: "${status}"`);
+      if (!elem) {
+        console.warn(`[SystemInfo] Element ${id} not found`);
+        return;
+      }
       
       if (status === 'active') {
         elem.textContent = 'Active';
@@ -128,12 +132,16 @@
       } else {
         elem.textContent = 'Error';
         elem.style.color = '#ef4444'; // error red
+        console.error(`[SystemInfo] Unexpected service status for ${id}: "${status}"`);
       }
     };
 
     if (data.services) {
+      console.log('[SystemInfo] Services object:', data.services);
       updateServiceValue('svc-api', data.services['rdwc']);
       updateServiceValue('svc-sensors', data.services['rdwc-sensors']);
+    } else {
+      console.warn('[SystemInfo] No services data received');
     }
   }
 
