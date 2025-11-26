@@ -133,9 +133,9 @@
             type: 'linear',
             position: 'right',
             title: { display: true, text: 'Cumulative (ml)' },
-            suggestedMin: 0,
+            beginAtZero: true,
             grid: {
-              drawOnChartArea: false  // Only draw grid for primary axis
+              drawOnChartArea: false
             }
           } : undefined
         },

@@ -267,19 +267,36 @@
     const p = j.ph ?? null;
     if (!firstUpdateReceived && (t!=null || e!=null || p!=null)) {
       firstUpdateReceived = true;
-      console.log('[Sensors] First sensor payload received');
-    }
-    // Debug assist: log once when pH present but element empty
-    if (p!=null && !Number.isNaN(p)) {
-      const phEl = $("kpiPh");
-      if (phEl && (phEl.textContent === '—' || phEl.textContent === '--')) {
-        console.log('[Sensors] Forcing initial pH render', p);
-      }
+      console.log('[Sensors] First sensor payload received', {t, e, p});
     }
     __lastSensorsOnline = !!j.online;
-    setMetric($("kpiTemp"), t, classify("temp", t));
-    setMetric($("kpiEc"),   e, classify("ec", e));
-    setMetric($("kpiPh"),   p, classify("ph", p));
+    
+    // Direct element updates with explicit checks
+    const tempEl = $("kpiTemp");
+    const ecEl = $("kpiEc");
+    const phEl = $("kpiPh");
+    
+    if (tempEl) {
+      const val = (t===null || Number.isNaN(t)) ? "--" : t.toFixed(2);
+      tempEl.textContent = val;
+      tempEl.classList.remove("good","warn","bad");
+      tempEl.classList.add(classify("temp", t));
+      console.log('[Sensors] Updated temp KPI:', val);
+    }
+    if (ecEl) {
+      const val = (e===null || Number.isNaN(e)) ? "--" : e.toFixed(2);
+      ecEl.textContent = val;
+      ecEl.classList.remove("good","warn","bad");
+      ecEl.classList.add(classify("ec", e));
+      console.log('[Sensors] Updated EC KPI:', val);
+    }
+    if (phEl) {
+      const val = (p===null || Number.isNaN(p)) ? "--" : p.toFixed(2);
+      phEl.textContent = val;
+      phEl.classList.remove("good","warn","bad");
+      phEl.classList.add(classify("ph", p));
+      console.log('[Sensors] Updated pH KPI:', val);
+    }
     setBadge($("cal-badge-temp"), j.cal?.temp?.is_calibrated === true, j.cal?.temp?.detail || "");
     setBadge($("cal-badge-ec"),   j.cal?.ec?.is_calibrated === true,   j.cal?.ec?.detail || "");
     setBadge($("cal-badge-ph"),   j.cal?.ph?.is_calibrated === true,   j.cal?.ph?.detail || "");
