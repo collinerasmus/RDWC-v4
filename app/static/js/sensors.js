@@ -413,6 +413,9 @@
     console.log('[Sensors] Initializing real-time updates (boot)');
     ready = true;
     
+    // Cache last displayed values to prevent flicker when rounding produces same string
+    let lastTemp = null, lastEc = null, lastPh = null;
+    
     // SIMPLIFIED: Just poll every 5 seconds and update the DOM directly
     async function simplePoll() {
       try {
@@ -420,22 +423,34 @@
         const data = await response.json();
         console.log('[Sensors] Fetched data:', data);
         
-        // Direct DOM updates - no wrappers, no complexity
+        // Direct DOM updates - only if value changed after formatting
         const tempEl = document.getElementById('kpiTemp');
         const ecEl = document.getElementById('kpiEc');
         const phEl = document.getElementById('kpiPh');
         
         if (tempEl && data.temperature_c != null) {
-          tempEl.textContent = data.temperature_c.toFixed(2);
-          console.log('[Sensors] Set temp to:', tempEl.textContent);
+          const newVal = data.temperature_c.toFixed(2);
+          if (newVal !== lastTemp) {
+            tempEl.textContent = newVal;
+            lastTemp = newVal;
+            console.log('[Sensors] Set temp to:', newVal);
+          }
         }
         if (ecEl && data.ec_mscm != null) {
-          ecEl.textContent = data.ec_mscm.toFixed(2);
-          console.log('[Sensors] Set EC to:', ecEl.textContent);
+          const newVal = data.ec_mscm.toFixed(2);
+          if (newVal !== lastEc) {
+            ecEl.textContent = newVal;
+            lastEc = newVal;
+            console.log('[Sensors] Set EC to:', newVal);
+          }
         }
         if (phEl && data.ph != null) {
-          phEl.textContent = data.ph.toFixed(2);
-          console.log('[Sensors] Set pH to:', phEl.textContent);
+          const newVal = data.ph.toFixed(2);
+          if (newVal !== lastPh) {
+            phEl.textContent = newVal;
+            lastPh = newVal;
+            console.log('[Sensors] Set pH to:', newVal);
+          }
         }
       } catch (e) {
         console.error('[Sensors] Poll failed:', e);
