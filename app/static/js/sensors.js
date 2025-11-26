@@ -533,5 +533,22 @@
     loadSensorOverrides();
     setInterval(loadSensorOverrides, 30000);
     toggleOverridesVisibility();
+
+    // Debug assist: force direct fetch & KPI assignment if still blank after 3s
+    setTimeout(()=>{
+      try {
+        const phEl = $("kpiPh"), ecEl = $("kpiEc"), tEl = $("kpiTemp");
+        const blanks = [phEl, ecEl, tEl].filter(e => e && (e.textContent === '—' || e.textContent === '--'));
+        if (blanks.length > 0) {
+          console.warn('[Sensors] KPIs still blank after 3s; performing direct fetch');
+          fetch('/api/sensors',{cache:'no-store'}).then(r=>r.json()).then(d=>{
+            if (phEl && (phEl.textContent === '—' || phEl.textContent === '--') && d.ph!=null) phEl.textContent = d.ph.toFixed(2);
+            if (ecEl && (ecEl.textContent === '—' || ecEl.textContent === '--') && d.ec_mscm!=null) ecEl.textContent = d.ec_mscm.toFixed(2);
+            if (tEl && (tEl.textContent === '—' || tEl.textContent === '--') && d.temperature_c!=null) tEl.textContent = d.temperature_c.toFixed(2);
+            console.warn('[Sensors] Direct fetch applied for blank KPIs');
+          }).catch(e=>console.warn('[Sensors] Direct fetch failed', e));
+        }
+      } catch(e){ console.warn('[Sensors] KPI debug assist error', e); }
+    }, 3000);
   });
 })();

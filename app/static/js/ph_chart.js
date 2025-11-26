@@ -1,6 +1,7 @@
 // pH Dose Chart Rendering Module
 // Bulletproof chart initialization with empty-state handling and diagnostics
 (function(){
+  console.log('[pH Chart] Loader enter (ph_chart.js start)');
   'use strict';
 
   // Module state
@@ -364,5 +365,7 @@
   } else {
     init();
   }
+
+  console.log('[pH Chart] Module initialized and window.phDoseChart exported');
 
 })();

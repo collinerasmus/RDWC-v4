@@ -26,6 +26,21 @@
     };
   }
   const POLL_DEFAULT = 5000; // retained for potential fallback
+  // Fallback phDoseChart stub: if chart module not yet defined, create minimal placeholder to avoid errors.
+  if (!window.phDoseChart) {
+    console.warn('[pH] phDoseChart missing at initPH prelude – installing temporary stub');
+    window.phDoseChart = {
+      render: async ()=>{ console.warn('[pH] phDoseChart stub render called'); },
+      getState: ()=>({}),
+      init: ()=>{}
+    };
+    // Schedule a recheck after other scripts load
+    setTimeout(()=>{
+      if (window.phDoseChart && window.phDoseChart.init && window.phDoseChart.render.toString().includes('stub')) {
+        console.warn('[pH] phDoseChart still stub after delay – chart script may have failed to load');
+      }
+    }, 2500);
+  }
   let pollMs = POLL_DEFAULT; // no local interval; pollingManager drives updates
   let pollTimer = null; // deprecated
   let lastStatus = null;
