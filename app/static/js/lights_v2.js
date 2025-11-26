@@ -102,8 +102,12 @@
       // settings window preview
       try{
         const s = await (await fetch('/settings?'+Date.now(), {cache:'no-store'})).json();
+        console.log('[LightsV2] Settings response:', s);
+        console.log('[LightsV2] today_window:', s.today_window);
         updateWindowPreview(s.today_window);
-      }catch(e){}
+      }catch(e){
+        console.warn('[LightsV2] Failed to fetch settings:', e);
+      }
       updateKpis((wrap && wrap.mode) || window.__systemMode || 'manual');
       updateHealth();
     }catch(e){ console.warn('[LightsV2] refresh failed', e); }
