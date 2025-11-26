@@ -200,6 +200,42 @@ summary.reduced { cursor:pointer; font-size:var(--font-md); padding:var(--space-
 .btn-md { padding: 8px 16px; font-size: var(--font-base); }
 .btn-full { width: 100%; }
 
+/* Relay button states */
+.relay-btn {
+  cursor: pointer;
+  user-select: none;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.relay-btn:disabled,
+.relay-btn.cursor-not-allowed {
+  cursor: not-allowed;
+}
+.relay-btn.opacity-60 {
+  opacity: 0.6;
+}
+.relay-on {
+  background: #16a34a;
+}
+.relay-on:hover:not(:disabled):not(.cursor-not-allowed) {
+  background: #15803d;
+}
+.relay-off {
+  background: #dc2626;
+}
+.relay-off:hover:not(:disabled):not(.cursor-not-allowed) {
+  background: #b91c1c;
+}
+
 /* Button compact variant for Apply buttons in graph controls */
 .btn-compact { height: 28px; padding: 0 8px; font-size: var(--font-sm); white-space: nowrap; }
 

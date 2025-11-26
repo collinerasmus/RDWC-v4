@@ -387,7 +387,7 @@
     return el(`
       <button 
         data-relay="${key}" 
-  class="relay-btn ${bgClass} ${readonlyClass} text-white rounded-lg py-2 px-3 text-sm font-medium transition-all duration-200 flex items-center justify-between cursor-pointer"
+  class="relay-btn ${bgClass} ${readonlyClass}"
         ${disabledAttr}
         ${ariaDisabled}
         role="button" aria-pressed="${ariaPressed}"
