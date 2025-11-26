@@ -22,9 +22,7 @@
     refreshTimer: null
   };
 
-  const kpiPh   = document.getElementById('kpiPh');
-  const kpiEc   = document.getElementById('kpiEc');
-  const kpiTemp = document.getElementById('kpiTemp');
+  // KPI elements managed by sensors.js; trends only renders chart
 
   let trendChart = new Chart(chartEl, {
     type: 'line',
@@ -418,14 +416,7 @@
   let ec = ecRaw.map(p => ({ x:p.x, y: p.y * ecScale }));
   ec = interpSingles(ec);
 
-    // KPIs
-    const last = arr => (arr && arr.length ? arr[arr.length-1].y : null);
-    if (kpiPh) kpiPh.textContent = last(ph) != null ? Number(last(ph)).toFixed(2) : '—';
-    if (kpiEc) {
-      const ecVal = last(ec);
-      kpiEc.textContent = ecVal != null ? Number(ecVal).toFixed(2) : '—';
-    }
-    if (kpiTemp) kpiTemp.textContent = last(temp) != null ? Number(last(temp)).toFixed(1) : '—';
+    // KPIs are managed by sensors.js real-time polling; trends chart only renders historical data
 
     // Preferred grow ranges; we will expand if data is out-of-band
     const PREF = {
