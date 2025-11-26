@@ -2691,33 +2691,46 @@ function toggleRecentReadings(){
   }
 }
 
-// Simplified camera: snapshot button handler (no streaming)
-(function initCameraSnapshot(){
+// Camera: MJPEG streaming with fallback
+(function initCameraStream(){
   const pill = document.getElementById('camera-status-pill');
   const img = document.getElementById('camera-stream');
   const overlay = document.getElementById('camera-overlay');
+  const obj = document.getElementById('camera-object');
+  
   function refreshStatus(){
     fetch('/camera/status').then(r=>r.json()).then(d=>{
-      if(pill) pill.textContent = d.available ? '(ready)' : '(unavailable)';
-    }).catch(()=>{ if(pill) pill.textContent='(status error)'; });
+      if(pill) pill.textContent = d.available ? 'Status: streaming' : 'Status: unavailable';
+    }).catch(()=>{ if(pill) pill.textContent='Status: error'; });
   }
-  function loadSnapshot(){
-    if(!img) return;
-    img.src = '/camera/snapshot.jpg?t=' + Date.now();
+  
+  function startStream(){
+    if(!img || !overlay) return;
+    const streamUrl = '/camera/stream?t=' + Date.now();
+    
+    // Try <object> element first (best for MJPEG)
+    if(obj){
+      obj.data = streamUrl;
+      obj.style.display = 'block';
+      img.style.display = 'none';
+    } else {
+      // Fallback to <img>
+      img.src = streamUrl;
+      img.style.display = 'block';
+    }
+    
+    // Hide overlay after 2 seconds
+    setTimeout(() => {
+      if(overlay) overlay.style.display = 'none';
+    }, 2000);
   }
-  const btn = document.createElement('button');
-  btn.textContent = 'Snapshot';
-  btn.className = 'btn-secondary';
-  btn.style.position='absolute';
-  btn.style.top='8px';
-  btn.style.right='8px';
-  btn.addEventListener('click', loadSnapshot);
-  const frame = document.querySelector('#overview-card .camera-frame');
-  if(frame) frame.appendChild(btn);
+  
   refreshStatus();
+  startStream();
+  
+  // Expose camera control
+  window.cameraControl = { refreshStatus, startStream };
 })();
-  // Expose minimal camera control (snapshot only)
-  window.cameraControl = { refreshStatus: typeof refreshStatus === 'function' ? refreshStatus : function(){} };
 // Calibration functions moved into Settings > Calibration panel (settings.js)
 
 // Layout Debug Overlay

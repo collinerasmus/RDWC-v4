@@ -95,3 +95,46 @@ class CameraManager:
     @classmethod
     def is_healthy(cls) -> bool:
         return bool(cls.available and cls._cap is not None and cls._cap.isOpened())
+
+    @classmethod
+    def mjpeg_generator(cls, fps: int = 8):
+        """Lightweight MJPEG streaming generator for /camera/stream endpoint.
+        Uses OpenCV frame capture with configurable FPS throttling."""
+        import time
+        if not cls.available or cls._cap is None:
+            yield b''
+            return
+        
+        frame_delay = 1.0 / fps if fps > 0 else 0.125
+        boundary = b"frame"
+        
+        while True:
+            if not cls.is_healthy():
+                break
+            
+            with cls._lock:
+                try:
+                    ret, frame = cls._cap.read()
+                    if not ret or frame is None:
+                        time.sleep(frame_delay)
+                        continue
+                    
+                    # Encode frame as JPEG
+                    ret, jpeg = cls._cv2.imencode('.jpg', frame, [int(cls._cv2.IMWRITE_JPEG_QUALITY), 70])
+                    if not ret:
+                        time.sleep(frame_delay)
+                        continue
+                    
+                    frame_bytes = jpeg.tobytes()
+                    
+                    # Yield multipart frame
+                    yield (b'--' + boundary + b'\r\n'
+                           b'Content-Type: image/jpeg\r\n'
+                           b'Content-Length: ' + str(len(frame_bytes)).encode() + b'\r\n'
+                           b'\r\n' + frame_bytes + b'\r\n')
+                    
+                except Exception as e:
+                    cls.last_error = f"stream_error: {e}"
+                    break
+            
+            time.sleep(frame_delay)
