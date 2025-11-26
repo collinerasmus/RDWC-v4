@@ -1096,10 +1096,10 @@ body{
       <div class="muted" style="font-size:var(--font-sm);margin-top:-6px;margin-bottom:8px;">
         <span id="camera-status-pill">Status: streaming</span>
       </div>
-      <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;height:var(--h-camera);max-height:calc(100vh - 420px);overflow:hidden;width:100%;background:#0d1117;">
+      <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;height:var(--h-camera);max-height:calc(100vh - 520px);overflow:hidden;width:100%;">
         <!-- Use object element - browsers don't cancel these for MJPEG streams -->
-  <object id="camera-object" type="multipart/x-mixed-replace" style="display:none;width:100%;height:100%;object-fit:contain;" aria-label="Live camera stream"></object>
-  <img id="camera-stream" alt="Camera stream" style="width:100%;height:100%;object-fit:contain;display:block;" aria-label="Live camera stream fallback"/>
+  <object id="camera-object" type="multipart/x-mixed-replace" style="display:none;max-width:100%;max-height:100%;" aria-label="Live camera stream"></object>
+  <img id="camera-stream" alt="Camera stream" style="max-width:100%;max-height:100%;display:block;" aria-label="Live camera stream fallback"/>
         <div id="camera-overlay" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">Connecting...</div>
       </div>
     </div>
