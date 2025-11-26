@@ -1097,8 +1097,10 @@ body{
         <span id="camera-status-pill">Status: streaming</span>
       </div>
       <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;height:var(--h-camera);max-height:calc(100vh - 520px);overflow:hidden;width:100%;">
-        <img id="camera-stream" alt="Camera view" style="width:100%;height:100%;object-fit:fill;display:block;"/>
-        <div id="camera-overlay" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">Loading...</div>
+        <!-- Use object element - browsers don't cancel these for MJPEG streams -->
+  <object id="camera-object" type="multipart/x-mixed-replace" style="display:none;width:100%;height:100%;max-height:100%;object-fit:fill;" aria-label="Live camera stream"></object>
+  <img id="camera-stream" alt="Camera stream" style="width:100%;height:100%;max-height:100%;object-fit:fill;display:block;" aria-label="Live camera stream fallback"/>
+        <div id="camera-overlay" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">Connecting...</div>
       </div>
     </div>
   </section>
@@ -2689,32 +2691,45 @@ function toggleRecentReadings(){
   }
 }
 
-// Camera: Simple snapshot refresh (stable)
-(function initCamera(){
+// Camera: MJPEG streaming with fallback
+(function initCameraStream(){
   const pill = document.getElementById('camera-status-pill');
   const img = document.getElementById('camera-stream');
   const overlay = document.getElementById('camera-overlay');
+  const obj = document.getElementById('camera-object');
   
   function refreshStatus(){
     fetch('/camera/status').then(r=>r.json()).then(d=>{
-      if(pill) pill.textContent = d.available ? 'Status: live' : 'Status: unavailable';
+      if(pill) pill.textContent = d.available ? 'Status: streaming' : 'Status: unavailable';
     }).catch(()=>{ if(pill) pill.textContent='Status: error'; });
   }
   
-  function refreshSnapshot(){
-    if(!img) return;
-    img.src = '/camera/snapshot.jpg?t=' + Date.now();
-    if(overlay) overlay.style.display = 'none';
+  function startStream(){
+    if(!img || !overlay) return;
+    const streamUrl = '/camera/stream?t=' + Date.now();
+    
+    // Try <object> element first (best for MJPEG)
+    if(obj){
+      obj.data = streamUrl;
+      obj.style.display = 'block';
+      img.style.display = 'none';
+    } else {
+      // Fallback to <img>
+      img.src = streamUrl;
+      img.style.display = 'block';
+    }
+    
+    // Hide overlay after 2 seconds
+    setTimeout(() => {
+      if(overlay) overlay.style.display = 'none';
+    }, 2000);
   }
   
   refreshStatus();
-  refreshSnapshot();
-  
-  // Refresh snapshot every 2 seconds
-  setInterval(refreshSnapshot, 2000);
+  startStream();
   
   // Expose camera control
-  window.cameraControl = { refreshStatus, refreshSnapshot };
+  window.cameraControl = { refreshStatus, startStream };
 })();
 // Calibration functions moved into Settings > Calibration panel (settings.js)
 
