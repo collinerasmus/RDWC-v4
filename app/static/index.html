@@ -671,11 +671,11 @@ body{
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
     <h1 style="margin:0;">RDWC v4 — Dashboard</h1>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <!-- Global Mode Controls (single source of truth) -->
+      <!-- Global Auto Enable Control (new unified system) -->
       <div class="system-mode-buttons" style="display:flex;gap:6px;">
-        <button id="system-mode-auto" class="btn-chip" title="System Auto">Auto</button>
-        <button id="system-mode-manual" class="btn-chip" title="System Manual">Manual</button>
-        <button id="system-mode-maint" class="btn-chip" title="Maintenance Mode">Maintenance</button>
+        <button id="global-auto-btn" class="btn-chip" title="Toggle Global Automation">
+          🌐 Auto: <span id="global-auto-state">—</span>
+        </button>
       </div>
       <button id="estop-btn" class="btn-secondary danger" title="Emergency Stop: forces all relays OFF and blocks ON until released">E‑STOP</button>
       <div id="build-banner" class="muted" style="font-size:var(--font-base);padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,0.25);background:rgba(148,163,184,0.06);color:#cbd5e1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -685,39 +685,58 @@ body{
   </div>
 
   <script>
-  // Initialize header mode buttons: wire click handlers and sync with API
+  // Initialize header auto button: wire click handlers and sync with API
   (function(){
-    function initHeaderModeButtons(){
-      var btnAuto = document.getElementById('system-mode-auto');
-      var btnManual = document.getElementById('system-mode-manual');
-      var btnMaint = document.getElementById('system-mode-maint');
-      
-      // Wire up click handlers to call systemSetMode (exposed by system.js)
-      if (btnAuto) btnAuto.addEventListener('click', function(){ if(window.systemSetMode) window.systemSetMode('auto'); });
-      if (btnManual) btnManual.addEventListener('click', function(){ if(window.systemSetMode) window.systemSetMode('manual'); });
-      if (btnMaint) btnMaint.addEventListener('click', function(){ if(window.systemSetMode) window.systemSetMode('maintenance'); });
-      
-      // Fetch current mode from API and sync button state
-      fetch('/api/relays/status', {cache:'no-store'})
+    function updateAutoStatus(){
+      fetch('/api/auto/status', {cache:'no-store'})
         .then(function(r){ return r.json(); })
         .then(function(data){
-          var currentMode = data.mode || 'manual';
-          // Set active class on correct button
-          if (btnAuto) btnAuto.classList.toggle('active', currentMode === 'auto');
-          if (btnManual) btnManual.classList.toggle('active', currentMode === 'manual');
-          if (btnMaint) btnMaint.classList.toggle('active', currentMode === 'maintenance');
+          var btn = document.getElementById('global-auto-btn');
+          var state = document.getElementById('global-auto-state');
+          if (btn && state) {
+            var isOn = data.global_auto;
+            state.textContent = isOn ? 'ON' : 'OFF';
+            btn.classList.toggle('active', isOn);
+            btn.style.background = isOn ? 'rgba(34,197,94,0.15)' : 'rgba(148,163,184,0.12)';
+            btn.style.borderColor = isOn ? 'rgba(34,197,94,0.45)' : 'rgba(148,163,184,0.3)';
+          }
         })
         .catch(function(err){
-          console.warn('[Header Mode] Failed to fetch current mode:', err);
-          // Fallback to manual if API fails
-          if (btnManual) btnManual.classList.add('active');
+          console.warn('[Header Auto] Failed to fetch auto status:', err);
         });
     }
     
+    function toggleGlobalAuto(){
+      fetch('/api/auto/status', {cache:'no-store'})
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          var newState = !data.global_auto;
+          return fetch('/api/auto/global', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled: newState})
+          });
+        })
+        .then(function(){ updateAutoStatus(); })
+        .catch(function(err){
+          console.error('[Header Auto] Failed to toggle:', err);
+        });
+    }
+    
+    function initHeaderAutoButton(){
+      var btn = document.getElementById('global-auto-btn');
+      if (btn) {
+        btn.addEventListener('click', toggleGlobalAuto);
+      }
+      updateAutoStatus();
+      // Poll status every 5 seconds
+      setInterval(updateAutoStatus, 5000);
+    }
+    
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initHeaderModeButtons);
+      document.addEventListener('DOMContentLoaded', initHeaderAutoButton);
     } else {
-      initHeaderModeButtons();
+      initHeaderAutoButton();
     }
   })();
   </script>

@@ -70,7 +70,9 @@
         else if (softActive) { healthText = 'GUARDED'; healthClass = 'warning'; }
         
         setChip('#ov-ph-health', healthText, healthClass);
-        setChip('#ov-ph-modechip', ph.auto_enabled ? 'AUTO' : 'MANUAL', ph.auto_enabled ? 'success' : 'neutral');
+        // Use will_automate for display (combines global + controller auto)
+        const phAuto = ph.will_automate || ph.auto_enabled;
+        setChip('#ov-ph-modechip', phAuto ? 'AUTO' : 'MANUAL', phAuto ? 'success' : 'neutral');
         
         const allActive = [...hardKeys.filter(k=>!!guards[k]), ...softKeys.filter(k=>!!guards[k])];
         const phHealthEl = q('#ov-ph-health');
@@ -95,7 +97,9 @@
         else if (softActive) { healthText = 'GUARDED'; healthClass = 'warning'; }
         
         setChip('#ov-ec-health', healthText, healthClass);
-        setChip('#ov-ec-modechip', ec.auto_enabled ? 'AUTO' : 'MANUAL', ec.auto_enabled ? 'success' : 'neutral');
+        // Use will_automate for display (combines global + controller auto)
+        const ecAuto = ec.will_automate || ec.auto_enabled;
+        setChip('#ov-ec-modechip', ecAuto ? 'AUTO' : 'MANUAL', ecAuto ? 'success' : 'neutral');
         
         const allActive = [...hardKeys.filter(k=>!!guards[k]), ...softKeys.filter(k=>!!guards[k])];
         const ecHealthEl = q('#ov-ec-health');
@@ -110,9 +114,10 @@
       if (controllers.chiller) {
         const chiller = controllers.chiller;
         const tempStr = chiller.current_temp ? ` ${chiller.current_temp.toFixed(1)}°C` : '';
-        const modeText = chiller.mode === 'manual' ? 'MANUAL' : chiller.mode === 'maintenance' ? 'MAINT' : 'AUTO';
-        setChip('#ov-chiller-modechip', modeText + tempStr, 
-                chiller.mode === 'manual' ? 'neutral' : chiller.mode === 'maintenance' ? 'warning' : 'success');
+        // Use will_automate for display (combines global + controller auto)
+        const chillerAuto = chiller.will_automate || chiller.auto_enabled;
+        const modeText = chillerAuto ? 'AUTO' : 'MANUAL';
+        setChip('#ov-chiller-modechip', modeText + tempStr, chillerAuto ? 'success' : 'neutral');
       }
       
       // Lights Controller

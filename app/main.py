@@ -1454,39 +1454,37 @@ def api_chiller_settings_update(req: dict):
 def api_controllers_status():
     """Consolidated atomic snapshot of all controller states, modes, guards, and holding reasons.
     Used by UI for unified status display and mode synchronization.
+    
+    NOTE: Mode fields are deprecated. Use auto_enabled instead (from unified auto-enable system).
+    
     Returns: {
-        system_mode: str,
+        system_mode: str (deprecated),
+        global_auto: bool (NEW),
         maintenance_override: bool,
         estop: bool,
         controllers: {
-            ph: {mode, auto_enabled, holding_reason, guards, learned_ml_per_pH, ...},
-            ec: {mode, auto_enabled, holding_reason, guards, learned_ml_per_mScm, ...},
-            chiller: {mode, auto_enabled, current_temp, state, ...},
-            lights: {mode, is_on, schedule_active, ...},
-            circulation: {mode, pumps: {...}}
+            ph: {auto_enabled, will_automate, holding_reason, guards, learned_ml_per_pH, ...},
+            ec: {auto_enabled, will_automate, holding_reason, guards, learned_ml_per_mScm, ...},
+            chiller: {auto_enabled, will_automate, current_temp, state, ...},
+            lights: {is_on, schedule_active, ...},
+            circulation: {pumps: {...}}
         }
     }
     """
     import time
-    from app.unified_mode import get_all_status, get_mode as get_system_mode, get_all_modes
+    from app.auto_control import get_auto_status, should_automate
     from app.settings import get_setting_key
     from app.relays_core import get_estop_status, get_relay_status
     
-    # System-wide state
-    system_mode = get_system_mode()
+    # NEW: Use unified auto-enable system
+    auto_status = get_auto_status()
+    global_auto = auto_status["global_auto"]
+    
     try:
         maint_override = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
     except Exception:
         maint_override = False
     estop = get_estop_status()
-    
-    # Controller modes
-    controller_modes = get_all_modes()
-    def _to_legacy_mode(m: str) -> str:
-        if m == "hold":
-            return "maintenance" if maint_override else "manual"
-        return m if m in ("auto", "manual", "maintenance") else "auto"
-    controller_modes = {k: _to_legacy_mode(v) for k, v in controller_modes.items()}
     
     # Build controller details
     controllers = {}
@@ -1495,9 +1493,11 @@ def api_controllers_status():
     try:
         from app.ph_control import ph_status
         ph_data = ph_status()
+        will_automate = should_automate("ph")
         controllers["ph"] = {
-            "mode": controller_modes.get("ph", "auto"),
+            "mode": "auto" if will_automate else "manual",  # For backward compatibility
             "auto_enabled": ph_data.get("auto", {}).get("enabled", False),
+            "will_automate": will_automate,
             "holding_reason": ph_data.get("auto", {}).get("holding_reason"),
             "learned_ml_per_pH": ph_data.get("auto", {}).get("learned_ml_per_pH"),
             "guards": ph_data.get("guards", {}),
@@ -1508,15 +1508,17 @@ def api_controllers_status():
         }
     except Exception as e:
         logger.error(f"Failed to get pH status: {e}")
-        controllers["ph"] = {"mode": controller_modes.get("ph", "auto"), "error": str(e)}
+        controllers["ph"] = {"auto_enabled": False, "error": str(e)}
     
     # EC Controller
     try:
         from app.ec_control import get_ec_status
         ec_data = get_ec_status()
+        will_automate = should_automate("ec")
         controllers["ec"] = {
-            "mode": controller_modes.get("ec", "auto"),
+            "mode": "auto" if will_automate else "manual",  # For backward compatibility
             "auto_enabled": ec_data.get("auto", {}).get("enabled", False),
+            "will_automate": will_automate,
             "holding_reason": ec_data.get("auto", {}).get("holding_reason"),
             "learned_ml_per_mScm": ec_data.get("auto", {}).get("learned_ml_per_mScm"),
             "guards": ec_data.get("guards", {}),
@@ -1527,15 +1529,17 @@ def api_controllers_status():
         }
     except Exception as e:
         logger.error(f"Failed to get EC status: {e}")
-        controllers["ec"] = {"mode": controller_modes.get("ec", "auto"), "error": str(e)}
+        controllers["ec"] = {"auto_enabled": False, "error": str(e)}
     
     # Chiller Controller
     try:
         from app.chiller_control import get_chiller_state, get_current_water_temp
         chiller_state = get_chiller_state()
+        will_automate = should_automate("chiller")
         controllers["chiller"] = {
-            "mode": controller_modes.get("chiller", "auto"),
+            "mode": "auto" if will_automate else "manual",  # For backward compatibility
             "auto_enabled": chiller_state.get("auto_enabled", False),
+            "will_automate": will_automate,
             "current_temp": get_current_water_temp(),
             "target_temp": float(get_setting_key("chiller.target_temp", "19.0") or "19.0"),
             # Updated default hysteresis per brief (0.7°C)
@@ -1545,39 +1549,39 @@ def api_controllers_status():
         }
     except Exception as e:
         logger.error(f"Failed to get chiller status: {e}")
-        controllers["chiller"] = {"mode": controller_modes.get("chiller", "auto"), "error": str(e)}
+        controllers["chiller"] = {"auto_enabled": False, "error": str(e)}
     
     # Lights Controller
     try:
         relay_status = get_relay_status()
         # get_relay_status() returns key 'state' for ON/OFF
         lights_on = relay_status.get("lights", {}).get("state", False)
-        # Check if schedule is active (lights controller in auto means schedule active)
-        schedule_active = controller_modes.get("lights", "auto") == "auto"
+        # Lights follow schedule when global auto is enabled
+        schedule_active = global_auto
         controllers["lights"] = {
-            "mode": controller_modes.get("lights", "auto"),
+            "mode": "auto" if schedule_active else "manual",  # For backward compatibility
             "is_on": lights_on,
             "schedule_active": schedule_active,
         }
     except Exception as e:
         logger.error(f"Failed to get lights status: {e}")
-        controllers["lights"] = {"mode": controller_modes.get("lights", "auto"), "error": str(e)}
+        controllers["lights"] = {"is_on": False, "error": str(e)}
     
     # Circulation Controller (pumps)
     try:
         relay_status = get_relay_status()
         controllers["circulation"] = {
-            "mode": controller_modes.get("circulation", "auto"),
             # get_relay_status() uses 'state' for ON/OFF
             "main_pump": relay_status.get("main_pump", {}).get("state", False),
             "chiller_pump": relay_status.get("chiller_pump", {}).get("state", False),
         }
     except Exception as e:
         logger.error(f"Failed to get circulation status: {e}")
-        controllers["circulation"] = {"mode": controller_modes.get("circulation", "auto"), "error": str(e)}
+        controllers["circulation"] = {"error": str(e)}
     
     return {
-        "system_mode": system_mode,
+        "system_mode": "auto" if global_auto else "manual",  # Deprecated, use global_auto
+        "global_auto": global_auto,
         "maintenance_override": maint_override,
         "estop": estop,
         "controllers": controllers,
