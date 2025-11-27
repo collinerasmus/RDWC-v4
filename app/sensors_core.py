@@ -213,18 +213,10 @@ def read_sensors_from_db(db_path: str = None, max_age_sec: int = 60) -> Dict[str
             "ec_mscm": row["ec_ms_cm"],
         }
         effective = dict(original)
-        mode = "auto"
+        # NOTE: Sensor readings are always returned. The auto-enable system
+        # controls controller automation, not sensor data visibility.
+        # Mode overrides are deprecated - return actual sensor values.
         overrides = {"temperature_c": None, "ph": None, "ec_mscm": None, "updated_ts": None}
-        try:
-            from app.unified_mode import get_sensor_mode, get_overrides, MODE_MAINTENANCE
-            mode = get_mode()
-            if mode == MODE_MAINTENANCE:
-                overrides = get_overrides()
-                for k in ["temperature_c", "ph", "ec_mscm"]:
-                    if overrides.get(k) is not None:
-                        effective[k] = overrides[k]
-        except Exception:
-            pass
         return {
             "temperature_c": effective["temperature_c"],
             "ph": effective["ph"],
@@ -233,7 +225,6 @@ def read_sensors_from_db(db_path: str = None, max_age_sec: int = 60) -> Dict[str
             "ts": dt.datetime.utcfromtimestamp(row["ts"]).isoformat() + "Z",
             "age_sec": age_sec,
             "errors": {"stale": f"reading is {age_sec}s old"} if is_stale else {},
-            "mode": mode,
             "overrides": overrides,
             "original_temperature_c": original["temperature_c"],
             "original_ph": original["ph"],

@@ -1,14 +1,26 @@
 """
-UNIFIED MODE SYSTEM - THE ONLY MODE SYSTEM
-Replaces: system_mode.py, controller_modes.py, sensors_mode.py
+DEPRECATED: UNIFIED MODE SYSTEM
 
-ONE mode concept for entire system:
-- AUTO: Full automation running
-- MANUAL: User control, automation paused
-- MAINTENANCE: Service mode, automation paused
+This module is DEPRECATED. Use app/auto_control.py instead.
 
-This module is the ONLY place where mode state is read/written.
-All other modules must import from here.
+The new auto-enable system replaces the mode concept with simple boolean flags:
+- controls.global_auto: Master switch for all automation
+- controls.ph_auto: pH controller automation enable
+- controls.ec_auto: EC controller automation enable  
+- controls.chiller_auto: Chiller controller automation enable
+
+To check if automation should run:
+    from app.auto_control import should_automate
+    if should_automate("ph"):
+        # Run pH automation
+
+To enable/disable automation:
+    from app.auto_control import set_global_auto_enabled, set_controller_auto_enabled
+    set_global_auto_enabled(True)
+    set_controller_auto_enabled("ph", True)
+
+This module is kept ONLY for backward compatibility with legacy code.
+All new code should use app/auto_control.py.
 """
 import sqlite3
 import logging
@@ -27,7 +39,7 @@ def _get_db_path() -> Path:
 
 DB_PATH = _get_db_path()
 
-# Valid modes
+# DEPRECATED: Mode constants - use auto_control.py instead
 MODE_AUTO = "auto"
 MODE_MANUAL = "manual"
 MODE_MAINTENANCE = "maintenance"

@@ -3126,47 +3126,77 @@ def fix_ezo():
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
-# UNIFIED MODE: Controller mode endpoints now use unified_mode
+# DEPRECATED: Legacy mode endpoints - use /api/auto/* instead
+# These endpoints are kept for backward compatibility but are deprecated.
+# New code should use:
+#   GET /api/auto/status - Get global and per-controller auto status
+#   POST /api/auto/global - Set global auto-enable
+#   POST /api/auto/{controller} - Set controller-specific auto-enable
+
 @app.get("/api/controller/modes")
 def api_controller_modes():
-    """Get all controller modes - UNIFIED (all use same mode)"""
-    from app.unified_mode import get_mode, CONTROLLERS
-    mode = get_mode()
+    """DEPRECATED: Get all controller modes.
+    
+    Use GET /api/auto/status instead for the new auto-enable system.
+    """
+    from app.auto_control import get_auto_status, CONTROLLERS
+    status = get_auto_status()
+    # Return in legacy format for backward compatibility
     return {
-        "system_mode": mode,
-        "modes": {c: mode for c in CONTROLLERS},
-        "unified": True
+        "system_mode": "auto" if status["global_auto"] else "manual",
+        "modes": {c: "auto" if status["controllers"][c]["will_automate"] else "hold" for c in CONTROLLERS},
+        "unified": True,
+        "_deprecated": "Use GET /api/auto/status instead"
     }
 
 @app.get("/api/controller/{name}/mode")
 def api_controller_mode_get(name: str):
-    """Get controller mode - UNIFIED"""
-    from app.unified_mode import get_mode, get_controller_mode, CONTROLLERS
+    """DEPRECATED: Get controller mode.
+    
+    Use GET /api/auto/status instead for the new auto-enable system.
+    """
+    from app.auto_control import should_automate, CONTROLLERS
     if name not in CONTROLLERS:
         return {"ok": False, "error": "unknown_controller", "controller": name}
-    # Return mode with legacy "hold" mapping for backward compatibility
-    mode = get_controller_mode(name)
-    return {"ok": True, "controller": name, "mode": mode}
+    will_auto = should_automate(name)
+    return {
+        "ok": True,
+        "controller": name,
+        "mode": "auto" if will_auto else "hold",
+        "_deprecated": "Use GET /api/auto/status instead"
+    }
 
 @app.post("/api/controller/{name}/mode")
 def api_controller_mode_set(name: str, body: dict):
-    """Set controller mode - UNIFIED (sets system-wide mode)"""
-    from app.unified_mode import set_mode, get_mode, CONTROLLERS
+    """DEPRECATED: Set controller mode.
+    
+    Use POST /api/auto/{controller} instead for the new auto-enable system.
+    """
+    from app.auto_control import set_controller_auto_enabled, set_global_auto_enabled, should_automate, CONTROLLERS
     if name not in CONTROLLERS:
         return {"ok": False, "error": "unknown_controller", "controller": name}
     
     mode = body.get("mode") if isinstance(body, dict) else None
-    # Map legacy "hold" to "manual"
-    if mode == "hold":
-        mode = "manual"
     
-    if mode in ("auto", "manual", "maintenance"):
-        ok = set_mode(mode)
-        logger.info(f"✅ Mode set via controller '{name}' endpoint: {mode}")
+    # Map legacy modes to new auto-enable system
+    if mode == "auto":
+        # Enable both global and controller auto
+        set_global_auto_enabled(True)
+        set_controller_auto_enabled(name, True)
+        ok = True
+    elif mode in ("manual", "hold", "maintenance"):
+        # Disable controller auto (keep global as is)
+        set_controller_auto_enabled(name, False)
+        ok = True
     else:
         ok = False
     
-    return {"ok": ok, "controller": name, "mode": get_mode()}
+    return {
+        "ok": ok,
+        "controller": name,
+        "mode": "auto" if should_automate(name) else "hold",
+        "_deprecated": "Use POST /api/auto/{controller} instead"
+    }
 
 # === NEW CLEAN AUTO-ENABLE ENDPOINTS ===
 
@@ -3222,26 +3252,30 @@ def api_auto_controller_set(controller: str, body: dict):
 
 @app.post("/api/controller/hold/all")
 def api_controller_hold_all(body: dict = None):
-    """Set or toggle hold state for all controllers.
+    """DEPRECATED: Set or toggle hold state for all controllers.
+    
+    Use POST /api/auto/global instead for the new auto-enable system.
     
     Body can be:
-      - {"hold": true} - Hold all
-      - {"hold": false} - Resume all
-      - {} or null - Not supported for all (must be explicit)
+      - {"hold": true} - Disable global auto
+      - {"hold": false} - Enable global auto
     """
-    from app.unified_mode import set_all_hold, get_all_modes
+    from app.auto_control import set_global_auto_enabled, get_auto_status
     
     body = body or {}
     if "hold" not in body:
         return {"ok": False, "error": "must_specify_hold", "message": "Body must include 'hold' field (true or false)"}
     
     hold_state = bool(body.get("hold"))
-    ok = set_all_hold(hold_state)
+    # hold=true means disable auto, hold=false means enable auto
+    ok = set_global_auto_enabled(not hold_state)
+    status = get_auto_status()
     
     return {
         "ok": ok,
         "hold": hold_state,
-        "modes": get_all_modes()
+        "modes": {c: "hold" if hold_state else "auto" for c in ["ph", "ec", "chiller"]},
+        "_deprecated": "Use POST /api/auto/global instead"
     }
 
 @app.get("/cam_status")

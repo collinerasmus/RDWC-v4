@@ -38,15 +38,15 @@ def set_setting(key: str, value: str):
     from app.settings import upsert_settings
     upsert_settings({key: value})
 
-def get_mode():
-    """Get current mode using UNIFIED mode system"""
-    from app.unified_mode import get_mode as _get_mode
-    return _get_mode()
-
-def is_auto():
-    """Check if system is in auto mode using UNIFIED system"""
-    from app.unified_mode import is_auto as _is_auto
-    return _is_auto()
+def should_automate_chiller():
+    """Check if chiller automation should run using the CLEAN auto-enable system.
+    
+    Returns True ONLY if:
+    - Global auto is enabled AND
+    - Chiller-specific auto is enabled
+    """
+    from app.auto_control import should_automate
+    return should_automate("chiller")
 
 def get_latest_reading():
     """Get cached sensor reading from main app's background loop."""
@@ -187,14 +187,8 @@ def get_interlock_status() -> Dict[str, Any]:
         chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
         chiller_running = relays.get('chiller_power', {}).get('state', False)
         
-        # Get auto enabled status (chiller-specific setting)
-        auto_enabled = bool(int(get_setting('chiller.auto_enabled', '0')))
-        try:
-            from app.unified_mode import get_controller_mode
-            mode = get_controller_mode('chiller')
-            auto_enabled = auto_enabled and mode == 'auto'
-        except Exception:
-            pass
+        # NEW: Use unified auto-enable system
+        auto_enabled = should_automate_chiller()
         
         # Determine violations
         violations = []
@@ -272,7 +266,8 @@ def get_chiller_state() -> Dict[str, Any]:
         state['target_temp'] = float(_t)
         state['hysteresis'] = float(get_setting('chiller.hysteresis', '0.5'))
         state['stage'] = get_setting('chiller.stage', 'default')
-        state['auto_enabled'] = bool(int(get_setting('chiller.auto_enabled', '0')))
+        # NEW: Use unified auto-enable system
+        state['auto_enabled'] = should_automate_chiller()
         
         # Add interlock status
         interlock_status = get_interlock_status()
@@ -398,16 +393,8 @@ def should_chiller_run() -> tuple[bool, str]:
     Returns:
         (should_run, reason) tuple
     """
-    # Check if auto control is enabled
-    # Controller mode gating
-    try:
-        from app.unified_mode import get_mode
-        mode = get_mode('chiller')
-    except Exception:
-        mode = 'auto'
-    auto_enabled = bool(int(get_setting('chiller.auto_enabled', '0'))) and mode == 'auto'
-    if mode != 'auto':
-        return False, f'Mode {mode} holds automation'
+    # NEW: Use unified auto-enable system
+    auto_enabled = should_automate_chiller()
     if not auto_enabled:
         return False, 'Auto control disabled'
     
@@ -470,7 +457,12 @@ def control_loop():
 
 
 def start_auto_control():
-    """Start automated chiller control."""
+    """Start automated chiller control.
+    
+    NOTE: This starts the background control thread. The actual automation
+    will only run if should_automate("chiller") returns True (requires both
+    global_auto and chiller_auto to be enabled in the new auto-control system).
+    """
     global _control_thread, _stop_control
     
     if _control_thread and _control_thread.is_alive():
@@ -484,7 +476,9 @@ def start_auto_control():
     with _control_lock:
         _chiller_state['auto_enabled'] = True
     
-    set_setting('chiller.auto_enabled', '1')
+    # NEW: Enable chiller auto in the unified system
+    from app.auto_control import set_controller_auto_enabled
+    set_controller_auto_enabled("chiller", True)
     log.info('[CHILLER] Automatic control started')
 
 
@@ -497,7 +491,9 @@ def stop_auto_control():
     with _control_lock:
         _chiller_state['auto_enabled'] = False
     
-    set_setting('chiller.auto_enabled', '0')
+    # NEW: Disable chiller auto in the unified system
+    from app.auto_control import set_controller_auto_enabled
+    set_controller_auto_enabled("chiller", False)
     log.info('[CHILLER] Automatic control stopped')
 
 
@@ -532,13 +528,16 @@ def force_chiller_state(desired_on: bool, duration_minutes: Optional[int] = None
 
 # Initialize defaults in settings if not present
 def _ensure_defaults():
-    """Ensure all chiller settings exist with proper defaults (aligned with brief)."""
+    """Ensure all chiller settings exist with proper defaults (aligned with brief).
+    
+    NOTE: chiller.auto_enabled is no longer used - automation is controlled
+    via the unified auto-enable system in app/auto_control.py
+    """
     defaults = {
         'chiller.target_temp': '19.0',            # °C - optimal for cannabis
         'chiller.hysteresis': '0.7',              # °C - deadband per brief
         'chiller.min_on_seconds': str(CHILLER_SPECS['min_on_seconds']),
         'chiller.min_off_seconds': str(CHILLER_SPECS['min_off_seconds']),
-        'chiller.auto_enabled': '0',              # Start disabled for safety
         'chiller.control_interval_s': '30',       # Check temp every 30s
         'chiller.max_temp_alarm': '24.0',         # Alert if water exceeds this
         'chiller.min_temp_alarm': '16.0',         # Alert if water below this
