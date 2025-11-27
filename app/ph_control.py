@@ -375,14 +375,12 @@ def ph_status():
     recent = _recent_doses(50)
     try:
         from app.settings import get_setting_key
-        from app.unified_mode import is_held
+        from app.auto_control import should_automate
         maint_override = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
-        auto_enabled = (get_setting_key("ph.auto_enabled", "false") or "false").lower() == "true"
-        held = is_held("ph")
+        auto_enabled = should_automate("ph")  # NEW: Global AND pH-specific auto
     except Exception:
         maint_override = False
         auto_enabled = False
-        held = False
     # Learned ml per 1.0 pH (may be None)
     try:
         learned = _estimate_ml_per_pH(_get_latest_ec()[0])
@@ -390,8 +388,8 @@ def ph_status():
         learned = None
     # Holding reason (deterministic by guards + band), allow lock to signal cooldown
     holding_reason = _derive_holding_reason(ph_val, guards, targets)
-    if held and holding_reason is None:
-        holding_reason = "held"
+    if not auto_enabled and holding_reason is None:
+        holding_reason = "auto_disabled"
     if _dose_lock.locked() and holding_reason is None:
         holding_reason = "cooldown"
     return {

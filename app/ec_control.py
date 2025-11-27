@@ -751,8 +751,13 @@ def get_ec_status():
     ok_cap, cap_reason = _check_daily_cap(now_dt)
     guards["daily_cap"] = not ok_cap
     
-    # Auto state
-    auto_enabled = _b("ec.auto_enabled", False)
+    # Auto state (NEW: unified system)
+    try:
+        from app.auto_control import should_automate
+        auto_enabled = should_automate("ec")
+    except Exception:
+        auto_enabled = False
+    
     with _auto_lock:
         holding_reason = _auto_last_holding_reason
     
@@ -944,13 +949,13 @@ def ec_dose_log_csv(
 # --- Automation control ------------------------------------------------------
 @router.post("/api/ec/auto")
 def set_ec_auto(body: dict = Body(...)):
-    """Enable or disable EC automation."""
+    """Enable or disable EC automation (DEPRECATED - use /api/auto/ec)."""
     enable = body.get("enable", False)
     
-    # Update setting (non-blocking, short timeout in settings layer)
+    # NEW: Use unified auto_control system
     try:
-        from app.settings import upsert_settings
-        upsert_settings({"ec.auto_enabled": "true" if enable else "false"})
+        from app.auto_control import set_controller_auto_enabled
+        set_controller_auto_enabled("ec", enable)
     except Exception:
         pass
     
@@ -969,12 +974,11 @@ def set_ec_auto(body: dict = Body(...)):
 
 @router.get("/api/ec/auto/enable")
 def set_ec_auto_get(on: int = Query(0)):
-    """Non-blocking GET toggle fallback when POST hangs.
-    Usage: /api/ec/auto/enable?on=1 to enable, on=0 to disable."""
+    """Non-blocking GET toggle fallback (DEPRECATED - use /api/auto/ec)."""
     enable = bool(int(on))
     try:
-        from app.settings import upsert_settings
-        upsert_settings({"ec.auto_enabled": "true" if enable else "false"})
+        from app.auto_control import set_controller_auto_enabled
+        set_controller_auto_enabled("ec", enable)
     except Exception:
         pass
     try:
@@ -1001,9 +1005,16 @@ def reset_ec_learner():
 @router.get("/api/ec/auto/debug")
 def get_ec_auto_debug():
     """Return internal automation state for debugging."""
+    # Get auto enabled state from unified system
+    try:
+        from app.auto_control import should_automate
+        auto_enabled = should_automate("ec")
+    except Exception:
+        auto_enabled = False
+    
     with _auto_lock:
         return {
-            "enabled": _b("ec.auto_enabled", False),
+            "enabled": auto_enabled,
             "enabled_at": _auto_enabled_at,
             "last_holding_reason": _auto_last_holding_reason,
             "last_block": _auto_last_block,
@@ -1020,8 +1031,12 @@ def get_ec_control_preview():
     Returns what action the controller would take without executing it.
     Useful for UI feedback and debugging.
     """
-    # Check if auto control is enabled
-    auto_enabled = _b("ec.auto_enabled", False)
+    # Check if auto control is enabled (NEW: unified system)
+    try:
+        from app.auto_control import should_automate
+        auto_enabled = should_automate("ec")
+    except Exception:
+        auto_enabled = False
     
     # Read current EC
     ec_val, ec_ts = _get_latest_ec()
@@ -1128,22 +1143,21 @@ def _auto_worker():
         poll_count += 1
         
         # Suppress auto when global maintenance override is active
-        # Controller mode gating
-        try:
-            from app.unified_mode import get_controller_mode            if get_controller_mode("ec") != "auto":
-                with _auto_lock:
-                    _auto_last_holding_reason = "mode_hold"
-                continue
-        except Exception:
-            pass
-        
+        # Controller automation gating (NEW: unified system)
         if _b("safety.maintenance_override", False):
             with _auto_lock:
                 _auto_last_holding_reason = "maintenance_override"
             continue
-        if not _b("ec.auto_enabled", False):
+        
+        try:
+            from app.auto_control import should_automate
+            if not should_automate("ec"):
+                with _auto_lock:
+                    _auto_last_holding_reason = "auto_disabled"
+                continue
+        except Exception:
             with _auto_lock:
-                _auto_last_holding_reason = "disabled"
+                _auto_last_holding_reason = "auto_check_failed"
             continue
         
         # Warm-up

@@ -219,6 +219,17 @@ def _startup_leds_apply():
         # Non-fatal: service continues even if LEDs can't be set
         pass
 
+@app.on_event("startup")
+def _startup_migrate_auto_control():
+    """Migrate old mode systems to new clean auto_control system (one-time)"""
+    try:
+        from app.auto_control import migrate_from_legacy
+        migrate_from_legacy()
+    except Exception as e:
+        from app.logger import get_logger
+        logger = get_logger()
+        logger.warning(f"Auto-control migration failed (non-fatal): {e}")
+
 # --- Sensor LED state endpoints (persistent) ---
 @app.get("/api/sensors/leds")
 def api_sensors_leds():
@@ -3157,34 +3168,56 @@ def api_controller_mode_set(name: str, body: dict):
     
     return {"ok": ok, "controller": name, "mode": get_mode()}
 
-# Simplified Hold button endpoints
-@app.post("/api/controller/{name}/hold")
-def api_controller_hold_toggle(name: str, body: dict = None):
-    """Toggle or set hold state for a controller.
+# === NEW CLEAN AUTO-ENABLE ENDPOINTS ===
+
+@app.get("/api/auto/status")
+def api_auto_status():
+    """Get global and per-controller auto-enable status"""
+    from app.auto_control import get_auto_status
+    return get_auto_status()
+
+@app.post("/api/auto/global")
+def api_auto_global_set(body: dict):
+    """Set global automation master switch
     
-    Body can be:
-      - {"hold": true} - Set to hold
-      - {"hold": false} - Resume (set to auto)
-      - {} or null - Toggle current state
+    Body: {"enabled": true/false}
     """
-    from app.unified_mode import set_hold, is_held, CONTROLLERS
-    if name not in CONTROLLERS:
-        return {"ok": False, "error": "unknown_controller", "controller": name}
+    from app.auto_control import set_global_auto_enabled, get_auto_status
     
-    body = body or {}
-    if "hold" in body:
-        # Explicit set
-        hold_state = bool(body.get("hold"))
-    else:
-        # Toggle
-        hold_state = not is_held(name)
+    if not isinstance(body, dict) or "enabled" not in body:
+        return {"ok": False, "error": "missing_enabled_field"}
     
-    ok = set_hold(name, hold_state)
+    enabled = bool(body.get("enabled"))
+    ok = set_global_auto_enabled(enabled)
+    
     return {
         "ok": ok,
-        "controller": name,
-        "held": is_held(name),
-        "mode": "hold" if is_held(name) else "auto"
+        "global_auto": enabled,
+        "status": get_auto_status() if ok else None
+    }
+
+@app.post("/api/auto/{controller}")
+def api_auto_controller_set(controller: str, body: dict):
+    """Set controller-specific auto-enable
+    
+    Body: {"enabled": true/false}
+    """
+    from app.auto_control import set_controller_auto_enabled, get_auto_status, CONTROLLERS
+    
+    if controller not in CONTROLLERS:
+        return {"ok": False, "error": "unknown_controller", "controller": controller}
+    
+    if not isinstance(body, dict) or "enabled" not in body:
+        return {"ok": False, "error": "missing_enabled_field"}
+    
+    enabled = bool(body.get("enabled"))
+    ok = set_controller_auto_enabled(controller, enabled)
+    
+    return {
+        "ok": ok,
+        "controller": controller,
+        "auto_enabled": enabled,
+        "status": get_auto_status() if ok else None
     }
 
 @app.post("/api/controller/hold/all")
