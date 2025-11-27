@@ -248,6 +248,63 @@ def get_critical_relay_states() -> Dict[str, tuple]:
     return states
 
 
+def set_hold(controller: str, held: bool) -> bool:
+    """Set hold state for a specific controller.
+    
+    Args:
+        controller: Controller name (ph, ec, chiller, etc.)
+        held: True to pause controller, False to resume
+    
+    Returns:
+        True if successful
+    """
+    if controller not in CONTROLLERS:
+        logger.warning(f"Unknown controller: {controller}")
+        return False
+    
+    _ensure_db()
+    key = f"controller.{controller}.held"
+    value = "true" if held else "false"
+    
+    try:
+        from app.db_pool import get_conn
+        conn = get_conn()
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+        conn.commit()
+        logger.info(f"Controller {controller} hold state set to: {held}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to set hold state for {controller}: {e}")
+        return False
+
+
+def is_held(controller: str) -> bool:
+    """Check if a controller is in held (paused) state.
+    
+    Args:
+        controller: Controller name (ph, ec, chiller, etc.)
+    
+    Returns:
+        True if controller is held/paused
+    """
+    if controller not in CONTROLLERS:
+        return False
+    
+    _ensure_db()
+    key = f"controller.{controller}.held"
+    
+    try:
+        from app.db_pool import get_conn
+        conn = get_conn(readonly=True)
+        row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+        if row:
+            return row[0].lower() == "true"
+        return False
+    except Exception as e:
+        logger.error(f"Failed to get hold state for {controller}: {e}")
+        return False
+
+
 def _init_tables():
     """Legacy compatibility - initialize all tables"""
     _ensure_db()
