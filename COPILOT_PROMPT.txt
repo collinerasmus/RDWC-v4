@@ -1,0 +1,188 @@
+# GITHUB COPILOT CLOUD AGENT PROMPT
+# Copy and paste this entire prompt into GitHub Copilot Chat
+
+---
+
+I need you to perform a comprehensive deep review of the RDWC-v4 repository to ensure the unified auto-enable system is enforced everywhere with NO hidden mode systems remaining.
+
+## Context
+
+We just replaced THREE fragmented mode systems with ONE unified auto-enable system:
+
+**OLD (Must be eliminated)**:
+- `MODE_AUTO`, `MODE_MANUAL`, `MODE_MAINTENANCE` in unified_mode.py
+- Scattered `ph.auto_enabled`, `ec.auto_enabled`, `chiller.auto_enabled` settings
+- Hold states: `controller.{name}.held`
+
+**NEW (Single source of truth)**:
+```python
+# app/auto_control.py - THE ONLY place for automation control
+controls.global_auto = true/false
+controls.ph_auto = true/false
+controls.ec_auto = true/false
+controls.chiller_auto = true/false
+
+should_automate(controller) -> bool  # Returns: global_auto AND controller_auto
+```
+
+**Rule**: Controllers automate ONLY if `should_automate(controller)` returns True.
+
+## Your Mission
+
+### 1. FIND ALL OLD MODE REFERENCES
+Search the ENTIRE codebase for:
+- `MODE_AUTO`, `MODE_MANUAL`, `MODE_MAINTENANCE`
+- `get_system_mode()`, `set_system_mode()`, `get_controller_mode()`, `set_controller_mode()`
+- `ph.auto_enabled`, `ec.auto_enabled`, `chiller.auto_enabled` (old settings keys)
+- `controller.ph.held`, `controller.ec.held` (old hold states)
+- `is_held()`, `set_hold()` (deprecated hold functions)
+- Any "mode" in settings keys or API endpoints
+- Any "hold" related to controller pause/resume
+
+**Critical files to check**:
+- app/unified_mode.py (may have old MODE constants)
+- app/chiller_control.py (NOT YET UPDATED - must use should_automate("chiller"))
+- app/scheduler.py (may reference modes)
+- app/relays_core.py (may check modes)
+- app/sensor_poller.py (may check modes)
+- app/settings.py (DEFAULTS dict may have old keys)
+- app/main.py (old mode endpoints)
+- app/static/index.html (mode buttons)
+- app/static/js/*.js (mode sync logic)
+
+### 2. VERIFY CONTROLLERS
+- ✅ pH: Already uses `should_automate("ph")` - verify no other checks remain
+- ✅ EC: Already uses `should_automate("ec")` - verify no other checks remain
+- ❌ Chiller: NOT YET UPDATED - must replace auto checks with `should_automate("chiller")`
+
+### 3. CHECK API ENDPOINTS
+**New endpoints (should exist)**:
+- GET /api/auto/status
+- POST /api/auto/global
+- POST /api/auto/{controller}
+
+**Old endpoints (must deprecate or remove)**:
+- /api/controller/modes
+- /api/controller/{name}/mode
+- /api/controller/{name}/hold
+- /api/controller/hold/all
+
+### 4. UPDATE FRONTEND
+**Must remove**:
+- Mode buttons: system-mode-auto, system-mode-manual, system-mode-maint
+- systemSetMode() function
+- Mode banner divs
+
+**Must add**:
+- Global auto toggle in header
+- Per-controller auto toggles in pH/EC/chiller tabs
+- Auto status polling from /api/auto/status
+
+### 5. UPDATE DOCUMENTATION
+Update ALL markdown files mentioning modes/auto:
+- README.md
+- SYSTEM_ARCHITECTURE.md
+- docs/OPERATING_MANUAL.md
+- docs/MAINTENANCE_MANUAL.md
+- docs/Ops-Runbook.md
+- QUICK_REFERENCE.md
+- Any other docs
+
+### 6. UPDATE TESTS
+Update test files to use new system:
+- test_ph_buttons.ps1
+- test_ec_dose.py
+- test_relay_system.py
+
+## Deliverables Required
+
+### A. FINDINGS SUMMARY
+```
+Total files checked: X
+Files requiring updates: Y
+Old mode references found: Z
+```
+
+### B. DETAILED FINDINGS BY FILE
+For EACH file with issues:
+```
+File: path/to/file.py
+Issues:
+- Line X: Uses ph.auto_enabled - replace with should_automate("ph")
+- Line Y: Calls set_system_mode() - replace with set_global_auto_enabled()
+
+Recommended fix:
+[exact code snippet]
+
+Priority: HIGH/MEDIUM/LOW
+```
+
+### C. IMPLEMENTATION PLAN
+Prioritized TODO list:
+```
+Phase 1: Critical Backend
+1. [ ] Update chiller_control.py
+2. [ ] Update settings.py DEFAULTS
+...
+
+Phase 2: API Cleanup
+...
+
+Phase 3: Frontend
+...
+
+Phase 4: Documentation
+...
+```
+
+### D. VERIFICATION CHECKLIST
+```
+Backend:
+- [ ] No MODE_AUTO/MANUAL/MAINTENANCE references
+- [ ] No ph.auto_enabled/ec.auto_enabled references
+- [ ] All controllers use should_automate()
+...
+
+API:
+- [ ] New endpoints working
+- [ ] Old endpoints deprecated
+...
+
+Frontend:
+- [ ] Mode buttons removed
+- [ ] Auto toggles added
+...
+
+Documentation:
+- [ ] All docs updated
+...
+```
+
+### E. RISK ASSESSMENT
+Identify:
+- Backward compatibility issues
+- Migration failures
+- Hidden dependencies
+- Security implications
+
+## Instructions
+1. Be thorough - check EVERY file
+2. Be specific - provide exact line numbers
+3. Be practical - prioritize by impact
+4. Check twice - three fragmentation points to eliminate
+
+## Success Criteria
+- ✅ ZERO MODE_AUTO/MANUAL/MAINTENANCE in active code
+- ✅ ZERO old auto_enabled settings in active code
+- ✅ ZERO hold states in active code
+- ✅ ALL controllers use should_automate()
+- ✅ ALL documentation updated
+- ✅ Frontend uses new controls
+
+## Reference Files
+- app/auto_control.py - New system implementation
+- app/ph_control.py - Updated controller example (line ~380)
+- app/ec_control.py - Updated controller example (line ~755)
+- MODE_REFACTOR_STATUS.md - Complete documentation
+
+Start your exhaustive review now. Find every remnant of the old fragmented systems.
