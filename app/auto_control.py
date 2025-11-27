@@ -33,11 +33,13 @@ def _get_db_path() -> Path:
     return Path(__file__).parent.parent / "data" / "rdwc.db"
 
 def _ensure_db():
-    """Initialize controls table"""
+    """Initialize controls table using db_pool for consistency"""
     db_path = _get_db_path()
     db_path.parent.mkdir(exist_ok=True)
     
-    with sqlite3.connect(str(db_path), timeout=10) as conn:
+    try:
+        from app.db_pool import get_conn
+        conn = get_conn()  # Uses autocommit mode
         conn.execute("""
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
@@ -48,8 +50,10 @@ def _ensure_db():
         conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("controls.global_auto", "false"))
         for ctrl in CONTROLLERS:
             conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (f"controls.{ctrl}_auto", "false"))
-        conn.commit()
+        # No commit needed - db_pool uses autocommit mode (isolation_level=None)
         logger.debug("Auto-enable controls initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize auto-enable controls: {e}")
 
 def _get_setting(key: str, default: str = "false") -> str:
     """Get setting value"""
@@ -64,13 +68,13 @@ def _get_setting(key: str, default: str = "false") -> str:
         return default
 
 def _set_setting(key: str, value: str) -> bool:
-    """Set setting value"""
+    """Set setting value using db_pool (autocommit mode)"""
     _ensure_db()
     try:
         from app.db_pool import get_conn
-        conn = get_conn()
+        conn = get_conn()  # Uses autocommit mode
         conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
-        conn.commit()
+        # No commit needed - db_pool uses autocommit mode (isolation_level=None)
         return True
     except Exception as e:
         logger.error(f"Failed to set {key}: {e}")
@@ -159,7 +163,7 @@ def migrate_from_legacy():
         from app.db_pool import get_conn
         from app.settings import get_setting_key
         
-        conn = get_conn()
+        conn = get_conn()  # Uses autocommit mode
         
         # Check if already migrated
         migrated = conn.execute("SELECT value FROM settings WHERE key='controls.migrated'").fetchone()
@@ -181,9 +185,8 @@ def migrate_from_legacy():
                 set_controller_auto_enabled(ctrl, True)
                 logger.info(f"Migrated {old_key}=true → {ctrl}_auto=true")
         
-        # Mark migration complete
+        # Mark migration complete - no commit needed (autocommit mode)
         conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('controls.migrated', 'true')")
-        conn.commit()
         
         logger.info("✅ Auto-enable migration complete")
     except Exception as e:
