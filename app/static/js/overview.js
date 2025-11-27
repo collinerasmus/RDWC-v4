@@ -70,8 +70,8 @@
         else if (softActive) { healthText = 'GUARDED'; healthClass = 'warning'; }
         
         setChip('#ov-ph-health', healthText, healthClass);
-        // Use will_automate for display (combines global + controller auto)
-        const phAuto = ph.will_automate || ph.auto_enabled;
+        // Use will_automate for accurate status (combines global + controller auto)
+        const phAuto = ph.will_automate;
         setChip('#ov-ph-modechip', phAuto ? 'AUTO' : 'MANUAL', phAuto ? 'success' : 'neutral');
         
         const allActive = [...hardKeys.filter(k=>!!guards[k]), ...softKeys.filter(k=>!!guards[k])];
@@ -97,8 +97,8 @@
         else if (softActive) { healthText = 'GUARDED'; healthClass = 'warning'; }
         
         setChip('#ov-ec-health', healthText, healthClass);
-        // Use will_automate for display (combines global + controller auto)
-        const ecAuto = ec.will_automate || ec.auto_enabled;
+        // Use will_automate for accurate status (combines global + controller auto)
+        const ecAuto = ec.will_automate;
         setChip('#ov-ec-modechip', ecAuto ? 'AUTO' : 'MANUAL', ecAuto ? 'success' : 'neutral');
         
         const allActive = [...hardKeys.filter(k=>!!guards[k]), ...softKeys.filter(k=>!!guards[k])];
@@ -114,8 +114,8 @@
       if (controllers.chiller) {
         const chiller = controllers.chiller;
         const tempStr = chiller.current_temp ? ` ${chiller.current_temp.toFixed(1)}°C` : '';
-        // Use will_automate for display (combines global + controller auto)
-        const chillerAuto = chiller.will_automate || chiller.auto_enabled;
+        // Use will_automate for accurate status (combines global + controller auto)
+        const chillerAuto = chiller.will_automate;
         const modeText = chillerAuto ? 'AUTO' : 'MANUAL';
         setChip('#ov-chiller-modechip', modeText + tempStr, chillerAuto ? 'success' : 'neutral');
       }
