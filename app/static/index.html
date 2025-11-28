@@ -1198,7 +1198,9 @@ body{
         <h3 class="card-title" style="margin:0;">Chiller Controller</h3>
         <span id="env-health-indicator" class="ui-status-chip success" title="Chiller health">OK</span>
       </div>
-      <!-- Hold button removed - use global System Auto toggle instead -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button id="chiller-hold-btn" class="btn-chip" onclick="window.chillerToggleHold?window.chillerToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
+      </div>
     </div>
 
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
@@ -1293,7 +1295,9 @@ body{
         <h3 class="card-title" style="margin:0;">Lights Control</h3>
         <span id="lights-health-indicator" class="ui-status-chip neutral" title="Controller health">—</span>
       </div>
-      <!-- Hold button removed - use global System Auto toggle instead -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button id="lights-hold-btn" class="btn-chip" onclick="window.lightsToggleHold?window.lightsToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
+      </div>
     </div>
     <div class="card-body">
       <!-- Readings Section -->
@@ -1363,7 +1367,9 @@ body{
         <h3 class="card-title" style="margin:0;">Circulation Controller</h3>
         <span id="circ-health-indicator" class="ui-status-chip success" title="Circulation health">OK</span>
       </div>
-      <!-- Hold button removed - use global System Auto toggle instead -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button id="circ-hold-btn" class="btn-chip" onclick="window.circToggleHold?window.circToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
+      </div>
     </div>
 
     <div class="card-body">
@@ -1587,7 +1593,9 @@ body{
             <h3 class="card-title" style="margin:0;">pH Control</h3>
             <span id="ph-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
           </div>
-          <!-- Hold button removed - use global System Auto toggle instead -->
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <button id="ph-hold-btn" class="btn-chip" onclick="window.phToggleHold?window.phToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
+          </div>
         </div>
 
         <div class="card-body">
@@ -1858,7 +1866,9 @@ body{
               <h3 class="card-title" style="margin:0;">EC Control</h3>
               <span id="ec-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
             </div>
-            <!-- Hold button removed - use global System Auto toggle instead -->
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <button id="ec-hold-btn" class="btn-chip" onclick="window.ecToggleHold?window.ecToggleHold():alert('Loading...')" title="Pause automation">Hold</button>
+            </div>
           </div>
 
           <div class="card-body">

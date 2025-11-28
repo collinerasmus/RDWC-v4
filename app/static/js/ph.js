@@ -51,17 +51,65 @@
   let recentCollapsed = true;
   let recentHeaderBound = false;
   
-  // DEPRECATED: Legacy hold system removed - use global System Auto toggle instead
-  // All automation gating now uses should_automate("ph") via /api/auto/*
+  // Simplified Hold system - automation always on by default, Hold pauses it
+  let isHeld = false;
   let doseLogCollapsed = localStorage.getItem('ph_dose_log_collapsed') !== 'false'; // default hidden
 
   function el(id){ return document.getElementById(id); }
+
+  async function toggleHold() {
+    try {
+      const resp = await fetch('/api/controller/ph/hold', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({}) // Empty body = toggle
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.ok) {
+        isHeld = data.held;
+        updateHoldButton();
+        updateHealthIndicator();
+      }
+    } catch (e) {
+      console.error('Failed to toggle hold:', e);
+    }
+  }
+  
+  function updateHoldButton() {
+    const btn = el('ph-hold-btn');
+    if (!btn) return;
+    
+    if (isHeld) {
+      btn.classList.add('active', 'warning');
+      btn.textContent = 'Resume';
+      btn.title = 'Resume automation';
+    } else {
+      btn.classList.remove('active', 'warning');
+      btn.textContent = 'Hold';
+      btn.title = 'Pause automation';
+    }
+  }
+  
+  async function syncHoldState() {
+    try {
+      const resp = await fetch('/api/controller/ph/mode', {cache: 'no-store'});
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.ok && data.mode) {
+        isHeld = (data.mode === 'hold');
+        updateHoldButton();
+      }
+    } catch (e) {
+      // Silent fail on sync
+    }
+  }
 
   function updateHealthIndicator() {
     const indicator = el('ph-health-indicator');
     if (!indicator) return;
     
-    // Determine health based on lastStatus
+    // Determine health based on lastStatus and hold state
     if (!lastStatus) {
       indicator.textContent = '—';
       indicator.className = 'ui-status-chip neutral';
@@ -77,6 +125,10 @@
       indicator.textContent = 'BLOCKED';
       indicator.className = 'ui-status-chip error';
       indicator.title = 'Hard safety blocks active: ' + guardList(g).join(', ');
+    } else if (isHeld) {
+      indicator.textContent = 'HELD';
+      indicator.className = 'ui-status-chip warning';
+      indicator.title = 'Automation paused by Hold button';
     } else if (hasSoftBlocks) {
       indicator.textContent = 'WAITING';
       indicator.className = 'ui-status-chip warning';
@@ -916,7 +968,8 @@
   async function initPH(){
     await wire();  // This includes wireRangeControls which sets currentRange
     
-    // Legacy hold state sync removed - use global System Auto toggle
+    // Sync hold state from backend
+    await syncHoldState();
     
     // Initialize dose log state AFTER wire() completes
     setDoseLogCollapsed(doseLogCollapsed);
@@ -925,7 +978,7 @@
     // Register with centralized polling manager (main loop ~6s)
     if(window.pollingManager && !window.__phPollingRegistered){
       window.__phPollingRegistered = true;
-      window.pollingManager.register('ph-status', async ()=>{ await tick(); }, 'main');
+      window.pollingManager.register('ph-status', async ()=>{ await tick(); await syncHoldState(); }, 'main');
     }
     refreshSummary();
     // Ensure header text is set even before first status render
@@ -953,7 +1006,7 @@
   }
   
   // Export functions to window for inline onclick handlers
-  // Legacy window.phToggleHold removed - button no longer exists
+  window.phToggleHold = toggleHold;
   window.phSetDoseLogCollapsed = setDoseLogCollapsed;
   window.phToggleDoseLog = function() {
     setDoseLogCollapsed(!doseLogCollapsed);
