@@ -1,12 +1,14 @@
-I need you to investigate and fix critical issues in the RDWC-v4 repository on branch `copilot/review-auto-enable-system` (commit 91c1e94).
+I need you to implement a simplified control model and polished HMI in the RDWC-v4 repository on branch `copilot/review-auto-enable-system`, now that POST response issues are fixed (commit 92b1cb4). This work replaces per-controller auto/hold with a single System Auto toggle, gates safeties to Auto mode, and applies a dark hydroponic/tech theme. Staged rollout with clear acceptance criteria.
 
-## Critical Issues
+## Objectives
 
-1. **POST endpoints hang** - All `/api/auto/*` POST requests timeout after 3+ seconds
-2. **Old mode UI still visible** - User confirms Auto/Manual/Maintenance buttons still present
-3. **Incomplete refactoring** - Old mode system may still be active
+1. **Single System Auto** – remove per-controller auto/hold complexity
+2. **Auto-only safeties** – manual mode is unrestricted (except hard protections)
+3. **Polished HMI** – dark hydroponic/tech theme, unified controls
+4. **Clean database & code** – remove legacy mode/hold settings and UI
+5. **Clean tests & docs** – update tests, remove obsolete ones, refresh docs
 
-## Issue 1: POST Response Transmission Failure (CRITICAL ROOT CAUSE)
+## Context: POST Response Transmission (RESOLVED)
 
 **Symptom**: POST requests timeout after 2-3 seconds, but database changes ARE applied successfully. HTTP response never sent.
 
@@ -31,7 +33,7 @@ journalctl -u rdwc.service --since '2 minutes ago' | grep POST
 # Result: NOTHING (but GET requests are logged)
 ```
 
-**Fix Attempted (FAILED)**: Commit 34a004f added `Body(...)` annotations but issue persists.
+**Fix**: Commit 92b1cb4 removed body reading in RequestAuditMiddleware; POST now returns in ~84ms.
 
 **Your tasks**:
 1. Add comprehensive logging to POST endpoints (start/middle/end) to prove execution
@@ -50,7 +52,7 @@ curl -X POST http://localhost:8080/api/auto/global \
 # Should return {"ok": true, "global_auto": false} in <200ms
 ```
 
-## Issue 2: Database Contains Conflicting Old + New Settings (CRITICAL)
+## Task A: Clean Conflicting Settings (CRITICAL)
 
 **Problem**: Database has BOTH old mode system AND new auto system, causing state confusion.
 
@@ -75,12 +77,11 @@ ph.auto_enabled|true                      ← OLD scattered setting
    DELETE FROM settings WHERE key LIKE 'controller.%.mode';
    DELETE FROM settings WHERE key LIKE 'controller.%.held';
    ```
-2. Remove old relay mode endpoints: `/api/relays/mode` (if separate from relay control)
-3. Search codebase for reads of old settings and update to use `should_automate()`
-4. Verify `app/chiller_control.py` uses `should_automate("chiller")` not `chiller.auto_enabled`
-5. Remove `get_system_mode()`, `set_system_mode()`, `is_held()`, `set_hold()` functions
+2. Remove legacy mode/hold helpers and reads; update controllers to use `should_automate(controller)` only
+3. Verify `app/chiller_control.py`, `app/ph_control.py`, `app/ec_control.py` use `should_automate()` exclusively
+4. Remove `get_system_mode()`, `set_system_mode()`, `is_held()`, `set_hold()` functions
 
-## Issue 3: Frontend Still Shows Old Mode UI (HIGH)
+## Task B: Frontend – Replace Legacy UI (HIGH)
 
 **Problem**: Frontend at lines 676-679 still has old Auto/Manual/Maintenance buttons, NOT new auto toggles.
 
@@ -104,9 +105,34 @@ ph.auto_enabled|true                      ← OLD scattered setting
    ```
 4. ADD per-controller auto toggles in pH/EC/chiller tabs
 5. ADD JavaScript polling: fetch `/api/auto/status` every 2s and update button states
-6. Wire button clicks to POST `/api/auto/global` and `/api/auto/{controller}`
+6. Wire button clicks to POST `/api/auto/global`
 
-## Issue 4: Verify Complete Refactoring (HIGH)
+## Task C: Gate Safeties to Auto Mode (HIGH)
+
+**Your tasks**:
+1. In `app/relays_core.py`: enforce anti-flap and non-chiller MIN_ON/OFF only when System Auto ON; keep chiller compressor cooldown always-on; continue reason whitelist with `override` allowed for manual.
+2. In `app/dosing.py`, `app/ph_control.py`, `app/ec_control.py`: enforce caps/intervals/stale guards only when System Auto ON; keep always-on safeties (E‑STOP, mixing lock, reservoir>0, hard pH-high ceiling, catastrophic EC-high).
+3. In `app/scheduler.py`: execute edges only when System Auto ON; manual lights ON/OFF still permitted via override reason.
+4. Extend `/api/auto/status` with `controllers.{name}.reason` codes.
+
+## Task D: HMI Dark Tech Theme (HIGH)
+
+**Theme**: Dark base (slate/navy), aqua/teal accents, muted greens; Inter/Roboto typography; unified button/chip styles; responsive cards/tabs; helpful tooltips.
+
+**Your tasks**:
+1. Create `app/static/css/theme.css` and apply consistent variables (colors, spacing, fonts).
+2. Standardize status chips across tabs; unify button styles and iconography.
+3. Ensure Control vs Settings subtabs are visually distinct and consistent.
+4. Validate mobile/low-res usability; ensure high-contrast accessibility.
+
+## Task E: Tests & Housekeeping (MEDIUM)
+
+**Your tasks**:
+1. Inventory `tests/`; remove obsolete/brittle tests tied to legacy mode/hold.
+2. Add tests for System Auto semantics: manual bypass vs auto guards, POST middleware behavior, controller endpoints.
+3. Run linters/formatters; remove unused assets/scripts; update `README.md`, `docs/HMI_SETUP_GUIDE.md`, `docs/OPERATING_MANUAL.md`.
+
+## Task F: Verify Complete Refactoring (HIGH)
 
 **Your tasks**:
 1. Search entire codebase for old mode/hold system references:
@@ -124,19 +150,19 @@ ph.auto_enabled|true                      ← OLD scattered setting
 
 ## Deliverables
 
-1. **Root cause of POST response failure** with exact fix (logging, async, middleware)
-2. **Clean database** - all old settings removed, only `controls.*` remain
-3. **Updated frontend** - old mode buttons removed, new auto toggles added with polling
-4. **Complete refactoring** - all controllers use `should_automate()`, zero old references
-5. **Working test cases** - POST endpoints respond in <200ms with proper JSON
+1. **Clean database** - only `controls.global_auto` remains for automation control
+2. **Updated frontend** - single System Auto toggle, polished dark tech theme
+3. **Auto-only safeties** - manual actions unrestricted (always-on protections remain)
+4. **Complete refactoring** - controllers use `should_automate()`, zero legacy references
+5. **Working test cases** - POST endpoints respond in <200ms; manual vs auto behavior validated
 
 ## Files to Focus On (Priority Order)
 
 **CRITICAL (do these first)**:
-1. `app/main.py` lines 3162-3220 - Add logging to POST endpoints, test async conversion
-2. `data/rdwc.db` - Clean old settings (SQL DELETE statements)
-3. `app/static/index.html` lines 676-679 - Remove old mode buttons, add auto toggles
-4. `app/static/index.html` lines 720-760 - Remove systemSetMode() and mode sync
+1. `data/rdwc.db` - Clean old settings (SQL DELETE statements)
+2. `app/static/index.html` lines 676-679 - Remove old mode buttons, add auto toggle
+3. `app/static/index.html` lines 720-760 - Remove systemSetMode() and mode sync
+4. `app/relays_core.py`, `app/dosing.py`, `app/ph_control.py`, `app/ec_control.py`, `app/scheduler.py` - Gate safeties to Auto-only as specified
 
 **HIGH (do after critical)**:
 5. `app/chiller_control.py` - Verify uses `should_automate("chiller")`
@@ -153,12 +179,12 @@ ph.auto_enabled|true                      ← OLD scattered setting
 
 ## Success Criteria
 
-- ✅ POST /api/auto/* respond in <200ms with proper JSON (no timeout)
-- ✅ Database contains ONLY `controls.*` auto settings (old settings deleted)
-- ✅ UI shows ONLY new auto toggles in header + per-controller (old mode buttons removed)
-- ✅ All controllers use ONLY `should_automate()` (no scattered setting reads)
-- ✅ Zero references to old mode/hold system in active code
-- ✅ Chiller auto state consistent between frontend and backend
+- ✅ POST /api/auto/* respond in <200ms; GET status reflects changes promptly
+- ✅ Database contains ONLY `controls.global_auto` (legacy keys removed)
+- ✅ UI shows single System Auto toggle; polished dark tech theme across HMI
+- ✅ Manual actions work immediately; Auto-only safeties enforced only when Auto ON
+- ✅ Controllers use ONLY `should_automate()`; zero legacy references remain
+- ✅ Tests pass for new semantics; obsolete tests removed
 
 ## Work Order
 
