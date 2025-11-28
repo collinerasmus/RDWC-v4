@@ -3171,7 +3171,7 @@ def api_controller_mode_get(name: str):
     }
 
 @app.post("/api/controller/{name}/mode")
-def api_controller_mode_set(name: str, body: dict):
+def api_controller_mode_set(name: str, body: dict = Body(...)):
     """DEPRECATED: Set controller mode.
     
     Use POST /api/auto/{controller} instead for the new auto-enable system.
@@ -3211,7 +3211,7 @@ def api_auto_status():
     return get_auto_status()
 
 @app.post("/api/auto/global")
-def api_auto_global_set(body: dict):
+def api_auto_global_set(body: dict = Body(...)):
     """Set global automation master switch
     
     Body: {"enabled": true/false}
@@ -3231,7 +3231,7 @@ def api_auto_global_set(body: dict):
     }
 
 @app.post("/api/auto/{controller}")
-def api_auto_controller_set(controller: str, body: dict):
+def api_auto_controller_set(controller: str, body: dict = Body(...)):
     """Set controller-specific auto-enable
     
     Body: {"enabled": true/false}
