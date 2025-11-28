@@ -339,44 +339,83 @@ def _actuate_mix(grow_ml: float, micro_ml: float, bloom_ml: float) -> Tuple[str,
 
 # --- Guards ------------------------------------------------------------------
 def _check_guards() -> Tuple[bool, Optional[str]]:
-    """Return (ok, reason). If not ok, reason is the blocking guard."""
-    # E-STOP (check settings for emergency stop)
+    """Return (ok, reason). If not ok, reason is the blocking guard.
+    
+    ALWAYS-ON guards (both Auto and Manual):
+        - E-STOP
+        - Reservoir empty
+        - Mix lock (concurrent dosing)
+        - Temperature range (16-26°C) - protects plants
+        - pH range (5.5-6.5) - protects nutrient uptake
+    
+    AUTO-ONLY guards (only when global_auto is enabled):
+        - Sensor stale (5min)
+    """
+    # Check if we're in auto mode
+    is_auto_mode = False
+    try:
+        from app.auto_control import is_global_auto_enabled
+        is_auto_mode = is_global_auto_enabled()
+    except Exception:
+        is_auto_mode = True  # Fail-safe: assume auto mode if can't check
+    
+    # === ALWAYS-ON GUARDS ===
+    
+    # E-STOP (always enforced)
     if _b("safety.estop", False):
         return (False, "estop")
     
-    # Reservoir
+    # Reservoir (always enforced)
     res_l = _f("general.reservoir_liters", 25.0)
     if res_l <= 0:
         return (False, "reservoir")
     
-    # Stale EC sensor
-    ec_val, ec_ts = _get_latest_ec()
-    if ec_val is None or ec_ts is None:
-        return (False, "sensor_stale")
-    now_ts = int(time.time())
-    if (now_ts - ec_ts) > 300:  # 5 min stale
-        return (False, "sensor_stale")
-    
-    # Dose lock (if pH or EC is mid-dose)
+    # Dose lock (always enforced - prevent concurrent dosing)
     if _dose_lock.locked():
         return (False, "mix_lock")
     
-    # Temperature range gate (16-26°C as specified)
+    # Temperature range gate (16-26°C) - always enforced (plant safety)
     temp_val, temp_ts = _get_latest_temp()
     if temp_val is not None:
         if temp_val < 16.0 or temp_val > 26.0:
             return (False, f"temp_range ({temp_val:.1f}°C)")
     
-    # pH range gate (5.5-6.5 as specified)
+    # pH range gate (5.5-6.5) - always enforced (nutrient uptake safety)
     ph_val, ph_ts = _get_latest_ph()
     if ph_val is not None:
         if ph_val < 5.5 or ph_val > 6.5:
             return (False, f"ph_range ({ph_val:.2f})")
     
+    # === AUTO-ONLY GUARDS ===
+    if is_auto_mode:
+        # Stale EC sensor (only in auto mode)
+        ec_val, ec_ts = _get_latest_ec()
+        if ec_val is None or ec_ts is None:
+            return (False, "sensor_stale")
+        now_ts = int(time.time())
+        if (now_ts - ec_ts) > 300:  # 5 min stale
+            return (False, "sensor_stale")
+    
     return (True, None)
 
 def _check_interval_guard(now_dt: datetime) -> Tuple[bool, Optional[str]]:
-    """Check min interval since last dose. Returns (ok, reason). Default 15min for 2× HRT."""
+    """Check min interval since last dose. Returns (ok, reason). Default 15min for 2× HRT.
+    
+    AUTO-ONLY: This guard is only enforced when global_auto is enabled.
+    In manual mode, operators can dose freely without interval restrictions.
+    """
+    # Check if we're in auto mode
+    is_auto_mode = False
+    try:
+        from app.auto_control import is_global_auto_enabled
+        is_auto_mode = is_global_auto_enabled()
+    except Exception:
+        is_auto_mode = True  # Fail-safe: assume auto mode if can't check
+    
+    # Only enforce in auto mode
+    if not is_auto_mode:
+        return (True, None)
+    
     min_int = _i("dosing.ec_min_interval_s", 900)
     last_ts = _last_ok_ts()
     if last_ts:
@@ -386,7 +425,23 @@ def _check_interval_guard(now_dt: datetime) -> Tuple[bool, Optional[str]]:
     return (True, None)
 
 def _check_daily_cap(now_dt: datetime) -> Tuple[bool, Optional[str]]:
-    """Check daily cap. Returns (ok, reason)."""
+    """Check daily cap. Returns (ok, reason).
+    
+    AUTO-ONLY: This guard is only enforced when global_auto is enabled.
+    In manual mode, operators can dose freely without daily cap restrictions.
+    """
+    # Check if we're in auto mode
+    is_auto_mode = False
+    try:
+        from app.auto_control import is_global_auto_enabled
+        is_auto_mode = is_global_auto_enabled()
+    except Exception:
+        is_auto_mode = True  # Fail-safe: assume auto mode if can't check
+    
+    # Only enforce in auto mode
+    if not is_auto_mode:
+        return (True, None)
+    
     cap = _f("dosing.ec_max_ml_day", 0)
     if cap <= 0:
         return (True, None)

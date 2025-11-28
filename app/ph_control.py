@@ -508,8 +508,28 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
         "daily_cap": g["daily_cap"],
         "reservoir": g["reservoir"],
     }
-    blocked_reasons = [k for k,v in guard_map.items() if v]
-    # Force bypass (testing only) for interval/daily_cap guards
+    
+    # Check if we're in auto mode - some guards only apply in auto mode
+    is_auto_mode = False
+    try:
+        from app.auto_control import is_global_auto_enabled
+        is_auto_mode = is_global_auto_enabled()
+    except Exception:
+        is_auto_mode = True  # Fail-safe: assume auto mode if can't check
+    
+    # ALWAYS-ON guards: estop, safe_off, reservoir (hard safety limits)
+    # AUTO-ONLY guards: interval, daily_cap, sensor_stale (operational limits)
+    always_on_guards = {"estop", "safe_off", "reservoir"}
+    auto_only_guards = {"interval", "daily_cap", "sensor_stale"}
+    
+    if is_auto_mode:
+        # All guards active in auto mode
+        blocked_reasons = [k for k,v in guard_map.items() if v]
+    else:
+        # Manual mode: only always-on guards enforced
+        blocked_reasons = [k for k,v in guard_map.items() if v and k in always_on_guards]
+    
+    # Force bypass (testing only) for interval/daily_cap guards - only applies in auto mode
     try:
         from app.settings import get_setting_key
         allow_force = (get_setting_key("safety.allow_force", "false") or "false").lower() == "true"
@@ -519,8 +539,8 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
         allow_force = False
         maint_override = False
         allow_stale_on_override = False
-    if maint_override or (force_req and allow_force):
-        # Under overrides, allow bypassing interval and daily caps.
+    if is_auto_mode and (maint_override or (force_req and allow_force)):
+        # Under overrides in auto mode, allow bypassing interval and daily caps.
         # Stale-sensor bypass is only permitted when BOTH maintenance_override is true
         # AND safety.allow_stale_on_override is explicitly enabled (test-only).
         bypass = {"interval", "daily_cap"}

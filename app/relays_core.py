@@ -406,20 +406,32 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False, act
         return {"changed": False, "state": current_state, "reason": "idempotent", "cooldown_remaining": 0}
 
     if not force:
-        # Anti-flap
-        if name in _antiflap_until and now < _antiflap_until[name]:
+        # Check if we're in auto mode - safeties gated to auto mode only
+        # Exception: chiller_power cooldown is ALWAYS enforced (compressor protection)
+        is_auto_mode = False
+        try:
+            from app.auto_control import is_global_auto_enabled
+            is_auto_mode = is_global_auto_enabled()
+        except Exception:
+            is_auto_mode = True  # Fail-safe: assume auto mode if can't check
+        
+        # Anti-flap: only in auto mode (manual = unrestricted)
+        if is_auto_mode and name in _antiflap_until and now < _antiflap_until[name]:
             remaining = int(_antiflap_until[name] - now)
             return {"changed": False, "state": current_state, "reason": "antiflap", "cooldown_remaining": remaining}
-        # Cooldowns
+        
+        # Cooldowns: chiller_power always enforced, others only in auto mode
         elapsed = _elapsed(name)
         if current_state:  # ON -> check MIN_ON
             min_on = _get_min_time(name, MIN_ON)
-            if elapsed < min_on:
+            # Chiller compressor MIN_ON always enforced, others only in auto mode
+            if (name == "chiller_power" or is_auto_mode) and elapsed < min_on:
                 remaining = int(min_on - elapsed)
                 return {"changed": False, "state": current_state, "reason": "cooldown", "cooldown_remaining": remaining}
         else:  # OFF -> check MIN_OFF
             min_off = _get_min_time(name, MIN_OFF)
-            if elapsed < min_off:
+            # Chiller compressor MIN_OFF always enforced, others only in auto mode
+            if (name == "chiller_power" or is_auto_mode) and elapsed < min_off:
                 remaining = int(min_off - elapsed)
                 return {"changed": False, "state": current_state, "reason": "cooldown", "cooldown_remaining": remaining}
 
