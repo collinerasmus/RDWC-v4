@@ -116,11 +116,8 @@
       // Chiller Controller
       if (controllers.chiller) {
         const chiller = controllers.chiller;
-        const tempStr = chiller.current_temp ? ` ${chiller.current_temp.toFixed(1)}°C` : '';
         // Use will_automate for accurate status (combines global + controller auto)
         const chillerAuto = chiller.will_automate;
-        const modeText = chillerAuto ? 'AUTO' : 'OFF';
-        setChip('#ov-chiller-modechip', modeText + tempStr, chillerAuto ? 'success' : 'neutral');
         // Update health/status chips
         setChip('#ov-chiller-health', chiller.is_on ? 'RUNNING' : 'IDLE', chiller.is_on ? 'success' : 'neutral');
         setChip('#ov-chiller-status', chillerAuto ? 'AUTO' : 'MANUAL', chillerAuto ? 'success' : 'neutral');
