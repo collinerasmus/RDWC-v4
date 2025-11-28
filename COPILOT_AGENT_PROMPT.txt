@@ -1,0 +1,171 @@
+I need you to investigate and fix critical issues in the RDWC-v4 repository on branch `copilot/review-auto-enable-system` (commit 91c1e94).
+
+## Critical Issues
+
+1. **POST endpoints hang** - All `/api/auto/*` POST requests timeout after 3+ seconds
+2. **Old mode UI still visible** - User confirms Auto/Manual/Maintenance buttons still present
+3. **Incomplete refactoring** - Old mode system may still be active
+
+## Issue 1: POST Response Transmission Failure (CRITICAL ROOT CAUSE)
+
+**Symptom**: POST requests timeout after 2-3 seconds, but database changes ARE applied successfully. HTTP response never sent.
+
+**CRITICAL DISCOVERY**:
+- POST endpoints DO execute (proven by database state changes after timeout)
+- Database writes complete successfully
+- HTTP response is NEVER sent back to client
+- POST requests do NOT appear in uvicorn logs (GET requests do)
+
+**Evidence**:
+```bash
+# POST times out
+curl -X POST http://localhost:8080/api/auto/global -d '{"enabled": false}' --max-time 2
+# Result: timeout after 2s, NO response
+
+# BUT database WAS changed!
+sqlite3 data/rdwc.db "SELECT value FROM settings WHERE key='controls.global_auto';"
+# Result: false  ← CHANGE WAS APPLIED!
+
+# POST requests not logged
+journalctl -u rdwc.service --since '2 minutes ago' | grep POST
+# Result: NOTHING (but GET requests are logged)
+```
+
+**Fix Attempted (FAILED)**: Commit 34a004f added `Body(...)` annotations but issue persists.
+
+**Your tasks**:
+1. Add comprehensive logging to POST endpoints (start/middle/end) to prove execution
+2. Investigate why responses aren't transmitted despite successful execution
+3. Remove `get_auto_status()` from return statement temporarily and test
+4. Convert endpoints to async: `async def api_auto_global_set(...)`
+5. Check FastAPI middleware stack for response blocking
+6. Investigate uvicorn `timeout-keep-alive=5` interaction
+7. Test if response JSON serialization fails silently
+
+**Test after fix**:
+```bash
+curl -X POST http://localhost:8080/api/auto/global \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": false}'
+# Should return {"ok": true, "global_auto": false} in <200ms
+```
+
+## Issue 2: Database Contains Conflicting Old + New Settings (CRITICAL)
+
+**Problem**: Database has BOTH old mode system AND new auto system, causing state confusion.
+
+**Evidence from database**:
+```
+chiller.auto_enabled|1                    ← OLD scattered setting
+controller.chiller.mode|auto              ← OLD relay mode system
+controls.chiller_auto|true                ← NEW unified setting
+controls.global_auto|false                ← NEW global switch
+ec.auto_enabled|true                      ← OLD scattered setting
+ph.auto_enabled|true                      ← OLD scattered setting
+```
+
+**API shows**: `{"mode": "auto"}` from old relay system AND `{"global_auto": false}` from new system
+
+**User observation**: "Chiller appears in auto on frontend but backend shows conflicting state"
+
+**Your tasks**:
+1. Remove old scattered settings from database:
+   ```sql
+   DELETE FROM settings WHERE key IN ('ph.auto_enabled', 'ec.auto_enabled', 'chiller.auto_enabled');
+   DELETE FROM settings WHERE key LIKE 'controller.%.mode';
+   DELETE FROM settings WHERE key LIKE 'controller.%.held';
+   ```
+2. Remove old relay mode endpoints: `/api/relays/mode` (if separate from relay control)
+3. Search codebase for reads of old settings and update to use `should_automate()`
+4. Verify `app/chiller_control.py` uses `should_automate("chiller")` not `chiller.auto_enabled`
+5. Remove `get_system_mode()`, `set_system_mode()`, `is_held()`, `set_hold()` functions
+
+## Issue 3: Frontend Still Shows Old Mode UI (HIGH)
+
+**Problem**: Frontend at lines 676-679 still has old Auto/Manual/Maintenance buttons, NOT new auto toggles.
+
+**CONFIRMED in code**:
+```html
+<!-- Lines 676-679 in app/static/index.html -->
+<button id="system-mode-auto" class="btn-chip">Auto</button>
+<button id="system-mode-manual" class="btn-chip">Manual</button>
+<button id="system-mode-maint" class="btn-chip">Maintenance</button>
+<!-- OLD systemSetMode() function still wired to these buttons -->
+```
+
+**Your tasks**:
+1. DELETE old mode buttons from header (lines 676-679)
+2. DELETE `systemSetMode()` function and mode sync logic
+3. ADD global auto toggle in header:
+   ```html
+   <button id="global-auto-btn" class="btn-chip">
+     🌐 Auto: <span id="global-auto-state">OFF</span>
+   </button>
+   ```
+4. ADD per-controller auto toggles in pH/EC/chiller tabs
+5. ADD JavaScript polling: fetch `/api/auto/status` every 2s and update button states
+6. Wire button clicks to POST `/api/auto/global` and `/api/auto/{controller}`
+
+## Issue 4: Verify Complete Refactoring (HIGH)
+
+**Your tasks**:
+1. Search entire codebase for old mode/hold system references:
+   - `MODE_AUTO`, `MODE_MANUAL`, `MODE_MAINTENANCE` constants
+   - `get_system_mode()`, `set_system_mode()` function calls
+   - `ph.auto_enabled`, `ec.auto_enabled`, `chiller.auto_enabled` reads (scattered settings)
+   - `controller.*.held`, `controller.*.mode` reads
+   - `is_held()`, `set_hold()` function calls
+2. Update ALL controllers to ONLY use `should_automate(controller_name)`
+3. Verify `app/settings.py` DEFAULTS has ONLY new keys:
+   - Keep: `controls.global_auto`, `controls.ph_auto`, `controls.ec_auto`, `controls.chiller_auto`
+   - Remove: `ph.auto_enabled`, `ec.auto_enabled`, `chiller.auto_enabled`
+4. Check `app/scheduler.py`, `app/relays_core.py` for old mode checks
+5. Verify `app/chiller_control.py` uses `should_automate("chiller")` not old settings
+
+## Deliverables
+
+1. **Root cause of POST response failure** with exact fix (logging, async, middleware)
+2. **Clean database** - all old settings removed, only `controls.*` remain
+3. **Updated frontend** - old mode buttons removed, new auto toggles added with polling
+4. **Complete refactoring** - all controllers use `should_automate()`, zero old references
+5. **Working test cases** - POST endpoints respond in <200ms with proper JSON
+
+## Files to Focus On (Priority Order)
+
+**CRITICAL (do these first)**:
+1. `app/main.py` lines 3162-3220 - Add logging to POST endpoints, test async conversion
+2. `data/rdwc.db` - Clean old settings (SQL DELETE statements)
+3. `app/static/index.html` lines 676-679 - Remove old mode buttons, add auto toggles
+4. `app/static/index.html` lines 720-760 - Remove systemSetMode() and mode sync
+
+**HIGH (do after critical)**:
+5. `app/chiller_control.py` - Verify uses `should_automate("chiller")`
+6. `app/ph_control.py` - Remove any `ph.auto_enabled` reads
+7. `app/ec_control.py` - Remove any `ec.auto_enabled` reads
+8. `app/unified_mode.py` - Remove MODE constants if present
+9. `app/settings.py` - Clean DEFAULTS dict
+
+**VERIFY (sweep entire codebase)**:
+10. Search for: `get_system_mode`, `set_system_mode`, `is_held`, `set_hold`
+11. Search for: `ph.auto_enabled`, `ec.auto_enabled`, `chiller.auto_enabled`
+12. Search for: `controller.*.mode`, `controller.*.held`
+13. Search for: `MODE_AUTO`, `MODE_MANUAL`, `MODE_MAINTENANCE`
+
+## Success Criteria
+
+- ✅ POST /api/auto/* respond in <200ms with proper JSON (no timeout)
+- ✅ Database contains ONLY `controls.*` auto settings (old settings deleted)
+- ✅ UI shows ONLY new auto toggles in header + per-controller (old mode buttons removed)
+- ✅ All controllers use ONLY `should_automate()` (no scattered setting reads)
+- ✅ Zero references to old mode/hold system in active code
+- ✅ Chiller auto state consistent between frontend and backend
+
+## Work Order
+
+1. **First**: Fix POST response issue (add logging, test async, fix transmission)
+2. **Second**: Clean database (remove old settings via SQL)
+3. **Third**: Update frontend (remove old UI, add new toggles with polling)
+4. **Fourth**: Complete refactoring (update all controller code)
+5. **Fifth**: Verification sweep (search and destroy old references)
+
+Start with POST response issue - it blocks all testing. Read COPILOT_URGENT_REVIEW.md for full technical details.

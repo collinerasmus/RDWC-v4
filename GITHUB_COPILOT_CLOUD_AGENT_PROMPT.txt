@@ -1,0 +1,134 @@
+I need you to fix critical issues in the RDWC-v4 repository on branch `copilot/review-auto-enable-system`.
+
+## Critical Problems Discovered
+
+1. **POST endpoints execute but never send HTTP response** (commit 34a004f Body(...) fix didn't work)
+2. **Database has conflicting old + new settings** causing state confusion
+3. **Frontend still shows old mode buttons** instead of new auto toggles
+4. **Incomplete refactoring** - old mode system still operational alongside new system
+
+## Issue 1: POST Response Transmission Failure (CRITICAL)
+
+**Discovery**: POST endpoints DO execute successfully (proven by database changes) but HTTP responses are NEVER sent back to client.
+
+**Evidence**:
+```bash
+# POST times out but database IS changed
+curl -X POST http://localhost:8080/api/auto/global -d '{"enabled": false}' --max-time 2
+# Timeout after 2s, NO response
+
+sqlite3 data/rdwc.db "SELECT value FROM settings WHERE key='controls.global_auto';"
+# Result: false ← CHANGE WAS APPLIED!
+
+# POST requests NOT logged (GET requests are)
+journalctl -u rdwc.service --since '2 minutes ago' | grep POST
+# Result: NOTHING
+```
+
+**Tasks**:
+1. Add comprehensive logging to POST endpoints in `app/main.py` lines 3162-3220:
+   ```python
+   logger.info(f"[AUTO] POST /api/auto/global START: {body}")
+   logger.info(f"[AUTO] Calling set_global_auto_enabled({enabled})")
+   logger.info(f"[AUTO] Result: {ok}")
+   logger.info(f"[AUTO] Returning response: {response}")
+   ```
+2. Remove `get_auto_status()` call from return statement temporarily and test
+3. Convert endpoints to async: `async def api_auto_global_set(...)`
+4. Check FastAPI middleware for response blocking
+5. Investigate uvicorn `timeout-keep-alive=5` interaction
+6. Deploy and verify POST returns in <200ms with proper JSON
+
+## Issue 2: Database Conflicting State (CRITICAL)
+
+**Problem**: Database contains BOTH old and new settings systems.
+
+**Current state**:
+```
+chiller.auto_enabled|1                    ← OLD scattered
+controller.chiller.mode|auto              ← OLD relay mode
+controls.chiller_auto|true                ← NEW unified
+controls.global_auto|false                ← NEW global
+ec.auto_enabled|true                      ← OLD scattered
+ph.auto_enabled|true                      ← OLD scattered
+```
+
+**Tasks**:
+1. Remove ALL old settings from database:
+   ```sql
+   DELETE FROM settings WHERE key IN ('ph.auto_enabled', 'ec.auto_enabled', 'chiller.auto_enabled');
+   DELETE FROM settings WHERE key LIKE 'controller.%.mode';
+   DELETE FROM settings WHERE key LIKE 'controller.%.held';
+   ```
+2. Verify only `controls.*` auto settings remain
+3. Remove code that reads old scattered settings
+4. Remove old relay mode system functions: `get_system_mode()`, `set_system_mode()`
+5. Remove hold system functions: `is_held()`, `set_hold()` if present
+
+## Issue 3: Frontend Shows Old UI (HIGH)
+
+**Problem**: `app/static/index.html` lines 676-679 still has old mode buttons, NOT new auto toggles.
+
+**Current (WRONG)**:
+```html
+<button id="system-mode-auto">Auto</button>
+<button id="system-mode-manual">Manual</button>
+<button id="system-mode-maint">Maintenance</button>
+```
+
+**Tasks**:
+1. DELETE old mode buttons (lines 676-679)
+2. DELETE `systemSetMode()` function (lines ~720-760)
+3. ADD global auto toggle in header:
+   ```html
+   <button id="global-auto-btn" class="btn-chip" onclick="toggleGlobalAuto()">
+     🌐 Auto: <span id="global-auto-state">OFF</span>
+   </button>
+   ```
+4. ADD per-controller toggles in pH/EC/chiller tabs
+5. ADD JavaScript to fetch `/api/auto/status` every 2 seconds and update UI
+6. Wire button clicks to POST `/api/auto/global` and `/api/auto/{controller}`
+
+## Issue 4: Incomplete Refactoring (HIGH)
+
+**Tasks**:
+1. Search entire codebase for old references and remove/update:
+   - `MODE_AUTO`, `MODE_MANUAL`, `MODE_MAINTENANCE`
+   - `get_system_mode()`, `set_system_mode()` calls
+   - `ph.auto_enabled`, `ec.auto_enabled`, `chiller.auto_enabled` reads
+   - `controller.*.mode`, `controller.*.held` reads
+   - `is_held()`, `set_hold()` calls
+2. Update ALL controllers to use ONLY `should_automate(controller_name)`:
+   - `app/chiller_control.py`
+   - `app/ph_control.py`
+   - `app/ec_control.py`
+3. Clean `app/settings.py` DEFAULTS - keep only `controls.*` keys
+4. Verify `app/scheduler.py`, `app/relays_core.py` don't check old mode
+
+## Success Criteria
+
+After your changes, verify:
+- ✅ POST /api/auto/* respond in <200ms with JSON (no timeout)
+- ✅ Database has ONLY `controls.global_auto`, `controls.ph_auto`, `controls.ec_auto`, `controls.chiller_auto`
+- ✅ Frontend shows ONLY new auto toggle buttons (old mode buttons removed)
+- ✅ All controllers use ONLY `should_automate()` - zero old setting reads
+- ✅ Zero references to MODE_AUTO/MANUAL/MAINTENANCE, get_system_mode, is_held in active code
+- ✅ User can toggle auto via UI and see immediate response
+
+## Work Order
+
+1. **FIRST**: Fix POST response transmission (add logging, test async, fix middleware)
+2. **SECOND**: Clean database (SQL DELETE old settings)
+3. **THIRD**: Update frontend (remove old UI, add new toggles + polling)
+4. **FOURTH**: Complete refactoring (update all controller code to use should_automate)
+5. **FIFTH**: Verification sweep (search and remove all old references)
+
+Start with POST issue - it blocks all testing. After each fix, test with:
+```bash
+curl -X POST http://192.168.88.49:8080/api/auto/global \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": false}' -w "\nTime: %{time_total}s\n"
+# Should return: {"ok": true, "global_auto": false} in <0.2s
+```
+
+See COPILOT_URGENT_REVIEW.md for full technical details.

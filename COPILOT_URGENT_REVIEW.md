@@ -17,38 +17,45 @@ The unified auto-enable system on branch `copilot/review-auto-enable-system` (co
 
 ## Critical Issues Found
 
-### Issue 1: POST Endpoints Hang
+### Issue 1: POST Endpoints Execute But Don't Send Response (CRITICAL ROOT CAUSE)
+
+**CRITICAL DISCOVERY**: POST endpoints DO execute successfully (proven by database changes) but HTTP responses are NEVER sent back to client.
 
 **Symptoms**:
 ```bash
-# This hangs for 3+ seconds then times out:
+# POST times out after 2-3 seconds
 curl -X POST http://localhost:8080/api/auto/global \
   -H "Content-Type: application/json" \
   -d '{"enabled": false}'
+# Result: timeout, NO response
 
-# Timeout error:
-# ReadTimeoutError: HTTPConnectionPool read timed out
+# BUT database WAS changed!
+sqlite3 data/rdwc.db "SELECT value FROM settings WHERE key='controls.global_auto';"
+# Result: false  ← CHANGE WAS APPLIED!
 ```
 
 **Evidence**:
 - GET `/api/auto/status` works fine (returns in <100ms)
-- GET `/api/ph/status` works fine  
-- POST `/api/auto/global` hangs (times out after 3s)
-- POST `/api/auto/{controller}` hangs
-- POST `/api/settings/import` also hangs (suggests system-wide POST write issue)
+- POST `/api/auto/global` times out BUT database changes are applied
+- POST requests do NOT appear in uvicorn logs (GET requests do appear)
+- Direct function call works: `set_global_auto_enabled(False)` returns True
+- Database writes work fine directly (tested with sqlite3 CLI)
 
-**BUT direct function call works**:
-```python
-# This works fine when called directly:
-from app.auto_control import set_global_auto_enabled
-result = set_global_auto_enabled(False)  # Returns True, changes setting
-```
+**Fix Attempted (FAILED)**:
+- Commit 34a004f added `Body(...)` annotations to POST endpoints
+- Issue persists after fix
 
 **Analysis**:
-- Database writes work fine directly (tested with sqlite3 CLI)
-- Auto_control functions work when called from Python CLI
-- Issue is specifically in FastAPI POST endpoint layer
-- Likely causes:
+- Function execution completes successfully (proven by database state)
+- Database writes complete successfully
+- Issue is NOT in request reception or function execution
+- Issue is in HTTP response transmission layer
+- Possible causes:
+  1. Response serialization fails silently
+  2. `get_auto_status()` call in return statement blocks
+  3. FastAPI middleware blocking POST responses
+  4. uvicorn `timeout-keep-alive=5` canceling response transmission
+  5. Connection pool not releasing for response after write
   - Request body parsing blocking
   - Middleware/dependency injection issue
   - Thread/async handling problem with db_pool
@@ -95,33 +102,97 @@ result = set_global_auto_enabled(False)  # Returns True, changes setting
 - `app/static/js/ph.js` (pH tab controls)
 - `app/static/js/ec.js` (EC tab controls)
 
-### Issue 3: Old Mode System May Still Be Active
+### Issue 3: Old Mode System IS Still Active (CONFIRMED)
 
-**Concern**: If UI shows old mode buttons, backend may still be checking old mode system
+**CONFIRMED**: Database contains BOTH old and new settings systems, causing conflicting state.
+
+**Database Evidence**:
+```
+chiller.auto_enabled|1                    ← OLD scattered setting
+controller.chiller.mode|auto              ← OLD relay mode system  
+controls.chiller_auto|true                ← NEW unified setting
+controls.global_auto|false                ← NEW global switch
+ec.auto_enabled|true                      ← OLD scattered setting
+ph.auto_enabled|true                      ← OLD scattered setting
+```
+
+**API Status Shows**:
+```json
+{
+  "global_auto": false,
+  "controllers": {
+    "chiller": {"auto_enabled": true, "will_automate": false}
+  }
+}
+```
+(Correctly calculates will_automate=false due to global_auto=false)
+
+**BUT Relay System Reports**:
+```json
+{"mode": "auto", "estop": false}
+```
+
+**Frontend Shows**:
+- OLD mode buttons still present (lines 676-679): Auto, Manual, Maintenance
+- OLD systemSetMode() function still active
+- NO new auto toggle buttons in header
+
+**Problems**:
+1. Old relay mode system (`/api/relays/mode`) operational
+2. Old scattered settings not migrated/removed
+3. Controllers may check BOTH old and new settings
+4. UI only shows old controls, not new unified controls
+5. Chiller appears "in auto" on frontend but backend shows conflicting state
 
 **Files to verify**:
 - `app/unified_mode.py` - Check if MODE_AUTO/MANUAL/MAINTENANCE still used
 - `app/scheduler.py` - May check system mode for lights
 - `app/relays_core.py` - May check mode before relay operations
-- `app/sensor_poller.py` - May check mode
+- `app/chiller_control.py` - May use old `chiller.auto_enabled` instead of `should_automate("chiller")`
+- `app/ph_control.py`, `app/ec_control.py` - May use scattered settings
 - All controller files for scattered auto_enabled checks
 
 ## Required Deep Scan Tasks
 
-### Task 1: Fix POST Endpoint Blocking
+### Task 1: Fix POST Response Transmission Failure
 
 **Priority**: CRITICAL
 
 **Investigate**:
-1. Why does `get_conn()` block only in POST context but not in GET?
-2. Is there a FastAPI body parsing issue with dict type?
-3. Is db_pool.get_conn() thread-safe for POST requests?
+1. Add logging to POST endpoints to prove they execute (logger.info at start/middle/end)
+2. Why do POST requests not appear in uvicorn logs?
+3. Does `get_auto_status()` call in return statement block response?
+4. Test async endpoint version
+5. Check FastAPI middleware configuration
+6. Investigate uvicorn `timeout-keep-alive=5` canceling response
+7. Check if response JSON serialization fails silently
 4. Are there any locks/mutexes that only affect writes?
 5. Check if uvicorn worker configuration causes issues
 
-**Test**:
+**Proposed Fixes**:
+1. Add comprehensive endpoint logging
+2. Remove `get_auto_status()` from return statement temporarily
+3. Convert to async endpoints
+4. Increase uvicorn timeout-keep-alive
+5. Check middleware stack
+
+**Test After Fix**:
 ```python
-# Add debug logging to app/auto_control.py _set_setting():
+# Add debug logging to app/main.py POST endpoints:
+@app.post("/api/auto/global")
+def api_auto_global_set(body: dict = Body(...)):
+    logger.info(f"[AUTO] POST /api/auto/global START: {body}")
+    enabled = body.get("enabled")
+    if not isinstance(enabled, bool):
+        return {"error": "enabled must be boolean"}, 400
+    logger.info(f"[AUTO] Calling set_global_auto_enabled({enabled})")
+    ok = set_global_auto_enabled(enabled)
+    logger.info(f"[AUTO] set_global_auto_enabled returned: {ok}")
+    response = {"ok": ok, "global_auto": enabled}
+    logger.info(f"[AUTO] Returning response: {response}")
+    return response
+
+# Also add to app/auto_control.py _set_setting():
 def _set_setting(key: str, value: str) -> bool:
     logger.info(f"START _set_setting: {key}={value}")
     _ensure_db()
@@ -139,14 +210,39 @@ def _set_setting(key: str, value: str) -> bool:
         return False
 ```
 
-**Possible fixes**:
-- Make endpoint async: `async def api_auto_global_set(...)`
-- Use FastAPI BackgroundTasks for writes
-- Replace get_conn() with direct sqlite3.connect() for auto_control
-- Add explicit timeout to get_conn() call
-- Check if db_pool needs initialization before POST requests
+### Task 2: Clean Database - Remove Old Settings
 
-### Task 2: Complete Frontend Refactoring
+**Priority**: HIGH
+
+**Required**: Migrate/remove old scattered settings to prevent conflicting state.
+
+**Old settings to DELETE from database**:
+```sql
+-- Remove old scattered auto settings
+DELETE FROM settings WHERE key = 'ph.auto_enabled';
+DELETE FROM settings WHERE key = 'ec.auto_enabled';
+DELETE FROM settings WHERE key = 'chiller.auto_enabled';
+
+-- Remove old relay mode system settings
+DELETE FROM settings WHERE key LIKE 'controller.%.mode';
+DELETE FROM settings WHERE key LIKE 'controller.%.held';
+
+-- Verify only new settings remain
+SELECT key, value FROM settings WHERE key LIKE '%auto%' ORDER BY key;
+-- Should show ONLY:
+-- controls.chiller_auto
+-- controls.ec_auto  
+-- controls.global_auto
+-- controls.ph_auto
+```
+
+**Code to check/remove**:
+1. Search for `ph.auto_enabled`, `ec.auto_enabled` reads in controllers
+2. Remove `get_system_mode()`, `set_system_mode()` functions
+3. Remove `is_held()`, `set_hold()` functions if still present
+4. Update all controllers to ONLY use `should_automate(controller_name)`
+
+### Task 3: Complete Frontend Refactoring
 
 **Priority**: HIGH
 
