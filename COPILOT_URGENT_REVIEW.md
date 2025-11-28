@@ -17,55 +17,29 @@ The unified auto-enable system on branch `copilot/review-auto-enable-system` (co
 
 ## Critical Issues Found
 
-### Issue 1: POST Endpoints Execute But Don't Send Response (CRITICAL ROOT CAUSE)
+### Issue 1: POST Endpoints Execute But Didn't Send Response (RESOLVED)
 
-**CRITICAL DISCOVERY**: POST endpoints DO execute successfully (proven by database changes) but HTTP responses are NEVER sent back to client.
+**Original Discovery**: POST endpoints executed successfully (database changes confirmed) but HTTP responses were never sent back to the client, causing timeouts.
 
-**Symptoms**:
+**Root Cause (Confirmed)**: `RequestAuditMiddleware` (lines 265–307 in updated `app/main.py`, commit `92b1cb4`) was consuming the request body with `await request.body()` and attempting to restore it via `request._body = body_bytes` (private attribute). FastAPI's downstream body parsing then saw an already-consumed stream, leading to stalled response handling. This suppressed POST logging and caused client timeouts despite successful handler execution.
+
+**Fix Implemented**: Commit `92b1cb4` removed body reading entirely from the middleware. Middleware now logs method/path/client only for write methods without touching the body. No manual mutation of `request._body` remains.
+
+**Validated After Fix**:
 ```bash
-# POST times out after 2-3 seconds
-curl -X POST http://localhost:8080/api/auto/global \
-  -H "Content-Type: application/json" \
-  -d '{"enabled": false}'
-# Result: timeout, NO response
-
-# BUT database WAS changed!
-sqlite3 data/rdwc.db "SELECT value FROM settings WHERE key='controls.global_auto';"
-# Result: false  ← CHANGE WAS APPLIED!
+curl -X POST http://localhost:8080/api/auto/global -H 'Content-Type: application/json' -d '{"enabled": false}'
+# Response (≈84ms): {"ok":true,"global_auto":false,...}
 ```
+Headers show `HTTP/1.1 200 OK`, content-length present, and POST now appears in journald logs.
 
-**Evidence**:
-- GET `/api/auto/status` works fine (returns in <100ms)
-- POST `/api/auto/global` times out BUT database changes are applied
-- POST requests do NOT appear in uvicorn logs (GET requests do appear)
-- Direct function call works: `set_global_auto_enabled(False)` returns True
-- Database writes work fine directly (tested with sqlite3 CLI)
+**Current Commit**: `92b1cb4 fix: remove body reading from RequestAuditMiddleware that blocked POST`
 
-**Fix Attempted (FAILED)**:
-- Commit 34a004f added `Body(...)` annotations to POST endpoints
-- Issue persists after fix
+**Residual Actions Needed**:
+1. Add regression test to ensure middleware never consumes body (search for `request.body()` in audit middleware).
+2. Evaluate whether any other custom middleware reads bodies.
+3. Add monitoring counter for POST latency to catch future regressions (>250ms alert).
 
-**Analysis**:
-- Function execution completes successfully (proven by database state)
-- Database writes complete successfully
-- Issue is NOT in request reception or function execution
-- Issue is in HTTP response transmission layer
-- Possible causes:
-  1. Response serialization fails silently
-  2. `get_auto_status()` call in return statement blocks
-  3. FastAPI middleware blocking POST responses
-  4. uvicorn `timeout-keep-alive=5` canceling response transmission
-  5. Connection pool not releasing for response after write
-  - Request body parsing blocking
-  - Middleware/dependency injection issue
-  - Thread/async handling problem with db_pool
-  - Connection pool exhaustion during POST
-
-**Files to investigate**:
-- `app/main.py` lines ~3162-3220 (POST endpoint definitions)
-- `app/auto_control.py` _set_setting() function (uses get_conn())
-- `app/db_pool.py` connection pool implementation
-- Any middleware that intercepts POST requests
+**Status**: RESOLVED – proceed with database cleanup and UI refactor.
 
 ### Issue 2: Old Mode System Still in UI
 
