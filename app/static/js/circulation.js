@@ -2,16 +2,64 @@
  * Circulation Controller - Mode management for Main + Chiller pumps
  */
 (() => {
-  // DEPRECATED: Legacy hold system removed - use global System Auto toggle instead
-  // All automation gating now uses should_automate("circulation") via /api/auto/*
+  // ===== SIMPLIFIED HOLD SYSTEM =====
+  let isHeld = false;
   let circEstop = false;
   let circCooldown = false;
+
+  async function circToggleHold() {
+    try {
+      const resp = await fetch('/api/controller/circulation/hold', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.ok) {
+        isHeld = data.held;
+        updateCircHoldButton();
+        updateCircHealth();
+      }
+    } catch (e) {
+      console.error('Failed to toggle hold:', e);
+    }
+  }
+
+  function updateCircHoldButton() {
+    const btn = document.getElementById('circ-hold-btn');
+    if (!btn) return;
+    if (isHeld) {
+      btn.classList.add('active', 'warning');
+      btn.textContent = 'Resume';
+      btn.title = 'Resume automation';
+    } else {
+      btn.classList.remove('active', 'warning');
+      btn.textContent = 'Hold';
+      btn.title = 'Pause automation';
+    }
+  }
+
+  async function syncCircHoldState() {
+    try {
+      const r = await fetch('/api/controller/circulation/mode', {cache: 'no-store'});
+      if (!r.ok) return;
+      const data = await r.json();
+      if (data.ok && data.mode) {
+        isHeld = (data.mode === 'hold');
+        updateCircHoldButton();
+      }
+    } catch (e) {
+      // Silent fail
+    }
+  }
 
   function updateCircHealth() {
     const chip = document.getElementById('circ-health-indicator');
     if (!chip) return;
 
     if (circEstop) { chip.textContent='BLOCKED'; chip.className='ui-status-chip error'; return; }
+    if (isHeld) { chip.textContent='HELD'; chip.className='ui-status-chip warning'; return; }
     if (circCooldown) { chip.textContent='WAITING'; chip.className='ui-status-chip warning'; return; }
     chip.textContent = 'AUTO'; chip.className = 'ui-status-chip success';
   }
@@ -45,10 +93,20 @@
     updateCircHealth();
   }
 
-  // Legacy window.circToggleHold removed - button no longer exists
+  window.circToggleHold = circToggleHold;
+
+  // Initialize hold state on load
+  document.addEventListener('DOMContentLoaded', async () => {
+    await syncCircHoldState();
+  });
 
   // Refresh health every 4s from relays
   setInterval(() => {
     if (document.getElementById('circ-health-indicator')) { refreshCirc(); }
   }, 4000); // 4s refresh for parity with lights
+  
+  // Poll hold state every 5s to sync with system mode changes
+  setInterval(() => {
+    if (document.getElementById('circ-hold-btn')) { syncCircHoldState(); }
+  }, 5000);
 })();
