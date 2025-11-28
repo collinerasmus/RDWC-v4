@@ -159,11 +159,10 @@ class Scheduler:
                 self.relays.set(name, False)
             return
         # NEW: Lights gating using unified auto-enable system
-        # Note: Lights don't need a controller-specific auto flag since they follow schedule
-        # But we respect global auto for consistency
+        # Uses should_automate("lights") for consistency with other controllers
         try:
-            from app.auto_control import is_global_auto_enabled
-            lights_auto = is_global_auto_enabled()
+            from app.auto_control import should_automate
+            lights_auto = should_automate("lights")
         except Exception:
             lights_auto = True  # Default to running schedule if auto_control unavailable
 

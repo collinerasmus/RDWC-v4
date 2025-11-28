@@ -385,12 +385,11 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False, act
     now = time.monotonic()
     current_state = _last_state.get(name, False)
 
-    # Controller mode gating for circulation pumps (block non-forced automation when mode!=auto)
-    # In unified mode, system-wide mode applies to all controllers
+    # Controller mode gating for circulation pumps (block non-forced automation when auto disabled)
+    # Uses unified auto-enable system: should_automate("circulation")
     try:
-        from app.unified_mode import get_mode
-        system_mode = get_mode()
-        if name in ("main_pump", "chiller_pump") and system_mode != "auto" and not force and reason not in (REASON_OVERRIDE, REASON_EMERGENCY, "restore"):
+        from app.auto_control import should_automate
+        if name in ("main_pump", "chiller_pump") and not should_automate("circulation") and not force and reason not in (REASON_OVERRIDE, REASON_EMERGENCY, "restore"):
             return {"changed": False, "state": current_state, "reason": "mode_hold", "cooldown_remaining": 0}
     except Exception:
         pass

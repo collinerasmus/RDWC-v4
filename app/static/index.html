@@ -672,14 +672,16 @@ body{
     <h1 style="margin:0;">RDWC v4 — Dashboard</h1>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <!-- Global Auto Enable Control (new unified system) -->
-      <div class="system-mode-buttons" style="display:flex;gap:6px;align-items:center;">
+      <div class="system-mode-buttons" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
         <button id="global-auto-btn" class="btn-chip" title="Toggle Global Automation" style="font-weight:600;">
           🌐 Auto: <span id="global-auto-state">—</span>
         </button>
-        <!-- Per-controller status chips (read-only indicators) -->
+        <!-- Per-controller status chips (read-only indicators) - all 5 controllers -->
         <span id="ctrl-ph-chip" class="btn-chip" title="pH Controller Status" style="cursor:default;opacity:0.8;">🧪 pH: <span>—</span></span>
         <span id="ctrl-ec-chip" class="btn-chip" title="EC Controller Status" style="cursor:default;opacity:0.8;">⚡ EC: <span>—</span></span>
         <span id="ctrl-chiller-chip" class="btn-chip" title="Chiller Controller Status" style="cursor:default;opacity:0.8;">❄️ Chiller: <span>—</span></span>
+        <span id="ctrl-circulation-chip" class="btn-chip" title="Circulation Pump Status" style="cursor:default;opacity:0.8;">💧 Circ: <span>—</span></span>
+        <span id="ctrl-lights-chip" class="btn-chip" title="Lights Controller Status" style="cursor:default;opacity:0.8;">💡 Lights: <span>—</span></span>
       </div>
       <button id="estop-btn" class="btn-secondary danger" title="Emergency Stop: forces all relays OFF and blocks ON until released">E‑STOP</button>
       <div id="build-banner" class="muted" style="font-size:var(--font-base);padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,0.25);background:rgba(148,163,184,0.06);color:#cbd5e1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -706,9 +708,9 @@ body{
             btn.style.borderColor = isOn ? 'rgba(34,197,94,0.45)' : 'rgba(148,163,184,0.3)';
           }
           
-          // Update per-controller status chips
+          // Update per-controller status chips - all 5 controllers
           var controllers = data.controllers || {};
-          ['ph', 'ec', 'chiller'].forEach(function(ctrl){
+          ['ph', 'ec', 'chiller', 'circulation', 'lights'].forEach(function(ctrl){
             var chip = document.getElementById('ctrl-' + ctrl + '-chip');
             if (chip) {
               var info = controllers[ctrl] || {};

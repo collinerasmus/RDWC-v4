@@ -24,7 +24,8 @@ import os
 logger = logging.getLogger(__name__)
 
 # Controllers that support automation
-CONTROLLERS = ["ph", "ec", "chiller"]
+# Note: sensors are always active ("always sensoring") - no mode required
+CONTROLLERS = ["ph", "ec", "chiller", "circulation", "lights"]
 
 def _get_db_path() -> Path:
     override = os.getenv("RDWC_DB") or os.getenv("RDWC_DB_PATH")
