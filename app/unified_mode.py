@@ -261,57 +261,68 @@ def get_critical_relay_states() -> Dict[str, tuple]:
 
 
 def set_hold(controller: str, held: bool) -> bool:
-    """Set hold state for a specific controller.
+    """DEPRECATED: Set hold state for a specific controller.
+    
+    This function is deprecated. Use auto_control.set_controller_auto_enabled() instead.
+    Now maps to the new auto-enable system:
+    - held=True  → set_controller_auto_enabled(controller, False)
+    - held=False → set_controller_auto_enabled(controller, True)
     
     Args:
-        controller: Controller name (ph, ec, chiller, etc.)
+        controller: Controller name (ph, ec, chiller)
         held: True to pause controller, False to resume
     
     Returns:
         True if successful
     """
-    if controller not in CONTROLLERS:
-        logger.warning(f"Unknown controller: {controller}")
-        return False
+    import warnings
+    warnings.warn(
+        "set_hold() is deprecated. Use auto_control.set_controller_auto_enabled() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     
-    _ensure_db()
-    key = f"controller.{controller}.held"
-    value = "true" if held else "false"
-    
+    # Map to new auto-enable system
     try:
-        from app.db_pool import get_conn
-        conn = get_conn()
-        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
-        conn.commit()
-        logger.info(f"Controller {controller} hold state set to: {held}")
-        return True
+        from app.auto_control import set_controller_auto_enabled, CONTROLLERS as AUTO_CONTROLLERS
+        if controller not in AUTO_CONTROLLERS:
+            logger.warning(f"Unknown controller for auto system: {controller}")
+            return False
+        # held=True means disable auto, held=False means enable auto
+        return set_controller_auto_enabled(controller, not held)
     except Exception as e:
         logger.error(f"Failed to set hold state for {controller}: {e}")
         return False
 
 
 def is_held(controller: str) -> bool:
-    """Check if a controller is in held (paused) state.
+    """DEPRECATED: Check if a controller is in held (paused) state.
+    
+    This function is deprecated. Use auto_control.should_automate() instead.
+    Now maps to the new auto-enable system:
+    - Returns True if should_automate() returns False
+    - Returns False if should_automate() returns True
     
     Args:
-        controller: Controller name (ph, ec, chiller, etc.)
+        controller: Controller name (ph, ec, chiller)
     
     Returns:
-        True if controller is held/paused
+        True if controller is held/paused (automation disabled)
     """
-    if controller not in CONTROLLERS:
-        return False
+    import warnings
+    warnings.warn(
+        "is_held() is deprecated. Use auto_control.should_automate() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     
-    _ensure_db()
-    key = f"controller.{controller}.held"
-    
+    # Map to new auto-enable system
     try:
-        from app.db_pool import get_conn
-        conn = get_conn(readonly=True)
-        row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
-        if row:
-            return row[0].lower() == "true"
-        return False
+        from app.auto_control import should_automate, CONTROLLERS as AUTO_CONTROLLERS
+        if controller not in AUTO_CONTROLLERS:
+            return False
+        # held = NOT should_automate
+        return not should_automate(controller)
     except Exception as e:
         logger.error(f"Failed to get hold state for {controller}: {e}")
         return False
