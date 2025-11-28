@@ -285,25 +285,10 @@ class RequestAuditMiddleware(BaseHTTPMiddleware):
 
         # Only audit write methods to reduce noise
         if method in ("POST", "PUT", "PATCH"):
-            body_preview = ""
-            try:
-                body_bytes = await request.body()
-                # Restore body for downstream handlers
-                request._body = body_bytes
-                if len(body_bytes) > 0:
-                    preview_len = min(256, len(body_bytes))
-                    body_preview = body_bytes[:preview_len].decode('utf-8', errors='replace')
-                    if len(body_bytes) > 256:
-                        body_preview += f"... ({len(body_bytes)} bytes total)"
-            except Exception as e:
-                body_preview = f"[body read error: {e}]"
-
-            # Structured audit line
+            # Log without reading body to avoid blocking - body reading can cause issues
             log_msg = f"request_audit method={method} path={path} actor={client}"
             if query:
                 log_msg += f" query={query}"
-            if body_preview:
-                log_msg += f" body={body_preview}"
             self.logger.info(log_msg)
 
             # Per-minute write counts
