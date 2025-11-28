@@ -3,48 +3,10 @@
   const getJSON = async (u)=>{ const r = await fetch(u,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); };
   const postJSON = async (u,b)=>{ const r = await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json().catch(()=>({})); };
 
-  let isHeld = false;
+  // DEPRECATED: Legacy hold system removed - use global System Auto toggle instead
+  // All automation gating now uses should_automate("lights") via /api/auto/*
   let lastRelays = null;
   let lightsIsOn = false;
-
-  async function lightsToggleHold() {
-    try {
-      const resp = await postJSON('/api/controller/lights/hold', {});
-      if (resp.ok) {
-        isHeld = resp.held;
-        updateLightsHoldButton();
-        updateHealth();
-      }
-    } catch (e) {
-      console.error('Failed to toggle hold:', e);
-    }
-  }
-
-  function updateLightsHoldButton() {
-    const btn = $('lights-hold-btn');
-    if (!btn) return;
-    if (isHeld) {
-      btn.classList.add('active', 'warning');
-      btn.textContent = 'Resume';
-      btn.title = 'Resume automation';
-    } else {
-      btn.classList.remove('active', 'warning');
-      btn.textContent = 'Hold';
-      btn.title = 'Pause automation';
-    }
-  }
-
-  async function syncLightsHoldState() {
-    try {
-      const resp = await getJSON('/api/controller/lights/mode');
-      if (resp.ok && resp.mode) {
-        isHeld = (resp.mode === 'hold');
-        updateLightsHoldButton();
-      }
-    } catch (e) {
-      // Silent fail
-    }
-  }
 
   function updateWindowPreview(win){
     const el = $('lights-window-kpi');
@@ -126,14 +88,12 @@
   }
 
   async function init(){
-    // Sync hold state from backend first
-    await syncLightsHoldState();
+    // Legacy hold state sync removed - use global System Auto toggle
     
     $('btnLightsToggle')?.addEventListener('click', ()=> toggle());
     refresh();
     setInterval(refresh, 4000);
-    // expose for inline onclicks
-    window.lightsToggleHold = lightsToggleHold;
+    // Legacy window.lightsToggleHold removed - button no longer exists
   }
 
   if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
