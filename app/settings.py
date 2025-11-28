@@ -81,7 +81,7 @@ DEFAULTS: Dict[str, str] = {
     "dosing.observe_s_after_dose": "25200",
 
     # pH Up automation (production defaults)
-    "ph.auto_enabled": "false",
+    # NOTE: ph.auto_enabled is DEPRECATED - use controls.ph_auto via auto_control.py
     "dosing.poll_interval_s": "30",
     "dosing.ph_up_step_min_ml": "0.5",
     "dosing.ph_up_step_max_ml": "5.0",
@@ -89,13 +89,13 @@ DEFAULTS: Dict[str, str] = {
     # EC below this baseline holds automation (mS/cm)
     "dosing.ec_baseline_min": "0.2",
 
-        # EC automation
-        "ec.auto_enabled": "false",
-        "dosing.ec_step_ml_min": "10",
-        "dosing.ec_step_ml_max": "120",
-        "dosing.ec_safety_factor": "0.6",
-        "dosing.ec_min_interval_s": "300",
-        "dosing.ec_max_ml_day": "0",
+    # EC automation
+    # NOTE: ec.auto_enabled is DEPRECATED - use controls.ec_auto via auto_control.py
+    "dosing.ec_step_ml_min": "10",
+    "dosing.ec_step_ml_max": "120",
+    "dosing.ec_safety_factor": "0.6",
+    "dosing.ec_min_interval_s": "300",
+    "dosing.ec_max_ml_day": "0",
 
     # safety
     "safety.main_pump_min_off_s": "5",
@@ -120,7 +120,7 @@ DEFAULTS: Dict[str, str] = {
     "chiller.hysteresis": "0.5",             # °C - deadband (turn on at 19.5, off at 18.5)
     "chiller.min_on_seconds": "300",         # 5 min minimum runtime (compressor protection)
     "chiller.min_off_seconds": "600",        # 10 min minimum off time (cooldown)
-    "chiller.auto_enabled": "0",             # Start disabled for safety
+    # NOTE: chiller.auto_enabled is DEPRECATED - use controls.chiller_auto via auto_control.py
     "chiller.control_interval_s": "30",      # Check temperature every 30s
     "chiller.max_temp_alarm": "24.0",        # Alert if water exceeds this (°C)
     "chiller.min_temp_alarm": "16.0",        # Alert if water below this (°C)

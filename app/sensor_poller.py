@@ -226,23 +226,9 @@ def poll_once() -> Dict[str, Any]:
     """
     global _last_sample_ts, _last_heartbeat_ts, _poll_count, _calib_skip_count
     
-    # Sensor mode check (manual mode pauses active reads while keeping heartbeat)
-    try:
-        from app.unified_mode import get_sensor_mode, MODE_MANUAL
-        _mode = get_mode()
-    except Exception:
-        _mode = "auto"
-    if _mode == MODE_MANUAL:
-        logger.debug("Sensor mode=manual; skipping active read, updating heartbeat only")
-        now = time.time()
-        _last_heartbeat_ts = now  # type: ignore
-        _update_system_state("sensor_poller_heartbeat_ts", str(int(now)))
-        return {
-            "temp_c": None,
-            "ph": None,
-            "ec_ms_cm": None,
-            "errors": {"skipped": "manual_mode"}
-        }
+    # NOTE: Sensor polling should always run regardless of auto-enable state.
+    # Sensors provide data for monitoring, alerting, and manual dosing.
+    # The auto-enable system only controls whether controllers ACT on sensor data.
 
     # Check for calibration activity - skip polling if calibration is in progress
     if _calib_lock_held():

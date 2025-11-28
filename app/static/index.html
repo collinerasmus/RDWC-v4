@@ -671,11 +671,17 @@ body{
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
     <h1 style="margin:0;">RDWC v4 — Dashboard</h1>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <!-- Global Mode Controls (single source of truth) -->
-      <div class="system-mode-buttons" style="display:flex;gap:6px;">
-        <button id="system-mode-auto" class="btn-chip" title="System Auto">Auto</button>
-        <button id="system-mode-manual" class="btn-chip" title="System Manual">Manual</button>
-        <button id="system-mode-maint" class="btn-chip" title="Maintenance Mode">Maintenance</button>
+      <!-- Global Auto Enable Control (new unified system) -->
+      <div class="system-mode-buttons" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <button id="global-auto-btn" class="btn-chip" title="Toggle Global Automation" style="font-weight:600;">
+          🌐 Auto: <span id="global-auto-state">—</span>
+        </button>
+        <!-- Per-controller status chips (read-only indicators) - all 5 controllers -->
+        <span id="ctrl-ph-chip" class="btn-chip" title="pH Controller Status" style="cursor:default;opacity:0.8;">🧪 pH: <span>—</span></span>
+        <span id="ctrl-ec-chip" class="btn-chip" title="EC Controller Status" style="cursor:default;opacity:0.8;">⚡ EC: <span>—</span></span>
+        <span id="ctrl-chiller-chip" class="btn-chip" title="Chiller Controller Status" style="cursor:default;opacity:0.8;">❄️ Chiller: <span>—</span></span>
+        <span id="ctrl-circulation-chip" class="btn-chip" title="Circulation Pump Status" style="cursor:default;opacity:0.8;">💧 Circ: <span>—</span></span>
+        <span id="ctrl-lights-chip" class="btn-chip" title="Lights Controller Status" style="cursor:default;opacity:0.8;">💡 Lights: <span>—</span></span>
       </div>
       <button id="estop-btn" class="btn-secondary danger" title="Emergency Stop: forces all relays OFF and blocks ON until released">E‑STOP</button>
       <div id="build-banner" class="muted" style="font-size:var(--font-base);padding:4px 8px;border-radius:8px;border:1px solid rgba(148,163,184,0.25);background:rgba(148,163,184,0.06);color:#cbd5e1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -685,39 +691,75 @@ body{
   </div>
 
   <script>
-  // Initialize header mode buttons: wire click handlers and sync with API
+  // Initialize header auto button: wire click handlers and sync with API
   (function(){
-    function initHeaderModeButtons(){
-      var btnAuto = document.getElementById('system-mode-auto');
-      var btnManual = document.getElementById('system-mode-manual');
-      var btnMaint = document.getElementById('system-mode-maint');
-      
-      // Wire up click handlers to call systemSetMode (exposed by system.js)
-      if (btnAuto) btnAuto.addEventListener('click', function(){ if(window.systemSetMode) window.systemSetMode('auto'); });
-      if (btnManual) btnManual.addEventListener('click', function(){ if(window.systemSetMode) window.systemSetMode('manual'); });
-      if (btnMaint) btnMaint.addEventListener('click', function(){ if(window.systemSetMode) window.systemSetMode('maintenance'); });
-      
-      // Fetch current mode from API and sync button state
-      fetch('/api/relays/status', {cache:'no-store'})
+    function updateAutoStatus(){
+      fetch('/api/auto/status', {cache:'no-store'})
         .then(function(r){ return r.json(); })
         .then(function(data){
-          var currentMode = data.mode || 'manual';
-          // Set active class on correct button
-          if (btnAuto) btnAuto.classList.toggle('active', currentMode === 'auto');
-          if (btnManual) btnManual.classList.toggle('active', currentMode === 'manual');
-          if (btnMaint) btnMaint.classList.toggle('active', currentMode === 'maintenance');
+          // Update global auto button
+          var btn = document.getElementById('global-auto-btn');
+          var state = document.getElementById('global-auto-state');
+          if (btn && state) {
+            var isOn = data.global_auto;
+            state.textContent = isOn ? 'ON' : 'OFF';
+            btn.classList.toggle('active', isOn);
+            btn.style.background = isOn ? 'rgba(34,197,94,0.15)' : 'rgba(148,163,184,0.12)';
+            btn.style.borderColor = isOn ? 'rgba(34,197,94,0.45)' : 'rgba(148,163,184,0.3)';
+          }
+          
+          // Update per-controller status chips - all 5 controllers
+          var controllers = data.controllers || {};
+          ['ph', 'ec', 'chiller', 'circulation', 'lights'].forEach(function(ctrl){
+            var chip = document.getElementById('ctrl-' + ctrl + '-chip');
+            if (chip) {
+              var info = controllers[ctrl] || {};
+              var willAuto = info.will_automate;
+              var chipSpan = chip.querySelector('span');
+              if (chipSpan) {
+                chipSpan.textContent = willAuto ? 'AUTO' : 'OFF';
+              }
+              chip.style.background = willAuto ? 'rgba(34,197,94,0.1)' : 'rgba(148,163,184,0.08)';
+              chip.style.borderColor = willAuto ? 'rgba(34,197,94,0.35)' : 'rgba(148,163,184,0.25)';
+            }
+          });
         })
         .catch(function(err){
-          console.warn('[Header Mode] Failed to fetch current mode:', err);
-          // Fallback to manual if API fails
-          if (btnManual) btnManual.classList.add('active');
+          console.warn('[Header Auto] Failed to fetch auto status:', err);
         });
     }
     
+    function toggleGlobalAuto(){
+      fetch('/api/auto/status', {cache:'no-store'})
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          var newState = !data.global_auto;
+          return fetch('/api/auto/global', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled: newState})
+          });
+        })
+        .then(function(){ updateAutoStatus(); })
+        .catch(function(err){
+          console.error('[Header Auto] Failed to toggle:', err);
+        });
+    }
+    
+    function initHeaderAutoButton(){
+      var btn = document.getElementById('global-auto-btn');
+      if (btn) {
+        btn.addEventListener('click', toggleGlobalAuto);
+      }
+      updateAutoStatus();
+      // Poll status every 2 seconds for responsive UI
+      setInterval(updateAutoStatus, 2000);
+    }
+    
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initHeaderModeButtons);
+      document.addEventListener('DOMContentLoaded', initHeaderAutoButton);
     } else {
-      initHeaderModeButtons();
+      initHeaderAutoButton();
     }
   })();
   </script>
@@ -928,41 +970,96 @@ body{
   (function(){
     async function quickModes(){
       try {
-        const rel = await fetch('/api/relays/status',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(r.status));
-        const mode = (rel && rel.mode) || 'manual';
-        // Quick mode chips for relays
-        var lightsChip = document.getElementById('ov-lights-modechip');
-        if (lightsChip) { lightsChip.textContent = (mode==='manual' ? 'MANUAL' : 'SCHEDULE'); lightsChip.className = 'ui-status-chip ' + (mode==='manual' ? 'neutral':'success'); }
-        var mainPumpChip = document.getElementById('ov-main-pump-modechip');
-        if (mainPumpChip) { mainPumpChip.textContent = (mode==='manual' ? 'MANUAL' : 'PROTECTED'); mainPumpChip.className = 'ui-status-chip ' + (mode==='manual' ? 'neutral':'success'); }
-        var chillerPumpChip = document.getElementById('ov-chiller-pump-modechip');
-        if (chillerPumpChip) { chillerPumpChip.textContent = (mode==='manual' ? 'MANUAL' : 'AUTO-PAIR'); chillerPumpChip.className = 'ui-status-chip ' + (mode==='manual' ? 'neutral':'success'); }
+        // Use unified auto-enable system
+        const autoStatus = await fetch('/api/auto/status',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(r.status));
+        const globalAuto = autoStatus && autoStatus.global_auto;
+        const controllers = autoStatus && autoStatus.controllers || {};
+        
+        // Update status chips based on will_automate (global_auto AND controller_auto)
+        var lightsChip = document.getElementById('ov-lights-status');
+        if (lightsChip) { 
+          var willAuto = controllers.lights && controllers.lights.will_automate;
+          lightsChip.textContent = willAuto ? 'AUTO' : 'MANUAL'; 
+          lightsChip.className = 'ui-status-chip ' + (willAuto ? 'success':'neutral'); 
+        }
+        var mainPumpChip = document.getElementById('ov-main-pump-status');
+        if (mainPumpChip) { 
+          var willAuto = controllers.circulation && controllers.circulation.will_automate;
+          mainPumpChip.textContent = willAuto ? 'AUTO' : 'MANUAL'; 
+          mainPumpChip.className = 'ui-status-chip ' + (willAuto ? 'success':'neutral'); 
+        }
+        
+        // Chiller status
         try {
           const ch = await fetch('/api/chiller/status',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(r.status));
-          var chChip = document.getElementById('ov-chiller-modechip');
+          var chChip = document.getElementById('ov-chiller-status');
           if (chChip) {
-            var autoTxt = ch.auto_enabled ? 'AUTO' : 'MANUAL';
-            var tempTxt = ch.current_temp ? ' '+ch.current_temp.toFixed(1)+'°C' : '';
-            chChip.textContent = autoTxt + tempTxt;
-            chChip.className = 'ui-status-chip ' + (ch.auto_enabled ? 'success':'neutral');
+            var willAuto = controllers.chiller && controllers.chiller.will_automate;
+            chChip.textContent = willAuto ? 'AUTO' : 'MANUAL';
+            chChip.className = 'ui-status-chip ' + (willAuto ? 'success':'neutral');
+          }
+          var chHealthChip = document.getElementById('ov-chiller-health');
+          if (chHealthChip && ch) {
+            chHealthChip.textContent = ch.is_on ? 'RUNNING' : 'IDLE';
+            chHealthChip.className = 'ui-status-chip ' + (ch.is_on ? 'success':'neutral');
           }
         } catch(e){
-          var chChip2 = document.getElementById('ov-chiller-modechip');
-          if (chChip2) { chChip2.textContent = (mode==='manual' ? 'MANUAL' : 'AUTO'); chChip2.className = 'ui-status-chip ' + (mode==='manual' ? 'neutral':'success'); }
+          var chChip2 = document.getElementById('ov-chiller-status');
+          if (chChip2) { chChip2.textContent = 'MANUAL'; chChip2.className = 'ui-status-chip neutral'; }
         }
-        // Also pre-populate pH/EC boxes
+        
+        // pH status
         try {
           const ph = await fetch('/api/ph/status',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(r.status));
-          var phModeChip = document.getElementById('ov-ph-modechip'); if (phModeChip) { phModeChip.textContent = (ph.auto && ph.auto.enabled)?'AUTO':'MANUAL'; phModeChip.className = 'ui-status-chip ' + ((ph.auto && ph.auto.enabled)?'success':'neutral'); }
-          var phGuards = document.getElementById('ov-ph-guards'); if (phGuards) { var g=ph.guards||{}; var boolKeys=['estop','safe_off','sensor_stale','interval','daily_cap','reservoir','ec_baseline_low']; var active=boolKeys.filter(k=>g[k]); phGuards.textContent = 'Guards: ' + (active.length? active.join(', '):'OK'); }
-          var phHealth = document.getElementById('ov-ph-health'); if (phHealth) { var ok = !((ph.guards||{}).estop || (ph.guards||{}).safe_off || (ph.guards||{}).sensor_stale || (ph.guards||{}).reservoir); phHealth.textContent = ok? 'OK':'BLOCKED'; phHealth.className = 'ui-status-chip ' + (ok? 'success':'danger'); var g=ph.guards||{}; var boolKeys=['estop','safe_off','sensor_stale','interval','daily_cap','reservoir','ec_baseline_low']; var active=boolKeys.filter(k=>g[k]); phHealth.title = active.length? ('Guards blocking: '+active.join(', ')) : 'All guards OK'; }
+          var phStatusChip = document.getElementById('ov-ph-status'); 
+          if (phStatusChip) { 
+            var willAuto = controllers.ph && controllers.ph.will_automate;
+            phStatusChip.textContent = willAuto ? 'AUTO' : 'MANUAL'; 
+            phStatusChip.className = 'ui-status-chip ' + (willAuto ? 'success':'neutral'); 
+          }
+          var phHealth = document.getElementById('ov-ph-health'); 
+          if (phHealth) { 
+            var g=ph.guards||{}; 
+            var hardKeys=['estop','reservoir'];
+            var softKeys=['safe_off','sensor_stale','interval','daily_cap','ec_baseline_low'];
+            var hardActive = hardKeys.some(function(k){ return !!g[k]; });
+            var softActive = softKeys.some(function(k){ return !!g[k]; });
+            phHealth.textContent = hardActive ? 'BLOCKED' : (softActive ? 'GUARDED' : 'OK'); 
+            phHealth.className = 'ui-status-chip ' + (hardActive ? 'danger' : (softActive ? 'warning' : 'success')); 
+            var allActive = hardKeys.concat(softKeys).filter(function(k){ return !!g[k]; });
+            phHealth.title = allActive.length ? ('Guards: '+allActive.join(', ')) : 'All guards OK'; 
+          }
         } catch(e){ var phHealth = document.getElementById('ov-ph-health'); if (phHealth) { phHealth.textContent='—'; phHealth.className='ui-status-chip neutral'; }}
+        
+        // EC status
         try {
           const ec = await fetch('/api/ec/status',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(r.status));
-          var ecModeChip = document.getElementById('ov-ec-modechip'); if (ecModeChip) { ecModeChip.textContent = (ec.auto && ec.auto.enabled)?'AUTO':'MANUAL'; ecModeChip.className = 'ui-status-chip ' + ((ec.auto && ec.auto.enabled)?'success':'neutral'); }
-          var ecGuards = document.getElementById('ov-ec-guards'); if (ecGuards) { var g=ec.guards||{}; var boolKeys=['estop','sensor_stale','reservoir','mix_lock','interval','daily_cap']; var active=boolKeys.filter(k=>g[k]); ecGuards.textContent = 'Guards: ' + (active.length? active.join(', '):'OK'); }
-          var ecHealth = document.getElementById('ov-ec-health'); if (ecHealth) { var ok = !((ec.guards||{}).estop || (ec.guards||{}).sensor_stale || (ec.guards||{}).reservoir || (ec.guards||{}).mix_lock); ecHealth.textContent = ok? 'OK':'BLOCKED'; ecHealth.className = 'ui-status-chip ' + (ok? 'success':'danger'); var g=ec.guards||{}; var boolKeys=['estop','sensor_stale','reservoir','mix_lock','interval','daily_cap']; var active=boolKeys.filter(k=>g[k]); ecHealth.title = active.length? ('Guards blocking: '+active.join(', ')) : 'All guards OK'; }
+          var ecStatusChip = document.getElementById('ov-ec-status'); 
+          if (ecStatusChip) { 
+            var willAuto = controllers.ec && controllers.ec.will_automate;
+            ecStatusChip.textContent = willAuto ? 'AUTO' : 'MANUAL'; 
+            ecStatusChip.className = 'ui-status-chip ' + (willAuto ? 'success':'neutral'); 
+          }
+          var ecHealth = document.getElementById('ov-ec-health'); 
+          if (ecHealth) { 
+            var g=ec.guards||{}; 
+            var hardKeys=['estop','reservoir'];
+            var softKeys=['sensor_stale','mix_lock','interval','daily_cap'];
+            var hardActive = hardKeys.some(function(k){ return !!g[k]; });
+            var softActive = softKeys.some(function(k){ return !!g[k]; });
+            ecHealth.textContent = hardActive ? 'BLOCKED' : (softActive ? 'GUARDED' : 'OK'); 
+            ecHealth.className = 'ui-status-chip ' + (hardActive ? 'danger' : (softActive ? 'warning' : 'success')); 
+            var allActive = hardKeys.concat(softKeys).filter(function(k){ return !!g[k]; });
+            ecHealth.title = allActive.length ? ('Guards: '+allActive.join(', ')) : 'All guards OK'; 
+          }
         } catch(e){ var ecHealth = document.getElementById('ov-ec-health'); if (ecHealth) { ecHealth.textContent='—'; ecHealth.className='ui-status-chip neutral'; }}
+        
+        // System status
+        var sysStatusChip = document.getElementById('ov-system-status');
+        if (sysStatusChip) {
+          sysStatusChip.textContent = globalAuto ? 'AUTO' : 'MANUAL';
+          sysStatusChip.className = 'ui-status-chip ' + (globalAuto ? 'success':'neutral');
+        }
       } catch(e) {
         /* silent */
       }
@@ -1074,17 +1171,6 @@ body{
           <div class="controller-status-chips">
             <span class="ui-status-chip neutral" id="ov-system-health" title="System health">Health</span>
             <span class="ui-status-chip neutral" id="ov-system-status" title="System status">Status</span>
-          </div>
-        </div>
-      </div>
-      <!-- System mode content sections -->
-      <div id="system-auto-content" style="display:none;"></div>
-      <div id="system-manual-content" style="display:block;"></div>
-      <div id="system-maint-content" style="display:none;">
-        <div class="info-banner-danger">
-          <div class="info-banner-icon">⚠️</div>
-          <div class="info-banner-danger-content">
-            <strong>Maintenance Mode:</strong> All system safeties bypassed (cooldowns, daily caps, intervals). E-STOP and reservoir checks still enforced.
           </div>
         </div>
       </div>

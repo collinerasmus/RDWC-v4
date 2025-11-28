@@ -508,8 +508,28 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
         "daily_cap": g["daily_cap"],
         "reservoir": g["reservoir"],
     }
-    blocked_reasons = [k for k,v in guard_map.items() if v]
-    # Force bypass (testing only) for interval/daily_cap guards
+    
+    # Check if we're in auto mode - some guards only apply in auto mode
+    is_auto_mode = False
+    try:
+        from app.auto_control import is_global_auto_enabled
+        is_auto_mode = is_global_auto_enabled()
+    except Exception:
+        is_auto_mode = True  # Fail-safe: assume auto mode if can't check
+    
+    # ALWAYS-ON guards: estop, safe_off, reservoir (hard safety limits)
+    # AUTO-ONLY guards: interval, daily_cap, sensor_stale (operational limits)
+    always_on_guards = {"estop", "safe_off", "reservoir"}
+    auto_only_guards = {"interval", "daily_cap", "sensor_stale"}
+    
+    if is_auto_mode:
+        # All guards active in auto mode
+        blocked_reasons = [k for k,v in guard_map.items() if v]
+    else:
+        # Manual mode: only always-on guards enforced
+        blocked_reasons = [k for k,v in guard_map.items() if v and k in always_on_guards]
+    
+    # Force bypass (testing only) for interval/daily_cap guards - only applies in auto mode
     try:
         from app.settings import get_setting_key
         allow_force = (get_setting_key("safety.allow_force", "false") or "false").lower() == "true"
@@ -519,8 +539,8 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
         allow_force = False
         maint_override = False
         allow_stale_on_override = False
-    if maint_override or (force_req and allow_force):
-        # Under overrides, allow bypassing interval and daily caps.
+    if is_auto_mode and (maint_override or (force_req and allow_force)):
+        # Under overrides in auto mode, allow bypassing interval and daily caps.
         # Stale-sensor bypass is only permitted when BOTH maintenance_override is true
         # AND safety.allow_stale_on_override is explicitly enabled (test-only).
         bypass = {"interval", "daily_cap"}
@@ -748,11 +768,11 @@ def _auto_loop():
     
     while _auto_stop_evt and not _auto_stop_evt.is_set():
         try:
-            # Controller mode gating: suppress automation unless mode=auto
+            # NEW: Use unified auto-enable system
             try:
-                from app.unified_mode import get_controller_mode
-                if get_controller_mode("ph") != "auto":
-                    _set_auto_block("mode_hold")
+                from app.auto_control import should_automate
+                if not should_automate("ph"):
+                    _set_auto_block("auto_disabled")
                     time.sleep(poll_s)
                     continue
             except Exception:
@@ -861,10 +881,10 @@ def _auto_enable(enable: bool) -> bool:
 @router.post("/api/ph/auto")
 def ph_auto(body: Dict[str, Any] = Body(...)):
     enable = bool(body.get("enable", False))
-    # Persist setting (non-blocking)
+    # NEW: Persist setting in unified auto-control system
     try:
-        from app.settings import set_setting_key
-        set_setting_key("ph.auto_enabled", "true" if enable else "false")
+        from app.auto_control import set_controller_auto_enabled
+        set_controller_auto_enabled("ph", enable)
     except Exception:
         pass
     # Apply runtime state (non-blocking)
@@ -879,9 +899,10 @@ def ph_auto_enable(on: int = Query(0)):
     """Non-blocking GET toggle for UI fallback when POST hangs.
     Usage: /api/ph/auto/enable?on=1 (enable) or on=0 (disable)."""
     enable = bool(int(on))
+    # NEW: Persist setting in unified auto-control system
     try:
-        from app.settings import set_setting_key
-        set_setting_key("ph.auto_enabled", "true" if enable else "false")
+        from app.auto_control import set_controller_auto_enabled
+        set_controller_auto_enabled("ph", enable)
     except Exception:
         pass
     try:
@@ -909,9 +930,10 @@ def ph_auto_learn_reset():
 @router.get("/api/ph/auto/debug")
 def ph_auto_debug():
     """Compact introspection endpoint for automation state."""
+    # NEW: Use unified auto-control system
     try:
-        from app.settings import get_setting_key
-        enabled = (get_setting_key("ph.auto_enabled", "false") or "false").lower() == "true"
+        from app.auto_control import should_automate
+        enabled = should_automate("ph")
     except Exception:
         enabled = False
     
@@ -1089,10 +1111,11 @@ def ph_dose_log_csv(
 
 # --- Module init: auto-start automation if enabled in settings ---
 try:
-    from app.settings import get_setting_key
-    _enabled = (get_setting_key("ph.auto_enabled", "false") or "false").lower() == "true"
+    # NEW: Use unified auto-control system
+    from app.auto_control import should_automate
+    _enabled = should_automate("ph")
     if _enabled:
         _auto_enable(True)
 except Exception:
-    # If settings are not yet available at import time, ignore
+    # If auto_control is not yet available at import time, ignore
     pass

@@ -281,11 +281,40 @@ should_automate("ph") = global_auto AND ph_auto
 
 ## Current State
 
-- Backend: 90% complete (pH done, EC/chiller pending)
-- Frontend: 0% complete (needs UI updates)
-- Migration: Ready (will run on next restart)
-- Testing: Pending
+- Backend: ✅ COMPLETE - All controllers use should_automate()
+- Frontend: ✅ COMPLETE - Global auto toggle in header, per-controller status
+- Migration: ✅ Ready (will run on next restart)
+- Testing: ⏳ Pending - Tests need updating
 
-## Next Agent Action
+## Completed Updates
 
-Update EC controller (app/ec_control.py) to use `should_automate("ec")` following the same pattern as pH controller.
+### Backend
+- ✅ pH controller: Uses `should_automate("ph")` (app/ph_control.py)
+- ✅ EC controller: Uses `should_automate("ec")` (app/ec_control.py)
+- ✅ Chiller controller: Uses `should_automate("chiller")` (app/chiller_control.py)
+- ✅ Scheduler: Uses `is_global_auto_enabled()` for lights (app/scheduler.py)
+- ✅ Sensor poller: Removed mode gating (app/sensor_poller.py)
+- ✅ Sensors core: Removed mode override logic (app/sensors_core.py)
+
+### API
+- ✅ New endpoints working: `/api/auto/status`, `/api/auto/global`, `/api/auto/{controller}`
+- ✅ Old endpoints deprecated: `/api/controller/modes`, `/api/controller/{name}/mode`, `/api/controller/hold/all`
+- ✅ `/api/controllers/status` updated to use auto_control.py
+
+### Frontend
+- ✅ Global auto toggle button in header
+- ✅ system.js uses /api/auto/* endpoints
+- ✅ overview.js uses will_automate field for status display
+
+### Settings
+- ✅ Old auto_enabled settings marked as deprecated in DEFAULTS
+- ✅ unified_mode.py marked as deprecated
+
+## Deprecated Code (Kept for Backward Compatibility)
+- app/unified_mode.py - Old mode constants and functions
+- settings: ph.auto_enabled, ec.auto_enabled, chiller.auto_enabled
+- API: /api/controller/* endpoints
+
+## Next Steps
+- Update test files to use new system
+- Remove deprecated code after migration period

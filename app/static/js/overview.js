@@ -11,12 +11,9 @@
       const data = await getJSON('/api/controllers/status');
       const hb = q('#heartbeat'); if (hb) hb.textContent = 'heartbeat ' + new Date().toLocaleTimeString();
       
-      // System-wide state
-      const systemMode = data.system_mode || 'manual';
-      // Expose system mode globally for other modules that rely on it
-      window.__systemMode = systemMode;
+      // System-wide state (unified auto-enable system)
+      const globalAuto = !!data.global_auto;
       const estop = !!data.estop;
-      const maintOverride = !!data.maintenance_override;
       
       // Update E-STOP buttons
       const estopBtns = document.querySelectorAll('.header-estop-btn, #estop-btn');
@@ -30,27 +27,33 @@
         }
       });
       
-      // Update mode selector buttons (system-wide)
-      const autoBtn = q('#system-mode-auto');
-      const manualBtn = q('#system-mode-manual');
-      const maintBtn = q('#system-mode-maint');
-      if (autoBtn) autoBtn.className = systemMode === 'auto' ? 'btn-chip active' : 'btn-chip';
-      if (manualBtn) manualBtn.className = systemMode === 'manual' ? 'btn-chip active' : 'btn-chip';
-      if (maintBtn) maintBtn.className = systemMode === 'maintenance' ? 'btn-chip active' : 'btn-chip';
+      // Update system status chips with unified auto-enable state
+      const systemHealthChip = q('#ov-system-health');
+      const systemStatusChip = q('#ov-system-status');
+      if (systemHealthChip) {
+        systemHealthChip.textContent = estop ? 'E-STOP' : 'OK';
+        systemHealthChip.className = 'ui-status-chip ' + (estop ? 'danger' : 'success');
+        systemHealthChip.title = estop ? 'Emergency stop active' : 'System nominal';
+      }
+      if (systemStatusChip) {
+        systemStatusChip.textContent = estop ? 'BLOCKED' : (globalAuto ? 'AUTO' : 'MANUAL');
+        systemStatusChip.className = 'ui-status-chip ' + (estop ? 'danger' : (globalAuto ? 'success' : 'neutral'));
+        systemStatusChip.title = estop ? 'System blocked by E-STOP' : (globalAuto ? 'Automation enabled' : 'Manual control');
+      }
       
-      // Show maintenance override banner if active
-      let banner = q('#maintenance-override-banner');
-      if (maintOverride && !banner) {
-        const container = q('.container');
-        if (container) {
-          banner = document.createElement('div');
-          banner.id = 'maintenance-override-banner';
-          banner.style.cssText = 'background:rgba(245,158,11,0.15);border:2px solid #f59e0b;color:#fbbf24;padding:12px;margin:12px 0;border-radius:8px;font-weight:600;text-align:center;';
-          banner.innerHTML = '⚠️ MAINTENANCE OVERRIDE ACTIVE ⚠️';
-          container.insertBefore(banner, container.firstChild);
-        }
-      } else if (!maintOverride && banner) {
-        banner.remove();
+      // Update schedule chips based on lights auto status
+      const scheduleChip = q('#ov-schedule-chip');
+      const scheduleStatusChip = q('#ov-schedule-status');
+      const lightsAuto = data.controllers && data.controllers.lights && data.controllers.lights.will_automate;
+      if (scheduleChip) {
+        scheduleChip.textContent = lightsAuto ? 'ENABLED' : 'DISABLED';
+        scheduleChip.className = 'ui-status-chip ' + (lightsAuto ? 'success' : 'neutral');
+        scheduleChip.title = 'Schedule status';
+      }
+      if (scheduleStatusChip) {
+        scheduleStatusChip.textContent = lightsAuto ? 'AUTO' : 'MANUAL';
+        scheduleStatusChip.className = 'ui-status-chip ' + (lightsAuto ? 'success' : 'neutral');
+        scheduleStatusChip.title = 'Schedule mode';
       }
       
       // Controllers
@@ -70,7 +73,9 @@
         else if (softActive) { healthText = 'GUARDED'; healthClass = 'warning'; }
         
         setChip('#ov-ph-health', healthText, healthClass);
-        setChip('#ov-ph-modechip', ph.auto_enabled ? 'AUTO' : 'MANUAL', ph.auto_enabled ? 'success' : 'neutral');
+        // Use will_automate for accurate status (combines global + controller auto)
+        const phAuto = ph.will_automate;
+        setChip('#ov-ph-status', phAuto ? 'AUTO' : 'MANUAL', phAuto ? 'success' : 'neutral');
         
         const allActive = [...hardKeys.filter(k=>!!guards[k]), ...softKeys.filter(k=>!!guards[k])];
         const phHealthEl = q('#ov-ph-health');
@@ -95,7 +100,9 @@
         else if (softActive) { healthText = 'GUARDED'; healthClass = 'warning'; }
         
         setChip('#ov-ec-health', healthText, healthClass);
-        setChip('#ov-ec-modechip', ec.auto_enabled ? 'AUTO' : 'MANUAL', ec.auto_enabled ? 'success' : 'neutral');
+        // Use will_automate for accurate status (combines global + controller auto)
+        const ecAuto = ec.will_automate;
+        setChip('#ov-ec-status', ecAuto ? 'AUTO' : 'MANUAL', ecAuto ? 'success' : 'neutral');
         
         const allActive = [...hardKeys.filter(k=>!!guards[k]), ...softKeys.filter(k=>!!guards[k])];
         const ecHealthEl = q('#ov-ec-health');
@@ -109,29 +116,32 @@
       // Chiller Controller
       if (controllers.chiller) {
         const chiller = controllers.chiller;
-        const tempStr = chiller.current_temp ? ` ${chiller.current_temp.toFixed(1)}°C` : '';
-        const modeText = chiller.mode === 'manual' ? 'MANUAL' : chiller.mode === 'maintenance' ? 'MAINT' : 'AUTO';
-        setChip('#ov-chiller-modechip', modeText + tempStr, 
-                chiller.mode === 'manual' ? 'neutral' : chiller.mode === 'maintenance' ? 'warning' : 'success');
+        // Use will_automate for accurate status (combines global + controller auto)
+        const chillerAuto = chiller.will_automate;
+        // Update health/status chips
+        setChip('#ov-chiller-health', chiller.is_on ? 'RUNNING' : 'IDLE', chiller.is_on ? 'success' : 'neutral');
+        setChip('#ov-chiller-status', chillerAuto ? 'AUTO' : 'MANUAL', chillerAuto ? 'success' : 'neutral');
       }
       
       // Lights Controller
       if (controllers.lights) {
         const lights = controllers.lights;
+        const lightsAuto = lights.will_automate;
         setBadge('#ov-lights', lights.is_on);
-        setChip('#ov-lights-modechip', 
-                lights.mode === 'manual' ? 'MANUAL' : 'SCHEDULE', 
-                lights.mode === 'manual' ? 'neutral' : 'success');
+        // Update health/status chips for lights
+        setChip('#ov-lights-health', lights.is_on ? 'ON' : 'OFF', lights.is_on ? 'success' : 'neutral');
+        setChip('#ov-lights-status', lightsAuto ? 'AUTO' : 'MANUAL', lightsAuto ? 'success' : 'neutral');
       }
       
       // Circulation Controller
       if (controllers.circulation) {
         const circ = controllers.circulation;
+        const circAuto = circ.will_automate;
         setBadge('#ov-main-pump', circ.main_pump);
         setBadge('#ov-chiller-pump', circ.chiller_pump);
-        setChip('#ov-main-pump-modechip', 
-                circ.mode === 'manual' ? 'MANUAL' : 'PROTECTED', 
-                circ.mode === 'manual' ? 'neutral' : 'success');
+        // Update health/status chips for circulation
+        setChip('#ov-main-pump-health', circ.main_pump ? 'RUNNING' : 'OFF', circ.main_pump ? 'success' : 'neutral');
+        setChip('#ov-main-pump-status', circAuto ? 'AUTO' : 'MANUAL', circAuto ? 'success' : 'neutral');
       }
       
       // Update chiller power badge (from relay status - need to keep for now)
@@ -389,14 +399,14 @@
       console.warn('[Overview] UI_DEMO active: simulating overview chips');
       const set = (id, text, cls)=>{ const el=q(id); if(el){ el.textContent=text; el.className='ui-status-chip '+cls; }};
       const b = (id, on)=>{ const el=q(id); if(el){ el.className='bop-status-badge '+(on?'on':'off'); }};
-      // Simulate stable healthy system
-      set('#ov-ph-modechip','MANUAL','neutral'); set('#ov-ph-health','GUARDED','warning');
-      set('#ov-ec-modechip','MANUAL','neutral'); set('#ov-ec-health','GUARDED','warning');
-      set('#ov-chiller-modechip','AUTO 19.8°C','success');
-      set('#ov-main-pump-modechip','PROTECTED','success');
-      set('#ov-lights-modechip','SCHEDULE','success');
-      set('#ov-schedule-chip','ENABLED','success');
-      set('#ov-system-modechip','MANUAL','neutral'); set('#ov-system-health','OK','success');
+      // Simulate stable healthy system with unified auto-enable display
+      set('#ov-ph-status','AUTO','success'); set('#ov-ph-health','GUARDED','warning');
+      set('#ov-ec-status','AUTO','success'); set('#ov-ec-health','GUARDED','warning');
+      set('#ov-chiller-status','AUTO','success'); set('#ov-chiller-health','IDLE','neutral');
+      set('#ov-main-pump-status','AUTO','success'); set('#ov-main-pump-health','RUNNING','success');
+      set('#ov-lights-status','AUTO','success'); set('#ov-lights-health','ON','success');
+      set('#ov-schedule-chip','ENABLED','success'); set('#ov-schedule-status','AUTO','success');
+      set('#ov-system-status','AUTO','success'); set('#ov-system-health','OK','success');
       const el=q('#ov-sensors-health'); if(el){ el.textContent='ONLINE'; el.className='ui-status-chip success'; }
       b('#ov-lights', true); b('#ov-main-pump', true); b('#ov-chiller-pump', true); b('#ov-chiller', true);
       bindEstopBtn();
@@ -406,46 +416,18 @@
     window.addEventListener('controllers-status', (ev)=>{ if(ev.detail){ try{ applyControllersStatus(ev.detail); }catch(_){ } }});
     refresh(); bindEstopBtn();
   }
-  // System mode setter for UI buttons
-  window.systemSetMode = async function(mode) {
-    if (!['auto', 'manual', 'maintenance'].includes(mode)) return;
-    try {
-      const res = await fetch('/api/system_mode', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({mode})
-      });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      // Optimistic UI update
-      const autoBtn = q('#system-mode-auto');
-      const manualBtn = q('#system-mode-manual');
-      const maintBtn = q('#system-mode-maint');
-      if (autoBtn) autoBtn.className = mode === 'auto' ? 'btn-chip active' : 'btn-chip';
-      if (manualBtn) manualBtn.className = mode === 'manual' ? 'btn-chip active' : 'btn-chip';
-      if (maintBtn) maintBtn.className = mode === 'maintenance' ? 'btn-chip active' : 'btn-chip';
-      // Force immediate refresh after 100ms to allow backend propagation to complete
-      // This debounce prevents race conditions between mode change API call and status refresh
-      // Emit mode-changed event for other modules; polling manager will refresh consolidated snapshot
-      const evt = new CustomEvent('mode-changed', {detail:{mode}}); window.dispatchEvent(evt);
-    } catch(e) {
-      console.error('[Overview] Failed to set system mode:', e);
-      alert('Failed to set system mode: ' + e.message);
-    }
-  };
 
   function applyControllersStatus(payload){
     // Minimal integration: reuse existing refresh path by mapping payload
     // This avoids multiple network calls; payload expected from /api/controllers/status
     try {
-      // Simulate parts of original refresh using consolidated payload
-      // Assign mode chips quickly
-      const mode = payload.mode || payload.system_mode || 'manual';
-      const autoBtn = q('#system-mode-auto');
-      const manualBtn = q('#system-mode-manual');
-      const maintBtn = q('#system-mode-maint');
-      if (autoBtn) autoBtn.className = mode==='auto' ? 'btn-chip active':'btn-chip';
-      if (manualBtn) manualBtn.className = mode==='manual' ? 'btn-chip active':'btn-chip';
-      if (maintBtn) maintBtn.className = mode==='maintenance' ? 'btn-chip active':'btn-chip';
+      // Update system status based on global_auto (unified auto-enable system)
+      const globalAuto = !!payload.global_auto;
+      const systemStatusChip = q('#ov-system-status');
+      if (systemStatusChip) {
+        systemStatusChip.textContent = globalAuto ? 'AUTO' : 'MANUAL';
+        systemStatusChip.className = 'ui-status-chip ' + (globalAuto ? 'success' : 'neutral');
+      }
     }catch(_){ }
   }
   

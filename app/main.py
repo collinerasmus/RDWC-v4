@@ -285,25 +285,10 @@ class RequestAuditMiddleware(BaseHTTPMiddleware):
 
         # Only audit write methods to reduce noise
         if method in ("POST", "PUT", "PATCH"):
-            body_preview = ""
-            try:
-                body_bytes = await request.body()
-                # Restore body for downstream handlers
-                request._body = body_bytes
-                if len(body_bytes) > 0:
-                    preview_len = min(256, len(body_bytes))
-                    body_preview = body_bytes[:preview_len].decode('utf-8', errors='replace')
-                    if len(body_bytes) > 256:
-                        body_preview += f"... ({len(body_bytes)} bytes total)"
-            except Exception as e:
-                body_preview = f"[body read error: {e}]"
-
-            # Structured audit line
+            # Log without reading body to avoid blocking - body reading can cause issues
             log_msg = f"request_audit method={method} path={path} actor={client}"
             if query:
                 log_msg += f" query={query}"
-            if body_preview:
-                log_msg += f" body={body_preview}"
             self.logger.info(log_msg)
 
             # Per-minute write counts
@@ -1454,39 +1439,37 @@ def api_chiller_settings_update(req: dict):
 def api_controllers_status():
     """Consolidated atomic snapshot of all controller states, modes, guards, and holding reasons.
     Used by UI for unified status display and mode synchronization.
+    
+    NOTE: Mode fields are deprecated. Use auto_enabled instead (from unified auto-enable system).
+    
     Returns: {
-        system_mode: str,
+        system_mode: str (deprecated),
+        global_auto: bool (NEW),
         maintenance_override: bool,
         estop: bool,
         controllers: {
-            ph: {mode, auto_enabled, holding_reason, guards, learned_ml_per_pH, ...},
-            ec: {mode, auto_enabled, holding_reason, guards, learned_ml_per_mScm, ...},
-            chiller: {mode, auto_enabled, current_temp, state, ...},
-            lights: {mode, is_on, schedule_active, ...},
-            circulation: {mode, pumps: {...}}
+            ph: {auto_enabled, will_automate, holding_reason, guards, learned_ml_per_pH, ...},
+            ec: {auto_enabled, will_automate, holding_reason, guards, learned_ml_per_mScm, ...},
+            chiller: {auto_enabled, will_automate, current_temp, state, ...},
+            lights: {is_on, schedule_active, ...},
+            circulation: {pumps: {...}}
         }
     }
     """
     import time
-    from app.unified_mode import get_all_status, get_mode as get_system_mode, get_all_modes
+    from app.auto_control import get_auto_status, should_automate
     from app.settings import get_setting_key
     from app.relays_core import get_estop_status, get_relay_status
     
-    # System-wide state
-    system_mode = get_system_mode()
+    # NEW: Use unified auto-enable system
+    auto_status = get_auto_status()
+    global_auto = auto_status["global_auto"]
+    
     try:
         maint_override = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
     except Exception:
         maint_override = False
     estop = get_estop_status()
-    
-    # Controller modes
-    controller_modes = get_all_modes()
-    def _to_legacy_mode(m: str) -> str:
-        if m == "hold":
-            return "maintenance" if maint_override else "manual"
-        return m if m in ("auto", "manual", "maintenance") else "auto"
-    controller_modes = {k: _to_legacy_mode(v) for k, v in controller_modes.items()}
     
     # Build controller details
     controllers = {}
@@ -1495,9 +1478,11 @@ def api_controllers_status():
     try:
         from app.ph_control import ph_status
         ph_data = ph_status()
+        will_automate = should_automate("ph")
         controllers["ph"] = {
-            "mode": controller_modes.get("ph", "auto"),
+            "mode": "auto" if will_automate else "manual",  # For backward compatibility
             "auto_enabled": ph_data.get("auto", {}).get("enabled", False),
+            "will_automate": will_automate,
             "holding_reason": ph_data.get("auto", {}).get("holding_reason"),
             "learned_ml_per_pH": ph_data.get("auto", {}).get("learned_ml_per_pH"),
             "guards": ph_data.get("guards", {}),
@@ -1508,15 +1493,17 @@ def api_controllers_status():
         }
     except Exception as e:
         logger.error(f"Failed to get pH status: {e}")
-        controllers["ph"] = {"mode": controller_modes.get("ph", "auto"), "error": str(e)}
+        controllers["ph"] = {"auto_enabled": False, "error": str(e)}
     
     # EC Controller
     try:
         from app.ec_control import get_ec_status
         ec_data = get_ec_status()
+        will_automate = should_automate("ec")
         controllers["ec"] = {
-            "mode": controller_modes.get("ec", "auto"),
+            "mode": "auto" if will_automate else "manual",  # For backward compatibility
             "auto_enabled": ec_data.get("auto", {}).get("enabled", False),
+            "will_automate": will_automate,
             "holding_reason": ec_data.get("auto", {}).get("holding_reason"),
             "learned_ml_per_mScm": ec_data.get("auto", {}).get("learned_ml_per_mScm"),
             "guards": ec_data.get("guards", {}),
@@ -1527,15 +1514,17 @@ def api_controllers_status():
         }
     except Exception as e:
         logger.error(f"Failed to get EC status: {e}")
-        controllers["ec"] = {"mode": controller_modes.get("ec", "auto"), "error": str(e)}
+        controllers["ec"] = {"auto_enabled": False, "error": str(e)}
     
     # Chiller Controller
     try:
         from app.chiller_control import get_chiller_state, get_current_water_temp
         chiller_state = get_chiller_state()
+        will_automate = should_automate("chiller")
         controllers["chiller"] = {
-            "mode": controller_modes.get("chiller", "auto"),
+            "mode": "auto" if will_automate else "manual",  # For backward compatibility
             "auto_enabled": chiller_state.get("auto_enabled", False),
+            "will_automate": will_automate,
             "current_temp": get_current_water_temp(),
             "target_temp": float(get_setting_key("chiller.target_temp", "19.0") or "19.0"),
             # Updated default hysteresis per brief (0.7°C)
@@ -1545,39 +1534,39 @@ def api_controllers_status():
         }
     except Exception as e:
         logger.error(f"Failed to get chiller status: {e}")
-        controllers["chiller"] = {"mode": controller_modes.get("chiller", "auto"), "error": str(e)}
+        controllers["chiller"] = {"auto_enabled": False, "error": str(e)}
     
     # Lights Controller
     try:
         relay_status = get_relay_status()
         # get_relay_status() returns key 'state' for ON/OFF
         lights_on = relay_status.get("lights", {}).get("state", False)
-        # Check if schedule is active (lights controller in auto means schedule active)
-        schedule_active = controller_modes.get("lights", "auto") == "auto"
+        # Lights follow schedule when global auto is enabled
+        schedule_active = global_auto
         controllers["lights"] = {
-            "mode": controller_modes.get("lights", "auto"),
+            "mode": "auto" if schedule_active else "manual",  # For backward compatibility
             "is_on": lights_on,
             "schedule_active": schedule_active,
         }
     except Exception as e:
         logger.error(f"Failed to get lights status: {e}")
-        controllers["lights"] = {"mode": controller_modes.get("lights", "auto"), "error": str(e)}
+        controllers["lights"] = {"is_on": False, "error": str(e)}
     
     # Circulation Controller (pumps)
     try:
         relay_status = get_relay_status()
         controllers["circulation"] = {
-            "mode": controller_modes.get("circulation", "auto"),
             # get_relay_status() uses 'state' for ON/OFF
             "main_pump": relay_status.get("main_pump", {}).get("state", False),
             "chiller_pump": relay_status.get("chiller_pump", {}).get("state", False),
         }
     except Exception as e:
         logger.error(f"Failed to get circulation status: {e}")
-        controllers["circulation"] = {"mode": controller_modes.get("circulation", "auto"), "error": str(e)}
+        controllers["circulation"] = {"error": str(e)}
     
     return {
-        "system_mode": system_mode,
+        "system_mode": "auto" if global_auto else "manual",  # Deprecated, use global_auto
+        "global_auto": global_auto,
         "maintenance_override": maint_override,
         "estop": estop,
         "controllers": controllers,
@@ -3126,47 +3115,77 @@ def fix_ezo():
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
-# UNIFIED MODE: Controller mode endpoints now use unified_mode
+# DEPRECATED: Legacy mode endpoints - use /api/auto/* instead
+# These endpoints are kept for backward compatibility but are deprecated.
+# New code should use:
+#   GET /api/auto/status - Get global and per-controller auto status
+#   POST /api/auto/global - Set global auto-enable
+#   POST /api/auto/{controller} - Set controller-specific auto-enable
+
 @app.get("/api/controller/modes")
 def api_controller_modes():
-    """Get all controller modes - UNIFIED (all use same mode)"""
-    from app.unified_mode import get_mode, CONTROLLERS
-    mode = get_mode()
+    """DEPRECATED: Get all controller modes.
+    
+    Use GET /api/auto/status instead for the new auto-enable system.
+    """
+    from app.auto_control import get_auto_status, CONTROLLERS
+    status = get_auto_status()
+    # Return in legacy format for backward compatibility
     return {
-        "system_mode": mode,
-        "modes": {c: mode for c in CONTROLLERS},
-        "unified": True
+        "system_mode": "auto" if status["global_auto"] else "manual",
+        "modes": {c: "auto" if status["controllers"][c]["will_automate"] else "hold" for c in CONTROLLERS},
+        "unified": True,
+        "_deprecated": "Use GET /api/auto/status instead"
     }
 
 @app.get("/api/controller/{name}/mode")
 def api_controller_mode_get(name: str):
-    """Get controller mode - UNIFIED"""
-    from app.unified_mode import get_mode, get_controller_mode, CONTROLLERS
+    """DEPRECATED: Get controller mode.
+    
+    Use GET /api/auto/status instead for the new auto-enable system.
+    """
+    from app.auto_control import should_automate, CONTROLLERS
     if name not in CONTROLLERS:
         return {"ok": False, "error": "unknown_controller", "controller": name}
-    # Return mode with legacy "hold" mapping for backward compatibility
-    mode = get_controller_mode(name)
-    return {"ok": True, "controller": name, "mode": mode}
+    will_auto = should_automate(name)
+    return {
+        "ok": True,
+        "controller": name,
+        "mode": "auto" if will_auto else "hold",
+        "_deprecated": "Use GET /api/auto/status instead"
+    }
 
 @app.post("/api/controller/{name}/mode")
-def api_controller_mode_set(name: str, body: dict):
-    """Set controller mode - UNIFIED (sets system-wide mode)"""
-    from app.unified_mode import set_mode, get_mode, CONTROLLERS
+def api_controller_mode_set(name: str, body: dict = Body(...)):
+    """DEPRECATED: Set controller mode.
+    
+    Use POST /api/auto/{controller} instead for the new auto-enable system.
+    """
+    from app.auto_control import set_controller_auto_enabled, set_global_auto_enabled, should_automate, CONTROLLERS
     if name not in CONTROLLERS:
         return {"ok": False, "error": "unknown_controller", "controller": name}
     
     mode = body.get("mode") if isinstance(body, dict) else None
-    # Map legacy "hold" to "manual"
-    if mode == "hold":
-        mode = "manual"
     
-    if mode in ("auto", "manual", "maintenance"):
-        ok = set_mode(mode)
-        logger.info(f"✅ Mode set via controller '{name}' endpoint: {mode}")
+    # Map legacy modes to new auto-enable system
+    if mode == "auto":
+        # Enable both global and controller auto
+        set_global_auto_enabled(True)
+        set_controller_auto_enabled(name, True)
+        ok = True
+    elif mode in ("manual", "hold", "maintenance"):
+        # Disable controller auto (keep global as is)
+        set_controller_auto_enabled(name, False)
+        ok = True
     else:
         ok = False
     
-    return {"ok": ok, "controller": name, "mode": get_mode()}
+    return {
+        "ok": ok,
+        "controller": name,
+        "mode": "auto" if should_automate(name) else "hold",
+        "_deprecated": "Use POST /api/auto/{controller} instead"
+    }
 
 # === NEW CLEAN AUTO-ENABLE ENDPOINTS ===
 
@@ -3177,7 +3196,7 @@ def api_auto_status():
     return get_auto_status()
 
 @app.post("/api/auto/global")
-def api_auto_global_set(body: dict):
+def api_auto_global_set(body: dict = Body(...)):
     """Set global automation master switch
     
     Body: {"enabled": true/false}
@@ -3197,7 +3216,7 @@ def api_auto_global_set(body: dict):
     }
 
 @app.post("/api/auto/{controller}")
-def api_auto_controller_set(controller: str, body: dict):
+def api_auto_controller_set(controller: str, body: dict = Body(...)):
     """Set controller-specific auto-enable
     
     Body: {"enabled": true/false}
@@ -3222,26 +3241,30 @@ def api_auto_controller_set(controller: str, body: dict):
 
 @app.post("/api/controller/hold/all")
 def api_controller_hold_all(body: dict = None):
-    """Set or toggle hold state for all controllers.
+    """DEPRECATED: Set or toggle hold state for all controllers.
+    
+    Use POST /api/auto/global instead for the new auto-enable system.
     
     Body can be:
-      - {"hold": true} - Hold all
-      - {"hold": false} - Resume all
-      - {} or null - Not supported for all (must be explicit)
+      - {"hold": true} - Disable global auto
+      - {"hold": false} - Enable global auto
     """
-    from app.unified_mode import set_all_hold, get_all_modes
+    from app.auto_control import set_global_auto_enabled, get_auto_status
     
     body = body or {}
     if "hold" not in body:
         return {"ok": False, "error": "must_specify_hold", "message": "Body must include 'hold' field (true or false)"}
     
     hold_state = bool(body.get("hold"))
-    ok = set_all_hold(hold_state)
+    # hold=true means disable auto, hold=false means enable auto
+    ok = set_global_auto_enabled(not hold_state)
+    status = get_auto_status()
     
     return {
         "ok": ok,
         "hold": hold_state,
-        "modes": get_all_modes()
+        "modes": {c: "hold" if hold_state else "auto" for c in ["ph", "ec", "chiller"]},
+        "_deprecated": "Use POST /api/auto/global instead"
     }
 
 @app.get("/cam_status")

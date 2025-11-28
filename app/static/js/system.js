@@ -1,47 +1,28 @@
-// System Controller mode logic for Overview tab
+// System Controller status for Overview tab
+// NOTE: Old mode system (AUTO/MANUAL/MAINTENANCE) is DEPRECATED
+// New system uses /api/auto/* endpoints with global_auto and per-controller auto flags
 (function(){
   const $ = (id)=>document.getElementById(id);
-  const show = (id, on)=>{ const el=$(id); if(el) el.style.display=on?'block':'none'; };
-  const setActive = (btn, on)=>{ if(!btn) return; if(on) btn.classList.add('active'); else btn.classList.remove('active'); };
   const getJSON = async (u)=>{ const r = await fetch(u,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); };
   const postJSON = async (u,b)=>{ const r = await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json().catch(()=>({})); };
 
-  let mode = localStorage.getItem('system_mode') || 'manual';
   let lastWrap = null;
+  let globalAuto = false;
 
+  // DEPRECATED: Old setMode function kept for backward compatibility
+  // Now just updates global auto enable
   function setMode(next){
-    mode = next; localStorage.setItem('system_mode', next);
-    setActive($('system-mode-auto'), next==='auto');
-    setActive($('system-mode-manual'), next==='manual');
-    setActive($('system-mode-maint'), next==='maintenance');
-    show('system-auto-content', next==='auto');
-    show('system-manual-content', next==='manual');
-    show('system-maint-content', next==='maintenance');
-    updateHealth();
-    // Persist backend system mode (auto/manual only)
-    if (next==='auto' || next==='manual'){
-      postJSON('/api/relays/mode', {mode: next}).catch(()=>{});
+    if (next === 'auto') {
+      postJSON('/api/auto/global', {enabled: true}).catch(()=>{});
+    } else if (next === 'manual') {
+      postJSON('/api/auto/global', {enabled: false}).catch(()=>{});
     }
     // Maintenance mode affects safety.maintenance_override setting
-    if (next==='maintenance'){
+    if (next === 'maintenance'){
       fetch('/api/settings', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({'safety.maintenance_override': 'true'})}).catch(()=>{});
     } else {
       fetch('/api/settings', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({'safety.maintenance_override': 'false'})}).catch(()=>{});
     }
-    // Propagate global intent to individual controllers (only auto/manual)
-    try {
-      if (next==='auto' && window.phSetMode) window.phSetMode('auto');
-      if (next==='manual' && window.phSetMode) window.phSetMode('manual');
-    }catch(e){}
-    try {
-      if (next==='auto' && window.ecSetMode) window.ecSetMode('auto');
-      if (next==='manual' && window.ecSetMode) window.ecSetMode('manual');
-    }catch(e){}
-    // Environment (chiller) maps auto/manual; maintenance leaves per-controller specifics to user
-    try {
-      if (next==='auto' && window.envSetMode) window.envSetMode('auto');
-      if (next==='manual' && window.envSetMode) window.envSetMode('manual');
-    }catch(e){}
   }
 
   function updateHealth(){
@@ -50,7 +31,6 @@
     if (!ind) return;
     const estop = !!(lastWrap && lastWrap.estop);
     if (estop){ ind.textContent = 'BLOCKED'; ind.className = 'ui-status-chip error'; ind.title='E-STOP active'; return; }
-    if (mode==='maintenance'){ ind.textContent = 'MAINT'; ind.className = 'ui-status-chip warning'; ind.title='Maintenance mode: safeties bypassed'; return; }
     ind.textContent = 'OK'; ind.className = 'ui-status-chip success'; ind.title='System healthy';
   }
 
@@ -71,10 +51,19 @@
     const apiEl = $('sys-api-display');
     const piStatsEl = $('sys-pi-stats');
 
-    if (modeEl) {
-      const mode = wrap.mode || 'manual';
-      modeEl.textContent = mode.toUpperCase();
-      modeEl.style.color = mode === 'manual' ? '#94a3b8' : mode === 'maintenance' ? '#fb923c' : '#22c55e';
+    // Fetch auto status
+    try {
+      const autoStatus = await getJSON('/api/auto/status');
+      globalAuto = autoStatus.global_auto;
+      if (modeEl) {
+        modeEl.textContent = globalAuto ? 'AUTO' : 'MANUAL';
+        modeEl.style.color = globalAuto ? '#22c55e' : '#94a3b8';
+      }
+    } catch(e) {
+      if (modeEl) {
+        modeEl.textContent = 'UNKNOWN';
+        modeEl.style.color = '#94a3b8';
+      }
     }
 
     if (estopEl) {
@@ -124,9 +113,9 @@
   }
 
   function init(){
-    setMode(mode);
     refresh();
     setInterval(refresh, 5000);
+    // DEPRECATED: Keep for backward compatibility
     window.systemSetMode = setMode;
   }
 

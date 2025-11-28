@@ -148,15 +148,27 @@ def check_dosing_guards(pump: str, seconds: float) -> Tuple[bool, Optional[str],
     Returns:
         (ok: bool, blocked_by: str|None, caps_info: dict)
     
-    Guards (always enforced, even with maintenance_override):
+    ALWAYS-ON Guards (enforced in both Auto and Manual modes):
+        - ESTOP / Safe-off / Mixing lock
+        - pH guard: pH Up blocked if pH >= high target (hard limit)
+        - EC guard: Nutrients blocked if EC >= target + 0.2 (hard limit)
+    
+    AUTO-ONLY Guards (only enforced when global_auto is enabled):
         - Press cap: seconds <= max_seconds_per_press
         - Daily cap: today_usage + seconds <= max_total_seconds_per_24h
         - Min off window: time since last dose >= min_off_window_sec
         - Sensor stale: age < 60s
-        - ESTOP / Safe-off / Mixing lock
-        - pH guard: pH Up blocked if pH >= 6.6 (or high target)
-        - EC guard: Nutrients blocked if EC >= target + 0.2 (or ec_high)
+    
+    Manual mode = unrestricted dosing (except always-on protections)
     """
+    # Check if we're in auto mode
+    is_auto_mode = False
+    try:
+        from app.auto_control import is_global_auto_enabled
+        is_auto_mode = is_global_auto_enabled()
+    except Exception:
+        is_auto_mode = True  # Fail-safe: assume auto mode if can't check
+    
     # Read caps from settings
     max_press = _f("safety.max_seconds_per_press", 1.5)
     daily_cap = _f("safety.max_total_seconds_per_24h", 120.0)
@@ -165,64 +177,67 @@ def check_dosing_guards(pump: str, seconds: float) -> Tuple[bool, Optional[str],
     caps_info = {
         "max_press": max_press,
         "daily_cap": daily_cap,
-        "min_off": min_off
+        "min_off": min_off,
+        "is_auto_mode": is_auto_mode
     }
     
-    # Press cap
-    if seconds > max_press:
-        return (False, "press_cap", caps_info)
+    # === ALWAYS-ON GUARDS (both Auto and Manual) ===
     
-    # Daily cap
-    usage = _get_pump_usage_today(pump)
-    if usage + seconds > daily_cap:
-        return (False, "daily_cap", caps_info)
-    
-    # Min off window
-    last_ts = _get_last_dose_ts(pump)
-    if last_ts:
-        elapsed = time.time() - last_ts
-        if elapsed < min_off:
-            return (False, "min_off", caps_info)
-    
-    # Get latest sensor readings
-    readings = _get_latest_readings()
-    now_ts = int(time.time())
-    
-    # Stale sensor check (60s)
-    if readings["ts"] is None or (now_ts - readings["ts"]) > 60:
-        return (False, "stale", caps_info)
-    
-    # E-STOP
+    # E-STOP (always enforced)
     if _b("safety.estop", False):
         return (False, "estop", caps_info)
     
-    # Safe-off (check if persist flag is set)
+    # Safe-off (always enforced)
     if _b("safety.safe_off_persist", False):
         return (False, "safeoff", caps_info)
     
-    # Mix lock (check if another pump is currently active)
+    # Mix lock (always enforced - prevent concurrent dosing)
     if _dose_lock.locked():
         return (False, "mix_lock", caps_info)
     
-    # pH guard (for pH Up only)
+    # Get latest sensor readings for hard guards
+    readings = _get_latest_readings()
+    
+    # pH hard guard (always enforced - prevents dangerous pH spikes)
     if pump == "ph_up":
         ph = readings.get("ph")
         if ph is not None:
-            # Use configured high limit or fallback to 6.6
             ph_high = _f("targets.ph_high", 6.6)
             if ph >= ph_high:
                 return (False, "ph_guard", caps_info)
     
-    # EC guard (for nutrient pumps)
+    # EC hard guard (always enforced - prevents EC overdose)
     if pump in ["grow", "micro", "bloom"]:
         ec = readings.get("ec_ms_cm")
         if ec is not None:
-            # Use target + 0.2 or fallback to ec_high
             ec_target = _f("targets.ec_target", 0.0)
             ec_high = _f("targets.ec_high", 1.2)
             threshold = (ec_target + 0.2) if ec_target > 0 else ec_high
             if ec >= threshold:
                 return (False, "ec_guard", caps_info)
+    
+    # === AUTO-ONLY GUARDS (only when global_auto is enabled) ===
+    if is_auto_mode:
+        # Press cap
+        if seconds > max_press:
+            return (False, "press_cap", caps_info)
+        
+        # Daily cap
+        usage = _get_pump_usage_today(pump)
+        if usage + seconds > daily_cap:
+            return (False, "daily_cap", caps_info)
+        
+        # Min off window
+        last_ts = _get_last_dose_ts(pump)
+        if last_ts:
+            elapsed = time.time() - last_ts
+            if elapsed < min_off:
+                return (False, "min_off", caps_info)
+        
+        # Stale sensor check (60s)
+        now_ts = int(time.time())
+        if readings["ts"] is None or (now_ts - readings["ts"]) > 60:
+            return (False, "stale", caps_info)
     
     return (True, None, caps_info)
 
