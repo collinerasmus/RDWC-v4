@@ -7,55 +7,6 @@
   const UI_VERBOSE = false;
   // Guard against multiple initializations
   let _refreshInterval = null; // deprecated (pollingManager now drives refreshes)
-  // ===== SIMPLIFIED HOLD SYSTEM =====
-  let isHeld = false;
-
-  async function chillerToggleHold() {
-    try {
-      const resp = await fetch('/api/controller/chiller/hold', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({})
-      });
-      if (!resp.ok) return;
-      const data = await resp.json();
-      if (data.ok) {
-        isHeld = data.held;
-        updateChillerHoldButton();
-        updateEnvHealth();
-      }
-    } catch (e) {
-      console.error('Failed to toggle hold:', e);
-    }
-  }
-
-  function updateChillerHoldButton() {
-    const btn = document.getElementById('chiller-hold-btn');
-    if (!btn) return;
-    if (isHeld) {
-      btn.classList.add('active', 'warning');
-      btn.textContent = 'Resume';
-      btn.title = 'Resume automation';
-    } else {
-      btn.classList.remove('active', 'warning');
-      btn.textContent = 'Hold';
-      btn.title = 'Pause automation';
-    }
-  }
-
-  async function syncChillerHoldState() {
-    try {
-      const resp = await fetch('/api/controller/chiller/mode', {cache: 'no-store'});
-      if (!resp.ok) return;
-      const data = await resp.json();
-      if (data.ok && data.mode) {
-        isHeld = (data.mode === 'hold');
-        updateChillerHoldButton();
-      }
-    } catch (e) {
-      // Silent fail
-    }
-  }
 
   function updateEnvHealth() {
     const chip = document.getElementById('env-health-indicator');
@@ -64,12 +15,6 @@
     if (chillerState.estop) {
       chip.textContent = 'BLOCKED';
       chip.className = 'ui-status-chip error';
-      return;
-    }
-
-    if (isHeld) {
-      chip.textContent = 'HELD';
-      chip.className = 'ui-status-chip warning';
       return;
     }
 
@@ -88,13 +33,6 @@
     chip.textContent = 'AUTO';
     chip.className = 'ui-status-chip success';
   }
-
-  window.chillerToggleHold = chillerToggleHold;
-
-  // Initialize hold state on load
-  document.addEventListener('DOMContentLoaded', async () => {
-    await syncChillerHoldState();
-  });
 
   // ===== CHILLER CONTROL LOGIC =====
   const q = (s) => document.querySelector(s);
@@ -272,7 +210,6 @@
     if (stateLabel) {
       let label = 'IDLE';
       if (state.estop) label = 'BLOCKED';
-      else if (isHeld) label = 'HELD';
       else if (state.in_cooldown || state.min_runtime_active) label = 'WAITING';
       else if (state.is_running) label = 'COOLING';
       else if (!state.auto_enabled) label = 'MANUAL';

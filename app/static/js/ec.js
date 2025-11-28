@@ -7,58 +7,8 @@
   lastStatus = null;
   let countdownTimer = null;
   let lastPollAt = Date.now();
-  // Simplified Hold system - automation always on by default, Hold pauses it
-  let isHeld = false;
 
   function el(id){ return document.getElementById(id); }
-
-  async function toggleHold() {
-    try {
-      const resp = await fetch('/api/controller/ec/hold', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({}) // Empty body = toggle
-      });
-      if (!resp.ok) return;
-      const data = await resp.json();
-      if (data.ok) {
-        isHeld = data.held;
-        updateHoldButton();
-        updateHealthIndicator();
-      }
-    } catch (e) {
-      console.error('Failed to toggle hold:', e);
-    }
-  }
-  
-  function updateHoldButton() {
-    const btn = el('ec-hold-btn');
-    if (!btn) return;
-    
-    if (isHeld) {
-      btn.classList.add('active', 'warning');
-      btn.textContent = 'Resume';
-      btn.title = 'Resume automation';
-    } else {
-      btn.classList.remove('active', 'warning');
-      btn.textContent = 'Hold';
-      btn.title = 'Pause automation';
-    }
-  }
-  
-  async function syncHoldState() {
-    try {
-      const resp = await fetch('/api/controller/ec/mode', {cache: 'no-store'});
-      if (!resp.ok) return;
-      const data = await resp.json();
-      if (data.ok && data.mode) {
-        isHeld = (data.mode === 'hold');
-        updateHoldButton();
-      }
-    } catch (e) {
-      // Silent fail on sync
-    }
-  }
 
   async function fetchStatus(){
     try{
@@ -435,16 +385,13 @@
 
   // Initialize
   async function init(){
-    // Sync hold state from backend first
-    await syncHoldState();
-    
     const s = await fetchStatus();
     if(s) renderStatus(s);
     // Register with centralized polling manager (main loop ~6s)
     if(window.pollingManager && !window.__ecPollingRegistered){
       window.__ecPollingRegistered = true;
       window.pollingManager.register('ec-status', async ()=>{
-        const s = await fetchStatus(); if(s) renderStatus(s); await syncHoldState();
+        const s = await fetchStatus(); if(s) renderStatus(s);
       }, 'main');
     }
     setupMixRatioToggle();
@@ -850,10 +797,6 @@
       chip.textContent = 'BLOCKED';
       chip.className = 'ui-status-chip error';
       chip.title = 'Hard safety blocks: ' + guardList(g).join(', ');
-    } else if (isHeld){
-      chip.textContent = 'HELD';
-      chip.className = 'ui-status-chip warning';
-      chip.title = 'Automation paused by Hold button';
     } else if (hasSoft){
       chip.textContent = 'WAITING';
       chip.className = 'ui-status-chip warning';
@@ -864,7 +807,4 @@
       chip.title = 'Automation running';
     }
   }
-
-  // Export for inline onclicks
-  window.ecToggleHold = toggleHold;
 })();

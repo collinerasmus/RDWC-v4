@@ -1550,19 +1550,21 @@ def api_controllers_status():
         }
     except Exception as e:
         logger.error(f"Failed to get lights status: {e}")
-        controllers["lights"] = {"is_on": False, "error": str(e)}
+        controllers["lights"] = {"mode": "manual", "is_on": False, "error": str(e)}
     
     # Circulation Controller (pumps)
     try:
         relay_status = get_relay_status()
+        will_automate = should_automate("circulation")
         controllers["circulation"] = {
+            "mode": "auto" if will_automate else "manual",  # For backward compatibility
             # get_relay_status() uses 'state' for ON/OFF
             "main_pump": relay_status.get("main_pump", {}).get("state", False),
             "chiller_pump": relay_status.get("chiller_pump", {}).get("state", False),
         }
     except Exception as e:
         logger.error(f"Failed to get circulation status: {e}")
-        controllers["circulation"] = {"error": str(e)}
+        controllers["circulation"] = {"mode": "manual", "error": str(e)}
     
     return {
         "system_mode": "auto" if global_auto else "manual",  # Deprecated, use global_auto
