@@ -1457,7 +1457,7 @@ def api_controllers_status():
     }
     """
     import time
-    from app.auto_control import get_auto_status, should_automate
+    from app.auto_control import get_auto_status, should_automate, is_controller_auto_enabled
     from app.settings import get_setting_key
     from app.relays_core import get_estop_status, get_relay_status
     
@@ -1481,7 +1481,7 @@ def api_controllers_status():
         will_automate = should_automate("ph")
         controllers["ph"] = {
             "mode": "auto" if will_automate else "manual",  # For backward compatibility
-            "auto_enabled": ph_data.get("auto", {}).get("enabled", False),
+            "auto_enabled": is_controller_auto_enabled("ph"),  # Use unified auto-enable system
             "will_automate": will_automate,
             "holding_reason": ph_data.get("auto", {}).get("holding_reason"),
             "learned_ml_per_pH": ph_data.get("auto", {}).get("learned_ml_per_pH"),
@@ -1493,7 +1493,7 @@ def api_controllers_status():
         }
     except Exception as e:
         logger.error(f"Failed to get pH status: {e}")
-        controllers["ph"] = {"auto_enabled": False, "error": str(e)}
+        controllers["ph"] = {"auto_enabled": False, "will_automate": False, "error": str(e)}
     
     # EC Controller
     try:
@@ -1502,7 +1502,7 @@ def api_controllers_status():
         will_automate = should_automate("ec")
         controllers["ec"] = {
             "mode": "auto" if will_automate else "manual",  # For backward compatibility
-            "auto_enabled": ec_data.get("auto", {}).get("enabled", False),
+            "auto_enabled": is_controller_auto_enabled("ec"),  # Use unified auto-enable system
             "will_automate": will_automate,
             "holding_reason": ec_data.get("auto", {}).get("holding_reason"),
             "learned_ml_per_mScm": ec_data.get("auto", {}).get("learned_ml_per_mScm"),
@@ -1514,7 +1514,7 @@ def api_controllers_status():
         }
     except Exception as e:
         logger.error(f"Failed to get EC status: {e}")
-        controllers["ec"] = {"auto_enabled": False, "error": str(e)}
+        controllers["ec"] = {"auto_enabled": False, "will_automate": False, "error": str(e)}
     
     # Chiller Controller
     try:
@@ -1523,7 +1523,7 @@ def api_controllers_status():
         will_automate = should_automate("chiller")
         controllers["chiller"] = {
             "mode": "auto" if will_automate else "manual",  # For backward compatibility
-            "auto_enabled": chiller_state.get("auto_enabled", False),
+            "auto_enabled": is_controller_auto_enabled("chiller"),  # Use unified auto-enable system
             "will_automate": will_automate,
             "current_temp": get_current_water_temp(),
             "target_temp": float(get_setting_key("chiller.target_temp", "19.0") or "19.0"),
@@ -1541,16 +1541,18 @@ def api_controllers_status():
         relay_status = get_relay_status()
         # get_relay_status() returns key 'state' for ON/OFF
         lights_on = relay_status.get("lights", {}).get("state", False)
-        # Lights follow schedule when global auto is enabled
-        schedule_active = global_auto
+        # Lights use unified auto-enable system (global + lights controller auto)
+        will_automate = should_automate("lights")
         controllers["lights"] = {
-            "mode": "auto" if schedule_active else "manual",  # For backward compatibility
+            "mode": "auto" if will_automate else "manual",  # For backward compatibility
+            "auto_enabled": is_controller_auto_enabled("lights"),
+            "will_automate": will_automate,
             "is_on": lights_on,
-            "schedule_active": schedule_active,
+            "schedule_active": will_automate,
         }
     except Exception as e:
         logger.error(f"Failed to get lights status: {e}")
-        controllers["lights"] = {"mode": "manual", "is_on": False, "error": str(e)}
+        controllers["lights"] = {"mode": "manual", "auto_enabled": False, "will_automate": False, "is_on": False, "error": str(e)}
     
     # Circulation Controller (pumps)
     try:
@@ -1558,13 +1560,15 @@ def api_controllers_status():
         will_automate = should_automate("circulation")
         controllers["circulation"] = {
             "mode": "auto" if will_automate else "manual",  # For backward compatibility
+            "auto_enabled": is_controller_auto_enabled("circulation"),
+            "will_automate": will_automate,
             # get_relay_status() uses 'state' for ON/OFF
             "main_pump": relay_status.get("main_pump", {}).get("state", False),
             "chiller_pump": relay_status.get("chiller_pump", {}).get("state", False),
         }
     except Exception as e:
         logger.error(f"Failed to get circulation status: {e}")
-        controllers["circulation"] = {"mode": "manual", "error": str(e)}
+        controllers["circulation"] = {"mode": "manual", "auto_enabled": False, "will_automate": False, "error": str(e)}
     
     return {
         "system_mode": "auto" if global_auto else "manual",  # Deprecated, use global_auto
