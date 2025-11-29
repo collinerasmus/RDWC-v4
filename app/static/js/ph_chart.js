@@ -82,13 +82,23 @@
    * @param {Array} pumpEvents - Array of pump ON/OFF events
    */
   function phBuildChart(datasets, timeMin, timeMax, currentPH, targets, phReadings, pumpEvents, schedule) {
+    console.log('[pH Chart] 🔧 phBuildChart called', {
+      datasetsCount: datasets?.length,
+      timeMin, timeMax, currentPH, targets,
+      phReadingsCount: phReadings?.length,
+      pumpEventsCount: pumpEvents?.length,
+      hasSchedule: !!schedule
+    });
+    
     const el = document.getElementById('phDoseChart');
     const empty = document.getElementById('ph-dose-empty');
 
     if (!el) {
-      console.error('[pH] Canvas #phDoseChart not found.');
+      console.error('[pH Chart] ❌ Canvas #phDoseChart not found!');
       return;
     }
+    
+    console.log('[pH Chart] Canvas found:', el.tagName, 'width:', el.clientWidth, 'height:', el.clientHeight);
 
     // Check if we have pH data or dose events
     const hasPhReadings = phReadings && phReadings.length > 0;
@@ -96,14 +106,26 @@
     const hasPumpEvents = pumpEvents && pumpEvents.length > 0;
     const hasData = hasPhReadings || hasDoseData || hasPumpEvents;
     
+    console.log('[pH Chart] Data flags:', { hasPhReadings, hasDoseData, hasPumpEvents, hasData });
+    
+    if (hasPhReadings && phReadings.length > 0) {
+      console.log('[pH Chart] First pH reading:', phReadings[0]);
+      console.log('[pH Chart] Last pH reading:', phReadings[phReadings.length - 1]);
+    }
+    
     if (empty) {
       empty.style.display = hasData ? 'none' : 'block';
     }
 
     const ctx = el.getContext('2d');
+    if (!ctx) {
+      console.error('[pH Chart] ❌ Failed to get 2D context from canvas!');
+      return;
+    }
 
     // Destroy previous
     if (PH_CHART && typeof PH_CHART.destroy === 'function') {
+      console.log('[pH Chart] Destroying previous chart instance');
       PH_CHART.destroy();
       PH_CHART = null;
     }
@@ -112,6 +134,7 @@
     let phMin = 4.5, phMax = 8.0;  // Default range for pH
     if (hasPhReadings) {
       const phValues = phReadings.map(p => p.y).filter(v => v != null && !isNaN(v));
+      console.log('[pH Chart] Valid pH values:', phValues.length);
       if (phValues.length > 0) {
         const dataMin = Math.min(...phValues);
         const dataMax = Math.max(...phValues);
@@ -382,21 +405,35 @@
       console.warn('[pH Chart] Annotations skipped - plugin not available');
     }
 
-    PH_CHART = new Chart(ctx, {
-      type: 'line',
-      data: { datasets: dsUse },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        parsing: false,
-        interaction: {
-          mode: 'nearest',
-          intersect: false
-        },
-        scales: scales,
-        plugins: pluginsConfig
-      }
+    console.log('[pH Chart] 📊 Creating Chart.js instance with:', {
+      datasetsCount: dsUse.length,
+      scalesKeys: Object.keys(scales),
+      pluginsKeys: Object.keys(pluginsConfig),
+      annotationsCount: Object.keys(annotations).length
     });
+    
+    try {
+      PH_CHART = new Chart(ctx, {
+        type: 'line',
+        data: { datasets: dsUse },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          parsing: false,
+          interaction: {
+            mode: 'nearest',
+            intersect: false
+          },
+          scales: scales,
+          plugins: pluginsConfig
+        }
+      });
+      
+      console.log('[pH Chart] ✅ Chart created successfully, datasets:', PH_CHART.data.datasets.length);
+    } catch (chartErr) {
+      console.error('[pH Chart] ❌ Chart creation FAILED:', chartErr);
+      return;
+    }
 
     console.debug('[pH] Chart created/rebuilt', { hasData, hasPhReadings, hasDoseData, datasetCount: dsUse.length, currentPH, annotationAvailable: ANNOTATION_AVAILABLE });
   }

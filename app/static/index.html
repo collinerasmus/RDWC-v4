@@ -1,11 +1,11 @@
 <!doctype html>
-<!-- BUILD_COMMIT: 49c1e9d -->
+<!-- BUILD_COMMIT: 1764436459 -->
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="49c1e9d"/><!-- Updated build version stamp for cache bust -->
+<meta name="version" content="1764436459"/><!-- Updated build version stamp for cache bust -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
@@ -770,7 +770,7 @@ body{
   <!-- Top-level Tabs Navigation -->
   <nav id="tabs-nav" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px 0;padding-bottom:4px;" aria-label="Primary sections">
     <span id="controllers-status-live" aria-live="polite"></span>
-    <span id="build-commit-chip" class="ui-status-chip neutral" title="Frontend build commit" style="margin-right:8px;">commit: 49c1e9d</span>
+    <span id="build-commit-chip" class="ui-status-chip neutral" title="Frontend build commit" style="margin-right:8px;">commit: 1764436459</span>
   <button class="btn-chip ctrl-with-dot" data-tab="overview" aria-label="Overview">
     <span class="ctrl-label">📊 Overview</span>
     <span class="ctrl-health-dot" data-controller="overview" aria-label="Overview status"></span>
@@ -2911,13 +2911,13 @@ window.CircControl = (function(){
             // Load polling_manager FIRST (core system), then range.js (date range utilities) BEFORE any controllers needing it.
             // Reordered: range.js immediately after core to satisfy rdwcRange dependency for pH & EC charts before sensors/ph/ec modules run.
           // Instrumented loader: log each script as it begins loading (sequence is synchronous via promises)
-          const ver = window.__app_version ? ('?v='+window.__app_version+'-'+(window.BUILD_COMMIT||'49c1e9d')) : '';
-          window.BUILD_COMMIT = '49c1e9d';
+          const ver = window.__app_version ? ('?v='+window.__app_version+'-'+(window.BUILD_COMMIT||'1764436459')) : '';
+          window.BUILD_COMMIT = '1764436459';
           return seq(['polling_manager.js','range.js','ph_chart.js'+ver,'tabs.js','global_health.js','overview.js','system.js','sensors.js','trends.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .catch(function(){
         window.__app_version = (new Date()).toISOString().slice(0,10);
-  const ver2 = window.__app_version ? ('?v='+window.__app_version+'-'+(window.BUILD_COMMIT||'49c1e9d')) : '';
+  const ver2 = window.__app_version ? ('?v='+window.__app_version+'-'+(window.BUILD_COMMIT||'1764436459')) : '';
   return seq(['polling_manager.js','range.js','ph_chart.js'+ver2,'tabs.js','global_health.js','overview.js','system.js','sensors.js','trends.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
