@@ -499,7 +499,7 @@
     el('btnDose5')?.addEventListener('click', ()=> doseUnified('ph_up', 1.0, 'manual'));
     el('btnDoseCustom')?.addEventListener('click', ()=>{
       const v = parseFloat(el('phCustomMl').value||'0');
-      if(!isFinite(v) || v<=0){ alert('Enter seconds > 0'); return; }
+      if(!isFinite(v) || v < 0.1){ alert('Enter seconds ≥ 0.1'); return; }
       doseUnified('ph_up', v, 'custom');
     });
     
@@ -743,7 +743,7 @@
     el('btnPhPulse10')?.addEventListener('click', ()=> doseUnified('ph_up', 1.0, 'pulse'));
     el('btnPhPulseCustom')?.addEventListener('click', ()=>{
       const v = parseFloat(el('phCustomSec')?.value||'0');
-      if(!isFinite(v) || v<=0){ alert('Enter seconds > 0'); return; }
+      if(!isFinite(v) || v < 0.1){ alert('Enter seconds ≥ 0.1'); return; }
       doseUnified('ph_up', v, 'custom_pulse');
     });
 
@@ -860,7 +860,7 @@
         if(btn) { btn.disabled = false; btn.textContent = 'Save pH Settings'; }
       }
     });
-    
+
     // Load current settings into form fields
     try{
       const settingsMap = [
