@@ -158,6 +158,9 @@
     // Limit to avoid performance issues with many events
     const maxPumpAnnotations = 100;
     if (hasPumpEvents) {
+      if (pumpEvents.length > maxPumpAnnotations) {
+        console.warn(`[pH Chart] Truncating pump annotations: ${pumpEvents.length} events, showing first ${maxPumpAnnotations}`);
+      }
       const eventsToShow = pumpEvents.slice(0, maxPumpAnnotations);
       eventsToShow.forEach((evt, idx) => {
         if (evt.start && evt.end) {
@@ -477,13 +480,14 @@
     // Build dose datasets
     const doseDatasets = [];
     
-    // Dose events scatter (green triangle markers)
+    // Dose events scatter (green triangle markers) - assigned to yDose axis
     if (dosePoints.length > 0) {
       doseDatasets.push({
         type: 'scatter',
         label: hasAnyMl ? 'Dose (ml)' : 'Dose (s)',
         data: dosePoints,
         order: 1,
+        yAxisID: 'yDose',  // Secondary Y-axis for dose values
         pointRadius: 5,
         pointStyle: 'triangle',
         backgroundColor: 'rgba(34, 197, 94, 0.9)',  // green
