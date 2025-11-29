@@ -438,6 +438,8 @@
         const v = s.auto.learned_ml_per_pH;
         learnedValEl.textContent = (v && v > 0) ? `${v.toFixed(2)} ml/pH` : '—';
       }
+    }
+  }
 
   async function postDose(body){
     // Add force flag when Maintenance override is active
@@ -1137,7 +1139,7 @@
   window.phToggleDoseLog = function() {
     setDoseLogCollapsed(!doseLogCollapsed);
   };
-})();
+
   async function refreshSummary(){
     try{
       // Prefer unified dose_events (compute ml from seconds * rate) as fallback
@@ -1195,6 +1197,6 @@
     }catch(e){ /* ignore */ }
   }
 
-
+})();
 
   
