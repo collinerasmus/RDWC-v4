@@ -3,7 +3,7 @@ from app.chiller_control import (
     _chiller_state, set_chiller_relay, should_chiller_run,
     set_setting, CHILLER_SPECS
 )
-from app.unified_mode import set_controller_mode
+from app.auto_control import set_global_auto_enabled, set_controller_auto_enabled
 
 # NOTE: Direct access to _chiller_state is intentional for unit logic tests.
 
@@ -21,7 +21,9 @@ def test_hysteresis_thresholds():
     set_setting('chiller.target_temp', '19.0')
     set_setting('chiller.hysteresis', '0.7')
     set_setting('chiller.auto_enabled', '1')
-    set_controller_mode('chiller', '')
+    # Enable unified auto-enable system (global + controller)
+    set_global_auto_enabled(True)
+    set_controller_auto_enabled('chiller', True)
 
     # Simulate temperature via monkeypatch by temporarily overriding get_current_water_temp
     from app import chiller_control as cc
@@ -67,7 +69,9 @@ def test_min_on_enforcement():
     set_setting('chiller.hysteresis', '0.7')
     set_setting('chiller.min_on_seconds', str(CHILLER_SPECS['min_on_seconds']))
     set_setting('chiller.auto_enabled', '1')
-    set_controller_mode('chiller', '')
+    # Enable unified auto-enable system (global + controller)
+    set_global_auto_enabled(True)
+    set_controller_auto_enabled('chiller', True)
 
     from app import chiller_control as cc
 
@@ -102,7 +106,9 @@ def test_min_off_enforcement():
     set_setting('chiller.hysteresis', '0.7')
     set_setting('chiller.min_off_seconds', str(CHILLER_SPECS['min_off_seconds']))
     set_setting('chiller.auto_enabled', '1')
-    set_controller_mode('chiller', '')
+    # Enable unified auto-enable system (global + controller)
+    set_global_auto_enabled(True)
+    set_controller_auto_enabled('chiller', True)
 
     from app import chiller_control as cc
 
