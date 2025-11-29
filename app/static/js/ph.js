@@ -50,6 +50,8 @@
   // Recent collapse state (manual only, no auto-hide)
   let recentCollapsed = true;
   let recentHeaderBound = false;
+  // Short-lived fast poll timer for immediate pump state feedback
+  let fastPumpTimer = null;
   
   let doseLogCollapsed = localStorage.getItem('ph_dose_log_collapsed') !== 'false'; // default hidden
 
@@ -166,17 +168,17 @@
     if(p){ p.textContent = (s && s.ph!=null) ? s.ph.toFixed(2) : '—'; }
     if(band && s){ band.textContent = `Targets ${s.targets.low} – ${s.targets.high}`; }
     
-    // Fetch relay status for pump ON/OFF
+    // Fetch relay status for pump ON/OFF (object schema with is_on)
     fetch('/api/relays/status', {cache:'no-store'})
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if(pumpEl && data && data.relays){
-          const phPump = data.relays.find(r => r.name === 'dosing_ph_up');
-          if(phPump){
-            const isOn = phPump.state === true;
-            pumpEl.textContent = isOn ? 'ON' : 'OFF';
-            pumpEl.style.color = isOn ? '#16a34a' : '#94a3b8';
-          }
+        if (!pumpEl || !data || !data.relays) return;
+        // API shape: { relays: { dosing_ph_up: { is_on: bool, ... }, ... } }
+        const info = data.relays.dosing_ph_up || data.relays['dosing_ph_up'];
+        if (info) {
+          const isOn = !!(info.is_on || info.state);
+          pumpEl.textContent = isOn ? 'ON' : 'OFF';
+          pumpEl.style.color = isOn ? '#16a34a' : '#94a3b8';
         }
       })
       .catch(() => {});
@@ -318,6 +320,30 @@
       m('phCapDaily', dailyCap);
       m('phCapMinOff', minOff);
     }
+  }
+  // Fast poll the pump relay during/after manual runs for snappy UI feedback
+  function fastPollPump(seconds){
+    try { if (fastPumpTimer) { clearInterval(fastPumpTimer); fastPumpTimer = null; } } catch(_){ }
+    const pumpEl = el('ph-pump');
+    const until = Date.now() + Math.min(Math.max((seconds||0)*1000, 2000), 12000);
+    const tickOnce = () => {
+      fetch('/api/relays/status', {cache:'no-store'})
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!pumpEl || !data || !data.relays) return;
+          const info = data.relays.dosing_ph_up || data.relays['dosing_ph_up'];
+          if (info){
+            const isOn = !!(info.is_on || info.state);
+            pumpEl.textContent = isOn ? 'ON' : 'OFF';
+            pumpEl.style.color = isOn ? '#16a34a' : '#94a3b8';
+          }
+        }).catch(()=>{});
+    };
+    tickOnce();
+    fastPumpTimer = setInterval(() => {
+      tickOnce();
+      if (Date.now() > until) { clearInterval(fastPumpTimer); fastPumpTimer = null; }
+    }, 500);
   }
   
   function updateLearnedDisplay(s) {
@@ -464,6 +490,8 @@
         // Refresh status and dose log
         tick();
         refreshDoseLog();
+        // Kick off a brief fast poll so Pump KPI reflects state immediately
+        if (pump === 'ph_up') fastPollPump(seconds);
       }
     }catch(e){
       if(window.showToast) showToast(`Dose error: ${e.message}`, 'error');
