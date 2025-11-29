@@ -1,11 +1,11 @@
 <!doctype html>
-<!-- BUILD_COMMIT: 43fa8ee -->
+<!-- BUILD_COMMIT: a951afe -->
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251115ac"/><!-- pH: add Pump Control; move Dose Log; tidy -->
+<meta name="version" content="a951afe"/><!-- Updated build version stamp for cache bust -->
 <link rel="stylesheet" href="/static/css/theme_v4.css?v=10" />
   <!-- Eager chart library load (was deferred) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -767,6 +767,7 @@ body{
   <!-- Top-level Tabs Navigation -->
   <nav id="tabs-nav" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px 0;padding-bottom:4px;" aria-label="Primary sections">
     <span id="controllers-status-live" aria-live="polite"></span>
+    <span id="build-commit-chip" class="ui-status-chip neutral" title="Frontend build commit" style="margin-right:8px;">commit: a951afe</span>
   <button class="btn-chip ctrl-with-dot" data-tab="overview" aria-label="Overview">
     <span class="ctrl-label">📊 Overview</span>
     <span class="ctrl-health-dot" data-controller="overview" aria-label="Overview status"></span>
@@ -1016,6 +1017,14 @@ body{
             var willAuto = controllers.ph && controllers.ph.will_automate;
             phStatusChip.textContent = willAuto ? 'AUTO' : 'MANUAL'; 
             phStatusChip.className = 'ui-status-chip ' + (willAuto ? 'success':'neutral'); 
+            // Clarify relationship between global AUTO and controller AUTO
+            if (!willAuto && globalAuto) {
+              phStatusChip.title = 'Global AUTO is ON; pH auto is OFF';
+            } else if (willAuto) {
+              phStatusChip.title = 'pH automation enabled';
+            } else {
+              phStatusChip.title = 'pH automation disabled';
+            }
           }
           var phHealth = document.getElementById('ov-ph-health'); 
           if (phHealth) { 
@@ -2922,11 +2931,14 @@ window.CircControl = (function(){
             // Load polling_manager FIRST (core system), then range.js (date range utilities) BEFORE any controllers needing it.
             // Reordered: range.js immediately after core to satisfy rdwcRange dependency for pH & EC charts before sensors/ph/ec modules run.
           // Instrumented loader: log each script as it begins loading (sequence is synchronous via promises)
-          return seq(['polling_manager.js','range.js','ph_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','trends.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
+          const ver = window.__app_version ? ('?v='+window.__app_version+'-'+(window.BUILD_COMMIT||'a951afe')) : '';
+          window.BUILD_COMMIT = 'a951afe';
+          return seq(['polling_manager.js','range.js','ph_chart.js'+ver,'tabs.js','global_health.js','overview.js','system.js','sensors.js','trends.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .catch(function(){
         window.__app_version = (new Date()).toISOString().slice(0,10);
-  return seq(['polling_manager.js','range.js','ph_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','trends.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
+  const ver2 = window.__app_version ? ('?v='+window.__app_version+'-'+(window.BUILD_COMMIT||'a951afe')) : '';
+  return seq(['polling_manager.js','range.js','ph_chart.js'+ver2,'tabs.js','global_health.js','overview.js','system.js','sensors.js','trends.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();

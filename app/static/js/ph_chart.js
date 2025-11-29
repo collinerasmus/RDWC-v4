@@ -32,6 +32,7 @@
         Chart.plugins.Legend,
         Chart.plugins.Title
       );
+<<<<<<< HEAD
       
       // Register annotation plugin if available
       // CDN UMD export for chartjs-plugin-annotation v3 uses window['chartjs-plugin-annotation']
@@ -41,13 +42,30 @@
         window.ChartAnnotation
       );
       
+=======
+      // Register annotation plugin if available (UMD global can be exported under different names)
+      const annoPlugin = (
+        // Preferred UMD export name used by chartjs-plugin-annotation v3
+        window['chartjs-plugin-annotation'] ||
+        // Some bundles expose it via a nested chartjs namespace
+        (window.chartjs && window.chartjs['plugin-annotation']) ||
+        // Older name sometimes used
+        window.ChartAnnotation
+      );
+>>>>>>> 77917cf (feat(ph-chart): weekly bands + build commit chip a951afe)
       if (annoPlugin) {
         try {
           Chart.register(annoPlugin);
           ANNOTATION_AVAILABLE = true;
+<<<<<<< HEAD
           console.log('[pH Chart] ✓ Annotation plugin registered successfully');
         } catch (regErr) {
           console.warn('[pH Chart] Failed to register annotation plugin:', regErr?.message);
+=======
+          console.log('[pH Chart] ✓ Annotation plugin registered');
+        } catch (e2) {
+          console.warn('[pH Chart] ⚠ Failed to register annotation plugin:', e2?.message);
+>>>>>>> 77917cf (feat(ph-chart): weekly bands + build commit chip a951afe)
         }
       } else {
         console.warn('[pH Chart] ⚠ Annotation plugin not found - pump bars, hysteresis band, and setpoint line will not display');
@@ -55,7 +73,10 @@
     } catch(e) {
       // Exception during registration - check if annotation plugin exists
       console.debug('[pH] Chart.js registration exception:', e.message);
+<<<<<<< HEAD
       // Check for annotation plugin availability after exception
+=======
+>>>>>>> 77917cf (feat(ph-chart): weekly bands + build commit chip a951afe)
       const annoPlugin = (
         window['chartjs-plugin-annotation'] ||
         (window.chartjs && window.chartjs['plugin-annotation']) ||
@@ -79,7 +100,7 @@
    * @param {Array} phReadings - Array of {x: Date, y: number} pH sensor readings
    * @param {Array} pumpEvents - Array of pump ON/OFF events
    */
-  function phBuildChart(datasets, timeMin, timeMax, currentPH, targets, phReadings, pumpEvents) {
+  function phBuildChart(datasets, timeMin, timeMax, currentPH, targets, phReadings, pumpEvents, schedule) {
     const el = document.getElementById('phDoseChart');
     const empty = document.getElementById('ph-dose-empty');
 
@@ -127,7 +148,7 @@
       phMax = Math.max(phMax, currentPH + 0.2);
     }
 
-    // Build annotation plugin config for pH reference line, hysteresis band, setpoint, and pump events
+    // Build annotation plugin config for pH reference line, hysteresis band(s), setpoint, and pump events
     const annotations = {};
     
     // Add hysteresis band (shaded region between low and high targets) FIRST so it's behind everything
@@ -166,6 +187,42 @@
       };
     } else {
       console.warn('[pH Chart] No targets for hysteresis band:', targets);
+    }
+
+    // Add time-varying hysteresis bands per grow week across x-axis, using schedule
+    try {
+      if (schedule && Array.isArray(schedule.weeks)) {
+        const startISO = schedule.grow_start_date ? new Date(schedule.grow_start_date) : null;
+        if (startISO && !isNaN(startISO.getTime())) {
+          schedule.weeks.forEach((wk) => {
+            const w = Number(wk.week);
+            const low = Number(wk.ph_low);
+            const high = Number(wk.ph_high);
+            if (!w || isNaN(low) || isNaN(high)) return;
+            const xMin = new Date(startISO.getTime() + (w-1) * 7 * 24 * 3600 * 1000);
+            const xMax = new Date(startISO.getTime() + w * 7 * 24 * 3600 * 1000);
+            // Only add if overlaps current view range
+            if (timeMin && xMax < timeMin) return;
+            if (timeMax && xMin > timeMax) return;
+            const key = `wkBand${w}`;
+            annotations[key] = {
+              type: 'box',
+              xMin, xMax,
+              yMin: low, yMax: high,
+              yScaleID: 'yPh',
+              backgroundColor: 'rgba(34, 197, 94, 0.10)',
+              borderColor: 'rgba(34, 197, 94, 0.20)',
+              borderWidth: 1,
+              drawTime: 'beforeDatasetsDraw'
+            };
+          });
+          console.log('[pH Chart] Added week bands:', Object.keys(annotations).filter(k=>k.startsWith('wkBand')).length);
+        } else {
+          console.warn('[pH Chart] No grow_start_date in schedule; skipping week bands');
+        }
+      }
+    } catch (e) {
+      console.warn('[pH Chart] Failed to add weekly bands:', e?.message);
     }
     
     // Add current pH reference line
@@ -467,16 +524,18 @@
     let phReadings = [];
     
     try {
-      // Fetch all data in parallel: dose events, status, AND pH readings
-      const [eRes, stRes, phData] = await Promise.all([
+      // Fetch all data in parallel: dose events, status, schedule, AND pH readings
+      const [eRes, stRes, schedRes, phData] = await Promise.all([
         fetch(uEvents, {cache:'no-store'}), 
         fetch(uStatus, {cache:'no-store'}),
+        fetch('/api/nutrient_schedule', {cache:'no-store'}),
         fetchPhReadings(startISO, endISO, gran, max)
       ]);
       
       console.log('[pH Chart] Response status', {
         events: eRes.status, 
-        status: stRes.status, 
+        status: stRes.status,
+        schedule: schedRes.status,
         phReadings: phData.length
       });
       
@@ -489,6 +548,11 @@
         const statusData = await stRes.json();
         currentPH = statusData?.ph ?? null;
         targets = statusData?.targets ?? null;
+      }
+      // Parse schedule for time-varying pH band
+      let schedule = null;
+      if (schedRes && schedRes.ok) {
+        schedule = await schedRes.json();
       }
     } catch (err) {
       console.error('[pH Chart] fetch error:', err);
@@ -558,7 +622,7 @@
       phReadings: phReadings.length,
       pumpEvents: pumpEvents.length
     });
-    phBuildChart(doseDatasets, tmin, tmax, currentPH, targets, phReadings, pumpEvents);
+    phBuildChart(doseDatasets, tmin, tmax, currentPH, targets, phReadings, pumpEvents, schedule);
 
     // Update totals KPI pill with total ml dosed
     const pill = document.getElementById('ph-total-dosed');
@@ -621,5 +685,14 @@
   }
 
   console.log('[pH Chart] Module initialized and window.phDoseChart exported');
+
+  // Update build commit chip dynamically if present
+  try {
+    const chip = document.getElementById('build-commit-chip');
+    if (chip && window.BUILD_COMMIT) {
+      chip.textContent = 'commit: ' + window.BUILD_COMMIT;
+      chip.className = 'ui-status-chip success';
+    }
+  } catch(e) { /* ignore */ }
 
 })();
