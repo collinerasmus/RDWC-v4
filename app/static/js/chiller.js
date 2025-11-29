@@ -15,23 +15,35 @@
     if (chillerState.estop) {
       chip.textContent = 'BLOCKED';
       chip.className = 'ui-status-chip error';
+      chip.title = 'E-STOP active';
       return;
     }
 
     if (chillerState.in_cooldown || chillerState.min_runtime_active) {
       chip.textContent = 'WAITING';
       chip.className = 'ui-status-chip warning';
+      chip.title = chillerState.in_cooldown ? 'Compressor cooldown' : 'Minimum runtime active';
       return;
     }
 
     if (chillerState.is_running) {
       chip.textContent = 'COOLING';
       chip.className = 'ui-status-chip success';
+      chip.title = 'Chiller running';
+      return;
+    }
+
+    // Check if automation is enabled via unified auto-enable system
+    if (!chillerState.will_automate) {
+      chip.textContent = 'MANUAL';
+      chip.className = 'ui-status-chip neutral';
+      chip.title = 'Manual control mode';
       return;
     }
 
     chip.textContent = 'AUTO';
     chip.className = 'ui-status-chip success';
+    chip.title = 'Automation ready';
   }
 
   // ===== CHILLER CONTROL LOGIC =====
@@ -39,6 +51,7 @@
 
   let chillerState = {
     auto_enabled: false,
+    will_automate: false,
     is_running: false,
     current_temp: null,
     target_temp: 19.0,
@@ -107,13 +120,17 @@
   // Refresh chiller status
   async function refreshChillerStatus() {
     try {
-      const [status, relays] = await Promise.all([
+      const [status, relays, autoStatus] = await Promise.all([
         getJSON('/api/chiller/status'),
-        getJSON('/api/relays/status').catch(()=>null)
+        getJSON('/api/relays/status').catch(()=>null),
+        getJSON('/api/auto/status').catch(()=>null)
       ]);
       
+      // Get will_automate from unified auto-enable system
+      const willAutomate = !!(autoStatus && autoStatus.controllers && autoStatus.controllers.chiller && autoStatus.controllers.chiller.will_automate);
+      
       // Update state
-      chillerState = { ...chillerState, ...status, estop: !!(relays && relays.estop) };
+      chillerState = { ...chillerState, ...status, estop: !!(relays && relays.estop), will_automate: willAutomate };
       
       // Update UI
       updateChillerUI();

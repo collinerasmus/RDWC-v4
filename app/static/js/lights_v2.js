@@ -5,6 +5,7 @@
 
   let lastRelays = null;
   let lightsIsOn = false;
+  let lightsWillAutomate = false;
 
   function updateWindowPreview(win){
     const el = $('lights-window-kpi');
@@ -13,14 +14,13 @@
     else { el.textContent = '—'; }
   }
 
-  function updateKpis(modeVal){
+  function updateKpis(){
     const state = $('lights-state-kpi');
     const sched = $('lights-sched-kpi');
     if (state) state.textContent = lightsIsOn ? 'ON' : 'OFF';
     if (sched){
       // Basic hint based on mode and current state
-      if (modeVal==='auto') sched.textContent = 'Following schedule';
-      else if (modeVal==='maintenance') sched.textContent = 'Maintenance';
+      if (lightsWillAutomate) sched.textContent = 'Following schedule';
       else sched.textContent = 'Manual control';
     }
   }
@@ -29,12 +29,30 @@
     const ind = $('lights-health-indicator');
     if(!ind) return;
     const estop = !!(lastRelays && lastRelays.estop);
-    if (estop){ ind.textContent='BLOCKED'; ind.className='ui-status-chip error'; ind.title='E-STOP active'; return; }
+    if (estop){ 
+      ind.textContent='BLOCKED'; 
+      ind.className='ui-status-chip error'; 
+      ind.title='E-STOP active'; 
+      return; 
+    }
     // Cooldown/anti-flap -> WAITING
     const info = (lastRelays && lastRelays.relays && lastRelays.relays.lights) ? lastRelays.relays.lights : {};
     const cd = info.cooldown_remaining || info.cooldown || 0;
-    if (cd && cd > 0){ ind.textContent='WAITING'; ind.className='ui-status-chip warning'; ind.title=`Cooldown ${Math.ceil(cd)}s`; return; }
-    ind.textContent = 'AUTO'; ind.className = 'ui-status-chip success'; ind.title = 'Automation running';
+    if (cd && cd > 0){ 
+      ind.textContent='WAITING'; 
+      ind.className='ui-status-chip warning'; 
+      ind.title=`Cooldown ${Math.ceil(cd)}s`; 
+      return; 
+    }
+    if (!lightsWillAutomate) {
+      ind.textContent = 'MANUAL';
+      ind.className = 'ui-status-chip neutral';
+      ind.title = 'Manual control mode';
+      return;
+    }
+    ind.textContent = 'AUTO'; 
+    ind.className = 'ui-status-chip success'; 
+    ind.title = 'Automation running';
   }
 
   async function refresh(){
@@ -49,10 +67,18 @@
       const btn = $('btnLightsToggle');
       if (badge){ badge.textContent = lightsIsOn? 'ON':'OFF'; badge.className = 'bop-status-badge '+(lightsIsOn?'on':'off'); }
       if (label){ label.textContent = (lightsIsOn? '● ':'○ ') + 'Lights'; }
-      // Determine current system mode (prefer relays response; fallback to global system mode)
-      const mode = (wrap && wrap.mode) || window.__systemMode || 'manual';
+      
+      // Fetch unified auto-enable status for will_automate
+      try {
+        const autoResp = await fetch('/api/auto/status', {cache:'no-store'});
+        if (autoResp.ok) {
+          const autoData = await autoResp.json();
+          lightsWillAutomate = !!(autoData.controllers && autoData.controllers.lights && autoData.controllers.lights.will_automate);
+        }
+      } catch(e) { /* ignore */ }
+      
       if (btn){
-        const disabled = (mode==='auto' && !localStorage.getItem('safety.allow_force')) || !!wrap.estop;
+        const disabled = (lightsWillAutomate && !localStorage.getItem('safety.allow_force')) || !!wrap.estop;
         btn.className = 'relay-btn ' + (lightsIsOn? 'relay-on':'relay-off');
         btn.disabled = disabled;
         btn.style.opacity = disabled ? '0.6':'1';
@@ -67,7 +93,7 @@
       }catch(e){
         console.warn('[LightsV2] Failed to fetch settings:', e);
       }
-      updateKpis((wrap && wrap.mode) || window.__systemMode || 'manual');
+      updateKpis();
       updateHealth();
     }catch(e){ console.warn('[LightsV2] refresh failed', e); }
   }

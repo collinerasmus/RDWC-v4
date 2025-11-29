@@ -1,4 +1,5 @@
 // global_health.js - lightweight multi-controller health dots updater
+// Uses unified auto-enable system for consistent status display
 (function(){
   const POLL_MS = 6000; // align with existing 6s controller cadence
   let last = { ph:null, ec:null, sensors:null, env:null, lights:null, circ:null, schedule:null, system:null };
@@ -23,9 +24,6 @@
   // offline => poller not running / sensors.online false (distinct neutral-failure gray)
   // warn => stale cache (age exceeded freshness window)
   // ok   => fresh sample & online
-  // Classify sensors using the same source as Overview: /api/sensors/status
-  // running && age<60 => ok; running && age>=60 => warn; !running => offline; null => bad
-  // BUT: if age is extremely high (>5min), treat as "recovering from idle" not offline
   function classifySensorsFromStatus(status){
     if(!status) return {state:'bad', title:'No status'};
     const age = status.last_sample_ts ? (Date.now()/1000 - status.last_sample_ts) : Infinity;
@@ -42,7 +40,7 @@
     return {state:'ok', title:`Fresh ${Math.round(age)}s`};
   }
 
-  function classifyPh(ph){
+  function classifyPh(ph, autoStatus){
     if(!ph) return {state:'bad', title:'No status'};
     if(ph.guards){
       const hardKeys = ['estop','reservoir'];
@@ -52,11 +50,13 @@
       if(hardActive) return {state:'bad', title:'Hard guard active'};
       if(softActive) return {state:'warn', title:'Soft guard(s)'};
     }
-    if(ph.auto && ph.auto.enabled){ return {state:'ok', title:'Auto'}; }
+    // Use unified auto-enable system
+    const willAutomate = autoStatus && autoStatus.controllers && autoStatus.controllers.ph && autoStatus.controllers.ph.will_automate;
+    if(willAutomate) return {state:'ok', title:'Auto'};
     return {state:'ok', title:'Manual'};
   }
 
-  function classifyEc(ec){
+  function classifyEc(ec, autoStatus){
     if(!ec) return {state:'bad', title:'No status'};
     if(ec.guards){
       const hardKeys = ['estop','reservoir'];
@@ -66,48 +66,56 @@
       if(hardActive) return {state:'bad', title:'Hard guard active'};
       if(softActive) return {state:'warn', title:'Soft guard(s)'};
     }
-    if(ec.auto && ec.auto.enabled){ return {state:'ok', title:'Auto'}; }
+    // Use unified auto-enable system
+    const willAutomate = autoStatus && autoStatus.controllers && autoStatus.controllers.ec && autoStatus.controllers.ec.will_automate;
+    if(willAutomate) return {state:'ok', title:'Auto'};
     return {state:'ok', title:'Manual'};
   }
 
-  function classifyEnv(relays, chiller){
+  function classifyEnv(relays, chiller, autoStatus){
     if(!relays) return {state:'bad', title:'No relays'};
     if(relays.estop) return {state:'bad', title:'E-STOP'};
-    if(relays.mode === 'maintenance') return {state:'maint', title:'Maintenance'};
     if(chiller && chiller.error){ return {state:'warn', title:'Chiller error'}; }
-    return {state:'ok', title: relays.mode==='manual'?'Manual':'Auto'};
+    // Use unified auto-enable system
+    const willAutomate = autoStatus && autoStatus.controllers && autoStatus.controllers.chiller && autoStatus.controllers.chiller.will_automate;
+    return {state:'ok', title: willAutomate ? 'Auto' : 'Manual'};
   }
 
-  function classifyLights(relays){
+  function classifyLights(relays, autoStatus){
     if(!relays) return {state:'bad', title:'No relays'};
     if(relays.estop) return {state:'bad', title:'E-STOP'};
-    if(relays.mode==='maintenance') return {state:'maint', title:'Maintenance'};
     const lights = relays.relays && relays.relays.lights;
     if(lights && lights.is_on) return {state:'ok', title:'On'};
-    return {state:'ok', title:'Off'}; // off is normal
+    return {state:'ok', title:'Off'};
+  }
   }
 
-  function classifyCirc(relays){
+  function classifyCirc(relays, autoStatus){
     if(!relays) return {state:'bad', title:'No relays'};
     if(relays.estop) return {state:'bad', title:'E-STOP'};
     const mp = relays.relays && relays.relays.main_pump;
     const isOn = !!(mp && mp.is_on);
-    // In MANUAL mode, off is acceptable; warn only in AUTO when expected on
-    if(relays.mode === 'manual') return {state:'ok', title: isOn ? 'Main pump on' : 'Main pump off'};
+    // Use unified auto-enable system
+    const willAutomate = autoStatus && autoStatus.controllers && autoStatus.controllers.circulation && autoStatus.controllers.circulation.will_automate;
+    if(!willAutomate) return {state:'ok', title: isOn ? 'Main pump on' : 'Main pump off'};
+    // In AUTO mode, warn only when expected to be on but isn't
     return isOn ? {state:'ok', title:'Main pump on'} : {state:'warn', title:'Main pump off'};
   }
 
-  function classifySchedule(relays){
+  function classifySchedule(relays, autoStatus){
     if(!relays) return {state:'bad', title:'No relays'};
     if(relays.estop) return {state:'bad', title:'E-STOP'};
-    if(relays.mode==='maintenance') return {state:'maint', title:'Maintenance'};
-    return {state:'ok', title: relays.mode==='manual'?'Manual':'Auto'};
+    // Use unified auto-enable system - schedule follows lights controller
+    const willAutomate = autoStatus && autoStatus.controllers && autoStatus.controllers.lights && autoStatus.controllers.lights.will_automate;
+    return {state:'ok', title: willAutomate ? 'Auto' : 'Manual'};
   }
 
-  function classifySystem(relays){
+  function classifySystem(relays, autoStatus){
     if(!relays) return {state:'bad', title:'No relays'};
     if(relays.estop) return {state:'bad', title:'E-STOP active'};
-    return {state:'ok', title: relays.mode};
+    // Use global_auto from unified auto-enable system
+    const globalAuto = autoStatus && autoStatus.global_auto;
+    return {state:'ok', title: globalAuto ? 'auto' : 'manual'};
   }
 
   async function poll(){
@@ -115,22 +123,23 @@
       // Use polling manager for deduplicated requests
       const fetchJSON = window.pollingManager?.fetchJSON || (url => fetch(url,{cache:'no-store'}).then(r=>r.ok?r.json():null));
       
-      const [relays, sensorsStatus, ph, ec, chiller] = await Promise.all([
+      const [relays, sensorsStatus, ph, ec, chiller, autoStatus] = await Promise.all([
         fetchJSON('/api/relays/status').catch(()=>null),
         fetchJSON('/api/sensors/status').catch(()=>null),
         fetchJSON('/api/ph/status').catch(()=>null),
         fetchJSON('/api/ec/status').catch(()=>null),
-        fetchJSON('/api/chiller/status').catch(()=>null)
+        fetchJSON('/api/chiller/status').catch(()=>null),
+        fetchJSON('/api/auto/status').catch(()=>null)
       ]);
 
-  const sSensors = classifySensorsFromStatus(sensorsStatus);
-      const sPh = classifyPh(ph);
-      const sEc = classifyEc(ec);
-      const sEnv = classifyEnv(relays, chiller);
-      const sLights = classifyLights(relays);
-      const sCirc = classifyCirc(relays);
-      const sSchedule = classifySchedule(relays);
-      const sSystem = classifySystem(relays);
+      const sSensors = classifySensorsFromStatus(sensorsStatus);
+      const sPh = classifyPh(ph, autoStatus);
+      const sEc = classifyEc(ec, autoStatus);
+      const sEnv = classifyEnv(relays, chiller, autoStatus);
+      const sLights = classifyLights(relays, autoStatus);
+      const sCirc = classifyCirc(relays, autoStatus);
+      const sSchedule = classifySchedule(relays, autoStatus);
+      const sSystem = classifySystem(relays, autoStatus);
 
       setDot('sensors', sSensors.state, sSensors.title);
       setDot('ph', sPh.state, sPh.title);

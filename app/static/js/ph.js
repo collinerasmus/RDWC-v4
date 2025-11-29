@@ -68,6 +68,8 @@
     }
     
     const g = lastStatus.guards || {};
+    const auto = lastStatus.auto || {};
+    const willAutomate = auto.will_automate !== undefined ? auto.will_automate : auto.enabled;
     const hasHardBlocks = !!(g.estop || g.safe_off || g.sensor_stale || g.reservoir);
     const hasSoftBlocks = !!(g.interval || g.daily_cap);
     
@@ -79,6 +81,10 @@
       indicator.textContent = 'WAITING';
       indicator.className = 'ui-status-chip warning';
       indicator.title = 'Automation waiting: ' + guardList(g).join(', ');
+    } else if (!willAutomate) {
+      indicator.textContent = 'MANUAL';
+      indicator.className = 'ui-status-chip neutral';
+      indicator.title = 'Manual control mode';
     } else {
       indicator.textContent = 'AUTO';
       indicator.className = 'ui-status-chip success';

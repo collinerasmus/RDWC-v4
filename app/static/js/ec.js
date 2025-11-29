@@ -791,6 +791,8 @@
       return;
     }
     const g = lastStatus.guards || {};
+    const auto = lastStatus.auto || {};
+    const willAutomate = auto.will_automate !== undefined ? auto.will_automate : auto.enabled;
     const hasHard = !!(g.estop || g.sensor_stale || g.reservoir || g.mix_lock);
     const hasSoft = !!(g.interval || g.daily_cap);
     if(hasHard){
@@ -801,6 +803,10 @@
       chip.textContent = 'WAITING';
       chip.className = 'ui-status-chip warning';
       chip.title = 'Automation waiting: ' + guardList(g).join(', ');
+    } else if (!willAutomate) {
+      chip.textContent = 'MANUAL';
+      chip.className = 'ui-status-chip neutral';
+      chip.title = 'Manual control mode';
     } else {
       chip.textContent = 'AUTO';
       chip.className = 'ui-status-chip success';
