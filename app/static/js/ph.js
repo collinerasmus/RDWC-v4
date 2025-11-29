@@ -363,9 +363,11 @@
     const displayValue = el('ph-learned-display-value');
     if (!displayBox || !displayValue) return;
     
-    if (s && s.learned_ml_per_pH !== null && s.learned_ml_per_pH !== undefined && s.learned_ml_per_pH > 0) {
+    // Status schema nests learned value under s.auto.learned_ml_per_pH
+    const learned = s && s.auto ? s.auto.learned_ml_per_pH : null;
+    if (learned !== null && learned !== undefined && learned > 0) {
       displayBox.style.display = 'block';
-      displayValue.textContent = s.learned_ml_per_pH.toFixed(2);
+      displayValue.textContent = learned.toFixed(2);
     } else {
       displayBox.style.display = 'none';
       displayValue.textContent = '—';
