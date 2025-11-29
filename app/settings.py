@@ -98,6 +98,9 @@ DEFAULTS: Dict[str, str] = {
     "dosing.ph_up_safety_factor": "0.6",
     # EC below this baseline holds automation (mS/cm)
     "dosing.ec_baseline_min": "0.2",
+    # Initial micro-dose used when learner has not produced a refined ml/pH estimate yet
+    # Ensures first automated correction is a very small, safe amount
+    "dosing.ph_up_initial_ml": "0.1",
 
     # EC automation
     # NOTE: ec.auto_enabled is DEPRECATED - use controls.ec_auto via auto_control.py
@@ -159,20 +162,21 @@ DEFAULTS: Dict[str, str] = {
 _defaults_seeded = False
 
 def _ensure_table_seed_defaults() -> None:
-    """Ensure settings table exists and DEFAULTS are present (without overriding).
-    Only runs once per process to avoid blocking on every read.
-    """
+    """Ensure settings table exists and seed DEFAULTS using the shared pooled connection.
+    This avoids diverging DB paths when tests override app.db_pool.DB_PATH.
+    Only runs once per process to minimize contention."""
     global _defaults_seeded
     if _defaults_seeded:
         return
-    
+
     _init_settings_table()
-    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
-        cur = conn.cursor()
-        for key, val in DEFAULTS.items():
-            cur.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (key, val))
-        conn.commit()
-    
+    # Use pooled connection to respect any test overrides of DB_PATH in db_pool
+    from app.db_pool import get_conn
+    conn = get_conn()
+    cur = conn.cursor()
+    for key, val in DEFAULTS.items():
+        cur.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (key, val))
+    conn.commit()
     _defaults_seeded = True
 
 def get_all_settings() -> Dict[str, str]:
