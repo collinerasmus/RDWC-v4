@@ -246,9 +246,32 @@
     const blockedCooldown = (g.interval || g.daily_cap) && !bypass;
     const blockedHard = !!(g.estop || g.safe_off || g.sensor_stale || g.reservoir);
     const disabled = blockedCooldown || blockedHard;
-    ['btnPrime','btnDose1','btnDose5','btnDoseCustom','phCustomMl'].forEach(id=>{
+    ['btnPrime','btnPhPulse03','btnDose1','btnDose5','btnDoseCustom','phCustomMl'].forEach(id=>{
       const e = el(id); if(e){ e.disabled = disabled; e.title = disabled ? 'Blocked by guard(s)' : ''; }
     });
+    
+    // Update dose status indicator
+    const doseStatus = el('ph-dose-status');
+    if (doseStatus) {
+      if (blockedHard) {
+        const reasons = guardList(g).join(', ');
+        doseStatus.textContent = '✗ Blocked: ' + reasons;
+        doseStatus.style.background = 'rgba(239,68,68,0.08)';
+        doseStatus.style.borderColor = 'rgba(239,68,68,0.25)';
+        doseStatus.style.color = '#fca5a5';
+      } else if (blockedCooldown) {
+        const remaining = s?.remaining_cooldown_s || 0;
+        doseStatus.textContent = remaining > 0 ? `⏱ Cooldown: ${remaining}s remaining` : '⏱ Cooldown active';
+        doseStatus.style.background = 'rgba(245,158,11,0.08)';
+        doseStatus.style.borderColor = 'rgba(245,158,11,0.25)';
+        doseStatus.style.color = '#fcd34d';
+      } else {
+        doseStatus.textContent = '✓ Ready to dose';
+        doseStatus.style.background = 'rgba(34,197,94,0.08)';
+        doseStatus.style.borderColor = 'rgba(34,197,94,0.25)';
+        doseStatus.style.color = '#86efac';
+      }
+    }
 
     // Countdown pill for min-interval (hide when maintenance override is active)
     if(cdPill){
@@ -419,7 +442,7 @@
   async function doseUnified(pump, seconds, reason='manual'){
     // Disable button temporarily to enforce min_off visually
     const btnMap = {
-      'ph_up': ['btnPrime', 'btnDose1', 'btnDose5', 'btnDoseCustom']
+      'ph_up': ['btnPrime', 'btnPhPulse03', 'btnDose1', 'btnDose5', 'btnDoseCustom']
     };
     const btns = (btnMap[pump] || []).map(id => el(id)).filter(b => b);
     btns.forEach(b => { b.disabled = true; });
@@ -737,15 +760,8 @@
     // Check calibration capabilities on init
     checkCaps();
 
-    // --- Time-based Pump Control buttons ---
+    // --- Manual Dosing 0.3s button (moved from Quick Pulse section) ---
     el('btnPhPulse03')?.addEventListener('click', ()=> doseUnified('ph_up', 0.3, 'pulse'));
-    el('btnPhPulse05')?.addEventListener('click', ()=> doseUnified('ph_up', 0.5, 'pulse'));
-    el('btnPhPulse10')?.addEventListener('click', ()=> doseUnified('ph_up', 1.0, 'pulse'));
-    el('btnPhPulseCustom')?.addEventListener('click', ()=>{
-      const v = parseFloat(el('phCustomSec')?.value||'0');
-      if(!isFinite(v) || v < 0.1){ alert('Enter seconds ≥ 0.1'); return; }
-      doseUnified('ph_up', v, 'custom_pulse');
-    });
 
     // --- pH Pump Calibration buttons ---
     el('btnPhPumpPrime')?.addEventListener('click', async ()=>{
