@@ -9,6 +9,9 @@
   let PH_CHART = null;
   let PH_CHART_STATE = { lastStart: null, lastEnd: null, lastCount: 0 };
 
+  // Check annotation plugin availability
+  let ANNOTATION_AVAILABLE = false;
+  
   // Ensure Chart.js time scale is available (v3/v4 compatible)
   if (window.Chart && Chart.register && window.RDWC_CHART_REG === undefined) {
     // Chart.js v4 UMD auto-registers, but be defensive
@@ -27,14 +30,21 @@
         Chart.plugins.Title
       );
       // Register annotation plugin if available
-      if (window.chartjs && window.chartjs.Annotation) {
-        Chart.register(window.chartjs.Annotation);
+      if (window.chartjs && window.chartjs['plugin-annotation']) {
+        Chart.register(window.chartjs['plugin-annotation']);
+        ANNOTATION_AVAILABLE = true;
+        console.log('[pH Chart] ✓ Annotation plugin registered from chartjs namespace');
       } else if (window.ChartAnnotation) {
         Chart.register(window.ChartAnnotation);
+        ANNOTATION_AVAILABLE = true;
+        console.log('[pH Chart] ✓ Annotation plugin registered from window.ChartAnnotation');
+      } else {
+        console.warn('[pH Chart] ⚠ Annotation plugin not found - pump bars and bands will not display');
       }
     } catch(e) {
       // Already registered or UMD handled it
       console.debug('[pH] Chart.js controllers already registered');
+      ANNOTATION_AVAILABLE = true; // Assume available if already registered
     }
     window.RDWC_CHART_REG = true;
   }
@@ -99,6 +109,46 @@
 
     // Build annotation plugin config for pH reference line, hysteresis band, setpoint, and pump events
     const annotations = {};
+    
+    // Add hysteresis band (shaded region between low and high targets) FIRST so it's behind everything
+    if (targets && targets.low != null && targets.high != null && !isNaN(targets.low) && !isNaN(targets.high)) {
+      console.log('[pH Chart] Adding hysteresis band:', targets.low, '-', targets.high);
+      annotations.phBand = {
+        type: 'box',
+        yMin: targets.low,
+        yMax: targets.high,
+        yScaleID: 'yPh',
+        backgroundColor: 'rgba(34, 197, 94, 0.15)',  // green with low opacity
+        borderWidth: 0,
+        drawTime: 'beforeDatasetsDraw'  // Draw band behind data
+      };
+      
+      // Add setpoint line (midpoint of targets)
+      const setpoint = (targets.low + targets.high) / 2;
+      console.log('[pH Chart] Adding setpoint line at:', setpoint);
+      annotations.phSetpoint = {
+        type: 'line',
+        yMin: setpoint,
+        yMax: setpoint,
+        yScaleID: 'yPh',
+        borderColor: 'rgba(34, 197, 94, 0.6)',  // green-500 with transparency
+        borderWidth: 2,
+        borderDash: [6, 4],
+        label: {
+          display: true,
+          content: `Setpoint: ${setpoint.toFixed(1)}`,
+          position: 'end',
+          backgroundColor: 'rgba(34, 197, 94, 0.8)',
+          color: '#fff',
+          font: { size: 10 },
+          padding: 3
+        }
+      };
+    } else {
+      console.warn('[pH Chart] No targets for hysteresis band:', targets);
+    }
+    
+    // Add current pH reference line
     if (currentPH != null && !isNaN(currentPH)) {
       annotations.phLine = {
         type: 'line',
@@ -110,7 +160,7 @@
         borderDash: [6, 4],
         label: {
           display: true,
-          content: `Current pH: ${currentPH.toFixed(2)}`,
+          content: `Current: ${currentPH.toFixed(2)}`,
           position: 'start',
           backgroundColor: 'rgba(251, 191, 36, 0.9)',
           color: '#000',
@@ -120,66 +170,43 @@
       };
     }
     
-    // Add hysteresis band (shaded region between low and high targets)
-    if (targets && targets.low != null && targets.high != null && !isNaN(targets.low) && !isNaN(targets.high)) {
-      annotations.phBand = {
-        type: 'box',
-        yMin: targets.low,
-        yMax: targets.high,
-        yScaleID: 'yPh',
-        backgroundColor: 'rgba(34, 197, 94, 0.12)',  // green with low opacity
-        borderWidth: 0,
-        drawTime: 'beforeDatasetsDraw'  // Draw band behind data
-      };
-      
-      // Add setpoint line (midpoint of targets)
-      const setpoint = (targets.low + targets.high) / 2;
-      annotations.phSetpoint = {
-        type: 'line',
-        yMin: setpoint,
-        yMax: setpoint,
-        yScaleID: 'yPh',
-        borderColor: 'rgba(34, 197, 94, 0.5)',  // green-500 with transparency
-        borderWidth: 1.5,
-        borderDash: [4, 4],
-        label: {
-          display: true,
-          content: `Setpoint: ${setpoint.toFixed(1)}`,
-          position: 'end',
-          backgroundColor: 'rgba(34, 197, 94, 0.8)',
-          color: '#fff',
-          font: { size: 10 },
-          padding: 3
-        }
-      };
-    }
-    
     // Add pump events as vertical box annotations (show when pump was running)
     // Limit to avoid performance issues with many events
     const maxPumpAnnotations = 100;
     if (hasPumpEvents) {
+      console.log('[pH Chart] Adding pump annotations for', Math.min(pumpEvents.length, maxPumpAnnotations), 'events');
       if (pumpEvents.length > maxPumpAnnotations) {
         console.warn(`[pH Chart] Truncating pump annotations: ${pumpEvents.length} events, showing first ${maxPumpAnnotations}`);
       }
       const eventsToShow = pumpEvents.slice(0, maxPumpAnnotations);
+      let addedCount = 0;
       eventsToShow.forEach((evt, idx) => {
         if (evt.start && evt.end) {
+          const startDate = new Date(evt.start);
+          const endDate = new Date(evt.end);
+          // Ensure minimum width of 5 seconds for visibility
+          const minWidthMs = 5000;
+          if (endDate.getTime() - startDate.getTime() < minWidthMs) {
+            endDate.setTime(startDate.getTime() + minWidthMs);
+          }
           annotations[`pump${idx}`] = {
             type: 'box',
-            xMin: new Date(evt.start),
-            xMax: new Date(evt.end),
-            backgroundColor: 'rgba(147, 51, 234, 0.15)',  // purple with low opacity
-            borderColor: 'rgba(147, 51, 234, 0.4)',
+            xMin: startDate,
+            xMax: endDate,
+            backgroundColor: 'rgba(147, 51, 234, 0.25)',  // purple with low opacity
+            borderColor: 'rgba(147, 51, 234, 0.6)',
             borderWidth: 1,
-            drawTime: 'beforeDatasetsDraw',
-            label: {
-              display: false,  // Hide labels to avoid clutter
-              content: evt.label || 'Pump'
-            }
+            drawTime: 'beforeDatasetsDraw'
           };
+          addedCount++;
         }
       });
+      console.log('[pH Chart] Added', addedCount, 'pump box annotations');
     }
+    
+    // Log final annotations for debugging
+    const annotationKeys = Object.keys(annotations);
+    console.log('[pH Chart] Final annotations:', annotationKeys.length, 'keys:', annotationKeys.slice(0, 10).join(', '), annotationKeys.length > 10 ? '...' : '');
 
     // Build final datasets array: pH readings line, then dose datasets
     const finalDatasets = [];
@@ -508,16 +535,29 @@
 
     // Update totals KPI pill with total ml dosed
     const pill = document.getElementById('ph-total-dosed');
+    console.log('[pH Chart] Totals KPI pill element:', pill ? 'found' : 'NOT FOUND');
     if (pill) {
-      if (hasAnyMl) {
-        const sumMl = events.reduce((a, r) => a + (r.volume_ml ?? 0), 0);
+      let sumMl = 0, sumSec = 0;
+      events.forEach(r => {
+        sumMl += (r.volume_ml ?? 0);
+        sumSec += (r.seconds ?? 0);
+      });
+      console.log('[pH Chart] Totals computed:', { sumMl, sumSec, hasAnyMl, eventCount: events.length });
+      
+      if (hasAnyMl && sumMl > 0) {
         pill.textContent = `Total: ${sumMl.toFixed(1)} ml`;
         pill.style.display = 'inline-block';
+      } else if (sumSec > 0) {
+        pill.textContent = `Total: ${sumSec.toFixed(1)} s`;
+        pill.style.display = 'inline-block';
+      } else if (events.length > 0) {
+        // If we have events but no ml or seconds, show count
+        pill.textContent = `${events.length} doses`;
+        pill.style.display = 'inline-block';
       } else {
-        const sumSec = events.reduce((a, r) => a + (r.seconds ?? 0), 0);
-        pill.textContent = sumSec > 0 ? `Total: ${Math.round(sumSec)} s` : '';
-        pill.style.display = sumSec > 0 ? 'inline-block' : 'none';
+        pill.style.display = 'none';
       }
+      console.log('[pH Chart] Totals KPI updated:', pill.textContent, 'display:', pill.style.display);
     }
 
     PH_CHART_STATE = { lastStart: startISO || start || null, lastEnd: endISO || end || null, lastCount: events.length };
