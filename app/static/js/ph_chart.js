@@ -9,6 +9,9 @@
   let PH_CHART = null;
   let PH_CHART_STATE = { lastStart: null, lastEnd: null, lastCount: 0 };
 
+  // Constants
+  const MIN_PUMP_BAR_WIDTH_MS = 5000; // Minimum 5 seconds width for pump event visibility
+  
   // Check annotation plugin availability
   let ANNOTATION_AVAILABLE = false;
   
@@ -42,9 +45,14 @@
         console.warn('[pH Chart] ⚠ Annotation plugin not found - pump bars and bands will not display');
       }
     } catch(e) {
-      // Already registered or UMD handled it
-      console.debug('[pH] Chart.js controllers already registered');
-      ANNOTATION_AVAILABLE = true; // Assume available if already registered
+      // Exception during registration - check if annotation plugin exists
+      console.debug('[pH] Chart.js registration exception:', e.message);
+      // Only set available if we can verify the plugin exists
+      if (window.chartjs && window.chartjs['plugin-annotation']) {
+        ANNOTATION_AVAILABLE = true;
+      } else if (window.ChartAnnotation) {
+        ANNOTATION_AVAILABLE = true;
+      }
     }
     window.RDWC_CHART_REG = true;
   }
@@ -184,10 +192,9 @@
         if (evt.start && evt.end) {
           const startDate = new Date(evt.start);
           const endDate = new Date(evt.end);
-          // Ensure minimum width of 5 seconds for visibility
-          const minWidthMs = 5000;
-          if (endDate.getTime() - startDate.getTime() < minWidthMs) {
-            endDate.setTime(startDate.getTime() + minWidthMs);
+          // Ensure minimum width for visibility (use module constant)
+          if (endDate.getTime() - startDate.getTime() < MIN_PUMP_BAR_WIDTH_MS) {
+            endDate.setTime(startDate.getTime() + MIN_PUMP_BAR_WIDTH_MS);
           }
           annotations[`pump${idx}`] = {
             type: 'box',
@@ -287,6 +294,44 @@
       };
     }
 
+    // Build plugins config - only include annotation if plugin is available
+    const pluginsConfig = {
+      legend: { 
+        display: true,
+        position: 'top',
+        labels: { usePointStyle: true, boxWidth: 10, padding: 12 }
+      },
+      tooltip: {
+        enabled: true,
+        callbacks: {
+          label: (ctx) => {
+            const p = ctx.raw;
+            const ds = ctx.dataset;
+            
+            // pH readings tooltip
+            if (ds.label === 'pH') {
+              const v = Number(ctx.parsed.y);
+              return ` pH: ${v.toFixed(2)}`;
+            }
+            
+            // Dose event tooltip
+            if (!p) return '';
+            const ml = (p.ml != null) ? `+${p.ml.toFixed(2)} ml` : (p.sec != null ? `~${p.sec.toFixed(2)} s` : '');
+            const ph = (p.phb != null || p.pha != null) ? `  pH: ${p.phb ?? '—'} → ${p.pha ?? '—'}` : '';
+            return `${ml}${ph}`;
+          }
+        }
+      }
+    };
+    
+    // Add annotation config only if plugin is available
+    if (ANNOTATION_AVAILABLE && Object.keys(annotations).length > 0) {
+      pluginsConfig.annotation = { annotations: annotations };
+      console.log('[pH Chart] Annotations enabled with', Object.keys(annotations).length, 'items');
+    } else if (!ANNOTATION_AVAILABLE) {
+      console.warn('[pH Chart] Annotations skipped - plugin not available');
+    }
+
     PH_CHART = new Chart(ctx, {
       type: 'line',
       data: { datasets: dsUse },
@@ -299,41 +344,11 @@
           intersect: false
         },
         scales: scales,
-        plugins: {
-          legend: { 
-            display: true,
-            position: 'top',
-            labels: { usePointStyle: true, boxWidth: 10, padding: 12 }
-          },
-          tooltip: {
-            enabled: true,
-            callbacks: {
-              label: (ctx) => {
-                const p = ctx.raw;
-                const ds = ctx.dataset;
-                
-                // pH readings tooltip
-                if (ds.label === 'pH') {
-                  const v = Number(ctx.parsed.y);
-                  return ` pH: ${v.toFixed(2)}`;
-                }
-                
-                // Dose event tooltip
-                if (!p) return '';
-                const ml = (p.ml != null) ? `+${p.ml.toFixed(2)} ml` : (p.sec != null ? `~${p.sec.toFixed(2)} s` : '');
-                const ph = (p.phb != null || p.pha != null) ? `  pH: ${p.phb ?? '—'} → ${p.pha ?? '—'}` : '';
-                return `${ml}${ph}`;
-              }
-            }
-          },
-          annotation: {
-            annotations: annotations
-          }
-        }
+        plugins: pluginsConfig
       }
     });
 
-    console.debug('[pH] Chart created/rebuilt', { hasData, hasPhReadings, hasDoseData, datasetCount: dsUse.length, currentPH });
+    console.debug('[pH] Chart created/rebuilt', { hasData, hasPhReadings, hasDoseData, datasetCount: dsUse.length, currentPH, annotationAvailable: ANNOTATION_AVAILABLE });
   }
 
   // Granularity constants for time-based bucketing (in seconds)
