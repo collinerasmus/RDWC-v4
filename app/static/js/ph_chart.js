@@ -32,26 +32,38 @@
         Chart.plugins.Legend,
         Chart.plugins.Title
       );
+      
       // Register annotation plugin if available
-      if (window.chartjs && window.chartjs['plugin-annotation']) {
-        Chart.register(window.chartjs['plugin-annotation']);
-        ANNOTATION_AVAILABLE = true;
-        console.log('[pH Chart] ✓ Annotation plugin registered from chartjs namespace');
-      } else if (window.ChartAnnotation) {
-        Chart.register(window.ChartAnnotation);
-        ANNOTATION_AVAILABLE = true;
-        console.log('[pH Chart] ✓ Annotation plugin registered from window.ChartAnnotation');
+      // CDN UMD export for chartjs-plugin-annotation v3 uses window['chartjs-plugin-annotation']
+      const annoPlugin = (
+        window['chartjs-plugin-annotation'] ||
+        (window.chartjs && window.chartjs['plugin-annotation']) ||
+        window.ChartAnnotation
+      );
+      
+      if (annoPlugin) {
+        try {
+          Chart.register(annoPlugin);
+          ANNOTATION_AVAILABLE = true;
+          console.log('[pH Chart] ✓ Annotation plugin registered successfully');
+        } catch (regErr) {
+          console.warn('[pH Chart] Failed to register annotation plugin:', regErr?.message);
+        }
       } else {
-        console.warn('[pH Chart] ⚠ Annotation plugin not found - pump bars and bands will not display');
+        console.warn('[pH Chart] ⚠ Annotation plugin not found - pump bars, hysteresis band, and setpoint line will not display');
       }
     } catch(e) {
       // Exception during registration - check if annotation plugin exists
       console.debug('[pH] Chart.js registration exception:', e.message);
-      // Only set available if we can verify the plugin exists
-      if (window.chartjs && window.chartjs['plugin-annotation']) {
+      // Check for annotation plugin availability after exception
+      const annoPlugin = (
+        window['chartjs-plugin-annotation'] ||
+        (window.chartjs && window.chartjs['plugin-annotation']) ||
+        window.ChartAnnotation
+      );
+      if (annoPlugin) {
         ANNOTATION_AVAILABLE = true;
-      } else if (window.ChartAnnotation) {
-        ANNOTATION_AVAILABLE = true;
+        console.log('[pH Chart] ✓ Annotation plugin available (already registered)');
       }
     }
     window.RDWC_CHART_REG = true;
