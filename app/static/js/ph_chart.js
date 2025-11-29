@@ -32,17 +32,7 @@
         Chart.plugins.Legend,
         Chart.plugins.Title
       );
-<<<<<<< HEAD
       
-      // Register annotation plugin if available
-      // CDN UMD export for chartjs-plugin-annotation v3 uses window['chartjs-plugin-annotation']
-      const annoPlugin = (
-        window['chartjs-plugin-annotation'] ||
-        (window.chartjs && window.chartjs['plugin-annotation']) ||
-        window.ChartAnnotation
-      );
-      
-=======
       // Register annotation plugin if available (UMD global can be exported under different names)
       const annoPlugin = (
         // Preferred UMD export name used by chartjs-plugin-annotation v3
@@ -52,20 +42,14 @@
         // Older name sometimes used
         window.ChartAnnotation
       );
->>>>>>> 77917cf (feat(ph-chart): weekly bands + build commit chip a951afe)
+      
       if (annoPlugin) {
         try {
           Chart.register(annoPlugin);
           ANNOTATION_AVAILABLE = true;
-<<<<<<< HEAD
           console.log('[pH Chart] ✓ Annotation plugin registered successfully');
         } catch (regErr) {
-          console.warn('[pH Chart] Failed to register annotation plugin:', regErr?.message);
-=======
-          console.log('[pH Chart] ✓ Annotation plugin registered');
-        } catch (e2) {
-          console.warn('[pH Chart] ⚠ Failed to register annotation plugin:', e2?.message);
->>>>>>> 77917cf (feat(ph-chart): weekly bands + build commit chip a951afe)
+          console.warn('[pH Chart] ⚠ Failed to register annotation plugin:', regErr?.message);
         }
       } else {
         console.warn('[pH Chart] ⚠ Annotation plugin not found - pump bars, hysteresis band, and setpoint line will not display');
@@ -73,10 +57,7 @@
     } catch(e) {
       // Exception during registration - check if annotation plugin exists
       console.debug('[pH] Chart.js registration exception:', e.message);
-<<<<<<< HEAD
       // Check for annotation plugin availability after exception
-=======
->>>>>>> 77917cf (feat(ph-chart): weekly bands + build commit chip a951afe)
       const annoPlugin = (
         window['chartjs-plugin-annotation'] ||
         (window.chartjs && window.chartjs['plugin-annotation']) ||
