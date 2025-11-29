@@ -169,9 +169,15 @@ def migrate_from_legacy():
         
         conn = get_conn()  # Uses autocommit mode
         
-        # Check if already migrated
+        # Check if already migrated (initial migration)
         migrated = conn.execute("SELECT value FROM settings WHERE key='controls.migrated'").fetchone()
-        if migrated and migrated[0] == "true":
+        initial_migration_done = migrated and migrated[0] == "true"
+        
+        # Check if circulation/lights defaults have been applied
+        circ_lights_migrated = conn.execute("SELECT value FROM settings WHERE key='controls.circ_lights_defaults_applied'").fetchone()
+        circ_lights_done = circ_lights_migrated and circ_lights_migrated[0] == "true"
+        
+        if initial_migration_done and circ_lights_done:
             logger.debug("Auto-enable migration already complete")
             return
         
@@ -189,7 +195,17 @@ def migrate_from_legacy():
                 set_controller_auto_enabled(ctrl, True)
                 logger.info(f"Migrated {old_key}=true → {ctrl}_auto=true")
         
-        # Mark migration complete - no commit needed (autocommit mode)
+        # Set circulation and lights to auto_enabled=true if not explicitly set
+        # (They are schedule-driven and always safe to automate)
+        if not circ_lights_done:
+            for ctrl in ["circulation", "lights"]:
+                current = conn.execute("SELECT value FROM settings WHERE key=?", (f"controls.{ctrl}_auto",)).fetchone()
+                if current and current[0] == "false":
+                    set_controller_auto_enabled(ctrl, True)
+                    logger.info(f"Updated {ctrl}_auto from false → true (safe default)")
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('controls.circ_lights_defaults_applied', 'true')")
+        
+        # Mark initial migration complete - no commit needed (autocommit mode)
         conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('controls.migrated', 'true')")
         
         logger.info("✅ Auto-enable migration complete")
