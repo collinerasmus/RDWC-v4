@@ -471,9 +471,14 @@ def _update_post_ph_with_flag(rowid: int, post_ph: Optional[float], stable: bool
         row = cur.fetchone()
         current_reason = row[0] if row else ""
         stability_flag = "; ph_stable" if stable else "; ph_unsettled"
-        new_reason = (current_reason or "") + stability_flag
+        # current_reason is guaranteed to be a string (empty or actual value)
+        new_reason = current_reason + stability_flag
         conn.execute("UPDATE ph_dose_log SET post_ph=?, reason=? WHERE id=?", (post_ph, new_reason, rowid))
         conn.commit()
+
+
+# Stabilization constants
+SAMPLE_RETENTION_MULTIPLIER = 2  # Keep 2x stability_samples for trend analysis
 
 
 def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], max_wait_s: int):
@@ -481,7 +486,7 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
     
     Stability criteria (configurable):
     - Wait at least 5 minutes for mixing and sensor response
-    - Check last N samples for low variance (abs delta < 0.02 over N readings)
+    - Check last N samples for low range (max - min < 0.02 over N readings)
     - If stable within max_wait_s, record post_ph with stable=True
     - If not stable, record last observed value with stable=False (unsettled)
     
@@ -490,7 +495,7 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
     try:
         # Configuration
         stabilize_wait_s = _settings_get_int("dosing.stabilize_wait_s", 300)  # 5 minutes default
-        stability_delta = _settings_get_float("dosing.stability_delta", 0.02)  # Max delta for stable
+        stability_delta = _settings_get_float("dosing.stability_delta", 0.02)  # Max range for stable
         stability_samples = _settings_get_int("dosing.stability_samples", 3)  # Number of samples to check
         poll_interval = 10.0  # Poll every 10 seconds
         
@@ -511,27 +516,28 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
                 samples.append({"ph": ph_val, "ts": ts})
                 last_seen_ts = ts
                 
-                # Keep only recent samples for stability check
-                if len(samples) > stability_samples * 2:
-                    samples = samples[-stability_samples * 2:]
+                # Keep recent samples for stability check (retain extra for trend analysis)
+                max_samples = stability_samples * SAMPLE_RETENTION_MULTIPLIER
+                if len(samples) > max_samples:
+                    samples = samples[-max_samples:]
                 
                 # Only check stability after minimum wait time has passed
                 if time.time() >= stabilize_deadline and len(samples) >= stability_samples:
-                    # Check if last N samples are stable
+                    # Check if last N samples are stable (low range = max - min)
                     recent = [s["ph"] for s in samples[-stability_samples:] if s["ph"] is not None]
                     if len(recent) >= stability_samples:
                         min_ph = min(recent)
                         max_ph = max(recent)
-                        delta = max_ph - min_ph
+                        sample_range = max_ph - min_ph
                         
-                        if delta <= stability_delta:
+                        if sample_range <= stability_delta:
                             # Stable! Record the average of recent samples
                             stable_ph = sum(recent) / len(recent)
-                            print(f"[pH Stabilization] rowid={rowid} STABLE: ph={stable_ph:.3f}, delta={delta:.4f}")
+                            print(f"[pH Stabilization] rowid={rowid} STABLE: ph={stable_ph:.3f}, range={sample_range:.4f}")
                             _update_post_ph_with_flag(rowid, round(stable_ph, 3), stable=True)
                             return
                         else:
-                            print(f"[pH Stabilization] rowid={rowid} still settling: delta={delta:.4f} > {stability_delta}")
+                            print(f"[pH Stabilization] rowid={rowid} still settling: range={sample_range:.4f} > {stability_delta}")
             
             time.sleep(poll_interval)
         
@@ -542,6 +548,7 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
             _update_post_ph_with_flag(rowid, ph_final, stable=False)
         else:
             print(f"[pH Stabilization] rowid={rowid} TIMEOUT: no pH reading available")
+            
             
     except Exception as e:
         print(f"[pH Stabilization] Error for rowid={rowid}: {e}")
@@ -591,6 +598,10 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
     # EXPERIMENTAL: Pre-dose estimated pH change guard
     # Block if estimated pH change exceeds threshold (default 0.5 pH)
     # This helps prevent overdosing when concentration is high or reservoir is small
+    # Constants for the guard
+    DEFAULT_ML_PER_PH_FALLBACK = 50.0  # Default ml per 1.0 pH if no learned value
+    MIN_ML_PER_PH = 0.01  # Minimum divisor to prevent division by zero
+    
     pre_ph_for_check, _ = _get_latest_ph()
     if volume_ml is not None and volume_ml > 0 and pre_ph_for_check is not None:
         try:
@@ -599,9 +610,9 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
             )
             if estimated_change_guard:
                 max_estimated_change = _settings_get_float("safety.max_estimated_ph_change", 0.5)
-                ml_per_pH = _estimate_ml_per_pH(_get_latest_ec()[0]) or 50.0
+                ml_per_pH = _estimate_ml_per_pH(_get_latest_ec()[0]) or DEFAULT_ML_PER_PH_FALLBACK
                 # Estimated pH change = volume_ml / ml_per_pH
-                estimated_delta = volume_ml / max(0.01, ml_per_pH)
+                estimated_delta = volume_ml / max(MIN_ML_PER_PH, ml_per_pH)
                 if estimated_delta > max_estimated_change:
                     ts_iso = datetime.now(timezone.utc).isoformat()
                     rowid = _log_row({
