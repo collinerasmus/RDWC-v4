@@ -47,10 +47,13 @@ def _ensure_db():
                 value TEXT NOT NULL
             )
         """)
-        # Default: global OFF (safety first), individual controllers OFF
+        # Default: global OFF (safety first)
+        # pH/EC/Chiller default OFF (require explicit enable for dosing/thermal control)
+        # Circulation/Lights default ON (schedule-driven, always safe to automate)
         conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("controls.global_auto", "false"))
         for ctrl in CONTROLLERS:
-            conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (f"controls.{ctrl}_auto", "false"))
+            default = "true" if ctrl in ("circulation", "lights") else "false"
+            conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (f"controls.{ctrl}_auto", default))
         # No commit needed - db_pool uses autocommit mode (isolation_level=None)
         logger.debug("Auto-enable controls initialized")
     except Exception as e:
