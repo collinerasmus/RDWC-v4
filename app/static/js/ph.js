@@ -503,16 +503,6 @@
       doseUnified('ph_up', v, 'custom');
     });
     
-    // Maintenance mode dosing buttons (mirror manual)
-    el('btnPrimeMaint')?.addEventListener('click', ()=> doseUnified('ph_up', 0.2, 'prime'));
-    el('btnDose1Maint')?.addEventListener('click', ()=> doseUnified('ph_up', 0.5, 'manual'));
-    el('btnDose5Maint')?.addEventListener('click', ()=> doseUnified('ph_up', 1.0, 'manual'));
-    el('btnDoseCustomMaint')?.addEventListener('click', ()=>{
-      const v = parseFloat(el('phCustomMlMaint').value||'0');
-      if(!isFinite(v) || v<=0){ alert('Enter seconds > 0'); return; }
-      doseUnified('ph_up', v, 'custom');
-    });
-    
     // Dose log refresh
     el('btnRefreshDoseLog')?.addEventListener('click', refreshDoseLog);
     refreshDoseLog(); // Initial load
@@ -746,6 +736,149 @@
 
     // Check calibration capabilities on init
     checkCaps();
+
+    // --- Time-based Pump Control buttons ---
+    el('btnPhPulse03')?.addEventListener('click', ()=> doseUnified('ph_up', 0.3, 'pulse'));
+    el('btnPhPulse05')?.addEventListener('click', ()=> doseUnified('ph_up', 0.5, 'pulse'));
+    el('btnPhPulse10')?.addEventListener('click', ()=> doseUnified('ph_up', 1.0, 'pulse'));
+    el('btnPhPulseCustom')?.addEventListener('click', ()=>{
+      const v = parseFloat(el('phCustomSec')?.value||'0');
+      if(!isFinite(v) || v<=0){ alert('Enter seconds > 0'); return; }
+      doseUnified('ph_up', v, 'custom_pulse');
+    });
+
+    // --- pH Pump Calibration buttons ---
+    el('btnPhPumpPrime')?.addEventListener('click', async ()=>{
+      const btn = el('btnPhPumpPrime');
+      if(btn) btn.disabled = true;
+      try{
+        await doseUnified('ph_up', 3.0, 'calibration_prime');
+        if(window.showToast) showToast('Primed pH pump for 3s', 'success');
+      } finally {
+        if(btn) btn.disabled = false;
+      }
+    });
+    
+    el('btnPhPumpRun')?.addEventListener('click', async ()=>{
+      const durationEl = el('phPumpDuration');
+      const duration = parseFloat(durationEl?.value || '10');
+      if(!isFinite(duration) || duration < 1 || duration > 60){ 
+        alert('Duration must be 1-60 seconds'); 
+        return; 
+      }
+      const btn = el('btnPhPumpRun');
+      if(btn) { btn.disabled = true; btn.textContent = `Running ${duration}s...`; }
+      try{
+        await doseUnified('ph_up', duration, 'calibration_run');
+        if(window.showToast) showToast(`Ran pH pump for ${duration}s - measure output now`, 'success');
+      } finally {
+        if(btn) { btn.disabled = false; btn.textContent = 'Run'; }
+      }
+    });
+    
+    el('btnPhPumpCommit')?.addEventListener('click', async ()=>{
+      const durationEl = el('phPumpDuration');
+      const measuredEl = el('phPumpMeasured');
+      const duration = parseFloat(durationEl?.value || '10');
+      const measured = parseFloat(measuredEl?.value || '0');
+      
+      if(!isFinite(duration) || duration < 1){ alert('Enter valid duration'); return; }
+      if(!isFinite(measured) || measured <= 0){ alert('Enter measured ml > 0'); return; }
+      
+      const rate = measured / duration;
+      if(!confirm(`Commit pH Up pump rate: ${rate.toFixed(3)} ml/s?`)) return;
+      
+      try{
+        const r = await fetch('/api/settings', {
+          method:'PUT', 
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ 'dosing.ph_up_ml_per_sec': rate.toFixed(3) })
+        });
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        // Update display
+        const rateEl = el('phPumpCurrentRate');
+        if(rateEl) rateEl.textContent = rate.toFixed(3);
+        if(window.showToast) showToast(`pH pump rate saved: ${rate.toFixed(3)} ml/s`, 'success');
+        // Clear measured input for next calibration
+        if(measuredEl) measuredEl.value = '';
+      }catch(e){
+        if(window.showToast) showToast('Failed to save pump rate', 'error');
+        console.error('[pH] Pump calibration commit failed:', e);
+      }
+    });
+    
+    // Load current pump rate on init
+    try{
+      const rate = window.rdwcSettings?.get('dosing.ph_up_ml_per_sec');
+      const rateEl = el('phPumpCurrentRate');
+      if(rateEl && rate) rateEl.textContent = parseFloat(rate).toFixed(3);
+    }catch(e){}
+
+    // --- Save pH Settings button ---
+    el('btnSavePhSettings')?.addEventListener('click', async ()=>{
+      const btn = el('btnSavePhSettings');
+      if(btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+      
+      try{
+        const settings = {};
+        const fields = [
+          ['phTargetLow', 'targets.ph_low'],
+          ['phTargetHigh', 'targets.ph_high'],
+          ['phAlertLow', 'alerts.ph_low'],
+          ['phAlertHigh', 'alerts.ph_high'],
+          ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec'],
+          ['phMixDelay', 'dosing.ph_mix_delay_s'],
+          ['phMaxMlHour', 'dosing.ph_up_max_ml_per_hour'],
+          ['phMaxMlDay', 'dosing.ph_up_max_ml_per_day']
+        ];
+        
+        for(const [elemId, settingKey] of fields){
+          const elem = el(elemId);
+          if(elem && elem.value !== ''){
+            settings[settingKey] = elem.value;
+          }
+        }
+        
+        if(Object.keys(settings).length === 0){
+          if(window.showToast) showToast('No changes to save', 'warning');
+          return;
+        }
+        
+        const r = await fetch('/api/settings', {
+          method:'PUT', 
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(settings)
+        });
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        
+        if(window.showToast) showToast('pH settings saved', 'success');
+        tick(); // Refresh status to pick up new targets
+      }catch(e){
+        if(window.showToast) showToast('Failed to save pH settings', 'error');
+        console.error('[pH] Save settings failed:', e);
+      } finally {
+        if(btn) { btn.disabled = false; btn.textContent = 'Save pH Settings'; }
+      }
+    });
+    
+    // Load current settings into form fields
+    try{
+      const settingsMap = [
+        ['phTargetLow', 'targets.ph_low', '5.8'],
+        ['phTargetHigh', 'targets.ph_high', '6.2'],
+        ['phAlertLow', 'alerts.ph_low', '5.5'],
+        ['phAlertHigh', 'alerts.ph_high', '6.5'],
+        ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec', ''],
+        ['phMixDelay', 'dosing.ph_mix_delay_s', ''],
+        ['phMaxMlHour', 'dosing.ph_up_max_ml_per_hour', ''],
+        ['phMaxMlDay', 'dosing.ph_up_max_ml_per_day', '']
+      ];
+      for(const [elemId, settingKey, fallback] of settingsMap){
+        const elem = el(elemId);
+        const val = window.rdwcSettings?.get(settingKey);
+        if(elem && (val || fallback)) elem.value = val || fallback;
+      }
+    }catch(e){ console.warn('[pH] Failed to load settings into form:', e); }
 
     // listen for settings UI updates to ui.sensors_poll_ms
     window.addEventListener('settings:ui', (ev)=>{

@@ -1616,35 +1616,6 @@ body{
             <span id="ph-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
           </div>
 
-          <!-- Mode-Specific Content -->
-          
-          <!-- Manual Mode Content -->
-          <div id="ph-manual-content" style="display:block;">
-            <!-- Manual dosing controls moved to pH Settings section below -->
-          </div>
-
-          <!-- Auto Mode Content -->
-          <div id="ph-auto-content" style="display:none;">
-            <!-- Redundant automation button removed - use mode chips in header -->
-          </div>
-
-          <!-- Maintenance Mode Content -->
-          <div id="ph-maint-content" style="display:none;">
-            <div class="info-banner-danger">
-              <div class="info-banner-icon">⚠️</div>
-              <div class="info-banner-danger-content">
-                <strong>Maintenance Mode Active:</strong> Controller automation disabled. Manual dosing available with reduced safety restrictions (E-STOP and empty reservoir checks still enforced).
-              </div>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-              <button id="btnPrimeMaint" class="btn-secondary" title="Prime (200 ms)">Prime</button>
-              <button id="btnDose1Maint" class="btn-secondary">+1 ml</button>
-              <button id="btnDose5Maint" class="btn-secondary">+5 ml</button>
-              <input id="phCustomMlMaint" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:28px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);"/>
-              <button id="btnDoseCustomMaint" class="btn-secondary">Dose</button>
-            </div>
-          </div>
-
           <!-- 3. Graph (Dose History Chart) -->
           <hr class="separator" style="margin:20px 0;" />
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-sm);">
@@ -1740,26 +1711,28 @@ body{
             </div>
           </details>
 
-          <!-- pH Pump Calibration (moved from Sensors tab) -->
+          <!-- pH Pump Calibration -->
           <details style="margin-top:12px;">
             <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">💧 Pump Calibration</summary>
             <div class="details-content-accent">
-              <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-base);">pH Up Pump Flow Rate</div>
-              <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Run pump for known duration, measure output, then commit to save ml/s rate.</div>
+              <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-base);">pH Up Pump Flow Rate Calibration</div>
+              <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">
+                <strong>Workflow:</strong> 1) Prime pump → 2) Run for X seconds → 3) Measure collected ml → 4) Commit rate
+              </div>
               <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;gap:8px;margin-bottom:var(--space-md);">
                 <div>
                   <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Duration (s)</label>
-                  <input type="number" id="phPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+                  <input type="number" id="phPumpDuration" value="10" min="5" max="60" step="1" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" title="Duration to run pump for calibration"/>
                 </div>
                 <div>
                   <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Measured (ml)</label>
-                  <input type="number" id="phPumpMeasured" step="0.1" min="0" max="500" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+                  <input type="number" id="phPumpMeasured" step="0.1" min="0" max="500" placeholder="0.0" style="width:80px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" title="Enter measured output after running pump"/>
                 </div>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-md);">
-                <button id="btnPhPumpPrime" class="btn-secondary btn-xs">Prime (3s)</button>
-                <button id="btnPhPumpRun" class="btn-secondary btn-xs">Run</button>
-                <button id="btnPhPumpCommit" class="btn-secondary btn-xs">Commit Rate</button>
+                <button id="btnPhPumpPrime" class="btn-secondary" title="Prime pump for 3 seconds to fill lines">① Prime (3s)</button>
+                <button id="btnPhPumpRun" class="btn-secondary" title="Run pump for specified duration - collect output in graduated cylinder">② Run</button>
+                <button id="btnPhPumpCommit" class="btn-secondary" title="Calculate and save ml/s rate from measured output">③ Commit Rate</button>
               </div>
               <div style="font-size:var(--font-xs);color:#9ca3af;margin-top:8px;">Current rate: <span id="phPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s</div>
               <div id="phPumpCalibMsg" class="muted" style="font-size:var(--font-xs);padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
@@ -1779,37 +1752,34 @@ body{
           </details>
 
           <details style="margin-top:12px;">
-            <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Manual Dosing (Volume)</summary>
+            <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Manual Dosing</summary>
             <div class="details-content-accent">
-              <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">Dose pH Up manually with safety caps enforced.</div>
+              <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">Dose pH Up manually. Safety guards enforced in Auto mode; only E-STOP/reservoir in Manual mode.</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
-                <button id="btnPrime" class="btn-secondary" title="Prime (200 ms)">Prime</button>
-                <button id="btnDose1" class="btn-secondary">+1 ml</button>
-                <button id="btnDose5" class="btn-secondary">+5 ml</button>
-                <input id="phCustomMl" type="number" min="0.1" step="0.1" placeholder="Custom ml" style="width:110px;height:28px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);"/>
-                <button id="btnDoseCustom" class="btn-secondary">Dose</button>
+                <button id="btnPrime" class="btn-secondary" title="Quick prime: 0.2s pulse to fill lines">Prime (0.2s)</button>
+                <button id="btnDose1" class="btn-secondary" title="Dose pH Up for 0.5 seconds">Dose (0.5s)</button>
+                <button id="btnDose5" class="btn-secondary" title="Dose pH Up for 1.0 seconds">Dose (1.0s)</button>
+                <input id="phCustomMl" type="number" min="0.1" step="0.1" placeholder="seconds" style="width:90px;height:28px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" title="Enter custom duration in seconds"/>
+                <button id="btnDoseCustom" class="btn-secondary" title="Dose pH Up for custom duration">Dose</button>
                 <span id="phMaintBadge" class="muted" style="display:none;margin-left:6px;padding:4px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.45);color:#fecaca;font-size:var(--font-md);" title="Bypasses cooldown/daily cap; clamps single dose; E-STOP/empty reservoir still enforced.">Maintenance override active</span>
               </div>
               <div class="muted" style="font-size:var(--font-sm);margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(148,163,184,0.05);">
                 Max per press: <span id="phCapMaxPress">1.5s</span> • Daily cap: <span id="phCapDaily">120s</span> • Min off: <span id="phCapMinOff">2s</span>
               </div>
-              </div>
             </div>
           </details>
 
-          <!-- pH Direct Pump Control (Time-based) -->
+          <!-- pH Quick Pulse Controls (Time-based) -->
           <details style="margin-top:12px;">
-            <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Pump Control (Time)</summary>
+            <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Quick Pulse (Time-based)</summary>
             <div class="details-content-accent">
-              <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">Press and hold pattern for the pH Up pump. Safety caps enforced.</div>
-              <div>
-                <button id="btnPhPulse03" class="btn-secondary btn-full" title="Dose pH Up for 0.3s">pH Up (0.3s)</button>
-                <div class="ec-v1-ui row" style="margin-top:6px;">
-                  <button id="btnPhPulse05" class="btn-mini" title="Quick pulse 0.5s">0.5s</button>
-                  <button id="btnPhPulse10" class="btn-mini" title="Quick pulse 1.0s">1.0s</button>
-                  <input id="phCustomSec" type="number" step="0.1" min="0" placeholder="sec" style="width:70px;" />
-                  <button id="btnPhPulseCustom" class="btn-mini" title="Custom seconds">Pulse</button>
-                </div>
+              <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">Quick time-based pulses for precise dosing.</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                <button id="btnPhPulse03" class="btn-secondary" title="Dose pH Up for 0.3 seconds">0.3s</button>
+                <button id="btnPhPulse05" class="btn-secondary" title="Dose pH Up for 0.5 seconds">0.5s</button>
+                <button id="btnPhPulse10" class="btn-secondary" title="Dose pH Up for 1.0 seconds">1.0s</button>
+                <input id="phCustomSec" type="number" step="0.1" min="0.1" placeholder="sec" style="width:70px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" title="Enter custom duration in seconds"/>
+                <button id="btnPhPulseCustom" class="btn-secondary" title="Dose pH Up for custom seconds">Pulse</button>
               </div>
             </div>
           </details>
