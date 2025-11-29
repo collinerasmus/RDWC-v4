@@ -1,5 +1,6 @@
 // pH Dose Chart Rendering Module
 // Shows pH sensor readings over time (hysteresis) with dose events overlaid
+// pH-only: no EC or temperature data displayed here (use Sensors tab for that)
 (function(){
   console.log('[pH Chart] Loader enter (ph_chart.js start)');
   'use strict';
@@ -39,19 +40,16 @@
   }
 
   /**
-   * Build or rebuild the pH chart with sensor readings and dose events overlay
+   * Build or rebuild the pH-only chart with sensor readings and dose events overlay
    * @param {Array} datasets - Chart.js datasets for dose events
    * @param {string|null} timeMin - ISO timestamp or null
    * @param {string|null} timeMax - ISO timestamp or null
    * @param {number|null} currentPH - Current live pH reading
    * @param {Object|null} targets - {low: number, high: number} pH target range
-   * @param {Object} sensorData - {ph: [], ec: [], temp: []} sensor readings arrays
+   * @param {Array} phReadings - Array of {x: Date, y: number} pH sensor readings
    * @param {Array} pumpEvents - Array of pump ON/OFF events
    */
-  function phBuildChart(datasets, timeMin, timeMax, currentPH, targets, sensorData, pumpEvents) {
-    const phReadings = sensorData?.ph || [];
-    const ecReadings = sensorData?.ec || [];
-    const tempReadings = sensorData?.temp || [];
+  function phBuildChart(datasets, timeMin, timeMax, currentPH, targets, phReadings, pumpEvents) {
     const el = document.getElementById('phDoseChart');
     const empty = document.getElementById('ph-dose-empty');
 
@@ -60,13 +58,11 @@
       return;
     }
 
-    // Check if we have sensor data or dose events
+    // Check if we have pH data or dose events
     const hasPhReadings = phReadings && phReadings.length > 0;
-    const hasEcReadings = ecReadings && ecReadings.length > 0;
-    const hasTempReadings = tempReadings && tempReadings.length > 0;
     const hasDoseData = datasets && datasets.some(ds => (ds.data||[]).length > 0);
     const hasPumpEvents = pumpEvents && pumpEvents.length > 0;
-    const hasData = hasPhReadings || hasEcReadings || hasTempReadings || hasDoseData || hasPumpEvents;
+    const hasData = hasPhReadings || hasDoseData || hasPumpEvents;
     
     if (empty) {
       empty.style.display = hasData ? 'none' : 'block';
@@ -159,8 +155,11 @@
     }
     
     // Add pump events as vertical box annotations (show when pump was running)
+    // Limit to avoid performance issues with many events
+    const maxPumpAnnotations = 100;
     if (hasPumpEvents) {
-      pumpEvents.forEach((evt, idx) => {
+      const eventsToShow = pumpEvents.slice(0, maxPumpAnnotations);
+      eventsToShow.forEach((evt, idx) => {
         if (evt.start && evt.end) {
           annotations[`pump${idx}`] = {
             type: 'box',
@@ -171,20 +170,15 @@
             borderWidth: 1,
             drawTime: 'beforeDatasetsDraw',
             label: {
-              display: evt.showLabel !== false,
-              content: evt.label || 'Pump',
-              position: 'start',
-              rotation: 90,
-              font: { size: 9 },
-              color: 'rgba(147, 51, 234, 0.9)',
-              backgroundColor: 'transparent'
+              display: false,  // Hide labels to avoid clutter
+              content: evt.label || 'Pump'
             }
           };
         }
       });
     }
 
-    // Build final datasets array: sensor readings lines, hysteresis bands, then dose datasets
+    // Build final datasets array: pH readings line, then dose datasets
     const finalDatasets = [];
     
     // Add pH readings line dataset (primary)
@@ -197,42 +191,6 @@
         yAxisID: 'yPh',
         borderColor: '#3b82f6',  // blue-500
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        borderWidth: 2,
-        pointRadius: 0,
-        tension: 0.3,
-        fill: false,
-        spanGaps: true
-      });
-    }
-    
-    // Add EC readings line dataset (on EC axis)
-    if (hasEcReadings) {
-      finalDatasets.push({
-        type: 'line',
-        label: 'EC (mS/cm)',
-        data: ecReadings,
-        order: 1,
-        yAxisID: 'yEc',
-        borderColor: '#22c55e',  // green-500
-        backgroundColor: 'rgba(34, 197, 94, 0.1)',
-        borderWidth: 2,
-        pointRadius: 0,
-        tension: 0.3,
-        fill: false,
-        spanGaps: true
-      });
-    }
-    
-    // Add temperature readings line dataset (on temp axis)
-    if (hasTempReadings) {
-      finalDatasets.push({
-        type: 'line',
-        label: 'Temp (°C)',
-        data: tempReadings,
-        order: 2,
-        yAxisID: 'yTemp',
-        borderColor: '#ef4444',  // red-500
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
         borderWidth: 2,
         pointRadius: 0,
         tension: 0.3,
@@ -261,12 +219,10 @@
       borderWidth: 0
     }];
 
-    // Check which axes we need based on data presence
+    // Check if we have dose data for secondary axis
     const hasDoseAxis = dsUse.some(ds => ds.yAxisID === 'yDose' && (ds.data||[]).length > 0);
-    const hasEcAxis = dsUse.some(ds => ds.yAxisID === 'yEc' && (ds.data||[]).length > 0);
-    const hasTempAxis = dsUse.some(ds => ds.yAxisID === 'yTemp' && (ds.data||[]).length > 0);
 
-    // Build scales dynamically based on available data
+    // Build scales: pH on left, dose on right (pH-only chart)
     const scales = {
       x: {
         type: 'time',
@@ -290,29 +246,7 @@
       }
     };
     
-    // Add EC axis if we have EC data
-    if (hasEcAxis) {
-      scales.yEc = {
-        type: 'linear',
-        position: 'left',
-        title: { display: true, text: 'EC (mS/cm)' },
-        beginAtZero: false,
-        grid: { drawOnChartArea: false }
-      };
-    }
-    
-    // Add temp axis if we have temperature data
-    if (hasTempAxis) {
-      scales.yTemp = {
-        type: 'linear',
-        position: 'right',
-        title: { display: true, text: 'Temp (°C)' },
-        beginAtZero: false,
-        grid: { drawOnChartArea: false }
-      };
-    }
-    
-    // Add dose axis if we have dose data
+    // Add dose axis on right if we have dose data
     if (hasDoseAxis) {
       scales.yDose = {
         type: 'linear',
@@ -352,28 +286,6 @@
                 if (ds.label === 'pH') {
                   const v = Number(ctx.parsed.y);
                   return ` pH: ${v.toFixed(2)}`;
-                }
-                
-                // EC readings tooltip
-                if (ds.label && ds.label.includes('EC')) {
-                  const v = Number(ctx.parsed.y);
-                  return ` EC: ${v.toFixed(2)} mS/cm`;
-                }
-                
-                // Temperature readings tooltip
-                if (ds.label && ds.label.includes('Temp')) {
-                  const v = Number(ctx.parsed.y);
-                  return ` Temp: ${v.toFixed(1)} °C`;
-                }
-                
-                // Cumulative line tooltip
-                if (ds.label && ds.label.includes('Cumulative')) {
-                  return `Total: ${ctx.parsed.y.toFixed(1)} ml`;
-                }
-                
-                // Daily bar tooltip
-                if (ds.label && ds.label.includes('Daily')) {
-                  return `Day total: ${ctx.parsed.y.toFixed(1)} ml`;
                 }
                 
                 // Dose event tooltip
@@ -416,9 +328,9 @@
   }
 
   /**
-   * Fetch sensor readings from trends API (pH, EC, temp, and targets over time)
+   * Fetch pH readings only from trends API
    */
-  async function fetchSensorReadings(fromISO, toISO, gran, max) {
+  async function fetchPhReadings(fromISO, toISO, gran, max) {
     const q = new URLSearchParams();
     if (fromISO) q.set('from', fromISO);
     if (toISO) q.set('to', toISO);
@@ -426,42 +338,28 @@
     if (max) q.set('max', String(max));
     
     const url = '/api/trends?' + q.toString();
-    console.log('[pH Chart] Fetching sensor readings from:', url);
+    console.log('[pH Chart] Fetching pH readings from:', url);
     
     try {
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) {
         console.warn('[pH Chart] Trends API failed:', res.status);
-        return { ph: [], ec: [], temp: [], targets: [] };
+        return [];
       }
       const data = await res.json();
-      console.log('[pH Chart] Got sensor readings:', {
-        ph: data?.series?.ph?.length || 0,
-        ec: data?.series?.ec_mscm?.length || 0,
-        temp: data?.series?.temperature_c?.length || 0
-      });
+      console.log('[pH Chart] Got pH readings:', data?.series?.ph?.length || 0);
       
-      // Convert all series to Chart.js format: {x: Date, y: number}
+      // Convert pH series to Chart.js format: {x: Date, y: number}
       // API returns timestamps in Unix epoch seconds, multiply by 1000 for Date
       const phSeries = (data?.series?.ph || []).map(p => ({
         x: new Date(p.ts * 1000),
         y: Number(p.value)
       })).filter(p => !isNaN(p.y));
       
-      const ecSeries = (data?.series?.ec_mscm || []).map(p => ({
-        x: new Date(p.ts * 1000),
-        y: Number(p.value)
-      })).filter(p => !isNaN(p.y));
-      
-      const tempSeries = (data?.series?.temperature_c || []).map(p => ({
-        x: new Date(p.ts * 1000),
-        y: Number(p.value)
-      })).filter(p => !isNaN(p.y));
-      
-      return { ph: phSeries, ec: ecSeries, temp: tempSeries };
+      return phSeries;
     } catch (err) {
-      console.error('[pH Chart] Failed to fetch sensor readings:', err);
-      return { ph: [], ec: [], temp: [] };
+      console.error('[pH Chart] Failed to fetch pH readings:', err);
+      return [];
     }
   }
 
@@ -470,8 +368,6 @@
    * @param {Object} params - {start: ISO string, end: ISO string}
    */
   async function phLoadRangeAndRender({start, end}) {
-    const wrap = (id, v) => { console.debug(`[pH] ${id}:`, v); return v; };
-
     // Normalize inputs: accept epoch ms numbers or ISO strings; always send ISO with 'Z'
     const toIso = (v) => {
       if (v == null) return null;
@@ -497,46 +393,40 @@
     console.log('[pH Chart] Range request', {start, end, startISO, endISO});
 
     // Calculate time span for granularity
-    const startMs = startISO ? new Date(startISO).getTime() : Date.now() - 24*3600*1000;
+    const startMs = startISO ? new Date(startISO).getTime() : Date.now() - 3600*1000;
     const endMs = endISO ? new Date(endISO).getTime() : Date.now();
     const spanMs = endMs - startMs;
     const { gran, max } = presetParams(spanMs);
 
     // Build URLs for events, summary, and live pH
     const uEvents = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`;
-    const uSummary = `/api/ph/dose_summary?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
     const uStatus = `/api/ph/status`;
 
-    console.log('[pH Chart] Fetching', {uEvents, uSummary, uStatus, gran, max});
+    console.log('[pH Chart] Fetching', {uEvents, uStatus, gran, max});
 
     let events = [];
-    let summary = [];
     let currentPH = null;
     let targets = null;
-    let sensorData = { ph: [], ec: [], temp: [] };
+    let phReadings = [];
     
     try {
-      // Fetch all data in parallel: dose events, summary, status, AND sensor readings
-      const [eRes, sRes, stRes, sensData] = await Promise.all([
+      // Fetch all data in parallel: dose events, status, AND pH readings
+      const [eRes, stRes, phData] = await Promise.all([
         fetch(uEvents, {cache:'no-store'}), 
-        fetch(uSummary, {cache:'no-store'}),
         fetch(uStatus, {cache:'no-store'}),
-        fetchSensorReadings(startISO, endISO, gran, max)
+        fetchPhReadings(startISO, endISO, gran, max)
       ]);
       
       console.log('[pH Chart] Response status', {
         events: eRes.status, 
-        summary: sRes.status, 
         status: stRes.status, 
-        sensors: {ph: sensData.ph.length, ec: sensData.ec.length, temp: sensData.temp.length}
+        phReadings: phData.length
       });
       
       if (!eRes.ok) throw new Error(`dose_log HTTP ${eRes.status}`);
-      if (!sRes.ok) throw new Error(`dose_summary HTTP ${sRes.status}`);
       
       events = await eRes.json();
-      summary = await sRes.json();
-      sensorData = sensData;
+      phReadings = phData;
       
       if (stRes.ok) {
         const statusData = await stRes.json();
@@ -545,25 +435,24 @@
       }
     } catch (err) {
       console.error('[pH Chart] fetch error:', err);
-      phBuildChart([], null, null, null, null, {ph: [], ec: [], temp: []}, []);
+      phBuildChart([], null, null, null, null, [], []);
       return;
     }
 
     console.log('[pH Chart] Data received', {
       events: events.length, 
-      summary: summary.length, 
-      sensors: {ph: sensorData.ph.length, ec: sensorData.ec.length, temp: sensorData.temp.length}
+      phReadings: phReadings.length
     });
 
     // Build pump event periods from dose_events
     // Each dose event represents a pump ON period; construct start/end pairs
     const pumpEvents = events.map(r => {
-      const start = new Date(r.ts);
+      const evtStart = new Date(r.ts);
       const durationMs = (r.seconds ?? 0) * 1000;
-      const end = new Date(start.getTime() + durationMs);
+      const evtEnd = new Date(evtStart.getTime() + durationMs);
       return {
-        start: start.toISOString(),
-        end: end.toISOString(),
+        start: evtStart.toISOString(),
+        end: evtEnd.toISOString(),
         label: r.pump || 'pH Up',
         showLabel: false  // Hide labels to avoid clutter; boxes are enough
       };
@@ -603,25 +492,27 @@
       });
     }
 
-    // Render chart with all sensor data, dose events, and pump activity
+    // Render chart with pH readings only, dose events, and pump activity
     const tmin = startISO ? new Date(startISO) : null;
     const tmax = endISO ? new Date(endISO) : null;
     console.log('[pH Chart] Axis bounds (from request)', {
       tmin, tmax, startISO, endISO, currentPH, targets, 
-      sensorCounts: {ph: sensorData.ph.length, ec: sensorData.ec.length, temp: sensorData.temp.length},
+      phReadings: phReadings.length,
       pumpEvents: pumpEvents.length
     });
-    phBuildChart(doseDatasets, tmin, tmax, currentPH, targets, sensorData, pumpEvents);
+    phBuildChart(doseDatasets, tmin, tmax, currentPH, targets, phReadings, pumpEvents);
 
-    // Update "In range" pill
-    const pill = document.getElementById('ph-in-range');
+    // Update totals KPI pill with total ml dosed
+    const pill = document.getElementById('ph-total-dosed');
     if (pill) {
       if (hasAnyMl) {
         const sumMl = events.reduce((a, r) => a + (r.volume_ml ?? 0), 0);
-        pill.textContent = `In range: ${sumMl.toFixed(1)} ml`;
+        pill.textContent = `Total: ${sumMl.toFixed(1)} ml`;
+        pill.style.display = 'inline-block';
       } else {
         const sumSec = events.reduce((a, r) => a + (r.seconds ?? 0), 0);
-        pill.textContent = sumSec > 0 ? `In range: ${Math.round(sumSec)} s` : 'In range: — s';
+        pill.textContent = sumSec > 0 ? `Total: ${Math.round(sumSec)} s` : '';
+        pill.style.display = sumSec > 0 ? 'inline-block' : 'none';
       }
     }
 
