@@ -517,6 +517,7 @@
     let currentPH = null;
     let targets = null;
     let phReadings = [];
+    let schedule = null;  // Declare schedule outside try block for proper scoping
     
     try {
       // Fetch all data in parallel: dose events, status, schedule, AND pH readings
@@ -545,7 +546,6 @@
         targets = statusData?.targets ?? null;
       }
       // Parse schedule for time-varying pH band
-      let schedule = null;
       if (schedRes && schedRes.ok) {
         schedule = await schedRes.json();
       }
