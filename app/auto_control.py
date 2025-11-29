@@ -27,6 +27,11 @@ logger = logging.getLogger(__name__)
 # Note: sensors are always active ("always sensoring") - no mode required
 CONTROLLERS = ["ph", "ec", "chiller", "circulation", "lights"]
 
+# Controllers that should default to auto-enabled (follow schedule/pump logic automatically)
+# pH, EC, chiller = OFF by default (require explicit user activation for dosing/chiller)
+# Circulation, lights = ON by default (always follow schedule/pump logic)
+CONTROLLERS_AUTO_BY_DEFAULT = ["circulation", "lights"]
+
 def _get_db_path() -> Path:
     override = os.getenv("RDWC_DB") or os.getenv("RDWC_DB_PATH")
     if override:
@@ -47,10 +52,13 @@ def _ensure_db():
                 value TEXT NOT NULL
             )
         """)
-        # Default: global OFF (safety first), individual controllers OFF
+        # Default: global OFF (safety first)
+        # Per-controller: circulation/lights default ON (follow schedule/pump logic)
+        #                 pH/EC/chiller default OFF (require explicit activation)
         conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("controls.global_auto", "false"))
         for ctrl in CONTROLLERS:
-            conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (f"controls.{ctrl}_auto", "false"))
+            default_val = "true" if ctrl in CONTROLLERS_AUTO_BY_DEFAULT else "false"
+            conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (f"controls.{ctrl}_auto", default_val))
         # No commit needed - db_pool uses autocommit mode (isolation_level=None)
         logger.debug("Auto-enable controls initialized")
     except Exception as e:
@@ -186,9 +194,44 @@ def migrate_from_legacy():
                 set_controller_auto_enabled(ctrl, True)
                 logger.info(f"Migrated {old_key}=true → {ctrl}_auto=true")
         
+        # Apply defaults for auto-by-default controllers (circulation, lights)
+        # These should follow schedule/pump logic automatically
+        for ctrl in CONTROLLERS_AUTO_BY_DEFAULT:
+            if not is_controller_auto_enabled(ctrl):
+                set_controller_auto_enabled(ctrl, True)
+                logger.info(f"Applied default auto-enable for {ctrl}")
+        
         # Mark migration complete - no commit needed (autocommit mode)
         conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('controls.migrated', 'true')")
         
         logger.info("✅ Auto-enable migration complete")
     except Exception as e:
         logger.error(f"Migration failed: {e}")
+
+
+def apply_auto_defaults():
+    """
+    Apply auto-enable defaults for controllers that should be auto-enabled by default.
+    This is called on startup to ensure new defaults are applied to existing databases.
+    """
+    _ensure_db()
+    
+    try:
+        from app.db_pool import get_conn
+        conn = get_conn()
+        
+        # Check if defaults have been applied
+        defaults_applied = conn.execute("SELECT value FROM settings WHERE key='controls.defaults_v2_applied'").fetchone()
+        if defaults_applied and defaults_applied[0] == "true":
+            return
+        
+        # Apply defaults for auto-by-default controllers
+        for ctrl in CONTROLLERS_AUTO_BY_DEFAULT:
+            set_controller_auto_enabled(ctrl, True)
+            logger.info(f"Applied v2 default: {ctrl}_auto=true")
+        
+        # Mark defaults applied
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('controls.defaults_v2_applied', 'true')")
+        logger.info("✅ Auto-enable v2 defaults applied")
+    except Exception as e:
+        logger.error(f"Failed to apply auto defaults: {e}")

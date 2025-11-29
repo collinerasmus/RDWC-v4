@@ -223,8 +223,9 @@ def _startup_leds_apply():
 def _startup_migrate_auto_control():
     """Migrate old mode systems to new clean auto_control system (one-time)"""
     try:
-        from app.auto_control import migrate_from_legacy
+        from app.auto_control import migrate_from_legacy, apply_auto_defaults
         migrate_from_legacy()
+        apply_auto_defaults()  # Apply v2 defaults (circulation/lights auto-enabled)
     except Exception as e:
         from app.logger import get_logger
         logger = get_logger()
