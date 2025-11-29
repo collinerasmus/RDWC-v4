@@ -679,6 +679,43 @@
     init();
   }
 
+  // Auto-refresh when pH tab is active (every 10 seconds)
+  let autoRefreshTimer = null;
+  
+  function startAutoRefresh() {
+    if (autoRefreshTimer) return; // Already running
+    
+    console.log('[pH Chart] Starting auto-refresh (10s interval)');
+    autoRefreshTimer = setInterval(() => {
+      // Only refresh if pH tab is active
+      const phTab = document.querySelector('[data-tab="ph"]');
+      if (phTab && phTab.classList.contains('active')) {
+        const currentStart = PH_CHART_STATE.lastStart;
+        const currentEnd = PH_CHART_STATE.lastEnd;
+        
+        if (currentStart && currentEnd) {
+          console.log('[pH Chart] Auto-refresh triggered');
+          phLoadRangeAndRender({ start: currentStart, end: currentEnd });
+        }
+      }
+    }, 10000); // 10 second interval
+  }
+  
+  function stopAutoRefresh() {
+    if (autoRefreshTimer) {
+      console.log('[pH Chart] Stopping auto-refresh');
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
+  }
+  
+  // Start auto-refresh when module loads
+  startAutoRefresh();
+  
+  // Export auto-refresh controls
+  window.phDoseChart.startAutoRefresh = startAutoRefresh;
+  window.phDoseChart.stopAutoRefresh = stopAutoRefresh;
+
   console.log('[pH Chart] Module initialized and window.phDoseChart exported');
 
   // Update build commit chip dynamically if present
