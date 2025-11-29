@@ -1674,28 +1674,17 @@ body{
                   <input type="number" id="phAlertHigh" step="0.1" min="3.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                 </div>
               </div>
-              <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
-                <div>
-                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Micro (ml)</label>
-                  <input type="number" id="phPulseMicro" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.0" />
-                </div>
-                <div>
-                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Grow (ml)</label>
-                  <input type="number" id="phPulseGrow" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.0" />
-                </div>
-                <div>
-                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Bloom (ml)</label>
-                  <input type="number" id="phPulseBloom" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.0" />
-                </div>
-              </div>
+              <!-- pH-specific dosing parameters -->
               <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                 <div>
                   <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">pH Up ml/s</label>
                   <input type="number" id="phUpMlPerSec" step="0.01" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.83" />
+                  <div class="muted" style="font-size:9px;margin-top:2px;">Calibrated flow rate</div>
                 </div>
                 <div>
-                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Mix delay (s)</label>
-                  <input type="number" id="phMixDelay" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min interval (s)</label>
+                  <input type="number" id="phMinInterval" step="1" min="60" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="900" />
+                  <div class="muted" style="font-size:9px;margin-top:2px;">Cooldown between doses</div>
                 </div>
               </div>
               <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:var(--space-md);align-items:end;">

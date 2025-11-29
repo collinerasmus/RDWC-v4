@@ -462,25 +462,89 @@ def _actuate_ph_up(duration_ms: int) -> Dict[str, Any]:
             pass
 
 
+def _update_post_ph_with_flag(rowid: int, post_ph: Optional[float], stable: bool) -> None:
+    """Update post_ph and add stability flag to reason field."""
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        # Get current reason and append stability info
+        cur.execute("SELECT reason FROM ph_dose_log WHERE id=?", (rowid,))
+        row = cur.fetchone()
+        current_reason = row[0] if row else ""
+        stability_flag = "; ph_stable" if stable else "; ph_unsettled"
+        new_reason = (current_reason or "") + stability_flag
+        conn.execute("UPDATE ph_dose_log SET post_ph=?, reason=? WHERE id=?", (post_ph, new_reason, rowid))
+        conn.commit()
+
+
 def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], max_wait_s: int):
-    """Poll for the next pH sample after dosing completes, up to max_wait_s seconds.
-    Updates post_ph when a newer sample than baseline appears; otherwise leaves as-is.
+    """Wait for pH stabilization after dosing, then record the stable post_ph value.
+    
+    Stability criteria (configurable):
+    - Wait at least 5 minutes for mixing and sensor response
+    - Check last N samples for low variance (abs delta < 0.02 over N readings)
+    - If stable within max_wait_s, record post_ph with stable=True
+    - If not stable, record last observed value with stable=False (unsettled)
+    
+    This fixes the issue where immediate readings don't reflect the true pH effect.
     """
     try:
+        # Configuration
+        stabilize_wait_s = _settings_get_int("dosing.stabilize_wait_s", 300)  # 5 minutes default
+        stability_delta = _settings_get_float("dosing.stability_delta", 0.02)  # Max delta for stable
+        stability_samples = _settings_get_int("dosing.stability_samples", 3)  # Number of samples to check
+        poll_interval = 10.0  # Poll every 10 seconds
+        
         deadline = time.time() + max(0, max_wait_s)
+        stabilize_deadline = time.time() + stabilize_wait_s
         last_seen_ts = baseline_ts_unix or 0
+        
+        # Collect pH samples for stability check
+        samples = []
+        
+        print(f"[pH Stabilization] Starting observation for rowid={rowid}, waiting {stabilize_wait_s}s for stabilization")
+        
         while time.time() < deadline:
-            ph_after, ts = _get_latest_ph()
+            ph_val, ts = _get_latest_ph()
+            
             if ts and ts > last_seen_ts:
-                _update_post_ph(rowid, ph_after)
-                return
-            time.sleep(1.0)
-        # Fallback single read at end (may still be same sample)
-        ph_after, ts = _get_latest_ph()
-        if ts and (baseline_ts_unix is None or ts >= baseline_ts_unix):
-            _update_post_ph(rowid, ph_after)
-    except Exception:
-        pass
+                # New reading available
+                samples.append({"ph": ph_val, "ts": ts})
+                last_seen_ts = ts
+                
+                # Keep only recent samples for stability check
+                if len(samples) > stability_samples * 2:
+                    samples = samples[-stability_samples * 2:]
+                
+                # Only check stability after minimum wait time has passed
+                if time.time() >= stabilize_deadline and len(samples) >= stability_samples:
+                    # Check if last N samples are stable
+                    recent = [s["ph"] for s in samples[-stability_samples:] if s["ph"] is not None]
+                    if len(recent) >= stability_samples:
+                        min_ph = min(recent)
+                        max_ph = max(recent)
+                        delta = max_ph - min_ph
+                        
+                        if delta <= stability_delta:
+                            # Stable! Record the average of recent samples
+                            stable_ph = sum(recent) / len(recent)
+                            print(f"[pH Stabilization] rowid={rowid} STABLE: ph={stable_ph:.3f}, delta={delta:.4f}")
+                            _update_post_ph_with_flag(rowid, round(stable_ph, 3), stable=True)
+                            return
+                        else:
+                            print(f"[pH Stabilization] rowid={rowid} still settling: delta={delta:.4f} > {stability_delta}")
+            
+            time.sleep(poll_interval)
+        
+        # Timeout: record last value as unsettled
+        ph_final, ts_final = _get_latest_ph()
+        if ph_final is not None:
+            print(f"[pH Stabilization] rowid={rowid} TIMEOUT (unsettled): last_ph={ph_final:.3f}")
+            _update_post_ph_with_flag(rowid, ph_final, stable=False)
+        else:
+            print(f"[pH Stabilization] rowid={rowid} TIMEOUT: no pH reading available")
+            
+    except Exception as e:
+        print(f"[pH Stabilization] Error for rowid={rowid}: {e}")
 
 
 def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
@@ -523,6 +587,38 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
     MAX_MS = int(_settings_get_int("dosing.ph_up_max_ms", 5000))
     if duration_ms <= 0 or duration_ms > MAX_MS:
         return {"http_status": 422, "ok": False, "error": "invalid_duration_ms", "max_ms": MAX_MS}
+
+    # EXPERIMENTAL: Pre-dose estimated pH change guard
+    # Block if estimated pH change exceeds threshold (default 0.5 pH)
+    # This helps prevent overdosing when concentration is high or reservoir is small
+    pre_ph_for_check, _ = _get_latest_ph()
+    if volume_ml is not None and volume_ml > 0 and pre_ph_for_check is not None:
+        try:
+            estimated_change_guard = (
+                _settings_get("safety.estimated_change_guard", "true").lower() == "true"
+            )
+            if estimated_change_guard:
+                max_estimated_change = _settings_get_float("safety.max_estimated_ph_change", 0.5)
+                ml_per_pH = _estimate_ml_per_pH(_get_latest_ec()[0]) or 50.0
+                # Estimated pH change = volume_ml / ml_per_pH
+                estimated_delta = volume_ml / max(0.01, ml_per_pH)
+                if estimated_delta > max_estimated_change:
+                    ts_iso = datetime.now(timezone.utc).isoformat()
+                    rowid = _log_row({
+                        "ts_utc": ts_iso, "action": "dose", "volume_ml": float(volume_ml),
+                        "duration_ms": int(duration_ms), "pre_ph": pre_ph_for_check, "post_ph": None,
+                        "result": "blocked", "reason": f"estimated_change_too_large ({estimated_delta:.2f} > {max_estimated_change:.2f})"
+                    })
+                    return {
+                        "http_status": 409, "ok": False, "blocked": True,
+                        "reasons": ["estimated_change_too_large"],
+                        "estimated_delta_ph": round(estimated_delta, 3),
+                        "max_allowed": max_estimated_change,
+                        "suggestion": "Reduce dose size, verify reservoir volume, or check solution concentration",
+                        "rowid": rowid
+                    }
+        except Exception as e:
+            print(f"[pH] Estimated change guard error (continuing): {e}")
 
     # Guards
     g = _compute_guards(time.time())
