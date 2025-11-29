@@ -45,8 +45,9 @@
    * @param {string|null} timeMax - ISO timestamp or null
    * @param {string|null} axisTitle - Y-axis label
    * @param {number|null} currentPH - Current live pH reading
+   * @param {Object|null} targets - {low: number, high: number} pH target range
    */
-  function phBuildChart(datasets, timeMin, timeMax, axisTitle, currentPH) {
+  function phBuildChart(datasets, timeMin, timeMax, axisTitle, currentPH, targets) {
     const el = document.getElementById('phDoseChart');
     const empty = document.getElementById('ph-dose-empty');
 
@@ -81,7 +82,7 @@
     // Check if we have a cumulative dataset that needs a second Y-axis
     const hasCumulative = dsUse.some(ds => ds.yAxisID === 'y2');
 
-    // Build annotation plugin config for pH reference line
+    // Build annotation plugin config for pH reference line, hysteresis band, and setpoint
     const annotations = {};
     if (currentPH != null && !isNaN(currentPH)) {
       annotations.phLine = {
@@ -100,6 +101,40 @@
           color: '#000',
           font: { size: 11, weight: 'bold' },
           padding: 4
+        }
+      };
+    }
+    
+    // Add hysteresis band (shaded region between low and high targets)
+    if (targets && targets.low != null && targets.high != null && !isNaN(targets.low) && !isNaN(targets.high)) {
+      annotations.phBand = {
+        type: 'box',
+        yMin: targets.low,
+        yMax: targets.high,
+        yScaleID: 'y',
+        backgroundColor: 'rgba(34, 197, 94, 0.08)',  // green with low opacity
+        borderWidth: 0,
+        drawTime: 'beforeDatasetsDraw'  // Draw band behind data
+      };
+      
+      // Add setpoint line (midpoint of targets)
+      const setpoint = (targets.low + targets.high) / 2;
+      annotations.phSetpoint = {
+        type: 'line',
+        yMin: setpoint,
+        yMax: setpoint,
+        yScaleID: 'y',
+        borderColor: 'rgba(34, 197, 94, 0.5)',  // green-500 with transparency
+        borderWidth: 1.5,
+        borderDash: [4, 4],
+        label: {
+          display: true,
+          content: `Setpoint: ${setpoint.toFixed(1)}`,
+          position: 'end',
+          backgroundColor: 'rgba(34, 197, 94, 0.8)',
+          color: '#fff',
+          font: { size: 10 },
+          padding: 3
         }
       };
     }
@@ -211,6 +246,7 @@
     let events = [];
     let summary = [];
     let currentPH = null;
+    let targets = null;
     try {
       const [eRes, sRes, stRes] = await Promise.all([
         fetch(uEvents, {cache:'no-store'}), 
@@ -225,10 +261,11 @@
       if (stRes.ok) {
         const statusData = await stRes.json();
         currentPH = statusData?.ph ?? null;
+        targets = statusData?.targets ?? null;
       }
     } catch (err) {
       console.error('[pH Chart] fetch error:', err);
-      phBuildChart([], null, null, null);
+      phBuildChart([], null, null, null, null, null);
       return;
     }
 
@@ -309,8 +346,8 @@
     // This ensures the full timeframe is visible even with sparse data
     const tmin = startISO ? new Date(startISO) : null;
     const tmax = endISO ? new Date(endISO) : null;
-    console.log('[pH Chart] Axis bounds (from request)', {tmin, tmax, startISO, endISO, currentPH});
-    phBuildChart(datasets, tmin, tmax, axisTitle, currentPH);
+    console.log('[pH Chart] Axis bounds (from request)', {tmin, tmax, startISO, endISO, currentPH, targets});
+    phBuildChart(datasets, tmin, tmax, axisTitle, currentPH, targets);
 
     // Update "In range" pill
     const pill = document.getElementById('ph-in-range');

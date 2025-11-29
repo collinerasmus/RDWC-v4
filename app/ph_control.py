@@ -218,6 +218,23 @@ def _today_total_ml(now_dt: datetime) -> float:
     start_utc = start_local.astimezone(timezone.utc)
     with sqlite3.connect(str(DB_PATH)) as conn:
         cur = conn.cursor()
+        # Check unified dose_events table first (convert seconds to ml using calibrated rate)
+        cur.execute(
+            "SELECT COALESCE(SUM(seconds),0) FROM dose_events WHERE pump='ph_up' AND blocked_by IS NULL AND ts >= ?",
+            (int(start_utc.timestamp()),)
+        )
+        row = cur.fetchone()
+        if row and row[0] is not None:
+            # Convert seconds to ml using calibrated rate from settings
+            total_seconds = float(row[0])
+            try:
+                from app.settings import get_setting_key
+                ml_per_sec = float(get_setting_key("dosing.ph_up_ml_per_sec", "0") or "0")
+                if ml_per_sec > 0:
+                    return total_seconds * ml_per_sec
+            except Exception:
+                pass
+        # Fallback to old ph_dose_log table
         cur.execute(
             "SELECT COALESCE(SUM(volume_ml),0) FROM ph_dose_log WHERE result='ok' AND ts_utc >= ?",
             (start_utc.isoformat(),)
@@ -229,6 +246,15 @@ def _last_ok_ts() -> Optional[datetime]:
     _ensure_tables()
     with sqlite3.connect(str(DB_PATH)) as conn:
         cur = conn.cursor()
+        # Check unified dose_events table first (primary source) - uses 'ts' as Unix timestamp
+        cur.execute("SELECT ts FROM dose_events WHERE pump='ph_up' AND blocked_by IS NULL ORDER BY id DESC LIMIT 1")
+        row = cur.fetchone()
+        if row:
+            try:
+                return datetime.fromtimestamp(row[0], tz=timezone.utc)
+            except Exception:
+                pass
+        # Fallback to old ph_dose_log table for backward compatibility
         cur.execute("SELECT ts_utc FROM ph_dose_log WHERE result='ok' ORDER BY id DESC LIMIT 1")
         row = cur.fetchone()
         if not row:

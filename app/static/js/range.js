@@ -3,7 +3,7 @@
  * Provides consistent date range computation and localStorage persistence
  */
 (function(){
-  const RANGES = ['24h', '7d', '30d', '90d', 'grow', 'custom'];
+  const RANGES = ['1h', '24h', '7d', '30d', '90d', 'grow', 'custom'];
   
   function isoLocal(dt){
     return dt.toISOString().slice(0,16); // yyyy-MM-ddTHH:mm
@@ -12,6 +12,7 @@
   function rangeFromPreset(preset){
     const now = Date.now();
     let start = now;
+    if (preset === '1h')  start = now - 60*60*1000;
     if (preset === '24h') start = now - 24*60*60*1000;
     if (preset === '7d')  start = now - 7*24*60*60*1000;
     if (preset === '30d') start = now - 30*24*60*60*1000;

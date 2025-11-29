@@ -5,7 +5,7 @@
     console.warn('[pH] rdwcRange missing — injecting fallback stub');
     const DAY = 24*60*60*1000;
     window.rdwcRange = {
-      RANGES: ['24h','7d','30d','90d','grow','custom'],
+      RANGES: ['1h','24h','7d','30d','90d','grow','custom'],
       getLastPreset: (key, def='24h') => def,
       saveLastPreset: ()=>{},
       getCustomRange: ()=>({start:null,end:null}),
@@ -13,7 +13,8 @@
       rangeToStartEnd: async (preset, cStart, cEnd, growStartDate) => {
         const now = Date.now();
         let start = now - DAY;
-        if (preset==='7d') start = now - 7*DAY;
+        if (preset==='1h') start = now - 60*60*1000;
+        else if (preset==='7d') start = now - 7*DAY;
         else if (preset==='30d') start = now - 30*DAY;
         else if (preset==='90d') start = now - 90*DAY;
         else if (preset==='custom' && cStart && cEnd) {
