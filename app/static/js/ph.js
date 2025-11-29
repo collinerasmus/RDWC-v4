@@ -312,15 +312,13 @@
       autoBtn.title = 'Automatically raises pH when below target band using pH Up';
     }
     
-    // Update learned value display
-    const learnedEl = el('phLearnedValue');
-    if (learnedEl && s?.auto) {
+    // Update learned value display (Settings automation panel) - reuse header variable
+    const learnedPanelEl = el('phLearnedValue');
+    if (learnedPanelEl && s?.auto) {
       const learned = s.auto.learned_ml_per_pH;
-      if (learned !== null && learned !== undefined) {
-        learnedEl.innerHTML = `Learned: <strong>${learned.toFixed(2)} ml/pH</strong>`;
-      } else {
-        learnedEl.innerHTML = `<span style="opacity:0.6;">No learned value yet</span>`;
-      }
+      learnedPanelEl.innerHTML = (learned !== null && learned !== undefined && learned > 0)
+        ? `Learned: <strong>${learned.toFixed(2)} ml/pH</strong>`
+        : `<span style="opacity:0.6;">No learned value yet</span>`;
     }
 
     // Update caps display from settings (mirror EC caps summary)
@@ -433,11 +431,11 @@
         console.error('[pH] Chart refresh failed:', e);
       }
     } else {
-      console.warn('[pH] phDoseChart module not loaded');
-    }
-    // Refresh summary alongside
-    refreshSummary().catch(()=>{});
-  }
+      const learnedValEl = el('phLearnedValue');
+      if (learnedValEl && s?.auto) {
+        const v = s.auto.learned_ml_per_pH;
+        learnedValEl.textContent = (v && v > 0) ? `${v.toFixed(2)} ml/pH` : '—';
+      }
 
   async function postDose(body){
     // Add force flag when Maintenance override is active

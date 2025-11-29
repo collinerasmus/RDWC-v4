@@ -977,9 +977,16 @@ def _auto_loop():
                     else:
                         target = min(targets["low"] + margin, (targets["low"] + targets["high"]) / 2.0)
                         need_dpH = max(0.0, target - ph_val)
-                        ml_per_pH = _estimate_ml_per_pH(_get_latest_ec()[0]) or 50.0
-                        ml_est = safety * need_dpH * ml_per_pH
-                        ml = max(step_min, min(step_max, ml_est))
+                        # Safe initial micro-dose when learner unknown/default
+                        initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
+                        est_val = _estimate_ml_per_pH(_get_latest_ec()[0])
+                        # Treat default (50.0) as unknown and use initial micro-dose
+                        if est_val is None or abs(est_val - _settings_get_float("dosing.ph_up_ml_per_pH_default", 50.0)) < 1e-6:
+                            ml = initial_ml
+                        else:
+                            ml_per_pH = est_val
+                            ml_est = safety * need_dpH * ml_per_pH
+                            ml = max(step_min, min(step_max, ml_est))
                         _print_auto_decision("dose", ph_val, _get_latest_ec()[0], targets, ml, g)
                         _perform_dose({"ml": ml, "reason": "auto", "nonblocking": True})
                         _auto_last_holding_reason = None
