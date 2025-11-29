@@ -397,6 +397,7 @@
           responsive: true,
           maintainAspectRatio: false,
           parsing: false,
+          animation: false,  // Disable animations for instant updates
           interaction: {
             mode: 'nearest',
             intersect: false
