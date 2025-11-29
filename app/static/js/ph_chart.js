@@ -15,60 +15,37 @@
   // Check annotation plugin availability
   let ANNOTATION_AVAILABLE = false;
   
-  // Ensure Chart.js time scale is available (v3/v4 compatible)
-  if (window.Chart && Chart.register && window.RDWC_CHART_REG === undefined) {
-    // Chart.js v4 UMD auto-registers, but be defensive
-    try {
-      Chart.register(
-        Chart.controllers.BarController,
-        Chart.controllers.LineController, 
-        Chart.controllers.ScatterController,
-        Chart.elements.BarElement,
-        Chart.elements.PointElement,
-        Chart.elements.LineElement,
-        Chart.scales.TimeScale,
-        Chart.scales.LinearScale,
-        Chart.plugins.Tooltip,
-        Chart.plugins.Legend,
-        Chart.plugins.Title
-      );
-      
-      // Register annotation plugin if available (UMD global can be exported under different names)
-      const annoPlugin = (
-        // Preferred UMD export name used by chartjs-plugin-annotation v3
-        window['chartjs-plugin-annotation'] ||
-        // Some bundles expose it via a nested chartjs namespace
-        (window.chartjs && window.chartjs['plugin-annotation']) ||
-        // Older name sometimes used
-        window.ChartAnnotation
-      );
-      
-      if (annoPlugin) {
-        try {
-          Chart.register(annoPlugin);
-          ANNOTATION_AVAILABLE = true;
-          console.log('[pH Chart] ✓ Annotation plugin registered successfully');
-        } catch (regErr) {
-          console.warn('[pH Chart] ⚠ Failed to register annotation plugin:', regErr?.message);
-        }
-      } else {
-        console.warn('[pH Chart] ⚠ Annotation plugin not found - pump bars, hysteresis band, and setpoint line will not display');
-      }
-    } catch(e) {
-      // Exception during registration - check if annotation plugin exists
-      console.debug('[pH] Chart.js registration exception:', e.message);
-      // Check for annotation plugin availability after exception
-      const annoPlugin = (
-        window['chartjs-plugin-annotation'] ||
-        (window.chartjs && window.chartjs['plugin-annotation']) ||
-        window.ChartAnnotation
-      );
-      if (annoPlugin) {
+  // Chart.js v4 UMD bundle auto-registers all core components (controllers, elements, scales, plugins).
+  // We only need to register the external annotation plugin if present.
+  // NOTE: Do NOT try to access Chart.controllers, Chart.elements, Chart.scales, or Chart.plugins
+  // as these are not exposed as properties on the Chart object in the UMD bundle.
+  if (window.Chart && typeof Chart.register === 'function') {
+    // Register annotation plugin if available (UMD global can be exported under different names)
+    const annoPlugin = (
+      // Preferred UMD export name used by chartjs-plugin-annotation v3
+      window['chartjs-plugin-annotation'] ||
+      // Some bundles expose it via a nested chartjs namespace
+      (window.chartjs && window.chartjs['plugin-annotation']) ||
+      // Older name sometimes used
+      window.ChartAnnotation
+    );
+    
+    if (annoPlugin) {
+      try {
+        Chart.register(annoPlugin);
         ANNOTATION_AVAILABLE = true;
-        console.log('[pH Chart] ✓ Annotation plugin available (already registered)');
+        console.log('[pH Chart] ✓ Annotation plugin registered successfully');
+      } catch (regErr) {
+        // Plugin may already be registered - check if it's working
+        console.debug('[pH Chart] Annotation plugin registration:', regErr?.message);
+        // Assume it's available if no critical error
+        ANNOTATION_AVAILABLE = true;
       }
+    } else {
+      console.warn('[pH Chart] ⚠ Annotation plugin not found - pump bars, hysteresis band, and setpoint line will not display');
     }
-    window.RDWC_CHART_REG = true;
+  } else {
+    console.error('[pH Chart] ❌ Chart.js not loaded or Chart.register not available');
   }
 
   /**
