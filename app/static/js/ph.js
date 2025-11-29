@@ -155,12 +155,22 @@
     const recent = el('ph-recent');
     const resBanner = el('ph-reservoir-banner');
     
-    // Update learned value KPI in readings row
+    // Update learned value KPI in header
+    const learnedEl = el('ph-learned');
+    if (learnedEl && s && s.auto && s.auto.learned_ml_per_pH !== null && s.auto.learned_ml_per_pH !== undefined) {
+      const learned = s.auto.learned_ml_per_pH;
+      learnedEl.textContent = learned > 0 ? `${learned.toFixed(2)} ml/pH` : '— ml/pH';
+      learnedEl.title = `Learned: ${learned.toFixed(2)} ml needed to raise pH by 1.0`;
+    } else if (learnedEl) {
+      learnedEl.textContent = '— ml/pH';
+    }
+    
+    // Update learned value KPI in readings row (legacy, if exists)
     const learnedKPI = el('ph-learned-kpi');
-    if (learnedKPI && s && s.learned_ml_per_pH !== null && s.learned_ml_per_pH !== undefined && s.learned_ml_per_pH > 0) {
+    if (learnedKPI && s && s.auto && s.auto.learned_ml_per_pH !== null && s.auto.learned_ml_per_pH !== undefined && s.auto.learned_ml_per_pH > 0) {
       learnedKPI.style.display = 'inline-block';
       const valueEl = learnedKPI.querySelector('.kpi-value');
-      if (valueEl) valueEl.textContent = `${s.learned_ml_per_pH.toFixed(2)} ml/pH`;
+      if (valueEl) valueEl.textContent = `${s.auto.learned_ml_per_pH.toFixed(2)} ml/pH`;
     } else if (learnedKPI) {
       learnedKPI.style.display = 'none';
     }

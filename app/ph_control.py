@@ -802,7 +802,8 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
                     continue
                 ml = float(ml)
                 # Filter to reasonable positive deltas (avoid noise/overshoot)
-                if dpH <= 0 or dpH > 0.6 or abs(dpH) < 0.01:
+                # Accept larger deltas to learn from actual system behavior (increased from 0.6 to 5.0)
+                if dpH <= 0 or dpH > 5.0 or abs(dpH) < 0.01:
                     continue
                 # Filter by EC near dose time
                 try:
