@@ -884,6 +884,7 @@
           ['phAlertLow', 'alerts.ph_low'],
           ['phAlertHigh', 'alerts.ph_high'],
           ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec'],
+          ['phInitialMl', 'dosing.ph_up_initial_ml'],
           ['phMixDelay', 'dosing.ph_mix_delay_s'],
           ['phMaxMlHour', 'dosing.ph_up_max_ml_per_hour'],
           ['phMaxMlDay', 'dosing.ph_up_max_ml_per_day']
@@ -926,6 +927,7 @@
         ['phAlertLow', 'alerts.ph_low', '5.5'],
         ['phAlertHigh', 'alerts.ph_high', '6.5'],
         ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec', ''],
+        ['phInitialMl', 'dosing.ph_up_initial_ml', '0.10'],
         ['phMixDelay', 'dosing.ph_mix_delay_s', ''],
         ['phMaxMlHour', 'dosing.ph_up_max_ml_per_hour', ''],
         ['phMaxMlDay', 'dosing.ph_up_max_ml_per_day', '']
