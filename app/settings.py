@@ -69,14 +69,24 @@ DEFAULTS: Dict[str, str] = {
     "dosing.max_ml_day_": "0",
     "dosing.mix_delay_s": "0",
     # pH Up dosing controls
-    "dosing.ph_up_ml_per_sec": "25",
+    # Calibrated pH Up pump flow rate (ml/s) updated from commissioning (was placeholder 25)
+    "dosing.ph_up_ml_per_sec": "0.758",
     # Nutrient pump calibration (ml/s)
     "dosing.grow_ml_per_sec": "20",
     "dosing.micro_ml_per_sec": "20",
     "dosing.bloom_ml_per_sec": "20",
-    "dosing.ph_up_max_ml_per_day": "50",
+    # Daily pH Up cap (approx. 500s * 0.758 ml/s ≈ 380 ml)
+    "dosing.ph_up_max_ml_per_day": "380",
+    # Max single pH Up dose (ml)
     "dosing.ph_up_max_single_ml": "5",
+    # Minimum interval between pH Up doses (seconds)
     "dosing.ph_min_interval_s": "300",
+    # Post‑dose stabilization observation window (seconds) before recording final reading
+    "dosing.ph_stabilization_window_s": "300",
+    # Delta threshold for considering pH stable (absolute change over final window)
+    "dosing.ph_stabilization_delta_threshold": "0.02",
+    # Safety: maximum predicted delta pH allowed for a single dose (blocks if exceeded)
+    "dosing.ph_max_predicted_delta_ph": "0.5",
     # Observe window after dose (7 hours based on real-world stabilization data)
     "dosing.observe_s_after_dose": "25200",
 
@@ -108,8 +118,9 @@ DEFAULTS: Dict[str, str] = {
     # maintenance override (global test mode)
     "safety.maintenance_override": "false",
     # manual dosing safety caps (server-side enforced)
-    "safety.max_seconds_per_press": "1.5",
-    "safety.max_total_seconds_per_24h": "120",
+    # Updated safety caps from commissioning
+    "safety.max_seconds_per_press": "10",
+    "safety.max_total_seconds_per_24h": "500",
     "safety.min_off_window_sec": "2",
     # TEST-ONLY: allow dosing when sensors are stale, but only when maintenance_override is also true
     # Defaults to OFF for production safety

@@ -1674,12 +1674,48 @@ body{
                   <input type="number" id="phAlertHigh" step="0.1" min="3.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                 </div>
               </div>
-              <!-- pH-specific dosing parameters -->
+              <!-- pH dosing & safety parameters (merged) -->
+              <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
+                <div>
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min Interval (s)</label>
+                  <input type="number" id="phMinInterval" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="300" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Max Press (s)</label>
+                  <input type="number" id="phMaxPressSeconds" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="10" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Daily Cap (ml)</label>
+                  <input type="number" id="phDailyCapMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="380" />
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
+                <div>
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Stabilization (s)</label>
+                  <input type="number" id="phStabilizationWindow" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="300" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Stable ΔpH</label>
+                  <input type="number" id="phStableDeltaThreshold" step="0.01" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.02" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Max ΔpH/Dose</label>
+                  <input type="number" id="phMaxPredictedDelta" step="0.01" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.5" />
+                </div>
+              </div>
               <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                 <div>
                   <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">pH Up ml/s</label>
-                  <input type="number" id="phUpMlPerSec" step="0.01" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.83" />
+                  <input type="number" id="phUpMlPerSec" step="0.001" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.758" />
                   <div class="muted" style="font-size:9px;margin-top:2px;">Calibrated flow rate</div>
+                </div>
+                <div>
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min interval (s)</label>
+                  <input type="number" id="phMinIntervalLegacy" step="1" min="60" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="900" />
+                  <div class="muted" style="font-size:9px;margin-top:2px;">Cooldown between doses (legacy)</div>
+                </div>
+              </div>
+              <!-- Removed deprecated Max ml/hour and Max ml/day (using Daily Cap ml) -->
                 </div>
                 <div>
                   <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min interval (s)</label>
