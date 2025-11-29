@@ -50,6 +50,8 @@
   // Recent collapse state (manual only, no auto-hide)
   let recentCollapsed = true;
   let recentHeaderBound = false;
+  let recentUserHold = false;
+  let recentHideTimer = null;
   // Short-lived fast poll timer for immediate pump state feedback
   let fastPumpTimer = null;
   
@@ -1106,15 +1108,7 @@
     if (_hdr && !_hdr.textContent.includes('Grow Log')){
       _hdr.textContent = 'Grow Log ▾';
     }
-    // Fallback: if we have any items currently visible, schedule a one-time auto-hide
-    setTimeout(()=>{
-      const list = document.getElementById('ph-recent');
-      if (!list) return;
-      const hasItems = list.children && list.children.length > 0;
-      if (hasItems && !recentCollapsed && !recentUserHold && !recentHideTimer){
-        scheduleRecentAutoHide();
-      }
-    }, 250); // run shortly after first render
+    // Fallback removed - recent list state managed manually by user
     // Chart will have been rendered by wireRangeControls → loadRange
   }
 
