@@ -1,5 +1,5 @@
 // pH Dose Chart Rendering Module
-// Bulletproof chart initialization with empty-state handling and diagnostics
+// Shows pH sensor readings over time (hysteresis) with dose events overlaid
 (function(){
   console.log('[pH Chart] Loader enter (ph_chart.js start)');
   'use strict';
@@ -39,15 +39,15 @@
   }
 
   /**
-   * Build or rebuild the dose chart with given datasets
+   * Build or rebuild the pH chart with pH readings line and dose events overlay
    * @param {Array} datasets - Chart.js datasets
    * @param {string|null} timeMin - ISO timestamp or null
    * @param {string|null} timeMax - ISO timestamp or null
-   * @param {string|null} axisTitle - Y-axis label
    * @param {number|null} currentPH - Current live pH reading
    * @param {Object|null} targets - {low: number, high: number} pH target range
+   * @param {Object|null} phReadings - Array of {x: Date, y: number} pH sensor readings
    */
-  function phBuildChart(datasets, timeMin, timeMax, axisTitle, currentPH, targets) {
+  function phBuildChart(datasets, timeMin, timeMax, currentPH, targets, phReadings) {
     const el = document.getElementById('phDoseChart');
     const empty = document.getElementById('ph-dose-empty');
 
@@ -56,8 +56,11 @@
       return;
     }
 
-    // Show empty hint if no data, but still build a stub chart so axes/legend exist
-    const hasData = datasets && datasets.some(ds => (ds.data||[]).length > 0);
+    // Check if we have pH readings data (primary) or dose events (secondary)
+    const hasPhReadings = phReadings && phReadings.length > 0;
+    const hasDoseData = datasets && datasets.some(ds => (ds.data||[]).length > 0);
+    const hasData = hasPhReadings || hasDoseData;
+    
     if (empty) {
       empty.style.display = hasData ? 'none' : 'block';
     }
@@ -70,17 +73,26 @@
       PH_CHART = null;
     }
 
-    // Ensure at least one stub dataset so legend/axes render
-    const dsUse = (hasData ? datasets : [{
-      label: 'No doses',
-      data: [],
-      showLine: false,
-      pointRadius: 0.0001,   // invisible but forces legend/axes init
-      borderWidth: 0
-    }]);
-
-    // Check if we have a cumulative dataset that needs a second Y-axis
-    const hasCumulative = dsUse.some(ds => ds.yAxisID === 'y2');
+    // Calculate pH axis range based on data and targets
+    let phMin = 4.5, phMax = 8.0;  // Default range for pH
+    if (hasPhReadings) {
+      const phValues = phReadings.map(p => p.y).filter(v => v != null && !isNaN(v));
+      if (phValues.length > 0) {
+        const dataMin = Math.min(...phValues);
+        const dataMax = Math.max(...phValues);
+        // Expand range to include data with padding
+        phMin = Math.min(phMin, dataMin - 0.2);
+        phMax = Math.max(phMax, dataMax + 0.2);
+      }
+    }
+    // Include targets in range
+    if (targets && targets.low != null) phMin = Math.min(phMin, targets.low - 0.3);
+    if (targets && targets.high != null) phMax = Math.max(phMax, targets.high + 0.3);
+    // Include current pH in range
+    if (currentPH != null) {
+      phMin = Math.min(phMin, currentPH - 0.2);
+      phMax = Math.max(phMax, currentPH + 0.2);
+    }
 
     // Build annotation plugin config for pH reference line, hysteresis band, and setpoint
     const annotations = {};
@@ -89,7 +101,7 @@
         type: 'line',
         yMin: currentPH,
         yMax: currentPH,
-        yScaleID: 'y',
+        yScaleID: 'yPh',
         borderColor: 'rgba(251, 191, 36, 0.8)',  // amber-400
         borderWidth: 2,
         borderDash: [6, 4],
@@ -111,8 +123,8 @@
         type: 'box',
         yMin: targets.low,
         yMax: targets.high,
-        yScaleID: 'y',
-        backgroundColor: 'rgba(34, 197, 94, 0.08)',  // green with low opacity
+        yScaleID: 'yPh',
+        backgroundColor: 'rgba(34, 197, 94, 0.12)',  // green with low opacity
         borderWidth: 0,
         drawTime: 'beforeDatasetsDraw'  // Draw band behind data
       };
@@ -123,7 +135,7 @@
         type: 'line',
         yMin: setpoint,
         yMax: setpoint,
-        yScaleID: 'y',
+        yScaleID: 'yPh',
         borderColor: 'rgba(34, 197, 94, 0.5)',  // green-500 with transparency
         borderWidth: 1.5,
         borderDash: [4, 4],
@@ -139,8 +151,52 @@
       };
     }
 
+    // Build final datasets array: pH readings line first, then dose datasets
+    const finalDatasets = [];
+    
+    // Add pH readings line dataset (primary)
+    if (hasPhReadings) {
+      finalDatasets.push({
+        type: 'line',
+        label: 'pH',
+        data: phReadings,
+        order: 0,  // Draw first (behind others)
+        yAxisID: 'yPh',
+        borderColor: '#3b82f6',  // blue-500
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.3,
+        fill: false,
+        spanGaps: true
+      });
+    }
+    
+    // Add dose event datasets (on secondary Y-axis)
+    if (datasets && datasets.length > 0) {
+      datasets.forEach(ds => {
+        // Clone and assign to dose Y-axis
+        finalDatasets.push({
+          ...ds,
+          yAxisID: 'yDose'
+        });
+      });
+    }
+    
+    // Ensure at least one stub dataset so legend/axes render
+    const dsUse = finalDatasets.length > 0 ? finalDatasets : [{
+      label: 'No data',
+      data: [],
+      showLine: false,
+      pointRadius: 0.0001,
+      borderWidth: 0
+    }];
+
+    // Check if we have dose data for secondary axis
+    const hasDoseAxis = dsUse.some(ds => ds.yAxisID === 'yDose' && (ds.data||[]).length > 0);
+
     PH_CHART = new Chart(ctx, {
-      type: 'scatter', // will mix with bars and lines
+      type: 'line',
       data: { datasets: dsUse },
       options: {
         responsive: true,
@@ -156,19 +212,35 @@
             adapters: { date: {} },
             min: timeMin || undefined,
             max: timeMax || undefined,
-            ticks: { source: 'auto' }
+            ticks: { source: 'auto', maxRotation: 0, autoSkip: true },
+            time: {
+              tooltipFormat: 'yyyy-MM-dd HH:mm',
+              displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'MMM d' }
+            },
+            grid: { color: 'rgba(148,163,184,0.15)', drawTicks: false }
           },
-          y: {
+          yPh: {
             type: 'linear',
             position: 'left',
-            title: { display: true, text: axisTitle || 'Dose (ml)' },
-            beginAtZero: true
+            title: { display: true, text: 'pH' },
+            min: phMin,
+            max: phMax,
+            grid: { color: 'rgba(148,163,184,0.12)', drawTicks: false }
+          },
+          yDose: {
+            type: 'linear',
+            position: 'right',
+            title: { display: hasDoseAxis, text: 'Dose (ml)' },
+            display: hasDoseAxis,
+            beginAtZero: true,
+            grid: { drawOnChartArea: false }  // Don't draw grid on chart area
           }
         },
         plugins: {
           legend: { 
             display: true,
-            position: 'top'
+            position: 'top',
+            labels: { usePointStyle: true, boxWidth: 10, padding: 12 }
           },
           tooltip: {
             enabled: true,
@@ -176,6 +248,12 @@
               label: (ctx) => {
                 const p = ctx.raw;
                 const ds = ctx.dataset;
+                
+                // pH readings tooltip
+                if (ds.label === 'pH') {
+                  const v = Number(ctx.parsed.y);
+                  return ` pH: ${v.toFixed(2)}`;
+                }
                 
                 // Cumulative line tooltip
                 if (ds.label && ds.label.includes('Cumulative')) {
@@ -202,11 +280,58 @@
       }
     });
 
-    console.debug('[pH] Chart created/rebuilt', { hasData, datasetCount: dsUse.length, currentPH });
+    console.debug('[pH] Chart created/rebuilt', { hasData, hasPhReadings, hasDoseData, datasetCount: dsUse.length, currentPH });
   }
 
   /**
-   * Load dose data for a given range and render the chart
+   * Compute granularity params based on time range (matching trends.js logic)
+   */
+  function presetParams(spanMs) {
+    const hours = spanMs / (3600 * 1000);
+    if (hours <= 2)   return { gran: 30,   max: 1000 };  // 30s buckets for short ranges
+    if (hours <= 24)  return { gran: 60,   max: 1500 };  // 1-min buckets
+    if (hours <= 168) return { gran: 300,  max: 2100 };  // 5-min buckets (7 days)
+    if (hours <= 720) return { gran: 900,  max: 3000 };  // 15-min buckets (30 days)
+    return { gran: 3600, max: 2500 };  // hourly buckets (90+ days)
+  }
+
+  /**
+   * Fetch pH sensor readings from trends API
+   */
+  async function fetchPhReadings(fromISO, toISO, gran, max) {
+    const q = new URLSearchParams();
+    if (fromISO) q.set('from', fromISO);
+    if (toISO) q.set('to', toISO);
+    if (gran) q.set('gran', String(gran));
+    if (max) q.set('max', String(max));
+    
+    const url = '/api/trends?' + q.toString();
+    console.log('[pH Chart] Fetching pH readings from:', url);
+    
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) {
+        console.warn('[pH Chart] Trends API failed:', res.status);
+        return [];
+      }
+      const data = await res.json();
+      const phSeries = data?.series?.ph || [];
+      console.log('[pH Chart] Got pH readings:', phSeries.length);
+      
+      // Convert to Chart.js format: {x: Date, y: number}
+      // API returns timestamps in Unix seconds
+      return phSeries.map(p => ({
+        x: new Date(p.ts * 1000),  // Convert Unix seconds to Date
+        y: Number(p.value)
+      })).filter(p => !isNaN(p.y));
+    } catch (err) {
+      console.error('[pH Chart] Failed to fetch pH readings:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Load dose data and pH readings for a given range and render the chart
    * @param {Object} params - {start: ISO string, end: ISO string}
    */
   async function phLoadRangeAndRender({start, end}) {
@@ -236,28 +361,43 @@
 
     console.log('[pH Chart] Range request', {start, end, startISO, endISO});
 
+    // Calculate time span for granularity
+    const startMs = startISO ? new Date(startISO).getTime() : Date.now() - 24*3600*1000;
+    const endMs = endISO ? new Date(endISO).getTime() : Date.now();
+    const spanMs = endMs - startMs;
+    const { gran, max } = presetParams(spanMs);
+
     // Build URLs for events, summary, and live pH
     const uEvents = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`;
     const uSummary = `/api/ph/dose_summary?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
     const uStatus = `/api/ph/status`;
 
-    console.log('[pH Chart] Fetching', {uEvents, uSummary, uStatus});
+    console.log('[pH Chart] Fetching', {uEvents, uSummary, uStatus, gran, max});
 
     let events = [];
     let summary = [];
     let currentPH = null;
     let targets = null;
+    let phReadings = [];
+    
     try {
-      const [eRes, sRes, stRes] = await Promise.all([
+      // Fetch all data in parallel: dose events, summary, status, AND pH readings
+      const [eRes, sRes, stRes, phData] = await Promise.all([
         fetch(uEvents, {cache:'no-store'}), 
         fetch(uSummary, {cache:'no-store'}),
-        fetch(uStatus, {cache:'no-store'})
+        fetch(uStatus, {cache:'no-store'}),
+        fetchPhReadings(startISO, endISO, gran, max)
       ]);
-      console.log('[pH Chart] Response status', {events: eRes.status, summary: sRes.status, status: stRes.status});
+      
+      console.log('[pH Chart] Response status', {events: eRes.status, summary: sRes.status, status: stRes.status, phReadings: phData.length});
+      
       if (!eRes.ok) throw new Error(`dose_log HTTP ${eRes.status}`);
       if (!sRes.ok) throw new Error(`dose_summary HTTP ${sRes.status}`);
+      
       events = await eRes.json();
       summary = await sRes.json();
+      phReadings = phData;
+      
       if (stRes.ok) {
         const statusData = await stRes.json();
         currentPH = statusData?.ph ?? null;
@@ -265,16 +405,18 @@
       }
     } catch (err) {
       console.error('[pH Chart] fetch error:', err);
-      phBuildChart([], null, null, null, null, null);
+      phBuildChart([], null, null, null, null, []);
       return;
     }
 
-    console.log('[pH Chart] Data received', {events: events.length, summary: summary.length});
+    console.log('[pH Chart] Data received', {events: events.length, summary: summary.length, phReadings: phReadings.length});
 
-    // Build datasets
+    // Build dose event datasets
     const hasAnyMl = events.some(r => r && r.volume_ml != null);
     console.log('[pH Chart] hasAnyMl:', hasAnyMl, 'sample event:', events[0]);
-    const pts = events.map(r => ({
+    
+    // Dose events as scatter points (shown on secondary Y-axis)
+    const dosePoints = events.map(r => ({
       x: new Date(r.ts),  // Convert ISO string to Date object for Chart.js
       y: hasAnyMl ? (r.volume_ml != null ? r.volume_ml : 0) : (r.seconds ?? 0),
       ml: (r.volume_ml != null ? r.volume_ml : null),
@@ -282,72 +424,31 @@
       phb: r.ph_before ?? null,
       pha: r.ph_after ?? null
     }));
-    console.log('[pH Chart] Sample point:', pts[0]);
+    console.log('[pH Chart] Sample dose point:', dosePoints[0]);
 
-    // Build cumulative total line (running sum over time)
-    const cumulative = [];
-    if (hasAnyMl && events.length > 0) {
-      let runningTotal = 0;
-      events.forEach(r => {
-        runningTotal += (r.volume_ml ?? 0);
-        cumulative.push({
-          x: new Date(r.ts),
-          y: runningTotal
-        });
+    // Build dose datasets
+    const doseDatasets = [];
+    
+    // Dose events scatter (green triangle markers)
+    if (dosePoints.length > 0) {
+      doseDatasets.push({
+        type: 'scatter',
+        label: hasAnyMl ? 'Dose (ml)' : 'Dose (s)',
+        data: dosePoints,
+        order: 1,
+        pointRadius: 5,
+        pointStyle: 'triangle',
+        backgroundColor: 'rgba(34, 197, 94, 0.9)',  // green
+        borderColor: 'rgba(34, 197, 94, 1)',
+        borderWidth: 1
       });
     }
 
-    // When long windows, also build a bar dataset from summary (only meaningful when ml calibration exists)
-    const bars = hasAnyMl ? summary.map(d => ({
-      x: new Date(d.day),  // Convert day string to Date object
-      y: d.total_ml ?? 0
-    })) : [];
-
-    const haveBars = bars.length > 0;
-    const haveCumulative = cumulative.length > 0;
-    
-    const datasets = [
-      haveBars ? {
-        type: 'bar',
-        label: 'Daily total (ml)',
-        data: bars,
-        order: 3,
-        backgroundColor: 'rgba(34,197,94,0.35)',
-        borderColor: 'rgba(34,197,94,0.6)',
-        yAxisID: 'y'
-      } : null,
-      haveCumulative ? {
-        type: 'line',
-        label: 'Cumulative total (ml)',
-        data: cumulative,
-        order: 2,
-        borderColor: 'rgba(168,85,247,0.8)',
-        backgroundColor: 'rgba(168,85,247,0.1)',
-        borderWidth: 2,
-        pointRadius: 0,
-        fill: false,
-        tension: 0,
-        yAxisID: 'y'
-      } : null,
-      {
-        type: 'scatter',
-        label: hasAnyMl ? 'Dose events (ml)' : 'Dose events (s)',
-        data: pts,
-        order: 1,
-        pointRadius: 3,
-        backgroundColor: 'rgba(59,130,246,0.9)',
-        yAxisID: 'y'
-      }
-    ].filter(Boolean);
-
-    // Render chart
-    const axisTitle = hasAnyMl ? 'Dose (ml)' : 'Dose (s)';
-    // Use the REQUESTED timeframe for axis bounds (not data bounds)
-    // This ensures the full timeframe is visible even with sparse data
+    // Render chart with pH readings as line and dose events as scatter
     const tmin = startISO ? new Date(startISO) : null;
     const tmax = endISO ? new Date(endISO) : null;
-    console.log('[pH Chart] Axis bounds (from request)', {tmin, tmax, startISO, endISO, currentPH, targets});
-    phBuildChart(datasets, tmin, tmax, axisTitle, currentPH, targets);
+    console.log('[pH Chart] Axis bounds (from request)', {tmin, tmax, startISO, endISO, currentPH, targets, phReadingsCount: phReadings.length});
+    phBuildChart(doseDatasets, tmin, tmax, currentPH, targets, phReadings);
 
     // Update "In range" pill
     const pill = document.getElementById('ph-in-range');
