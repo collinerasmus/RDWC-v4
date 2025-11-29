@@ -283,16 +283,25 @@
     console.debug('[pH] Chart created/rebuilt', { hasData, hasPhReadings, hasDoseData, datasetCount: dsUse.length, currentPH });
   }
 
+  // Granularity constants for time-based bucketing (in seconds)
+  const GRANULARITY = {
+    FINE: 30,       // 30-second buckets for short ranges (<2h)
+    MINUTE: 60,     // 1-minute buckets for day ranges
+    FIVE_MIN: 300,  // 5-minute buckets for week ranges
+    QUARTER: 900,   // 15-minute buckets for month ranges
+    HOURLY: 3600    // Hourly buckets for 90+ days
+  };
+
   /**
    * Compute granularity params based on time range (matching trends.js logic)
    */
   function presetParams(spanMs) {
     const hours = spanMs / (3600 * 1000);
-    if (hours <= 2)   return { gran: 30,   max: 1000 };  // 30s buckets for short ranges
-    if (hours <= 24)  return { gran: 60,   max: 1500 };  // 1-min buckets
-    if (hours <= 168) return { gran: 300,  max: 2100 };  // 5-min buckets (7 days)
-    if (hours <= 720) return { gran: 900,  max: 3000 };  // 15-min buckets (30 days)
-    return { gran: 3600, max: 2500 };  // hourly buckets (90+ days)
+    if (hours <= 2)   return { gran: GRANULARITY.FINE,     max: 1000 };  // 30s buckets for short ranges
+    if (hours <= 24)  return { gran: GRANULARITY.MINUTE,   max: 1500 };  // 1-min buckets
+    if (hours <= 168) return { gran: GRANULARITY.FIVE_MIN, max: 2100 };  // 5-min buckets (7 days)
+    if (hours <= 720) return { gran: GRANULARITY.QUARTER,  max: 3000 };  // 15-min buckets (30 days)
+    return { gran: GRANULARITY.HOURLY, max: 2500 };  // hourly buckets (90+ days)
   }
 
   /**
@@ -319,9 +328,9 @@
       console.log('[pH Chart] Got pH readings:', phSeries.length);
       
       // Convert to Chart.js format: {x: Date, y: number}
-      // API returns timestamps in Unix seconds
+      // API returns timestamps in Unix epoch seconds, multiply by 1000 to convert to milliseconds for Date
       return phSeries.map(p => ({
-        x: new Date(p.ts * 1000),  // Convert Unix seconds to Date
+        x: new Date(p.ts * 1000),  // Unix seconds → milliseconds for Date constructor
         y: Number(p.value)
       })).filter(p => !isNaN(p.y));
     } catch (err) {
