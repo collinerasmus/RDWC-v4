@@ -562,6 +562,59 @@
   async function wire(){
     const c = document.getElementById('ph-card');
     if(!c) return;
+
+    // Inject Safety & Stabilization panel if not already present
+    if(!document.getElementById('ph-safety-panel')){
+      const panel = document.createElement('div');
+      panel.id = 'ph-safety-panel';
+      panel.style.marginTop = '16px';
+      panel.innerHTML = `
+        <div style="border:1px solid #334155;padding:12px;border-radius:6px;background:#0f172a;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <h3 style="margin:0;font-size:14px;font-weight:600;color:#e2e8f0;">pH Up Safety & Stabilization</h3>
+            <button id="btnSavePhSafety" class="btn-small" style="padding:4px 10px;">Save Safety Settings</button>
+          </div>
+          <div id="ph-safety-live" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;font-size:12px;">
+            <div class="ui-status-chip neutral" id="phSafetyInitial" title="Initial micro-dose size">initial_ml: —</div>
+            <div class="ui-status-chip neutral" id="phSafetyInterval" title="Minimum seconds between successful doses">min_interval_s: —</div>
+            <div class="ui-status-chip neutral" id="phSafetyMaxDelta" title="Guard: predicted delta pH must be <= this value">max_estimated_delta_ph: —</div>
+            <div class="ui-status-chip neutral" id="phSafetyEstGuard" title="Estimated change guard enabled/disabled">est_change_guard: —</div>
+            <div class="ui-status-chip neutral" id="phSafetyStabWait" title="Seconds to wait before checking stabilization samples">stabilize_wait_s: —</div>
+            <div class="ui-status-chip neutral" id="phSafetyStabDelta" title="Max pH span across last samples to qualify as stable">stability_delta: —</div>
+            <div class="ui-status-chip neutral" id="phSafetyStabSamples" title="Number of recent samples required for stability detection">stability_samples: —</div>
+          </div>
+          <form id="ph-safety-form" style="display:flex;flex-wrap:wrap;gap:12px;font-size:12px;">
+            <label style="display:flex;flex-direction:column;min-width:120px;">Initial ml
+              <input id="phSafetyInputInitial" type="number" step="0.001" min="0" style="margin-top:4px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;padding:4px;" />
+            </label>
+            <label style="display:flex;flex-direction:column;min-width:140px;">Min Interval (s)
+              <input id="phSafetyInputInterval" type="number" step="1" min="0" style="margin-top:4px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;padding:4px;" />
+            </label>
+            <label style="display:flex;flex-direction:column;min-width:140px;">Max Delta pH
+              <input id="phSafetyInputMaxDelta" type="number" step="0.01" min="0.05" style="margin-top:4px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;padding:4px;" />
+            </label>
+            <label style="display:flex;flex-direction:column;min-width:160px;">Stabilize Wait (s)
+              <input id="phSafetyInputStabWait" type="number" step="10" min="60" style="margin-top:4px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;padding:4px;" />
+            </label>
+            <label style="display:flex;flex-direction:column;min-width:150px;">Stability Delta
+              <input id="phSafetyInputStabDelta" type="number" step="0.001" min="0.001" style="margin-top:4px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;padding:4px;" />
+            </label>
+            <label style="display:flex;flex-direction:column;min-width:140px;">Stability Samples
+              <input id="phSafetyInputStabSamples" type="number" step="1" min="2" style="margin-top:4px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;padding:4px;" />
+            </label>
+            <label style="display:flex;flex-direction:column;min-width:140px;">Est. Change Guard
+              <select id="phSafetyInputEstGuard" style="margin-top:4px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;padding:4px;">
+                <option value="true">Enabled</option>
+                <option value="false">Disabled</option>
+              </select>
+            </label>
+          </form>
+          <div style="margin-top:10px;font-size:11px;color:#94a3b8;line-height:1.4;">
+            All changes apply immediately to automation & guards. Stabilization reduces noise by waiting until readings settle after a dose. Lower values speed learning but risk capturing unsettled mixing drift.
+          </div>
+        </div>`;
+      c.appendChild(panel);
+    }
     
     // Mode buttons and dose log header use inline onclick handlers (see HTML)
     // This ensures they work immediately without waiting for event listener binding
@@ -946,6 +999,21 @@
         const val = window.rdwcSettings?.get(settingKey);
         if(elem && (val || fallback)) elem.value = val || fallback;
       }
+      // Populate safety panel inputs
+      const safetyPairs = [
+        ['phSafetyInputInitial','dosing.ph_up_initial_ml','0.01'],
+        ['phSafetyInputInterval','dosing.ph_min_interval_s','900'],
+        ['phSafetyInputMaxDelta','safety.max_estimated_ph_change','0.5'],
+        ['phSafetyInputStabWait','dosing.stabilize_wait_s','300'],
+        ['phSafetyInputStabDelta','dosing.stability_delta','0.02'],
+        ['phSafetyInputStabSamples','dosing.stability_samples','3'],
+        ['phSafetyInputEstGuard','safety.estimated_change_guard','true']
+      ];
+      for(const [id,key,fallback] of safetyPairs){
+        const elem = el(id);
+        const val = window.rdwcSettings?.get(key);
+        if(elem && (val || fallback)) elem.value = val || fallback;
+      }
     }catch(e){ console.warn('[pH] Failed to load settings into form:', e); }
 
     // listen for settings UI updates to ui.sensors_poll_ms
@@ -1214,6 +1282,57 @@
       }
     }catch(e){ /* ignore */ }
   }
+
+  // --- Update Safety chips from latest /api/ph/status ---
+  function updateSafetyChips(status){
+    if(!status || !status.safety) return;
+    const s = status.safety;
+    const setChip = (id,val)=>{ const n = el(id); if(n){ n.textContent = id.replace('phSafety','').toLowerCase()+': '+val; n.className = 'ui-status-chip success'; }};
+    setChip('phSafetyInitial', s.initial_ml);
+    setChip('phSafetyInterval', status.guards?.min_interval_s || '—');
+    setChip('phSafetyMaxDelta', s.max_estimated_delta_ph);
+    setChip('phSafetyEstGuard', s.estimated_change_guard ? 'enabled' : 'disabled');
+    if(s.stabilization){
+      setChip('phSafetyStabWait', s.stabilization.wait_s);
+      setChip('phSafetyStabDelta', s.stabilization.delta);
+      setChip('phSafetyStabSamples', s.stabilization.samples);
+    }
+  }
+
+  // Extend renderStatus to also update safety chips
+  const _origRenderStatus = renderStatus;
+  renderStatus = function(s){
+    _origRenderStatus(s);
+    try { updateSafetyChips(s); } catch(e){ /* ignore */ }
+  };
+
+  // Save Safety Settings handler
+  document.addEventListener('click', function(ev){
+    if(ev.target && ev.target.id === 'btnSavePhSafety'){
+      (async ()=>{
+        const btn = ev.target; btn.disabled = true; btn.textContent = 'Saving…';
+        try {
+          const payload = {};
+          const map = [
+            ['phSafetyInputInitial','dosing.ph_up_initial_ml'],
+            ['phSafetyInputInterval','dosing.ph_min_interval_s'],
+            ['phSafetyInputMaxDelta','safety.max_estimated_ph_change'],
+            ['phSafetyInputStabWait','dosing.stabilize_wait_s'],
+            ['phSafetyInputStabDelta','dosing.stability_delta'],
+            ['phSafetyInputStabSamples','dosing.stability_samples'],
+            ['phSafetyInputEstGuard','safety.estimated_change_guard']
+          ];
+          map.forEach(([id,key])=>{ const e = el(id); if(e && e.value!=='') payload[key] = e.value; });
+          if(Object.keys(payload).length===0){ if(window.showToast) showToast('No safety changes','warning'); return; }
+          const r = await fetch('/api/settings', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+          if(!r.ok) throw new Error('HTTP '+r.status);
+          if(window.showToast) showToast('Safety settings saved','success');
+          tick();
+        } catch(e){ if(window.showToast) showToast('Save failed: '+e.message,'error'); }
+        finally { btn.disabled = false; btn.textContent = 'Save Safety Settings'; }
+      })();
+    }
+  });
 
 })();
 
