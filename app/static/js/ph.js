@@ -1020,8 +1020,14 @@
     const selectEl = el('phDoseRangeSelect');
     if (selectEl && selectEl.value !== preset){ selectEl.value = preset; }
     
-    // Load range
-    await loadRange(preset);
+    // If user selects 1h and wants rolling live mode, reset chart to rolling
+    // Otherwise treat as user-selected fixed range
+    if (preset === '1h' && window.phDoseChart?.resetToRolling) {
+      window.phDoseChart.resetToRolling();
+    } else {
+      // User selecting a specific range - this will be handled in loadRange
+      await loadRange(preset);
+    }
   }
   
   async function loadRange(preset){
@@ -1045,6 +1051,11 @@
     
     currentRange.start = range.start;
     currentRange.end = range.end;
+    
+    // Notify chart about user-selected range (disables auto-rolling for non-1h presets)
+    if (preset !== '1h' && window.phDoseChart?.setRange) {
+      window.phDoseChart.setRange(range.start, range.end);
+    }
     
     // Auto-populate datetime inputs with current range so user knows what they're viewing
     const fromEl = el('phDoseFrom');

@@ -711,11 +711,94 @@
     phLoadRangeAndRender({start, end});
   }
 
+  /**
+   * Set explicit user range (disables auto-rolling)
+   * @param {number|string} start - Start timestamp (epoch ms or ISO string)
+   * @param {number|string} end - End timestamp (epoch ms or ISO string)
+   */
+  function setRange(start, end) {
+    const startMs = typeof start === 'string' ? new Date(start).getTime() : start;
+    const endMs = typeof end === 'string' ? new Date(end).getTime() : end;
+    
+    if (isFinite(startMs) && isFinite(endMs) && endMs > startMs) {
+      USER_RANGE_SELECTED = true;
+      ROLLING_STATE.active = false;
+      PH_CHART_STATE.lastStart = new Date(startMs).toISOString();
+      PH_CHART_STATE.lastEnd = new Date(endMs).toISOString();
+      
+      // Persist user selection
+      try {
+        localStorage.setItem('ph_chart_user_range', JSON.stringify({
+          start: PH_CHART_STATE.lastStart,
+          end: PH_CHART_STATE.lastEnd,
+          userSelected: true
+        }));
+      } catch(e) { /* ignore storage errors */ }
+      
+      console.log('[pH Chart] User range set:', { startMs, endMs, span: endMs - startMs });
+    }
+  }
+  
+  /**
+   * Reset to auto-rolling mode (clears user range selection)
+   */
+  function resetToRolling() {
+    USER_RANGE_SELECTED = false;
+    ROLLING_STATE.active = true;
+    ROLLING_STATE.endMs = roundTs(Date.now());
+    ROLLING_STATE.spanMs = ROLLING_DEFAULT_SPAN_MS;
+    ROLLING_STATE.initialized = true;
+    
+    // Clear persisted user selection
+    try {
+      localStorage.removeItem('ph_chart_user_range');
+    } catch(e) { /* ignore */ }
+    
+    console.log('[pH Chart] Reset to rolling mode');
+    
+    // Trigger immediate refresh
+    const endMs = ROLLING_STATE.endMs;
+    const startMs = endMs - ROLLING_STATE.spanMs;
+    phLoadRangeAndRender({
+      start: new Date(startMs).toISOString(),
+      end: new Date(endMs).toISOString()
+    });
+  }
+  
+  /**
+   * Check if user has selected a fixed range
+   */
+  function isUserRangeSelected() {
+    return USER_RANGE_SELECTED;
+  }
+  
+  // Restore persisted user range on load
+  try {
+    const stored = localStorage.getItem('ph_chart_user_range');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed.userSelected && parsed.start && parsed.end) {
+        const s = new Date(parsed.start).getTime();
+        const e = new Date(parsed.end).getTime();
+        if (isFinite(s) && isFinite(e) && e > s) {
+          USER_RANGE_SELECTED = true;
+          ROLLING_STATE.active = false;
+          PH_CHART_STATE.lastStart = parsed.start;
+          PH_CHART_STATE.lastEnd = parsed.end;
+          console.log('[pH Chart] Restored user range from localStorage');
+        }
+      }
+    }
+  } catch(e) { /* ignore parse errors */ }
+
   // Export functions for external use
   window.phDoseChart = {
     render: phLoadRangeAndRender,
     getState: () => PH_CHART_STATE,
-    init: init
+    init: init,
+    setRange: setRange,
+    resetToRolling: resetToRolling,
+    isUserRangeSelected: isUserRangeSelected
   };
 
   // Auto-init on DOM ready
@@ -735,7 +818,7 @@
     
     console.log('[pH Chart] Starting auto-refresh (10s interval)');
     // Initialize rolling span once from current state
-      if (!ROLLING_STATE.initialized) {
+    if (!ROLLING_STATE.initialized) {
       const ls = PH_CHART_STATE?.lastStart;
       const le = PH_CHART_STATE?.lastEnd;
       if (ls && le) {
@@ -745,7 +828,7 @@
           ROLLING_STATE.spanMs = e - s;
         }
       }
-        ROLLING_STATE.endMs = roundTs(Date.now());
+      ROLLING_STATE.endMs = roundTs(Date.now());
       ROLLING_STATE.initialized = true;
     }
 
@@ -754,9 +837,15 @@
       let endISO = PH_CHART_STATE.lastEnd;
 
       if (!USER_RANGE_SELECTED && ROLLING_STATE.active) {
-        // Monotonic advance: prefer steady cadence, never go backwards, using rounded boundaries
+        // Monotonic advance: prefer steady cadence, never go backwards
+        // Defensive check: if clock regressed (system time correction), use max of current and now
+        const nowRounded = roundTs(Date.now());
         const stepMs = REFRESH_INTERVAL_MS;
-        ROLLING_STATE.endMs = Math.max(ROLLING_STATE.endMs + stepMs, roundTs(Date.now()));
+        const nextEnd = ROLLING_STATE.endMs + stepMs;
+        
+        // Never regress: use max of stepped time and actual now (handles clock jumps backward)
+        ROLLING_STATE.endMs = Math.max(nextEnd, nowRounded);
+        
         const endMs = ROLLING_STATE.endMs;
         const startMs = endMs - ROLLING_STATE.spanMs;
         endISO = new Date(endMs).toISOString();
