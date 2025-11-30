@@ -243,10 +243,20 @@ def _today_total_ml(now_dt: datetime) -> float:
         return float(val or 0.0)
 
 def _last_ok_ts() -> Optional[datetime]:
+    """Get timestamp of last successful pH dose from ph_dose_log table.
+    This is the PRIMARY source for interval guard since _perform_dose logs here."""
     _ensure_tables()
     with sqlite3.connect(str(DB_PATH)) as conn:
         cur = conn.cursor()
-        # Check unified dose_events table first (primary source) - uses 'ts' as Unix timestamp
+        # PRIMARY: Check ph_dose_log table (where _perform_dose logs successful doses)
+        cur.execute("SELECT ts_utc FROM ph_dose_log WHERE result='ok' ORDER BY id DESC LIMIT 1")
+        row = cur.fetchone()
+        if row:
+            try:
+                return datetime.fromisoformat(row[0]).astimezone(timezone.utc)
+            except Exception:
+                pass
+        # FALLBACK: Check unified dose_events table (for backward compatibility)
         cur.execute("SELECT ts FROM dose_events WHERE pump='ph_up' AND blocked_by IS NULL ORDER BY id DESC LIMIT 1")
         row = cur.fetchone()
         if row:
@@ -254,15 +264,7 @@ def _last_ok_ts() -> Optional[datetime]:
                 return datetime.fromtimestamp(row[0], tz=timezone.utc)
             except Exception:
                 pass
-        # Fallback to old ph_dose_log table for backward compatibility
-        cur.execute("SELECT ts_utc FROM ph_dose_log WHERE result='ok' ORDER BY id DESC LIMIT 1")
-        row = cur.fetchone()
-        if not row:
-            return None
-        try:
-            return datetime.fromisoformat(row[0]).astimezone(timezone.utc)
-        except Exception:
-            return None
+        return None
 
 # --- Sensors/Settings helpers ------------------------------------------------
 def _get_latest_ph() -> Tuple[Optional[float], Optional[int]]:
