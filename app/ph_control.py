@@ -599,9 +599,9 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
     # Block if estimated pH change exceeds threshold (default 0.5 pH)
     # This helps prevent overdosing when concentration is high or reservoir is small
     # Constants for the guard
-    # SAFETY: Realistic default for typical hydro setup (~100L, standard pH Up)
-    # 0.1 was too strong (would block even tiny doses thinking they'd cause 1.0 pH swings)
-    DEFAULT_ML_PER_PH_FALLBACK = 5.0  # Realistic default: 5ml per 1.0 pH change
+    # SAFETY: User's system spec: 1ml pH Up = roughly 1 pH unit change
+    # Start conservative at 0.1ml doses, let learning algorithm build up gradually
+    DEFAULT_ML_PER_PH_FALLBACK = 1.0  # User spec: 1ml raises pH by 1.0
     MIN_ML_PER_PH = 0.01  # Minimum divisor to prevent division by zero
     
     pre_ph_for_check, _ = _get_latest_ph()
