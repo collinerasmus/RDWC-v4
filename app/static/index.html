@@ -2786,6 +2786,25 @@ function toggleRecentReadings(){
       obj.data = streamUrl;
       obj.style.display = 'block';
       img.style.display = 'none';
+      // No reliable onerror for <object> MJPEG; add watchdog to swap to snapshot if health fails
+      setTimeout(() => {
+        fetch('/camera/stream/health', { method: 'GET' }).then(r => {
+          if(r.status !== 204){
+            // Unhealthy: switch to snapshot fallback
+            obj.style.display = 'none';
+            obj.data = '';
+            img.src = '/camera/snapshot.jpg?t=' + Date.now();
+            img.style.display = 'block';
+            if(pill) pill.textContent = 'Status: snapshot';
+          }
+        }).catch(() => {
+          obj.style.display = 'none';
+          obj.data = '';
+          img.src = '/camera/snapshot.jpg?t=' + Date.now();
+          img.style.display = 'block';
+          if(pill) pill.textContent = 'Status: snapshot';
+        });
+      }, 500);
     } else {
       // Fallback to <img>
       img.src = streamUrl;
@@ -2804,13 +2823,25 @@ function toggleRecentReadings(){
     }, 2000);
   }
   
+  // Gate start by both availability and stream health
   refreshStatus().then(st => {
-    if(st && st.available){
-      startStream();
-    } else {
-      // Keep overlay visible and avoid starting stream to prevent console errors
+    if(!(st && st.available)){
       if(overlay) overlay.style.display = 'block';
+      return;
     }
+    fetch('/camera/stream/health', { method: 'GET' })
+      .then(r => {
+        if(r.status === 204){
+          startStream();
+        } else {
+          if(overlay) overlay.style.display = 'block';
+          if(pill) pill.textContent = 'Status: unavailable';
+        }
+      })
+      .catch(() => {
+        if(overlay) overlay.style.display = 'block';
+        if(pill) pill.textContent = 'Status: unavailable';
+      });
   });
   
   // Expose camera control
