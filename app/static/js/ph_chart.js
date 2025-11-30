@@ -5,35 +5,89 @@
   console.log('[pH Chart] Loader enter (ph_chart.js start)');
   'use strict';
 
-  // Module state
-  let PH_CHART = null;
-  let PH_CHART_STATE = { lastStart: null, lastEnd: null, lastCount: 0 };
-  // Rolling window & user range selection flags (defined early so all functions can reference)
-  let USER_RANGE_SELECTED = false;
-  const REFRESH_INTERVAL_MS = 10000; // 10s cadence
-  const ROLLING_DEFAULT_SPAN_MS = 3600*1000; // 1h
-  let ROLLING_STATE = { active: true, initialized: false, spanMs: ROLLING_DEFAULT_SPAN_MS, endMs: Date.now() };
-  // Round timestamp to nearest refresh boundary (prevents micro jitter / back jumps from ms drift)
-  const roundTs = (ts) => Math.floor(ts / REFRESH_INTERVAL_MS) * REFRESH_INTERVAL_MS;
+  //==========================================================================
+  // ChartController - Consolidated state management for pH chart
+  //==========================================================================
+  const ChartController = {
+    // Core chart instance
+    chart: null,
+    
+    // Chart state
+    state: { lastStart: null, lastEnd: null, lastCount: 0, lastFetchTs: 0 },
+    
+    // Rolling window configuration
+    rolling: {
+      active: true,
+      initialized: false,
+      spanMs: 3600 * 1000, // 1h default
+      endMs: Date.now()
+    },
+    
+    // User range selection
+    userRangeSelected: false,
+    
+    // Constants
+    REFRESH_INTERVAL_MS: 10000,
+    ROLLING_DEFAULT_SPAN_MS: 3600 * 1000,
+    MIN_PUMP_BAR_WIDTH_MS: 5000,
+    
+    // Round timestamp to nearest refresh boundary (prevents micro jitter)
+    roundTs(ts) {
+      return Math.floor(ts / this.REFRESH_INTERVAL_MS) * this.REFRESH_INTERVAL_MS;
+    },
+    
+    // Persist state to localStorage
+    saveState() {
+      try {
+        localStorage.setItem('ph_chart_state', JSON.stringify({
+          userRangeSelected: this.userRangeSelected,
+          lastStart: this.state.lastStart,
+          lastEnd: this.state.lastEnd,
+          spanMs: this.rolling.spanMs
+        }));
+      } catch(e) { /* ignore */ }
+    },
+    
+    // Restore state from localStorage
+    restoreState() {
+      try {
+        const stored = localStorage.getItem('ph_chart_state');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.userRangeSelected && parsed.lastStart && parsed.lastEnd) {
+            const s = new Date(parsed.lastStart).getTime();
+            const e = new Date(parsed.lastEnd).getTime();
+            if (isFinite(s) && isFinite(e) && e > s) {
+              this.userRangeSelected = true;
+              this.rolling.active = false;
+              this.state.lastStart = parsed.lastStart;
+              this.state.lastEnd = parsed.lastEnd;
+              if (parsed.spanMs) this.rolling.spanMs = parsed.spanMs;
+              console.log('[pH Chart] Restored user range from localStorage');
+              return true;
+            }
+          }
+        }
+      } catch(e) { /* ignore */ }
+      return false;
+    },
+    
+    // Clear persisted state
+    clearState() {
+      try {
+        localStorage.removeItem('ph_chart_state');
+      } catch(e) { /* ignore */ }
+    }
+  };
 
-  // Constants
-  const MIN_PUMP_BAR_WIDTH_MS = 5000; // Minimum 5 seconds width for pump event visibility
-  
   // Check annotation plugin availability
   let ANNOTATION_AVAILABLE = false;
   
-  // Chart.js v4 UMD bundle auto-registers all core components (controllers, elements, scales, plugins).
-  // We only need to register the external annotation plugin if present.
-  // NOTE: Do NOT try to access Chart.controllers, Chart.elements, Chart.scales, or Chart.plugins
-  // as these are not exposed as properties on the Chart object in the UMD bundle.
+  // Chart.js v4 UMD bundle auto-registers all core components
   if (window.Chart && typeof Chart.register === 'function') {
-    // Register annotation plugin if available (UMD global can be exported under different names)
     const annoPlugin = (
-      // Preferred UMD export name used by chartjs-plugin-annotation v3
       window['chartjs-plugin-annotation'] ||
-      // Some bundles expose it via a nested chartjs namespace
       (window.chartjs && window.chartjs['plugin-annotation']) ||
-      // Older name sometimes used
       window.ChartAnnotation
     );
     
@@ -43,162 +97,151 @@
         ANNOTATION_AVAILABLE = true;
         console.log('[pH Chart] ✓ Annotation plugin registered successfully');
       } catch (regErr) {
-        // Plugin may already be registered - check if it's working
         console.debug('[pH Chart] Annotation plugin registration:', regErr?.message);
-        // Assume it's available if no critical error
         ANNOTATION_AVAILABLE = true;
       }
     } else {
-      console.warn('[pH Chart] ⚠ Annotation plugin not found - pump bars, hysteresis band, and setpoint line will not display');
+      console.warn('[pH Chart] ⚠ Annotation plugin not found');
     }
   } else {
-    console.error('[pH Chart] ❌ Chart.js not loaded or Chart.register not available');
+    console.error('[pH Chart] ❌ Chart.js not loaded');
+  }
+
+  // Granularity constants for time-based bucketing (in seconds)
+  const GRANULARITY = {
+    FINE: 30,
+    MINUTE: 60,
+    FIVE_MIN: 300,
+    QUARTER: 900,
+    HOURLY: 3600
+  };
+
+  function presetParams(spanMs) {
+    const hours = spanMs / (3600 * 1000);
+    if (hours <= 2)   return { gran: GRANULARITY.FINE, max: 1000 };
+    if (hours <= 24)  return { gran: GRANULARITY.MINUTE, max: 1500 };
+    if (hours <= 168) return { gran: GRANULARITY.FIVE_MIN, max: 2100 };
+    if (hours <= 720) return { gran: GRANULARITY.QUARTER, max: 3000 };
+    return { gran: GRANULARITY.HOURLY, max: 2500 };
   }
 
   /**
-   * Build or rebuild the pH-only chart with sensor readings and dose events overlay
-   * @param {Array} datasets - Chart.js datasets for dose events
-   * @param {string|null} timeMin - ISO timestamp or null
-   * @param {string|null} timeMax - ISO timestamp or null
-   * @param {number|null} currentPH - Current live pH reading
-   * @param {Object|null} targets - {low: number, high: number} pH target range
-   * @param {Array} phReadings - Array of {x: Date, y: number} pH sensor readings
-   * @param {Array} pumpEvents - Array of pump ON/OFF events
+   * Fetch pH readings from trends API with error handling
+   */
+  async function fetchPhReadings(fromISO, toISO, gran, max) {
+    const q = new URLSearchParams();
+    if (fromISO) q.set('from', fromISO);
+    if (toISO) q.set('to', toISO);
+    if (gran) q.set('gran', String(gran));
+    if (max) q.set('max', String(max));
+    
+    const url = '/api/trends?' + q.toString();
+    
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) {
+        console.warn('[pH Chart] Trends API failed:', res.status);
+        return { data: [], error: 'HTTP ' + res.status };
+      }
+      const data = await res.json();
+      
+      const phSeries = (data?.series?.ph || []).map(function(p) {
+        return {
+          x: new Date(p.ts * 1000),
+          y: Number(p.value)
+        };
+      }).filter(function(p) { return !isNaN(p.y); });
+      
+      return { data: phSeries, error: null };
+    } catch (err) {
+      console.error('[pH Chart] Failed to fetch pH readings:', err);
+      return { data: [], error: err.message };
+    }
+  }
+
+  /**
+   * Build or update the pH chart
    */
   function phBuildChart(datasets, timeMin, timeMax, currentPH, targets, phReadings, pumpEvents, schedule) {
-    console.log('[pH Chart] 🔧 phBuildChart called', {
-      datasetsCount: datasets?.length,
-      timeMin, timeMax, currentPH, targets,
-      phReadingsCount: phReadings?.length,
-      pumpEventsCount: pumpEvents?.length,
-      hasSchedule: !!schedule
-    });
-
-    // If rolling state is active and initialized and user has NOT selected a fixed range,
-    // enforce monotonic window regardless of incoming timeMin/timeMax to prevent back jumps.
-    if (ROLLING_STATE.initialized && ROLLING_STATE.active && !USER_RANGE_SELECTED) {
-      // Use rounded times to prevent small backward adjustments due to millisecond differences
-      const endMsRounded = roundTs(ROLLING_STATE.endMs);
-      const enforcedMax = new Date(endMsRounded);
-      const enforcedMin = new Date(endMsRounded - ROLLING_STATE.spanMs);
+    // If rolling mode active, enforce monotonic window
+    if (ChartController.rolling.initialized && ChartController.rolling.active && !ChartController.userRangeSelected) {
+      var endMsRounded = ChartController.roundTs(ChartController.rolling.endMs);
+      var enforcedMax = new Date(endMsRounded);
+      var enforcedMin = new Date(endMsRounded - ChartController.rolling.spanMs);
       timeMin = enforcedMin;
       timeMax = enforcedMax;
-      // Persist enforced window into chart state early to avoid later overwrite by request values
-      PH_CHART_STATE.lastStart = enforcedMin.toISOString();
-      PH_CHART_STATE.lastEnd   = enforcedMax.toISOString();
-      console.log('[pH Chart] ⏩ Enforcing monotonic window', { enforcedMin, enforcedMax });
+      ChartController.state.lastStart = enforcedMin.toISOString();
+      ChartController.state.lastEnd = enforcedMax.toISOString();
     }
     
-    const el = document.getElementById('phDoseChart');
-    const empty = document.getElementById('ph-dose-empty');
+    var el = document.getElementById('phDoseChart');
+    var empty = document.getElementById('ph-dose-empty');
 
     if (!el) {
       console.error('[pH Chart] ❌ Canvas #phDoseChart not found!');
       return;
     }
-    
-    console.log('[pH Chart] Canvas found:', el.tagName, 'width:', el.clientWidth, 'height:', el.clientHeight);
 
-    // Check if we have pH data or dose events
-    const hasPhReadings = phReadings && phReadings.length > 0;
-    const hasDoseData = datasets && datasets.some(ds => (ds.data||[]).length > 0);
-    const hasPumpEvents = pumpEvents && pumpEvents.length > 0;
-    const hasData = hasPhReadings || hasDoseData || hasPumpEvents;
-    
-    console.log('[pH Chart] Data flags:', { hasPhReadings, hasDoseData, hasPumpEvents, hasData });
-    
-    if (hasPhReadings && phReadings.length > 0) {
-      console.log('[pH Chart] First pH reading:', phReadings[0]);
-      console.log('[pH Chart] Last pH reading:', phReadings[phReadings.length - 1]);
-    }
+    var hasPhReadings = phReadings && phReadings.length > 0;
+    var hasDoseData = datasets && datasets.some(function(ds) { return (ds.data||[]).length > 0; });
+    var hasPumpEvents = pumpEvents && pumpEvents.length > 0;
+    var hasData = hasPhReadings || hasDoseData || hasPumpEvents;
     
     if (empty) {
       empty.style.display = hasData ? 'none' : 'block';
     }
 
-    const ctx = el.getContext('2d');
+    var ctx = el.getContext('2d');
     if (!ctx) {
-      console.error('[pH Chart] ❌ Failed to get 2D context from canvas!');
+      console.error('[pH Chart] ❌ Failed to get 2D context!');
       return;
     }
 
-    // If chart exists update in place (prevents axis flicker / back jump)
-    if (PH_CHART) {
-      try {
-        // Update datasets
-        PH_CHART.data.datasets = dsUse;
-        // Update axis bounds if rolling
-        if (timeMin && timeMax) {
-          PH_CHART.options.scales.x.min = timeMin;
-          PH_CHART.options.scales.x.max = timeMax;
-        }
-        // Update pH axis min/max
-        PH_CHART.options.scales.yPh.min = phMin;
-        PH_CHART.options.scales.yPh.max = phMax;
-        PH_CHART.update('none'); // no animation
-        console.log('[pH Chart] ♻ In-place chart update');
-        return; // Skip full rebuild path
-      } catch(updateErr) {
-        console.warn('[pH Chart] In-place update failed, rebuilding chart:', updateErr);
-        if (typeof PH_CHART.destroy === 'function') {
-          PH_CHART.destroy();
-        }
-        PH_CHART = null;
-      }
-    }
-
-    // Calculate pH axis range based on data and targets
-    let phMin = 4.5, phMax = 8.0;  // Default range for pH
+    // Calculate pH axis range
+    var phMin = 4.5, phMax = 8.0;
     if (hasPhReadings) {
-      const phValues = phReadings.map(p => p.y).filter(v => v != null && !isNaN(v));
-      console.log('[pH Chart] Valid pH values:', phValues.length);
+      var phValues = phReadings.map(function(p) { return p.y; }).filter(function(v) { return v != null && !isNaN(v); });
       if (phValues.length > 0) {
-        const dataMin = Math.min(...phValues);
-        const dataMax = Math.max(...phValues);
-        // Expand range to include data with padding
+        var dataMin = Math.min.apply(null, phValues);
+        var dataMax = Math.max.apply(null, phValues);
         phMin = Math.min(phMin, dataMin - 0.2);
         phMax = Math.max(phMax, dataMax + 0.2);
       }
     }
-    // Include targets in range
     if (targets && targets.low != null) phMin = Math.min(phMin, targets.low - 0.3);
     if (targets && targets.high != null) phMax = Math.max(phMax, targets.high + 0.3);
-    // Include current pH in range
     if (currentPH != null) {
       phMin = Math.min(phMin, currentPH - 0.2);
       phMax = Math.max(phMax, currentPH + 0.2);
     }
 
-    // Build annotation plugin config for pH reference line, hysteresis band(s), setpoint, and pump events
-    const annotations = {};
+    // Build annotations
+    var annotations = {};
     
-    // Add hysteresis band (shaded region between low and high targets) FIRST so it's behind everything
+    // Hysteresis band
     if (targets && targets.low != null && targets.high != null && !isNaN(targets.low) && !isNaN(targets.high)) {
-      console.log('[pH Chart] Adding hysteresis band:', targets.low, '-', targets.high);
       annotations.phBand = {
         type: 'box',
         yMin: targets.low,
         yMax: targets.high,
         yScaleID: 'yPh',
-        backgroundColor: 'rgba(34, 197, 94, 0.15)',  // green with low opacity
+        backgroundColor: 'rgba(34, 197, 94, 0.15)',
         borderWidth: 0,
-        drawTime: 'beforeDatasetsDraw'  // Draw band behind data
+        drawTime: 'beforeDatasetsDraw'
       };
       
-      // Add setpoint line (midpoint of targets)
-      const setpoint = (targets.low + targets.high) / 2;
-      console.log('[pH Chart] Adding setpoint line at:', setpoint);
+      var setpoint = (targets.low + targets.high) / 2;
       annotations.phSetpoint = {
         type: 'line',
         yMin: setpoint,
         yMax: setpoint,
         yScaleID: 'yPh',
-        borderColor: 'rgba(34, 197, 94, 0.6)',  // green-500 with transparency
+        borderColor: 'rgba(34, 197, 94, 0.6)',
         borderWidth: 2,
         borderDash: [6, 4],
         label: {
           display: true,
-          content: `Setpoint: ${setpoint.toFixed(1)}`,
+          content: 'Setpoint: ' + setpoint.toFixed(1),
           position: 'end',
           backgroundColor: 'rgba(34, 197, 94, 0.8)',
           color: '#fff',
@@ -206,30 +249,28 @@
           padding: 3
         }
       };
-    } else {
-      console.warn('[pH Chart] No targets for hysteresis band:', targets);
     }
 
-    // Add time-varying hysteresis bands per grow week across x-axis, using schedule
+    // Weekly bands from schedule
     try {
-      if (schedule && Array.isArray(schedule.weeks)) {
-        const startISO = schedule.grow_start_date ? new Date(schedule.grow_start_date) : null;
+      if (schedule && schedule.weeks && Array.isArray(schedule.weeks)) {
+        var startISO = schedule.grow_start_date ? new Date(schedule.grow_start_date) : null;
         if (startISO && !isNaN(startISO.getTime())) {
-          schedule.weeks.forEach((wk) => {
-            const w = Number(wk.week);
-            const low = Number(wk.ph_low);
-            const high = Number(wk.ph_high);
+          schedule.weeks.forEach(function(wk) {
+            var w = Number(wk.week);
+            var low = Number(wk.ph_low);
+            var high = Number(wk.ph_high);
             if (!w || isNaN(low) || isNaN(high)) return;
-            const xMin = new Date(startISO.getTime() + (w-1) * 7 * 24 * 3600 * 1000);
-            const xMax = new Date(startISO.getTime() + w * 7 * 24 * 3600 * 1000);
-            // Only add if overlaps current view range
+            var xMin = new Date(startISO.getTime() + (w-1) * 7 * 24 * 3600 * 1000);
+            var xMax = new Date(startISO.getTime() + w * 7 * 24 * 3600 * 1000);
             if (timeMin && xMax < timeMin) return;
             if (timeMax && xMin > timeMax) return;
-            const key = `wkBand${w}`;
-            annotations[key] = {
+            annotations['wkBand' + w] = {
               type: 'box',
-              xMin, xMax,
-              yMin: low, yMax: high,
+              xMin: xMin,
+              xMax: xMax,
+              yMin: low,
+              yMax: high,
               yScaleID: 'yPh',
               backgroundColor: 'rgba(34, 197, 94, 0.10)',
               borderColor: 'rgba(34, 197, 94, 0.20)',
@@ -237,28 +278,25 @@
               drawTime: 'beforeDatasetsDraw'
             };
           });
-          console.log('[pH Chart] Added week bands:', Object.keys(annotations).filter(k=>k.startsWith('wkBand')).length);
-        } else {
-          console.warn('[pH Chart] No grow_start_date in schedule; skipping week bands');
         }
       }
     } catch (e) {
-      console.warn('[pH Chart] Failed to add weekly bands:', e?.message);
+      console.warn('[pH Chart] Failed to add weekly bands:', e && e.message);
     }
     
-    // Add current pH reference line
+    // Current pH line
     if (currentPH != null && !isNaN(currentPH)) {
       annotations.phLine = {
         type: 'line',
         yMin: currentPH,
         yMax: currentPH,
         yScaleID: 'yPh',
-        borderColor: 'rgba(251, 191, 36, 0.8)',  // amber-400
+        borderColor: 'rgba(251, 191, 36, 0.8)',
         borderWidth: 2,
         borderDash: [6, 4],
         label: {
           display: true,
-          content: `Current: ${currentPH.toFixed(2)}`,
+          content: 'Current: ' + currentPH.toFixed(2),
           position: 'start',
           backgroundColor: 'rgba(251, 191, 36, 0.9)',
           color: '#000',
@@ -268,55 +306,41 @@
       };
     }
     
-    // Add pump events as vertical box annotations (show when pump was running)
-    // Limit to avoid performance issues with many events
-    const maxPumpAnnotations = 100;
+    // Pump events as boxes
+    var maxPumpAnnotations = 100;
     if (hasPumpEvents) {
-      console.log('[pH Chart] Adding pump annotations for', Math.min(pumpEvents.length, maxPumpAnnotations), 'events');
-      if (pumpEvents.length > maxPumpAnnotations) {
-        console.warn(`[pH Chart] Truncating pump annotations: ${pumpEvents.length} events, showing first ${maxPumpAnnotations}`);
-      }
-      const eventsToShow = pumpEvents.slice(0, maxPumpAnnotations);
-      let addedCount = 0;
-      eventsToShow.forEach((evt, idx) => {
+      var eventsToShow = pumpEvents.slice(0, maxPumpAnnotations);
+      eventsToShow.forEach(function(evt, idx) {
         if (evt.start && evt.end) {
-          const startDate = new Date(evt.start);
-          const endDate = new Date(evt.end);
-          // Ensure minimum width for visibility (use module constant)
-          if (endDate.getTime() - startDate.getTime() < MIN_PUMP_BAR_WIDTH_MS) {
-            endDate.setTime(startDate.getTime() + MIN_PUMP_BAR_WIDTH_MS);
+          var startDate = new Date(evt.start);
+          var endDate = new Date(evt.end);
+          if (endDate.getTime() - startDate.getTime() < ChartController.MIN_PUMP_BAR_WIDTH_MS) {
+            endDate.setTime(startDate.getTime() + ChartController.MIN_PUMP_BAR_WIDTH_MS);
           }
-          annotations[`pump${idx}`] = {
+          annotations['pump' + idx] = {
             type: 'box',
             xMin: startDate,
             xMax: endDate,
-            backgroundColor: 'rgba(147, 51, 234, 0.25)',  // purple with low opacity
+            backgroundColor: 'rgba(147, 51, 234, 0.25)',
             borderColor: 'rgba(147, 51, 234, 0.6)',
             borderWidth: 1,
             drawTime: 'beforeDatasetsDraw'
           };
-          addedCount++;
         }
       });
-      console.log('[pH Chart] Added', addedCount, 'pump box annotations');
     }
-    
-    // Log final annotations for debugging
-    const annotationKeys = Object.keys(annotations);
-    console.log('[pH Chart] Final annotations:', annotationKeys.length, 'keys:', annotationKeys.slice(0, 10).join(', '), annotationKeys.length > 10 ? '...' : '');
 
-    // Build final datasets array: pH readings line, then dose datasets
-    const finalDatasets = [];
+    // Build datasets
+    var finalDatasets = [];
     
-    // Add pH readings line dataset (primary)
     if (hasPhReadings) {
       finalDatasets.push({
         type: 'line',
         label: 'pH',
         data: phReadings,
-        order: 0,  // Draw first (behind others)
+        order: 0,
         yAxisID: 'yPh',
-        borderColor: '#3b82f6',  // blue-500
+        borderColor: '#3b82f6',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         borderWidth: 2,
         pointRadius: 0,
@@ -326,19 +350,16 @@
       });
     }
     
-    // Add dose event datasets (on secondary Y-axis)
     if (datasets && datasets.length > 0) {
-      datasets.forEach(ds => {
-        // Clone and assign to dose Y-axis
-        finalDatasets.push({
-          ...ds,
-          yAxisID: 'yDose'
-        });
+      datasets.forEach(function(ds) {
+        var clone = {};
+        for (var k in ds) clone[k] = ds[k];
+        clone.yAxisID = 'yDose';
+        finalDatasets.push(clone);
       });
     }
     
-    // Ensure at least one stub dataset so legend/axes render
-    const dsUse = finalDatasets.length > 0 ? finalDatasets : [{
+    var dsUse = finalDatasets.length > 0 ? finalDatasets : [{
       label: 'No data',
       data: [],
       showLine: false,
@@ -346,11 +367,10 @@
       borderWidth: 0
     }];
 
-    // Check if we have dose data for secondary axis
-    const hasDoseAxis = dsUse.some(ds => ds.yAxisID === 'yDose' && (ds.data||[]).length > 0);
+    var hasDoseAxis = dsUse.some(function(ds) { return ds.yAxisID === 'yDose' && (ds.data||[]).length > 0; });
 
-    // Build scales: pH on left, dose on right (pH-only chart)
-    const scales = {
+    // Build scales
+    var scales = {
       x: {
         type: 'time',
         adapters: { date: {} },
@@ -373,7 +393,6 @@
       }
     };
     
-    // Add dose axis on right if we have dose data
     if (hasDoseAxis) {
       scales.yDose = {
         type: 'linear',
@@ -384,8 +403,8 @@
       };
     }
 
-    // Build plugins config - only include annotation if plugin is available
-    const pluginsConfig = {
+    // Build plugins config
+    var pluginsConfig = {
       legend: { 
         display: true,
         position: 'top',
@@ -394,371 +413,307 @@
       tooltip: {
         enabled: true,
         callbacks: {
-          label: (ctx) => {
-            const p = ctx.raw;
-            const ds = ctx.dataset;
+          label: function(ctx) {
+            var p = ctx.raw;
+            var ds = ctx.dataset;
             
-            // pH readings tooltip
             if (ds.label === 'pH') {
-              const v = Number(ctx.parsed.y);
-              return ` pH: ${v.toFixed(2)}`;
+              var v = Number(ctx.parsed.y);
+              return ' pH: ' + v.toFixed(2);
             }
             
-            // Dose event tooltip
             if (!p) return '';
-            const ml = (p.ml != null) ? `+${p.ml.toFixed(2)} ml` : (p.sec != null ? `~${p.sec.toFixed(2)} s` : '');
-            const ph = (p.phb != null || p.pha != null) ? `  pH: ${p.phb ?? '—'} → ${p.pha ?? '—'}` : '';
-            return `${ml}${ph}`;
+            var ml = (p.ml != null) ? '+' + p.ml.toFixed(2) + ' ml' : (p.sec != null ? '~' + p.sec.toFixed(2) + ' s' : '');
+            var phStr = (p.phb != null || p.pha != null) ? '  pH: ' + (p.phb != null ? p.phb : '—') + ' → ' + (p.pha != null ? p.pha : '—') : '';
+            return ml + phStr;
           }
         }
       }
     };
     
-    // Add annotation config only if plugin is available
     if (ANNOTATION_AVAILABLE && Object.keys(annotations).length > 0) {
       pluginsConfig.annotation = { annotations: annotations };
-      console.log('[pH Chart] Annotations enabled with', Object.keys(annotations).length, 'items');
-    } else if (!ANNOTATION_AVAILABLE) {
-      console.warn('[pH Chart] Annotations skipped - plugin not available');
     }
 
-    console.log('[pH Chart] 📊 Creating Chart.js instance with:', {
-      datasetsCount: dsUse.length,
-      scalesKeys: Object.keys(scales),
-      pluginsKeys: Object.keys(pluginsConfig),
-      annotationsCount: Object.keys(annotations).length
-    });
+    // In-place update if chart exists
+    if (ChartController.chart) {
+      try {
+        ChartController.chart.data.datasets = dsUse;
+        if (timeMin && timeMax) {
+          ChartController.chart.options.scales.x.min = timeMin;
+          ChartController.chart.options.scales.x.max = timeMax;
+        }
+        ChartController.chart.options.scales.yPh.min = phMin;
+        ChartController.chart.options.scales.yPh.max = phMax;
+        // Update annotations
+        if (ANNOTATION_AVAILABLE && ChartController.chart.options.plugins.annotation) {
+          ChartController.chart.options.plugins.annotation.annotations = annotations;
+        }
+        ChartController.chart.update('none');
+        console.log('[pH Chart] ♻ In-place chart update');
+        return;
+      } catch(updateErr) {
+        console.warn('[pH Chart] In-place update failed, rebuilding:', updateErr);
+        if (typeof ChartController.chart.destroy === 'function') {
+          ChartController.chart.destroy();
+        }
+        ChartController.chart = null;
+      }
+    }
     
+    // Create new chart
     try {
-      PH_CHART = new Chart(ctx, {
+      ChartController.chart = new Chart(ctx, {
         type: 'line',
         data: { datasets: dsUse },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           parsing: false,
-          animation: false,  // Disable animations for instant updates
-          interaction: {
-            mode: 'nearest',
-            intersect: false
-          },
+          animation: false,
+          interaction: { mode: 'nearest', intersect: false },
           scales: scales,
           plugins: pluginsConfig
         }
       });
       
-      console.log('[pH Chart] ✅ Chart created successfully, datasets:', PH_CHART.data.datasets.length);
+      console.log('[pH Chart] ✅ Chart created successfully');
     } catch (chartErr) {
       console.error('[pH Chart] ❌ Chart creation FAILED:', chartErr);
-      return;
-    }
-
-    console.debug('[pH] Chart created/rebuilt', { hasData, hasPhReadings, hasDoseData, datasetCount: dsUse.length, currentPH, annotationAvailable: ANNOTATION_AVAILABLE });
-  }
-
-  // Granularity constants for time-based bucketing (in seconds)
-  const GRANULARITY = {
-    FINE: 30,       // 30-second buckets for short ranges (<2h)
-    MINUTE: 60,     // 1-minute buckets for day ranges
-    FIVE_MIN: 300,  // 5-minute buckets for week ranges
-    QUARTER: 900,   // 15-minute buckets for month ranges
-    HOURLY: 3600    // Hourly buckets for 90+ days
-  };
-
-  /**
-   * Compute granularity params based on time range (matching trends.js logic)
-   */
-  function presetParams(spanMs) {
-    const hours = spanMs / (3600 * 1000);
-    if (hours <= 2)   return { gran: GRANULARITY.FINE,     max: 1000 };  // 30s buckets for short ranges
-    if (hours <= 24)  return { gran: GRANULARITY.MINUTE,   max: 1500 };  // 1-min buckets
-    if (hours <= 168) return { gran: GRANULARITY.FIVE_MIN, max: 2100 };  // 5-min buckets (7 days)
-    if (hours <= 720) return { gran: GRANULARITY.QUARTER,  max: 3000 };  // 15-min buckets (30 days)
-    return { gran: GRANULARITY.HOURLY, max: 2500 };  // hourly buckets (90+ days)
-  }
-
-  /**
-   * Fetch pH readings only from trends API
-   */
-  async function fetchPhReadings(fromISO, toISO, gran, max) {
-    const q = new URLSearchParams();
-    if (fromISO) q.set('from', fromISO);
-    if (toISO) q.set('to', toISO);
-    if (gran) q.set('gran', String(gran));
-    if (max) q.set('max', String(max));
-    
-    const url = '/api/trends?' + q.toString();
-    console.log('[pH Chart] Fetching pH readings from:', url);
-    
-    try {
-      const res = await fetch(url, { cache: 'no-store' });
-      if (!res.ok) {
-        console.warn('[pH Chart] Trends API failed:', res.status);
-        return [];
-      }
-      const data = await res.json();
-      console.log('[pH Chart] Got pH readings:', data?.series?.ph?.length || 0);
-      
-      // Convert pH series to Chart.js format: {x: Date, y: number}
-      // API returns timestamps in Unix epoch seconds, multiply by 1000 for Date
-      const phSeries = (data?.series?.ph || []).map(p => ({
-        x: new Date(p.ts * 1000),
-        y: Number(p.value)
-      })).filter(p => !isNaN(p.y));
-      
-      return phSeries;
-    } catch (err) {
-      console.error('[pH Chart] Failed to fetch pH readings:', err);
-      return [];
     }
   }
 
   /**
-   * Load dose data and pH readings for a given range and render the chart
-   * @param {Object} params - {start: ISO string, end: ISO string}
+   * Load data and render chart with comprehensive error handling
    */
-  async function phLoadRangeAndRender({start, end}) {
-    // Normalize inputs: accept epoch ms numbers or ISO strings; always send ISO with 'Z'
-    const toIso = (v) => {
+  async function phLoadRangeAndRender(params) {
+    var start = params.start;
+    var end = params.end;
+    
+    var toIso = function(v) {
       if (v == null) return null;
-      // If already looks like an ISO string, pass through (ensure Z if missing timezone by treating as Date)
       if (typeof v === 'string') {
-        // If string has no timezone, coerce via Date to normalize to UTC Z
         try {
-          const d = new Date(v);
+          var d = new Date(v);
           if (!isNaN(d.getTime())) return d.toISOString();
-        } catch(e) {/* fallthrough */}
+        } catch(e) {}
         return v;
       }
       if (typeof v === 'number') {
-        const d = new Date(v);
-        return isNaN(d.getTime()) ? null : d.toISOString();
+        var d2 = new Date(v);
+        return isNaN(d2.getTime()) ? null : d2.toISOString();
       }
       return null;
     };
 
-    const startISO = toIso(start);
-    const endISO = toIso(end);
+    var startISO = toIso(start);
+    var endISO = toIso(end);
 
-    console.log('[pH Chart] Range request', {start, end, startISO, endISO});
+    var startMs = startISO ? new Date(startISO).getTime() : Date.now() - 3600*1000;
+    var endMs = endISO ? new Date(endISO).getTime() : Date.now();
+    var spanMs = endMs - startMs;
+    var params2 = presetParams(spanMs);
+    var gran = params2.gran;
+    var max = params2.max;
 
-    // Calculate time span for granularity
-    const startMs = startISO ? new Date(startISO).getTime() : Date.now() - 3600*1000;
-    const endMs = endISO ? new Date(endISO).getTime() : Date.now();
-    const spanMs = endMs - startMs;
-    const { gran, max } = presetParams(spanMs);
+    var uEvents = '/api/ph/dose_log?start=' + encodeURIComponent(startISO) + '&end=' + encodeURIComponent(endISO) + '&limit=2000';
+    var uStatus = '/api/ph/status';
 
-    // Build URLs for events, summary, and live pH
-    const uEvents = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`;
-    const uStatus = `/api/ph/status`;
-
-    console.log('[pH Chart] Fetching', {uEvents, uStatus, gran, max});
-
-    let events = [];
-    let currentPH = null;
-    let targets = null;
-    let phReadings = [];
-    let schedule = null;  // Declare schedule outside try block for proper scoping
+    var events = [];
+    var currentPH = null;
+    var targets = null;
+    var phReadings = [];
+    var schedule = null;
+    var fetchError = null;
     
     try {
-      // Fetch all data in parallel: dose events, status, schedule, AND pH readings
-      const [eRes, stRes, schedRes, phData] = await Promise.all([
-        fetch(uEvents, {cache:'no-store'}), 
-        fetch(uStatus, {cache:'no-store'}),
-        fetch('/api/nutrient_schedule', {cache:'no-store'}),
+      var results = await Promise.all([
+        fetch(uEvents, {cache:'no-store'}).catch(function(e) { return { ok: false, error: e }; }), 
+        fetch(uStatus, {cache:'no-store'}).catch(function(e) { return { ok: false, error: e }; }),
+        fetch('/api/nutrient_schedule', {cache:'no-store'}).catch(function(e) { return { ok: false, error: e }; }),
         fetchPhReadings(startISO, endISO, gran, max)
       ]);
       
-      console.log('[pH Chart] Response status', {
-        events: eRes.status, 
-        status: stRes.status,
-        schedule: schedRes.status,
-        phReadings: phData.length
-      });
+      var eRes = results[0];
+      var stRes = results[1];
+      var schedRes = results[2];
+      var phResult = results[3];
       
-      if (!eRes.ok) throw new Error(`dose_log HTTP ${eRes.status}`);
+      if (eRes.ok) {
+        events = await eRes.json();
+      } else {
+        fetchError = eRes.error || ('dose_log HTTP ' + eRes.status);
+      }
       
-      events = await eRes.json();
-      phReadings = phData;
+      phReadings = phResult.data;
+      if (phResult.error) fetchError = fetchError || phResult.error;
       
       if (stRes.ok) {
-        const statusData = await stRes.json();
-        currentPH = statusData?.ph ?? null;
-        targets = statusData?.targets ?? null;
+        var statusData = await stRes.json();
+        currentPH = statusData && statusData.ph != null ? statusData.ph : null;
+        targets = statusData && statusData.targets ? statusData.targets : null;
       }
-      // Parse schedule for time-varying pH band
+      
       if (schedRes && schedRes.ok) {
         schedule = await schedRes.json();
       }
     } catch (err) {
       console.error('[pH Chart] fetch error:', err);
-      phBuildChart([], null, null, null, null, [], []);
-      return;
+      fetchError = err.message;
     }
 
-    console.log('[pH Chart] Data received', {
-      events: events.length, 
-      phReadings: phReadings.length
-    });
+    // Show error indicator if fetch failed but still try to render available data
+    var errorIndicator = document.getElementById('ph-chart-error');
+    if (errorIndicator) {
+      if (fetchError && events.length === 0 && phReadings.length === 0) {
+        errorIndicator.textContent = '⚠ ' + fetchError;
+        errorIndicator.style.display = 'block';
+      } else {
+        errorIndicator.style.display = 'none';
+      }
+    }
 
-    // Build pump event periods from dose_events
-    // Each dose event represents a pump ON period; construct start/end pairs
-    const pumpEvents = events.map(r => {
-      const evtStart = new Date(r.ts);
-      const durationMs = (r.seconds ?? 0) * 1000;
-      const evtEnd = new Date(evtStart.getTime() + durationMs);
+    // Build pump events
+    var pumpEvents = events.map(function(r) {
+      var evtStart = new Date(r.ts);
+      var durationMs = (r.seconds != null ? r.seconds : 0) * 1000;
+      var evtEnd = new Date(evtStart.getTime() + durationMs);
       return {
         start: evtStart.toISOString(),
         end: evtEnd.toISOString(),
         label: r.pump || 'pH Up',
-        showLabel: false  // Hide labels to avoid clutter; boxes are enough
+        showLabel: false
       };
     });
-    console.log('[pH Chart] Pump events constructed:', pumpEvents.length);
-
-    // Build dose event datasets
-    const hasAnyMl = events.some(r => r && r.volume_ml != null);
-    console.log('[pH Chart] hasAnyMl:', hasAnyMl, 'sample event:', events[0]);
-    
-    // Dose events as scatter points (shown on secondary Y-axis)
-    const dosePoints = events.map(r => ({
-      x: new Date(r.ts),  // Convert ISO string to Date object for Chart.js
-      y: hasAnyMl ? (r.volume_ml != null ? r.volume_ml : 0) : (r.seconds ?? 0),
-      ml: (r.volume_ml != null ? r.volume_ml : null),
-      sec: r.seconds ?? null,
-      phb: r.ph_before ?? null,
-      pha: r.ph_after ?? null
-    }));
-    console.log('[pH Chart] Sample dose point:', dosePoints[0]);
 
     // Build dose datasets
-    const doseDatasets = [];
+    var hasAnyMl = events.some(function(r) { return r && r.volume_ml != null; });
     
-    // Dose events scatter (green triangle markers) - assigned to yDose axis
+    var dosePoints = events.map(function(r) {
+      return {
+        x: new Date(r.ts),
+        y: hasAnyMl ? (r.volume_ml != null ? r.volume_ml : 0) : (r.seconds != null ? r.seconds : 0),
+        ml: r.volume_ml != null ? r.volume_ml : null,
+        sec: r.seconds != null ? r.seconds : null,
+        phb: r.ph_before != null ? r.ph_before : null,
+        pha: r.ph_after != null ? r.ph_after : null
+      };
+    });
+
+    var doseDatasets = [];
     if (dosePoints.length > 0) {
       doseDatasets.push({
         type: 'scatter',
         label: hasAnyMl ? 'Dose (ml)' : 'Dose (s)',
         data: dosePoints,
         order: 1,
-        yAxisID: 'yDose',  // Secondary Y-axis for dose values
+        yAxisID: 'yDose',
         pointRadius: 5,
         pointStyle: 'triangle',
-        backgroundColor: 'rgba(34, 197, 94, 0.9)',  // green
+        backgroundColor: 'rgba(34, 197, 94, 0.9)',
         borderColor: 'rgba(34, 197, 94, 1)',
         borderWidth: 1
       });
     }
 
-    // Render chart with pH readings only, dose events, and pump activity
-    const tmin = startISO ? new Date(startISO) : null;
-    const tmax = endISO ? new Date(endISO) : null;
-    console.log('[pH Chart] Axis bounds (from request)', {
-      tmin, tmax, startISO, endISO, currentPH, targets, 
-      phReadings: phReadings.length,
-      pumpEvents: pumpEvents.length
-    });
+    var tmin = startISO ? new Date(startISO) : null;
+    var tmax = endISO ? new Date(endISO) : null;
     phBuildChart(doseDatasets, tmin, tmax, currentPH, targets, phReadings, pumpEvents, schedule);
 
-    // Update totals KPI pill with total ml dosed
-    const pill = document.getElementById('ph-total-dosed');
-    console.log('[pH Chart] Totals KPI pill element:', pill ? 'found' : 'NOT FOUND');
+    // Update totals KPI
+    var pill = document.getElementById('ph-total-dosed');
     if (pill) {
-      let sumMl = 0, sumSec = 0;
-      events.forEach(r => {
-        sumMl += (r.volume_ml ?? 0);
-        sumSec += (r.seconds ?? 0);
+      var sumMl = 0, sumSec = 0;
+      events.forEach(function(r) {
+        sumMl += (r.volume_ml != null ? r.volume_ml : 0);
+        sumSec += (r.seconds != null ? r.seconds : 0);
       });
-      console.log('[pH Chart] Totals computed:', { sumMl, sumSec, hasAnyMl, eventCount: events.length });
       
       if (hasAnyMl && sumMl > 0) {
-        pill.textContent = `Total: ${sumMl.toFixed(1)} ml`;
+        pill.textContent = 'Total: ' + sumMl.toFixed(1) + ' ml';
         pill.style.display = 'inline-block';
       } else if (sumSec > 0) {
-        pill.textContent = `Total: ${sumSec.toFixed(1)} s`;
+        pill.textContent = 'Total: ' + sumSec.toFixed(1) + ' s';
         pill.style.display = 'inline-block';
       } else if (events.length > 0) {
-        // If we have events but no ml or seconds, show count
-        pill.textContent = `${events.length} doses`;
+        pill.textContent = events.length + ' doses';
         pill.style.display = 'inline-block';
       } else {
         pill.style.display = 'none';
       }
-      console.log('[pH Chart] Totals KPI updated:', pill.textContent, 'display:', pill.style.display);
     }
 
-    // If rolling enforced, PH_CHART_STATE already set above; else track request range
-    if (USER_RANGE_SELECTED || !ROLLING_STATE.active) {
-      PH_CHART_STATE = { lastStart: startISO || start || null, lastEnd: endISO || end || null, lastCount: events.length };
+    // Update state
+    if (ChartController.userRangeSelected || !ChartController.rolling.active) {
+      ChartController.state = { 
+        lastStart: startISO || start || null, 
+        lastEnd: endISO || end || null, 
+        lastCount: events.length,
+        lastFetchTs: Date.now()
+      };
     } else {
-      PH_CHART_STATE.lastCount = events.length;
+      ChartController.state.lastCount = events.length;
+      ChartController.state.lastFetchTs = Date.now();
     }
-    console.log('[pH Chart] ✅ Render complete', PH_CHART_STATE);
   }
 
   /**
-   * Initialize on DOM ready with default 1h range (to show recent activity clearly)
+   * Initialize chart
    */
   function init() {
-    console.log('[pH Chart] 🚀 Init: DOM ready; boot dose chart with default 1h');
+    console.log('[pH Chart] 🚀 Init');
     
-    // Compute default start/end (1h for detailed recent view)
-    const now = new Date();
-    const start = new Date(now.getTime() - 3600*1000).toISOString();  // 1 hour
-    const end = now.toISOString();
+    // Restore persisted state if available
+    var restored = ChartController.restoreState();
     
-    console.log('[pH Chart] Default range', {start, end});
-    phLoadRangeAndRender({start, end});
+    if (restored && ChartController.state.lastStart && ChartController.state.lastEnd) {
+      // Use restored range
+      phLoadRangeAndRender({
+        start: ChartController.state.lastStart,
+        end: ChartController.state.lastEnd
+      });
+    } else {
+      // Default 1h range
+      var now = new Date();
+      var start = new Date(now.getTime() - 3600*1000).toISOString();
+      var end = now.toISOString();
+      phLoadRangeAndRender({start: start, end: end});
+    }
   }
 
   /**
-   * Set explicit user range (disables auto-rolling)
-   * @param {number|string} start - Start timestamp (epoch ms or ISO string)
-   * @param {number|string} end - End timestamp (epoch ms or ISO string)
+   * Set user range (disables rolling)
    */
   function setRange(start, end) {
-    const startMs = typeof start === 'string' ? new Date(start).getTime() : start;
-    const endMs = typeof end === 'string' ? new Date(end).getTime() : end;
+    var startMs = typeof start === 'string' ? new Date(start).getTime() : start;
+    var endMs = typeof end === 'string' ? new Date(end).getTime() : end;
     
     if (isFinite(startMs) && isFinite(endMs) && endMs > startMs) {
-      USER_RANGE_SELECTED = true;
-      ROLLING_STATE.active = false;
-      PH_CHART_STATE.lastStart = new Date(startMs).toISOString();
-      PH_CHART_STATE.lastEnd = new Date(endMs).toISOString();
-      
-      // Persist user selection
-      try {
-        localStorage.setItem('ph_chart_user_range', JSON.stringify({
-          start: PH_CHART_STATE.lastStart,
-          end: PH_CHART_STATE.lastEnd,
-          userSelected: true
-        }));
-      } catch(e) { /* ignore storage errors */ }
-      
-      console.log('[pH Chart] User range set:', { startMs, endMs, span: endMs - startMs });
+      ChartController.userRangeSelected = true;
+      ChartController.rolling.active = false;
+      ChartController.state.lastStart = new Date(startMs).toISOString();
+      ChartController.state.lastEnd = new Date(endMs).toISOString();
+      ChartController.rolling.spanMs = endMs - startMs;
+      ChartController.saveState();
+      console.log('[pH Chart] User range set:', { startMs: startMs, endMs: endMs });
     }
   }
   
   /**
-   * Reset to auto-rolling mode (clears user range selection)
+   * Reset to rolling mode
    */
   function resetToRolling() {
-    USER_RANGE_SELECTED = false;
-    ROLLING_STATE.active = true;
-    ROLLING_STATE.endMs = roundTs(Date.now());
-    ROLLING_STATE.spanMs = ROLLING_DEFAULT_SPAN_MS;
-    ROLLING_STATE.initialized = true;
-    
-    // Clear persisted user selection
-    try {
-      localStorage.removeItem('ph_chart_user_range');
-    } catch(e) { /* ignore */ }
+    ChartController.userRangeSelected = false;
+    ChartController.rolling.active = true;
+    ChartController.rolling.endMs = ChartController.roundTs(Date.now());
+    ChartController.rolling.spanMs = ChartController.ROLLING_DEFAULT_SPAN_MS;
+    ChartController.rolling.initialized = true;
+    ChartController.clearState();
     
     console.log('[pH Chart] Reset to rolling mode');
     
-    // Trigger immediate refresh
-    const endMs = ROLLING_STATE.endMs;
-    const startMs = endMs - ROLLING_STATE.spanMs;
+    var endMs = ChartController.rolling.endMs;
+    var startMs = endMs - ChartController.rolling.spanMs;
     phLoadRangeAndRender({
       start: new Date(startMs).toISOString(),
       end: new Date(endMs).toISOString()
@@ -766,35 +721,16 @@
   }
   
   /**
-   * Check if user has selected a fixed range
+   * Check if user range is selected
    */
   function isUserRangeSelected() {
-    return USER_RANGE_SELECTED;
+    return ChartController.userRangeSelected;
   }
-  
-  // Restore persisted user range on load
-  try {
-    const stored = localStorage.getItem('ph_chart_user_range');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (parsed.userSelected && parsed.start && parsed.end) {
-        const s = new Date(parsed.start).getTime();
-        const e = new Date(parsed.end).getTime();
-        if (isFinite(s) && isFinite(e) && e > s) {
-          USER_RANGE_SELECTED = true;
-          ROLLING_STATE.active = false;
-          PH_CHART_STATE.lastStart = parsed.start;
-          PH_CHART_STATE.lastEnd = parsed.end;
-          console.log('[pH Chart] Restored user range from localStorage');
-        }
-      }
-    }
-  } catch(e) { /* ignore parse errors */ }
 
-  // Export functions for external use
+  // Export public API
   window.phDoseChart = {
     render: phLoadRangeAndRender,
-    getState: () => PH_CHART_STATE,
+    getState: function() { return ChartController.state; },
     init: init,
     setRange: setRange,
     resetToRolling: resetToRolling,
@@ -808,56 +744,49 @@
     init();
   }
 
-  // Auto-refresh chart every 10 seconds for smoother, less erratic shifts
-  // User-selected ranges are preserved (no rolling). Only default 1h range auto-rolls.
-  let autoRefreshTimer = null;
-  // ROLLING_STATE & USER_RANGE_SELECTED declared at top
+  // Auto-refresh management
+  var autoRefreshTimer = null;
   
   function startAutoRefresh() {
-    if (autoRefreshTimer) return; // Already running
+    if (autoRefreshTimer) return;
     
     console.log('[pH Chart] Starting auto-refresh (10s interval)');
-    // Initialize rolling span once from current state
-    if (!ROLLING_STATE.initialized) {
-      const ls = PH_CHART_STATE?.lastStart;
-      const le = PH_CHART_STATE?.lastEnd;
+    
+    if (!ChartController.rolling.initialized) {
+      var ls = ChartController.state ? ChartController.state.lastStart : null;
+      var le = ChartController.state ? ChartController.state.lastEnd : null;
       if (ls && le) {
-        const s = new Date(ls).getTime();
-        const e = new Date(le).getTime();
+        var s = new Date(ls).getTime();
+        var e = new Date(le).getTime();
         if (isFinite(s) && isFinite(e) && e > s) {
-          ROLLING_STATE.spanMs = e - s;
+          ChartController.rolling.spanMs = e - s;
         }
       }
-      ROLLING_STATE.endMs = roundTs(Date.now());
-      ROLLING_STATE.initialized = true;
+      ChartController.rolling.endMs = ChartController.roundTs(Date.now());
+      ChartController.rolling.initialized = true;
     }
 
-    autoRefreshTimer = setInterval(() => {
-      let startISO = PH_CHART_STATE.lastStart;
-      let endISO = PH_CHART_STATE.lastEnd;
+    autoRefreshTimer = setInterval(function() {
+      var startISO = ChartController.state.lastStart;
+      var endISO = ChartController.state.lastEnd;
 
-      if (!USER_RANGE_SELECTED && ROLLING_STATE.active) {
-        // Monotonic advance: prefer steady cadence, never go backwards
-        // Defensive check: if clock regressed (system time correction), use max of current and now
-        const nowRounded = roundTs(Date.now());
-        const stepMs = REFRESH_INTERVAL_MS;
-        const nextEnd = ROLLING_STATE.endMs + stepMs;
+      if (!ChartController.userRangeSelected && ChartController.rolling.active) {
+        // Monotonic advance with clock regression defense
+        var nowRounded = ChartController.roundTs(Date.now());
+        var stepMs = ChartController.REFRESH_INTERVAL_MS;
+        var nextEnd = ChartController.rolling.endMs + stepMs;
         
-        // Never regress: use max of stepped time and actual now (handles clock jumps backward)
-        ROLLING_STATE.endMs = Math.max(nextEnd, nowRounded);
+        // Never regress
+        ChartController.rolling.endMs = Math.max(nextEnd, nowRounded);
         
-        const endMs = ROLLING_STATE.endMs;
-        const startMs = endMs - ROLLING_STATE.spanMs;
+        var endMs = ChartController.rolling.endMs;
+        var startMs = endMs - ChartController.rolling.spanMs;
         endISO = new Date(endMs).toISOString();
         startISO = new Date(startMs).toISOString();
-        console.log('[pH Chart] Auto-refresh with monotonic rolling window');
-      } else {
-        // User selected a range - just refresh data within that fixed window
-        console.log('[pH Chart] Auto-refresh with fixed user range');
       }
 
       phLoadRangeAndRender({ start: startISO, end: endISO });
-    }, 10000); // 10 second interval for smoother live updates matching sensors chart cadence
+    }, 10000);
   }
   
   function stopAutoRefresh() {
@@ -868,18 +797,16 @@
     }
   }
   
-  // Start auto-refresh when module loads
   startAutoRefresh();
   
-  // Export auto-refresh controls
   window.phDoseChart.startAutoRefresh = startAutoRefresh;
   window.phDoseChart.stopAutoRefresh = stopAutoRefresh;
 
-  console.log('[pH Chart] Module initialized and window.phDoseChart exported');
+  console.log('[pH Chart] Module initialized');
 
-  // Update build commit chip dynamically if present
+  // Update build commit chip
   try {
-    const chip = document.getElementById('build-commit-chip');
+    var chip = document.getElementById('build-commit-chip');
     if (chip && window.BUILD_COMMIT) {
       chip.textContent = 'commit: ' + window.BUILD_COMMIT;
       chip.className = 'ui-status-chip success';
