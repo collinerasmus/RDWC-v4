@@ -10,7 +10,11 @@
   let PH_CHART_STATE = { lastStart: null, lastEnd: null, lastCount: 0 };
   // Rolling window & user range selection flags (defined early so all functions can reference)
   let USER_RANGE_SELECTED = false;
-  let ROLLING_STATE = { active: true, initialized: false, spanMs: 3600*1000, endMs: Date.now() };
+  const REFRESH_INTERVAL_MS = 10000; // 10s cadence
+  const ROLLING_DEFAULT_SPAN_MS = 3600*1000; // 1h
+  let ROLLING_STATE = { active: true, initialized: false, spanMs: ROLLING_DEFAULT_SPAN_MS, endMs: Date.now() };
+  // Round timestamp to nearest refresh boundary (prevents micro jitter / back jumps from ms drift)
+  const roundTs = (ts) => Math.floor(ts / REFRESH_INTERVAL_MS) * REFRESH_INTERVAL_MS;
 
   // Constants
   const MIN_PUMP_BAR_WIDTH_MS = 5000; // Minimum 5 seconds width for pump event visibility
@@ -73,10 +77,15 @@
     // If rolling state is active and initialized and user has NOT selected a fixed range,
     // enforce monotonic window regardless of incoming timeMin/timeMax to prevent back jumps.
     if (ROLLING_STATE.initialized && ROLLING_STATE.active && !USER_RANGE_SELECTED) {
-      const enforcedMax = new Date(ROLLING_STATE.endMs);
-      const enforcedMin = new Date(ROLLING_STATE.endMs - ROLLING_STATE.spanMs);
+      // Use rounded times to prevent small backward adjustments due to millisecond differences
+      const endMsRounded = roundTs(ROLLING_STATE.endMs);
+      const enforcedMax = new Date(endMsRounded);
+      const enforcedMin = new Date(endMsRounded - ROLLING_STATE.spanMs);
       timeMin = enforcedMin;
       timeMax = enforcedMax;
+      // Persist enforced window into chart state early to avoid later overwrite by request values
+      PH_CHART_STATE.lastStart = enforcedMin.toISOString();
+      PH_CHART_STATE.lastEnd   = enforcedMax.toISOString();
       console.log('[pH Chart] ⏩ Enforcing monotonic window', { enforcedMin, enforcedMax });
     }
     
@@ -113,11 +122,29 @@
       return;
     }
 
-    // Destroy previous
-    if (PH_CHART && typeof PH_CHART.destroy === 'function') {
-      console.log('[pH Chart] Destroying previous chart instance');
-      PH_CHART.destroy();
-      PH_CHART = null;
+    // If chart exists update in place (prevents axis flicker / back jump)
+    if (PH_CHART) {
+      try {
+        // Update datasets
+        PH_CHART.data.datasets = dsUse;
+        // Update axis bounds if rolling
+        if (timeMin && timeMax) {
+          PH_CHART.options.scales.x.min = timeMin;
+          PH_CHART.options.scales.x.max = timeMax;
+        }
+        // Update pH axis min/max
+        PH_CHART.options.scales.yPh.min = phMin;
+        PH_CHART.options.scales.yPh.max = phMax;
+        PH_CHART.update('none'); // no animation
+        console.log('[pH Chart] ♻ In-place chart update');
+        return; // Skip full rebuild path
+      } catch(updateErr) {
+        console.warn('[pH Chart] In-place update failed, rebuilding chart:', updateErr);
+        if (typeof PH_CHART.destroy === 'function') {
+          PH_CHART.destroy();
+        }
+        PH_CHART = null;
+      }
     }
 
     // Calculate pH axis range based on data and targets
@@ -660,7 +687,12 @@
       console.log('[pH Chart] Totals KPI updated:', pill.textContent, 'display:', pill.style.display);
     }
 
-    PH_CHART_STATE = { lastStart: startISO || start || null, lastEnd: endISO || end || null, lastCount: events.length };
+    // If rolling enforced, PH_CHART_STATE already set above; else track request range
+    if (USER_RANGE_SELECTED || !ROLLING_STATE.active) {
+      PH_CHART_STATE = { lastStart: startISO || start || null, lastEnd: endISO || end || null, lastCount: events.length };
+    } else {
+      PH_CHART_STATE.lastCount = events.length;
+    }
     console.log('[pH Chart] ✅ Render complete', PH_CHART_STATE);
   }
 
@@ -713,7 +745,7 @@
           ROLLING_STATE.spanMs = e - s;
         }
       }
-      ROLLING_STATE.endMs = Date.now();
+        ROLLING_STATE.endMs = roundTs(Date.now());
       ROLLING_STATE.initialized = true;
     }
 
@@ -722,9 +754,9 @@
       let endISO = PH_CHART_STATE.lastEnd;
 
       if (!USER_RANGE_SELECTED && ROLLING_STATE.active) {
-        // Monotonic advance: prefer steady cadence, never go backwards
-        const stepMs = 10000; // 10s
-        ROLLING_STATE.endMs = Math.max(ROLLING_STATE.endMs + stepMs, Date.now());
+        // Monotonic advance: prefer steady cadence, never go backwards, using rounded boundaries
+        const stepMs = REFRESH_INTERVAL_MS;
+        ROLLING_STATE.endMs = Math.max(ROLLING_STATE.endMs + stepMs, roundTs(Date.now()));
         const endMs = ROLLING_STATE.endMs;
         const startMs = endMs - ROLLING_STATE.spanMs;
         endISO = new Date(endMs).toISOString();
