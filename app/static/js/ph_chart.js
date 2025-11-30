@@ -26,6 +26,17 @@
     // User range selection
     userRangeSelected: false,
     
+    // Prevent concurrent renders
+    isRendering: false,
+    renderQueued: false,
+    
+    // Last datasets cache to prevent empty data flicker
+    lastDatasets: null,
+    lastPhReadings: null,
+    
+    // Visibility state for tab throttling
+    isVisible: true,
+    
     // Constants
     REFRESH_INTERVAL_MS: 10000,
     ROLLING_DEFAULT_SPAN_MS: 3600 * 1000,
@@ -160,60 +171,85 @@
   }
 
   /**
-   * Build or update the pH chart
+   * Build or update the pH chart - STABLE VERSION
+   * Key stability features:
+   * - Never destroy/recreate chart if in-place update works
+   * - Cache last datasets to prevent empty data flicker
+   * - Preserve legend configuration on every update
+   * - Prevent concurrent render operations
    */
   function phBuildChart(datasets, timeMin, timeMax, currentPH, targets, phReadings, pumpEvents, schedule) {
-    // If rolling mode active, enforce monotonic window
-    if (ChartController.rolling.initialized && ChartController.rolling.active && !ChartController.userRangeSelected) {
-      var endMsRounded = ChartController.roundTs(ChartController.rolling.endMs);
-      var enforcedMax = new Date(endMsRounded);
-      var enforcedMin = new Date(endMsRounded - ChartController.rolling.spanMs);
-      timeMin = enforcedMin;
-      timeMax = enforcedMax;
-      ChartController.state.lastStart = enforcedMin.toISOString();
-      ChartController.state.lastEnd = enforcedMax.toISOString();
-    }
-    
-    var el = document.getElementById('phDoseChart');
-    var empty = document.getElementById('ph-dose-empty');
-
-    if (!el) {
-      console.error('[pH Chart] ❌ Canvas #phDoseChart not found!');
+    // Prevent concurrent renders
+    if (ChartController.isRendering) {
+      ChartController.renderQueued = true;
+      console.log('[pH Chart] Render queued (previous still running)');
       return;
     }
-
-    var hasPhReadings = phReadings && phReadings.length > 0;
-    var hasDoseData = datasets && datasets.some(function(ds) { return (ds.data||[]).length > 0; });
-    var hasPumpEvents = pumpEvents && pumpEvents.length > 0;
-    var hasData = hasPhReadings || hasDoseData || hasPumpEvents;
+    ChartController.isRendering = true;
     
-    if (empty) {
-      empty.style.display = hasData ? 'none' : 'block';
-    }
-
-    var ctx = el.getContext('2d');
-    if (!ctx) {
-      console.error('[pH Chart] ❌ Failed to get 2D context!');
-      return;
-    }
-
-    // Calculate pH axis range
-    var phMin = 4.5, phMax = 8.0;
-    if (hasPhReadings) {
-      var phValues = phReadings.map(function(p) { return p.y; }).filter(function(v) { return v != null && !isNaN(v); });
-      if (phValues.length > 0) {
-        var dataMin = Math.min.apply(null, phValues);
-        var dataMax = Math.max.apply(null, phValues);
-        phMin = Math.min(phMin, dataMin - 0.2);
-        phMax = Math.max(phMax, dataMax + 0.2);
+    try {
+      // If rolling mode active, enforce monotonic window
+      if (ChartController.rolling.initialized && ChartController.rolling.active && !ChartController.userRangeSelected) {
+        var endMsRounded = ChartController.roundTs(ChartController.rolling.endMs);
+        var enforcedMax = new Date(endMsRounded);
+        var enforcedMin = new Date(endMsRounded - ChartController.rolling.spanMs);
+        timeMin = enforcedMin;
+        timeMax = enforcedMax;
+        ChartController.state.lastStart = enforcedMin.toISOString();
+        ChartController.state.lastEnd = enforcedMax.toISOString();
       }
-    }
-    if (targets && targets.low != null) phMin = Math.min(phMin, targets.low - 0.3);
-    if (targets && targets.high != null) phMax = Math.max(phMax, targets.high + 0.3);
-    if (currentPH != null) {
-      phMin = Math.min(phMin, currentPH - 0.2);
-      phMax = Math.max(phMax, currentPH + 0.2);
-    }
+      
+      var el = document.getElementById('phDoseChart');
+      var empty = document.getElementById('ph-dose-empty');
+
+      if (!el) {
+        console.error('[pH Chart] ❌ Canvas #phDoseChart not found!');
+        return;
+      }
+
+      var hasPhReadings = phReadings && phReadings.length > 0;
+      var hasDoseData = datasets && datasets.some(function(ds) { return (ds.data||[]).length > 0; });
+      var hasPumpEvents = pumpEvents && pumpEvents.length > 0;
+      var hasData = hasPhReadings || hasDoseData || hasPumpEvents;
+      
+      // Cache datasets to prevent empty data flicker on transient API errors
+      if (hasPhReadings || (phReadings && phReadings.length > 0)) {
+        ChartController.lastPhReadings = phReadings;
+      } else if (ChartController.lastPhReadings && ChartController.lastPhReadings.length > 0) {
+        // Use cached data if new fetch returned empty
+        phReadings = ChartController.lastPhReadings;
+        hasPhReadings = true;
+        hasData = true;
+        console.log('[pH Chart] Using cached pH readings (empty fetch fallback)');
+      }
+      
+      if (empty) {
+        empty.style.display = hasData ? 'none' : 'block';
+      }
+
+      var ctx = el.getContext('2d');
+      if (!ctx) {
+        console.error('[pH Chart] ❌ Failed to get 2D context!');
+        return;
+      }
+
+      // Calculate pH axis range
+      var phMin = 4.5, phMax = 8.0;
+      if (hasPhReadings) {
+        var phValues = phReadings.map(function(p) { return p.y; }).filter(function(v) { return v != null && !isNaN(v); });
+        if (phValues.length > 0) {
+          var dataMin = Math.min.apply(null, phValues);
+          var dataMax = Math.max.apply(null, phValues);
+          phMin = Math.min(phMin, dataMin - 0.2);
+          phMax = Math.max(phMax, dataMax + 0.2);
+        }
+      }
+      if (targets && targets.low != null) phMin = Math.min(phMin, targets.low - 0.3);
+      if (targets && targets.high != null) phMax = Math.max(phMax, targets.high + 0.3);
+      if (currentPH != null) {
+        phMin = Math.min(phMin, currentPH - 0.2);
+        phMax = Math.max(phMax, currentPH + 0.2);
+      }
 
     // Build annotations
     var annotations = {};
@@ -435,29 +471,61 @@
       pluginsConfig.annotation = { annotations: annotations };
     }
 
-    // In-place update if chart exists
+    // In-place update if chart exists - STABLE: never destroy on transient errors
     if (ChartController.chart) {
       try {
+        // Update datasets
         ChartController.chart.data.datasets = dsUse;
+        
+        // Update x-axis bounds
         if (timeMin && timeMax) {
           ChartController.chart.options.scales.x.min = timeMin;
           ChartController.chart.options.scales.x.max = timeMax;
         }
+        
+        // Update y-axis bounds
         ChartController.chart.options.scales.yPh.min = phMin;
         ChartController.chart.options.scales.yPh.max = phMax;
-        // Update annotations
-        if (ANNOTATION_AVAILABLE && ChartController.chart.options.plugins.annotation) {
-          ChartController.chart.options.plugins.annotation.annotations = annotations;
+        
+        // Ensure yDose axis exists/is updated if needed
+        if (hasDoseAxis && !ChartController.chart.options.scales.yDose) {
+          ChartController.chart.options.scales.yDose = scales.yDose;
         }
+        
+        // Update annotations preserving plugin structure
+        if (ANNOTATION_AVAILABLE) {
+          if (!ChartController.chart.options.plugins.annotation) {
+            ChartController.chart.options.plugins.annotation = { annotations: annotations };
+          } else {
+            ChartController.chart.options.plugins.annotation.annotations = annotations;
+          }
+        }
+        
+        // Preserve legend - ensure it's always visible and stable
+        if (ChartController.chart.options.plugins.legend) {
+          ChartController.chart.options.plugins.legend.display = true;
+          ChartController.chart.options.plugins.legend.position = 'top';
+        }
+        
+        // Update without animation to prevent flicker
         ChartController.chart.update('none');
         console.log('[pH Chart] ♻ In-place chart update');
         return;
       } catch(updateErr) {
-        console.warn('[pH Chart] In-place update failed, rebuilding:', updateErr);
-        if (typeof ChartController.chart.destroy === 'function') {
-          ChartController.chart.destroy();
+        console.warn('[pH Chart] In-place update failed:', updateErr);
+        // Don't destroy on first error - try one more update
+        try {
+          ChartController.chart.update('none');
+          console.log('[pH Chart] ♻ Recovery update succeeded');
+          return;
+        } catch(e) {
+          // Only destroy if recovery also fails
+          console.warn('[pH Chart] Recovery failed, rebuilding chart');
+          if (typeof ChartController.chart.destroy === 'function') {
+            ChartController.chart.destroy();
+          }
+          ChartController.chart = null;
         }
-        ChartController.chart = null;
       }
     }
     
@@ -480,6 +548,18 @@
       console.log('[pH Chart] ✅ Chart created successfully');
     } catch (chartErr) {
       console.error('[pH Chart] ❌ Chart creation FAILED:', chartErr);
+    }
+    
+    } finally {
+      // Release render lock
+      ChartController.isRendering = false;
+      
+      // Process queued render if any
+      if (ChartController.renderQueued) {
+        ChartController.renderQueued = false;
+        console.log('[pH Chart] Processing queued render');
+        // Don't immediately re-render - let next tick handle it
+      }
     }
   }
 
@@ -744,8 +824,9 @@
     init();
   }
 
-  // Auto-refresh management
+  // Auto-refresh management with visibility handling
   var autoRefreshTimer = null;
+  var lastRefreshTime = 0;
   
   function startAutoRefresh() {
     if (autoRefreshTimer) return;
@@ -767,6 +848,20 @@
     }
 
     autoRefreshTimer = setInterval(function() {
+      // Skip if tab is hidden (browser throttles anyway, but this prevents data fetch)
+      if (!ChartController.isVisible) {
+        console.log('[pH Chart] Skipping refresh (tab hidden)');
+        return;
+      }
+      
+      // Debounce: skip if last refresh was too recent (prevents double updates)
+      var now = Date.now();
+      if (now - lastRefreshTime < 5000) {
+        console.log('[pH Chart] Skipping refresh (debounced)');
+        return;
+      }
+      lastRefreshTime = now;
+      
       var startISO = ChartController.state.lastStart;
       var endISO = ChartController.state.lastEnd;
 
@@ -776,8 +871,13 @@
         var stepMs = ChartController.REFRESH_INTERVAL_MS;
         var nextEnd = ChartController.rolling.endMs + stepMs;
         
-        // Never regress
-        ChartController.rolling.endMs = Math.max(nextEnd, nowRounded);
+        // Never regress - strict monotonic guarantee
+        var newEndMs = Math.max(nextEnd, nowRounded, ChartController.rolling.endMs);
+        
+        // Only update if we're actually moving forward
+        if (newEndMs > ChartController.rolling.endMs) {
+          ChartController.rolling.endMs = newEndMs;
+        }
         
         var endMs = ChartController.rolling.endMs;
         var startMs = endMs - ChartController.rolling.spanMs;
@@ -796,6 +896,24 @@
       autoRefreshTimer = null;
     }
   }
+  
+  // Handle visibility changes to pause/resume refresh
+  document.addEventListener('visibilitychange', function() {
+    ChartController.isVisible = !document.hidden;
+    if (document.hidden) {
+      console.log('[pH Chart] Tab hidden - pausing updates');
+    } else {
+      console.log('[pH Chart] Tab visible - resuming updates');
+      // Do an immediate refresh when tab becomes visible again
+      if (autoRefreshTimer && ChartController.state.lastStart && ChartController.state.lastEnd) {
+        lastRefreshTime = 0; // Clear debounce
+        phLoadRangeAndRender({ 
+          start: ChartController.state.lastStart, 
+          end: ChartController.state.lastEnd 
+        });
+      }
+    }
+  });
   
   startAutoRefresh();
   
