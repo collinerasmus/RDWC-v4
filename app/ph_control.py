@@ -984,7 +984,8 @@ def _auto_loop():
                         target = min(targets["low"] + margin, (targets["low"] + targets["high"]) / 2.0)
                         need_dpH = max(0.0, target - ph_val)
                         # Safe initial micro-dose when learner unknown/default
-                        initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
+                        # SAFETY: 0.01ml is conservative for systems where 0.1ml caused ~2 pH unit jumps
+                        initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.01)
                         est_val = _estimate_ml_per_pH(_get_latest_ec()[0])
                         # SAFETY: If learned value equals default (1.0), treat as "no learning yet" and use micro-dose
                         # Also treat values <= 1.0 as indicating more learning needed
