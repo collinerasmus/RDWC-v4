@@ -599,7 +599,9 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
     # Block if estimated pH change exceeds threshold (default 0.5 pH)
     # This helps prevent overdosing when concentration is high or reservoir is small
     # Constants for the guard
-    DEFAULT_ML_PER_PH_FALLBACK = 50.0  # Default ml per 1.0 pH if no learned value
+    # SAFETY: Use conservative default of 0.1 ml/pH (forces micro-dose path when learner is unknown)
+    # 50.0 was dangerously high and could cause massive overdoses
+    DEFAULT_ML_PER_PH_FALLBACK = 0.1  # Conservative default ml per 1.0 pH if no learned value
     MIN_ML_PER_PH = 0.01  # Minimum divisor to prevent division by zero
     
     pre_ph_for_check, _ = _get_latest_ph()
@@ -780,7 +782,9 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
     Returns a conservative default if not enough data.
     """
     baseline = _settings_get_float("dosing.ec_baseline_min", 0.2)
-    default_ml_per_pH = _settings_get_float("dosing.ph_up_ml_per_pH_default", 50.0)  # 50 ml per 1.0 pH
+    # SAFETY: Use conservative default of 0.1 ml/pH (forces micro-dose path when learner is unknown)
+    # 50.0 was dangerously high and could cause massive overdoses
+    default_ml_per_pH = _settings_get_float("dosing.ph_up_ml_per_pH_default", 0.1)  # 0.1 ml per 1.0 pH (conservative)
     try:
         with sqlite3.connect(str(DB_PATH)) as conn:
             cur = conn.cursor()
@@ -980,8 +984,10 @@ def _auto_loop():
                         # Safe initial micro-dose when learner unknown/default
                         initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
                         est_val = _estimate_ml_per_pH(_get_latest_ec()[0])
-                        # Treat default (50.0) as unknown and use initial micro-dose
-                        if est_val is None or abs(est_val - _settings_get_float("dosing.ph_up_ml_per_pH_default", 50.0)) < 1e-6:
+                        # SAFETY: Treat default (0.1) as unknown and use initial micro-dose
+                        # Also treat values <= 0.1 as unreliable (need more learning data)
+                        safe_default = _settings_get_float("dosing.ph_up_ml_per_pH_default", 0.1)
+                        if est_val is None or est_val <= safe_default or abs(est_val - safe_default) < 1e-6:
                             ml = initial_ml
                         else:
                             ml_per_pH = est_val
@@ -1057,12 +1063,28 @@ def ph_auto_learn_reset():
     """Clear learned estimator by resetting post_ph for all successful doses.
     This forces the estimator to return the default until new valid samples accumulate.
     Safe to call anytime; does not delete dose history.
+    Also persists reset timestamp to system_state for service restart resilience.
     """
     try:
+        ts_now = datetime.now(timezone.utc).isoformat()
         with sqlite3.connect(str(DB_PATH)) as conn:
+            # Clear post_ph to invalidate learning samples
             conn.execute("UPDATE ph_dose_log SET post_ph = NULL WHERE result = 'ok'")
+            # Create system_state table if not exists (sensor_poller may not have run yet)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS system_state (
+                    key TEXT PRIMARY KEY,
+                    value TEXT,
+                    updated_at TEXT
+                )
+            """)
+            # Persist reset timestamp for audit and potential service restart handling
+            conn.execute(
+                "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES (?, ?, ?)",
+                ("ph_learner_reset_ts", ts_now, ts_now)
+            )
             conn.commit()
-        return {"ok": True, "message": "Learned estimator reset"}
+        return {"ok": True, "message": "Learned estimator reset", "reset_at": ts_now}
     except Exception as e:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
