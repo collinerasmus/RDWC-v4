@@ -5,7 +5,7 @@
     console.warn('[pH] rdwcRange missing — injecting fallback stub');
     const DAY = 24*60*60*1000;
     window.rdwcRange = {
-      RANGES: ['24h','7d','30d','90d','grow','custom'],
+      RANGES: ['1h','24h','7d','30d','90d','grow','custom'],
       getLastPreset: (key, def='24h') => def,
       saveLastPreset: ()=>{},
       getCustomRange: ()=>({start:null,end:null}),
@@ -13,7 +13,8 @@
       rangeToStartEnd: async (preset, cStart, cEnd, growStartDate) => {
         const now = Date.now();
         let start = now - DAY;
-        if (preset==='7d') start = now - 7*DAY;
+        if (preset==='1h') start = now - 60*60*1000;
+        else if (preset==='7d') start = now - 7*DAY;
         else if (preset==='30d') start = now - 30*DAY;
         else if (preset==='90d') start = now - 90*DAY;
         else if (preset==='custom' && cStart && cEnd) {
@@ -55,7 +56,7 @@
   // Short-lived fast poll timer for immediate pump state feedback
   let fastPumpTimer = null;
   
-  let doseLogCollapsed = localStorage.getItem('ph_dose_log_collapsed') !== 'false'; // default hidden
+  let doseLogCollapsed = localStorage.getItem('ph_dose_log_collapsed') === 'true'; // default EXPANDED (not hidden)
 
   function el(id){ return document.getElementById(id); }
 
@@ -154,18 +155,30 @@
     const recent = el('ph-recent');
     const resBanner = el('ph-reservoir-banner');
     
-    // Update learned value KPI in readings row
+    // Update learned value KPI in header
+    const learnedEl = el('ph-learned');
+    if (learnedEl && s && s.auto && s.auto.learned_ml_per_pH !== null && s.auto.learned_ml_per_pH !== undefined) {
+      const learned = s.auto.learned_ml_per_pH;
+      learnedEl.textContent = learned > 0 ? `${learned.toFixed(2)} ml/pH` : '— ml/pH';
+      learnedEl.title = `Learned: ${learned.toFixed(2)} ml needed to raise pH by 1.0`;
+    } else if (learnedEl) {
+      learnedEl.textContent = '— ml/pH';
+    }
+    
+    // Update learned value KPI in readings row (legacy, if exists)
     const learnedKPI = el('ph-learned-kpi');
-    if (learnedKPI && s && s.learned_ml_per_pH !== null && s.learned_ml_per_pH !== undefined && s.learned_ml_per_pH > 0) {
+    if (learnedKPI && s && s.auto && s.auto.learned_ml_per_pH !== null && s.auto.learned_ml_per_pH !== undefined && s.auto.learned_ml_per_pH > 0) {
       learnedKPI.style.display = 'inline-block';
       const valueEl = learnedKPI.querySelector('.kpi-value');
-      if (valueEl) valueEl.textContent = `${s.learned_ml_per_pH.toFixed(2)} ml/pH`;
+      if (valueEl) valueEl.textContent = `${s.auto.learned_ml_per_pH.toFixed(2)} ml/pH`;
     } else if (learnedKPI) {
       learnedKPI.style.display = 'none';
     }
     
     // Update learned value display in Settings section
     updateLearnedDisplay(s);
+    // Update live parameter chips
+    updateParamChips();
     const cdPill = el('ph-countdown-pill');
     if(p){ p.textContent = (s && s.ph!=null) ? s.ph.toFixed(2) : '—'; }
     if(band && s){ band.textContent = `Targets ${s.targets.low} – ${s.targets.high}`; }
@@ -301,15 +314,13 @@
       autoBtn.title = 'Automatically raises pH when below target band using pH Up';
     }
     
-    // Update learned value display
-    const learnedEl = el('phLearnedValue');
-    if (learnedEl && s?.auto) {
+    // Update learned value display (Settings automation panel) - reuse header variable
+    const learnedPanelEl = el('phLearnedValue');
+    if (learnedPanelEl && s?.auto) {
       const learned = s.auto.learned_ml_per_pH;
-      if (learned !== null && learned !== undefined) {
-        learnedEl.innerHTML = `Learned: <strong>${learned.toFixed(2)} ml/pH</strong>`;
-      } else {
-        learnedEl.innerHTML = `<span style="opacity:0.6;">No learned value yet</span>`;
-      }
+      learnedPanelEl.innerHTML = (learned !== null && learned !== undefined && learned > 0)
+        ? `Learned: <strong>${learned.toFixed(2)} ml/pH</strong>`
+        : `<span style="opacity:0.6;">No learned value yet</span>`;
     }
 
     // Update caps display from settings (mirror EC caps summary)
@@ -354,18 +365,55 @@
     const displayValue = el('ph-learned-display-value');
     if (!displayBox || !displayValue) return;
     
-    if (s && s.learned_ml_per_pH !== null && s.learned_ml_per_pH !== undefined && s.learned_ml_per_pH > 0) {
+    // Status schema nests learned value under s.auto.learned_ml_per_pH
+    const learned = s && s.auto ? s.auto.learned_ml_per_pH : null;
+    if (learned !== null && learned !== undefined && learned > 0) {
       displayBox.style.display = 'block';
-      displayValue.textContent = s.learned_ml_per_pH.toFixed(2);
+      displayValue.textContent = learned.toFixed(2);
     } else {
       displayBox.style.display = 'none';
       displayValue.textContent = '—';
+    }
+  }
+  
+  // Update live parameter chips in the Parameters section
+  function updateParamChips() {
+    const settings = window.rdwcSettings;
+    if (!settings) return;
+    
+    const chipInitial = el('phChipInitial');
+    const chipInterval = el('phChipInterval');
+    const chipMaxDelta = el('phChipMaxDelta');
+    const chipStabilize = el('phChipStabilize');
+    
+    if (chipInitial) {
+      const val = settings.get('dosing.ph_up_initial_ml') || '0.01';
+      chipInitial.textContent = `INITIAL: ${val}ml`;
+    }
+    if (chipInterval) {
+      const val = settings.get('dosing.ph_min_interval_s') || '900';
+      chipInterval.textContent = `INTERVAL: ${val}s`;
+    }
+    if (chipMaxDelta) {
+      const val = settings.get('dosing.ph_max_predicted_delta_ph') || '0.5';
+      chipMaxDelta.textContent = `MAXΔ: ${val}`;
+    }
+    if (chipStabilize) {
+      const val = settings.get('dosing.ph_stabilization_window_s') || '300';
+      chipStabilize.textContent = `STAB: ${val}s`;
     }
   }
 
   async function tick(){
     const s = await fetchStatus();
     renderStatus(s||{});
+    // Refresh chart on each polling tick (not just on init/manual)
+    // This ensures live updates as sensor readings change
+    try {
+      await refreshDoseChart();
+    } catch(e) {
+      console.debug('[pH] Chart refresh during tick skipped:', e?.message);
+    }
   }
 
   function schedule(){ /* legacy no-op; pollingManager now owns cadence */ }
@@ -422,10 +470,12 @@
         console.error('[pH] Chart refresh failed:', e);
       }
     } else {
-      console.warn('[pH] phDoseChart module not loaded');
+      const learnedValEl = el('phLearnedValue');
+      if (learnedValEl && s?.auto) {
+        const v = s.auto.learned_ml_per_pH;
+        learnedValEl.textContent = (v && v > 0) ? `${v.toFixed(2)} ml/pH` : '—';
+      }
     }
-    // Refresh summary alongside
-    refreshSummary().catch(()=>{});
   }
 
   async function postDose(body){
@@ -542,6 +592,8 @@
   async function wire(){
     const c = document.getElementById('ph-card');
     if(!c) return;
+
+    // Safety panel removed - now integrated into Parameters section in HTML
     
     // Mode buttons and dose log header use inline onclick handlers (see HTML)
     // This ensures they work immediately without waiting for event listener binding
@@ -873,6 +925,7 @@
           ['phAlertLow', 'alerts.ph_low'],
           ['phAlertHigh', 'alerts.ph_high'],
           ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec'],
+          ['phInitialMl', 'dosing.ph_up_initial_ml'],
           ['phMixDelay', 'dosing.ph_mix_delay_s'],
           ['phMaxMlHour', 'dosing.ph_up_max_ml_per_hour'],
           ['phMaxMlDay', 'dosing.ph_up_max_ml_per_day']
@@ -915,6 +968,7 @@
         ['phAlertLow', 'alerts.ph_low', '5.5'],
         ['phAlertHigh', 'alerts.ph_high', '6.5'],
         ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec', ''],
+        ['phInitialMl', 'dosing.ph_up_initial_ml', '0.01'],
         ['phMixDelay', 'dosing.ph_mix_delay_s', ''],
         ['phMaxMlHour', 'dosing.ph_up_max_ml_per_hour', ''],
         ['phMaxMlDay', 'dosing.ph_up_max_ml_per_day', '']
@@ -924,6 +978,7 @@
         const val = window.rdwcSettings?.get(settingKey);
         if(elem && (val || fallback)) elem.value = val || fallback;
       }
+      // Safety panel removed - fields now in main Parameters section
     }catch(e){ console.warn('[pH] Failed to load settings into form:', e); }
 
     // listen for settings UI updates to ui.sensors_poll_ms
@@ -998,8 +1053,14 @@
     const selectEl = el('phDoseRangeSelect');
     if (selectEl && selectEl.value !== preset){ selectEl.value = preset; }
     
-    // Load range
-    await loadRange(preset);
+    // If user selects 1h and wants rolling live mode, reset chart to rolling
+    // Otherwise treat as user-selected fixed range
+    if (preset === '1h' && window.phDoseChart?.resetToRolling) {
+      window.phDoseChart.resetToRolling();
+    } else {
+      // User selecting a specific range - this will be handled in loadRange
+      await loadRange(preset);
+    }
   }
   
   async function loadRange(preset){
@@ -1023,6 +1084,11 @@
     
     currentRange.start = range.start;
     currentRange.end = range.end;
+    
+    // Notify chart about user-selected range (disables auto-rolling for non-1h presets)
+    if (preset !== '1h' && window.phDoseChart?.setRange) {
+      window.phDoseChart.setRange(range.start, range.end);
+    }
     
     // Auto-populate datetime inputs with current range so user knows what they're viewing
     const fromEl = el('phDoseFrom');
@@ -1124,7 +1190,7 @@
   window.phToggleDoseLog = function() {
     setDoseLogCollapsed(!doseLogCollapsed);
   };
-})();
+
   async function refreshSummary(){
     try{
       // Prefer unified dose_events (compute ml from seconds * rate) as fallback
@@ -1182,6 +1248,32 @@
     }catch(e){ /* ignore */ }
   }
 
+  // --- Update Safety chips from latest /api/ph/status ---
+  function updateSafetyChips(status){
+    if(!status || !status.safety) return;
+    const s = status.safety;
+    const setChip = (id,val)=>{ const n = el(id); if(n){ n.textContent = id.replace('phSafety','').toLowerCase()+': '+val; n.className = 'ui-status-chip success'; }};
+    setChip('phSafetyInitial', s.initial_ml);
+    setChip('phSafetyInterval', status.guards?.min_interval_s || '—');
+    setChip('phSafetyMaxDelta', s.max_estimated_delta_ph);
+    setChip('phSafetyEstGuard', s.estimated_change_guard ? 'enabled' : 'disabled');
+    if(s.stabilization){
+      setChip('phSafetyStabWait', s.stabilization.wait_s);
+      setChip('phSafetyStabDelta', s.stabilization.delta);
+      setChip('phSafetyStabSamples', s.stabilization.samples);
+    }
+  }
 
+  // Extend renderStatus to also update safety chips
+  const _origRenderStatus = renderStatus;
+  renderStatus = function(s){
+    _origRenderStatus(s);
+    try { updateSafetyChips(s); } catch(e){ /* ignore */ }
+  };
+
+  // Save Safety Settings handler
+  // Safety panel save handler removed - consolidated into main Parameters panel
+
+})();
 
   

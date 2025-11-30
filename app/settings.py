@@ -69,14 +69,24 @@ DEFAULTS: Dict[str, str] = {
     "dosing.max_ml_day_": "0",
     "dosing.mix_delay_s": "0",
     # pH Up dosing controls
-    "dosing.ph_up_ml_per_sec": "25",
+    # Calibrated pH Up pump flow rate (ml/s) updated from commissioning (was placeholder 25)
+    "dosing.ph_up_ml_per_sec": "0.758",
     # Nutrient pump calibration (ml/s)
     "dosing.grow_ml_per_sec": "20",
     "dosing.micro_ml_per_sec": "20",
     "dosing.bloom_ml_per_sec": "20",
-    "dosing.ph_up_max_ml_per_day": "50",
+    # Daily pH Up cap (approx. 500s * 0.758 ml/s ≈ 380 ml)
+    "dosing.ph_up_max_ml_per_day": "380",
+    # Max single pH Up dose (ml)
     "dosing.ph_up_max_single_ml": "5",
+    # Minimum interval between pH Up doses (seconds)
     "dosing.ph_min_interval_s": "300",
+    # Post‑dose stabilization observation window (seconds) before recording final reading
+    "dosing.ph_stabilization_window_s": "300",
+    # Delta threshold for considering pH stable (absolute change over final window)
+    "dosing.ph_stabilization_delta_threshold": "0.02",
+    # Safety: maximum predicted delta pH allowed for a single dose (blocks if exceeded)
+    "dosing.ph_max_predicted_delta_ph": "0.5",
     # Observe window after dose (7 hours based on real-world stabilization data)
     "dosing.observe_s_after_dose": "25200",
 
@@ -88,6 +98,9 @@ DEFAULTS: Dict[str, str] = {
     "dosing.ph_up_safety_factor": "0.6",
     # EC below this baseline holds automation (mS/cm)
     "dosing.ec_baseline_min": "0.2",
+    # Initial micro-dose used when learner has not produced a refined ml/pH estimate yet
+    # Ensures first automated correction is a very small, safe amount
+    "dosing.ph_up_initial_ml": "0.1",  # Start with 0.1ml, let learning build up gradually (0.1, 0.2, etc)
 
     # EC automation
     # NOTE: ec.auto_enabled is DEPRECATED - use controls.ec_auto via auto_control.py
@@ -108,8 +121,9 @@ DEFAULTS: Dict[str, str] = {
     # maintenance override (global test mode)
     "safety.maintenance_override": "false",
     # manual dosing safety caps (server-side enforced)
-    "safety.max_seconds_per_press": "1.5",
-    "safety.max_total_seconds_per_24h": "120",
+    # Updated safety caps from commissioning
+    "safety.max_seconds_per_press": "10",
+    "safety.max_total_seconds_per_24h": "500",
     "safety.min_off_window_sec": "2",
     # TEST-ONLY: allow dosing when sensors are stale, but only when maintenance_override is also true
     # Defaults to OFF for production safety
@@ -148,20 +162,21 @@ DEFAULTS: Dict[str, str] = {
 _defaults_seeded = False
 
 def _ensure_table_seed_defaults() -> None:
-    """Ensure settings table exists and DEFAULTS are present (without overriding).
-    Only runs once per process to avoid blocking on every read.
-    """
+    """Ensure settings table exists and seed DEFAULTS using the shared pooled connection.
+    This avoids diverging DB paths when tests override app.db_pool.DB_PATH.
+    Only runs once per process to minimize contention."""
     global _defaults_seeded
     if _defaults_seeded:
         return
-    
+
     _init_settings_table()
-    with sqlite3.connect(str(DB_PATH), timeout=10.0) as conn:
-        cur = conn.cursor()
-        for key, val in DEFAULTS.items():
-            cur.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (key, val))
-        conn.commit()
-    
+    # Use pooled connection to respect any test overrides of DB_PATH in db_pool
+    from app.db_pool import get_conn
+    conn = get_conn()
+    cur = conn.cursor()
+    for key, val in DEFAULTS.items():
+        cur.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (key, val))
+    conn.commit()
     _defaults_seeded = True
 
 def get_all_settings() -> Dict[str, str]:

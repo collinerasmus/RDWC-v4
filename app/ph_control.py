@@ -218,6 +218,23 @@ def _today_total_ml(now_dt: datetime) -> float:
     start_utc = start_local.astimezone(timezone.utc)
     with sqlite3.connect(str(DB_PATH)) as conn:
         cur = conn.cursor()
+        # Check unified dose_events table first (convert seconds to ml using calibrated rate)
+        cur.execute(
+            "SELECT COALESCE(SUM(seconds),0) FROM dose_events WHERE pump='ph_up' AND blocked_by IS NULL AND ts >= ?",
+            (int(start_utc.timestamp()),)
+        )
+        row = cur.fetchone()
+        if row and row[0] is not None:
+            # Convert seconds to ml using calibrated rate from settings
+            total_seconds = float(row[0])
+            try:
+                from app.settings import get_setting_key
+                ml_per_sec = float(get_setting_key("dosing.ph_up_ml_per_sec", "0") or "0")
+                if ml_per_sec > 0:
+                    return total_seconds * ml_per_sec
+            except Exception:
+                pass
+        # Fallback to old ph_dose_log table
         cur.execute(
             "SELECT COALESCE(SUM(volume_ml),0) FROM ph_dose_log WHERE result='ok' AND ts_utc >= ?",
             (start_utc.isoformat(),)
@@ -226,17 +243,28 @@ def _today_total_ml(now_dt: datetime) -> float:
         return float(val or 0.0)
 
 def _last_ok_ts() -> Optional[datetime]:
+    """Get timestamp of last successful pH dose from ph_dose_log table.
+    This is the PRIMARY source for interval guard since _perform_dose logs here."""
     _ensure_tables()
     with sqlite3.connect(str(DB_PATH)) as conn:
         cur = conn.cursor()
+        # PRIMARY: Check ph_dose_log table (where _perform_dose logs successful doses)
         cur.execute("SELECT ts_utc FROM ph_dose_log WHERE result='ok' ORDER BY id DESC LIMIT 1")
         row = cur.fetchone()
-        if not row:
-            return None
-        try:
-            return datetime.fromisoformat(row[0]).astimezone(timezone.utc)
-        except Exception:
-            return None
+        if row:
+            try:
+                return datetime.fromisoformat(row[0]).astimezone(timezone.utc)
+            except Exception:
+                pass
+        # FALLBACK: Check unified dose_events table (for backward compatibility)
+        cur.execute("SELECT ts FROM dose_events WHERE pump='ph_up' AND blocked_by IS NULL ORDER BY id DESC LIMIT 1")
+        row = cur.fetchone()
+        if row:
+            try:
+                return datetime.fromtimestamp(row[0], tz=timezone.utc)
+            except Exception:
+                pass
+        return None
 
 # --- Sensors/Settings helpers ------------------------------------------------
 def _get_latest_ph() -> Tuple[Optional[float], Optional[int]]:
@@ -392,6 +420,20 @@ def ph_status():
         holding_reason = "auto_disabled"
     if _dose_lock.locked() and holding_reason is None:
         holding_reason = "cooldown"
+    # Surface safety-related parameters for UI transparency (canonical key set)
+    # Canonical pH automation safety keys (single source of truth):
+    #   dosing.ph_up_initial_ml
+    #   dosing.ph_min_interval_s
+    #   dosing.ph_max_predicted_delta_ph
+    #   dosing.ph_stabilization_window_s
+    #   dosing.ph_stabilization_delta_threshold
+    # Backward compatibility: fall back to legacy duplicate keys if canonical missing.
+    initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
+    max_est_change = _settings_get_float("dosing.ph_max_predicted_delta_ph", _settings_get_float("safety.max_estimated_ph_change", 0.5))
+    est_guard = (_settings_get("safety.estimated_change_guard", "true").lower() == "true")  # guard key retained in safety.* namespace
+    stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 300))
+    stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", _settings_get_float("dosing.stability_delta", 0.02))
+    stability_samples = _settings_get_int("dosing.stability_samples", 3)
     return {
         "ph": ph_val,
         "ts": ts,
@@ -402,6 +444,16 @@ def ph_status():
         "remaining_cooldown_s": remaining,
         "maintenance_override": maint_override,
         "last_dose_ts": int(last_ok.timestamp()) if last_ok else None,
+        "safety": {
+            "initial_ml": initial_ml,
+            "estimated_change_guard": est_guard,
+            "max_estimated_delta_ph": max_est_change,
+            "stabilization": {
+                "wait_s": stabilize_wait_s,
+                "delta": stability_delta,
+                "samples": stability_samples,
+            }
+        }
     }
 
 
@@ -436,25 +488,97 @@ def _actuate_ph_up(duration_ms: int) -> Dict[str, Any]:
             pass
 
 
+def _update_post_ph_with_flag(rowid: int, post_ph: Optional[float], stable: bool) -> None:
+    """Update post_ph and add stability flag to reason field."""
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        # Get current reason and append stability info
+        cur.execute("SELECT reason FROM ph_dose_log WHERE id=?", (rowid,))
+        row = cur.fetchone()
+        current_reason = row[0] if row else ""
+        stability_flag = "; ph_stable" if stable else "; ph_unsettled"
+        # current_reason is guaranteed to be a string (empty or actual value)
+        new_reason = current_reason + stability_flag
+        conn.execute("UPDATE ph_dose_log SET post_ph=?, reason=? WHERE id=?", (post_ph, new_reason, rowid))
+        conn.commit()
+
+
+# Stabilization constants
+SAMPLE_RETENTION_MULTIPLIER = 2  # Keep 2x stability_samples for trend analysis
+
+
 def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], max_wait_s: int):
-    """Poll for the next pH sample after dosing completes, up to max_wait_s seconds.
-    Updates post_ph when a newer sample than baseline appears; otherwise leaves as-is.
+    """Wait for pH stabilization after dosing, then record the stable post_ph value.
+    
+    Stability criteria (configurable):
+    - Wait at least 5 minutes for mixing and sensor response
+    - Check last N samples for low range (max - min < 0.02 over N readings)
+    - If stable within max_wait_s, record post_ph with stable=True
+    - If not stable, record last observed value with stable=False (unsettled)
+    
+    This fixes the issue where immediate readings don't reflect the true pH effect.
     """
     try:
+        # Configuration
+        # Use canonical stabilization keys with fallback to legacy duplicates
+        stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 300))
+        stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", _settings_get_float("dosing.stability_delta", 0.02))
+        stability_samples = _settings_get_int("dosing.stability_samples", 3)  # sample count remained unchanged
+        poll_interval = 10.0  # Poll every 10 seconds
+        
         deadline = time.time() + max(0, max_wait_s)
+        stabilize_deadline = time.time() + stabilize_wait_s
         last_seen_ts = baseline_ts_unix or 0
+        
+        # Collect pH samples for stability check
+        samples = []
+        
+        print(f"[pH Stabilization] Starting observation for rowid={rowid}, waiting {stabilize_wait_s}s for stabilization")
+        
         while time.time() < deadline:
-            ph_after, ts = _get_latest_ph()
+            ph_val, ts = _get_latest_ph()
+            
             if ts and ts > last_seen_ts:
-                _update_post_ph(rowid, ph_after)
-                return
-            time.sleep(1.0)
-        # Fallback single read at end (may still be same sample)
-        ph_after, ts = _get_latest_ph()
-        if ts and (baseline_ts_unix is None or ts >= baseline_ts_unix):
-            _update_post_ph(rowid, ph_after)
-    except Exception:
-        pass
+                # New reading available
+                samples.append({"ph": ph_val, "ts": ts})
+                last_seen_ts = ts
+                
+                # Keep recent samples for stability check (retain extra for trend analysis)
+                max_samples = stability_samples * SAMPLE_RETENTION_MULTIPLIER
+                if len(samples) > max_samples:
+                    samples = samples[-max_samples:]
+                
+                # Only check stability after minimum wait time has passed
+                if time.time() >= stabilize_deadline and len(samples) >= stability_samples:
+                    # Check if last N samples are stable (low range = max - min)
+                    recent = [s["ph"] for s in samples[-stability_samples:] if s["ph"] is not None]
+                    if len(recent) >= stability_samples:
+                        min_ph = min(recent)
+                        max_ph = max(recent)
+                        sample_range = max_ph - min_ph
+                        
+                        if sample_range <= stability_delta:
+                            # Stable! Record the average of recent samples
+                            stable_ph = sum(recent) / len(recent)
+                            print(f"[pH Stabilization] rowid={rowid} STABLE: ph={stable_ph:.3f}, range={sample_range:.4f}")
+                            _update_post_ph_with_flag(rowid, round(stable_ph, 3), stable=True)
+                            return
+                        else:
+                            print(f"[pH Stabilization] rowid={rowid} still settling: range={sample_range:.4f} > {stability_delta}")
+            
+            time.sleep(poll_interval)
+        
+        # Timeout: record last value as unsettled
+        ph_final, ts_final = _get_latest_ph()
+        if ph_final is not None:
+            print(f"[pH Stabilization] rowid={rowid} TIMEOUT (unsettled): last_ph={ph_final:.3f}")
+            _update_post_ph_with_flag(rowid, ph_final, stable=False)
+        else:
+            print(f"[pH Stabilization] rowid={rowid} TIMEOUT: no pH reading available")
+            
+            
+    except Exception as e:
+        print(f"[pH Stabilization] Error for rowid={rowid}: {e}")
 
 
 def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
@@ -497,6 +621,44 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
     MAX_MS = int(_settings_get_int("dosing.ph_up_max_ms", 5000))
     if duration_ms <= 0 or duration_ms > MAX_MS:
         return {"http_status": 422, "ok": False, "error": "invalid_duration_ms", "max_ms": MAX_MS}
+
+    # EXPERIMENTAL: Pre-dose estimated pH change guard
+    # Block if estimated pH change exceeds threshold (default 0.5 pH)
+    # This helps prevent overdosing when concentration is high or reservoir is small
+    # Constants for the guard
+    # SAFETY: User's system spec: 1ml pH Up = roughly 1 pH unit change
+    # Start conservative at 0.1ml doses, let learning algorithm build up gradually
+    DEFAULT_ML_PER_PH_FALLBACK = 1.0  # User spec: 1ml raises pH by 1.0
+    MIN_ML_PER_PH = 0.01  # Minimum divisor to prevent division by zero
+    
+    pre_ph_for_check, _ = _get_latest_ph()
+    if volume_ml is not None and volume_ml > 0 and pre_ph_for_check is not None:
+        try:
+            estimated_change_guard = (
+                _settings_get("safety.estimated_change_guard", "true").lower() == "true"
+            )
+            if estimated_change_guard:
+                max_estimated_change = _settings_get_float("safety.max_estimated_ph_change", 0.5)
+                ml_per_pH = _estimate_ml_per_pH(_get_latest_ec()[0]) or DEFAULT_ML_PER_PH_FALLBACK
+                # Estimated pH change = volume_ml / ml_per_pH
+                estimated_delta = volume_ml / max(MIN_ML_PER_PH, ml_per_pH)
+                if estimated_delta > max_estimated_change:
+                    ts_iso = datetime.now(timezone.utc).isoformat()
+                    rowid = _log_row({
+                        "ts_utc": ts_iso, "action": "dose", "volume_ml": float(volume_ml),
+                        "duration_ms": int(duration_ms), "pre_ph": pre_ph_for_check, "post_ph": None,
+                        "result": "blocked", "reason": f"estimated_change_too_large ({estimated_delta:.2f} > {max_estimated_change:.2f})"
+                    })
+                    return {
+                        "http_status": 409, "ok": False, "blocked": True,
+                        "reasons": ["estimated_change_too_large"],
+                        "estimated_delta_ph": round(estimated_delta, 3),
+                        "max_allowed": max_estimated_change,
+                        "suggestion": "Reduce dose size, verify reservoir volume, or check solution concentration",
+                        "rowid": rowid
+                    }
+        except Exception as e:
+            print(f"[pH] Estimated change guard error (continuing): {e}")
 
     # Guards
     g = _compute_guards(time.time())
@@ -621,6 +783,21 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
         "result": "ok", "reason": ("maintenance_override; " + reason) if maint_override else (("force_bypass; " + reason) if (force_req and allow_force) else reason)
     })
 
+    # UNIFIED LOGGING: Also insert into dose_events table for unified analytics
+    # This ensures interval guard and UI see the dose in both tables
+    try:
+        dose_seconds = round(duration_ms / 1000.0, 3)
+        ts_unix = int(datetime.fromisoformat(ts_iso.replace('Z', '+00:00')).timestamp())
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            conn.execute(
+                """INSERT INTO dose_events (pump, ts, seconds, reason, blocked_by, pre_ph, pre_ec, post_ph)
+                   VALUES (?, ?, ?, ?, NULL, ?, NULL, NULL)""",
+                ("ph_up", ts_unix, dose_seconds, reason, pre_ph)
+            )
+            conn.commit()
+    except Exception as e:
+        print(f"[pH] Warning: Failed to insert into dose_events: {e}")
+
     # Schedule background observe to update post_ph with next sample (avoid request blocking)
     observe_s = max(1, min(1800, _settings_get_int("dosing.observe_s_after_dose", 600)))
     threading.Thread(target=_background_observe_and_update, args=(rowid, pre_ts, observe_s), daemon=True).start()
@@ -647,7 +824,10 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
     Returns a conservative default if not enough data.
     """
     baseline = _settings_get_float("dosing.ec_baseline_min", 0.2)
-    default_ml_per_pH = _settings_get_float("dosing.ph_up_ml_per_pH_default", 50.0)  # 50 ml per 1.0 pH
+    # SAFETY: User's system spec: 1ml pH Up solution = roughly 1 pH unit change
+    # Concentration is calibrated to the specific reservoir size
+    # This is the default used for learning when no historical data exists
+    default_ml_per_pH = _settings_get_float("dosing.ph_up_ml_per_pH_default", 1.0)  # User spec: 1ml = 1 pH
     try:
         with sqlite3.connect(str(DB_PATH)) as conn:
             cur = conn.cursor()
@@ -656,6 +836,7 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
                 SELECT ts_utc, volume_ml, pre_ph, post_ph
                 FROM ph_dose_log
                 WHERE result='ok' AND volume_ml IS NOT NULL AND pre_ph IS NOT NULL AND post_ph IS NOT NULL
+                  AND (reason IS NULL OR reason NOT LIKE '%unsettled%')
                 ORDER BY id DESC LIMIT 50
                 """
             )
@@ -685,8 +866,8 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
                 continue
         if total_dpH > 0.02 and total_ml > 0:
             est = float(total_ml / total_dpH)  # ml for 1.0 pH
-            # Clamp to [5,100] ml per 1.0 pH (0.5–10 per 0.1 pH)
-            est = max(5.0, min(100.0, est))
+            # Clamp to [1.0,100] ml per 1.0 pH (user spec: 1ml = 1 pH unit)
+            est = max(1.0, min(100.0, est))
             return est
     except Exception:
         pass
@@ -844,9 +1025,19 @@ def _auto_loop():
                     else:
                         target = min(targets["low"] + margin, (targets["low"] + targets["high"]) / 2.0)
                         need_dpH = max(0.0, target - ph_val)
-                        ml_per_pH = _estimate_ml_per_pH(_get_latest_ec()[0]) or 50.0
-                        ml_est = safety * need_dpH * ml_per_pH
-                        ml = max(step_min, min(step_max, ml_est))
+                        # Safe initial micro-dose when learner unknown/default
+                        # SAFETY: 0.01ml is conservative for systems where 0.1ml caused ~2 pH unit jumps
+                        initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.01)
+                        est_val = _estimate_ml_per_pH(_get_latest_ec()[0])
+                        # SAFETY: If learned value equals default (1.0), treat as "no learning yet" and use micro-dose
+                        # Also treat values <= 1.0 as indicating more learning needed
+                        safe_default = _settings_get_float("dosing.ph_up_ml_per_pH_default", 1.0)
+                        if est_val is None or est_val <= safe_default or abs(est_val - safe_default) < 1e-6:
+                            ml = initial_ml
+                        else:
+                            ml_per_pH = est_val
+                            ml_est = safety * need_dpH * ml_per_pH
+                            ml = max(step_min, min(step_max, ml_est))
                         _print_auto_decision("dose", ph_val, _get_latest_ec()[0], targets, ml, g)
                         _perform_dose({"ml": ml, "reason": "auto", "nonblocking": True})
                         _auto_last_holding_reason = None
@@ -917,12 +1108,82 @@ def ph_auto_learn_reset():
     """Clear learned estimator by resetting post_ph for all successful doses.
     This forces the estimator to return the default until new valid samples accumulate.
     Safe to call anytime; does not delete dose history.
+    Also persists reset timestamp to system_state for service restart resilience.
     """
     try:
+        ts_now = datetime.now(timezone.utc).isoformat()
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            # Clear post_ph to invalidate learning samples
+            conn.execute("UPDATE ph_dose_log SET post_ph = NULL WHERE result = 'ok'")
+            # Create system_state table if not exists (sensor_poller may not have run yet)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS system_state (
+                    key TEXT PRIMARY KEY,
+                    value TEXT,
+                    updated_at TEXT
+                )
+            """)
+            # Persist reset timestamp for audit and potential service restart handling
+            conn.execute(
+                "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES (?, ?, ?)",
+                ("ph_learner_reset_ts", ts_now, ts_now)
+            )
+            conn.commit()
+        return {"ok": True, "message": "Learned estimator reset", "reset_at": ts_now}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+@router.post("/api/ph/auto/reset_to_safe_defaults")
+def ph_auto_reset_to_safe_defaults():
+    """Reset ALL pH dosing settings to safe conservative defaults.
+    
+    This updates the database settings to use:
+    - initial_ml: 0.01 (was 0.1 - too aggressive for some systems)
+    - min_interval_s: 900 (15 minutes between doses)
+    - ml_per_pH_default: 1.0 (conservative starting estimate)
+    
+    Also clears the learned estimator to force fresh learning.
+    
+    Call this after the system has been over-dosing to reset to safe values.
+    """
+    try:
+        from app.settings import upsert_settings
+        
+        # Set safe conservative defaults
+        safe_settings = {
+            "dosing.ph_up_initial_ml": "0.01",        # Ultra-conservative 0.01ml initial dose
+            "dosing.ph_min_interval_s": "900",         # 15 minutes between doses
+            "dosing.ph_up_ml_per_pH_default": "1.0",   # 1ml per 1 pH unit (will be learned)
+            "dosing.ph_stabilization_window_s": "300", # 5 minutes to stabilize
+            "dosing.ph_max_predicted_delta_ph": "0.3", # Max 0.3 pH change per dose
+        }
+        
+        upsert_settings(safe_settings)
+        
+        # Also clear the learned estimator
+        ts_now = datetime.now(timezone.utc).isoformat()
         with sqlite3.connect(str(DB_PATH)) as conn:
             conn.execute("UPDATE ph_dose_log SET post_ph = NULL WHERE result = 'ok'")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS system_state (
+                    key TEXT PRIMARY KEY,
+                    value TEXT,
+                    updated_at TEXT
+                )
+            """)
+            conn.execute(
+                "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES (?, ?, ?)",
+                ("ph_learner_reset_ts", ts_now, ts_now)
+            )
             conn.commit()
-        return {"ok": True, "message": "Learned estimator reset"}
+        
+        return {
+            "ok": True, 
+            "message": "Reset to safe defaults and cleared learned estimator",
+            "settings_applied": safe_settings,
+            "reset_at": ts_now
+        }
     except Exception as e:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 

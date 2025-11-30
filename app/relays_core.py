@@ -79,8 +79,8 @@ except Exception as e:
 # Minimum ON/OFF times to prevent short-cycling (seconds)
 # Optimized for responsive manual control with minimal protection
 MIN_ON = {
-    # Tuned per request: quick manual response; only chiller power needs 60s
-    "chiller_power": 60,   # 60 seconds ON minimum (compressor safety)
+    # Tuned per request: quick manual response; chiller power needs 60s minimum runtime
+    "chiller_power": 60,   # 60 seconds ON minimum (compressor safety - prevents short cycling)
     "chiller_pump": 0,     # match main_pump: no switch-off hold
     "main_pump": 0,        # allow immediate OFF after ON
     "lights": 10,          # 10 seconds ON minimum
@@ -88,9 +88,13 @@ MIN_ON = {
     "ph_*": 0,             # No restriction
 }
 
+# Startup delay tracking - prevent chiller from turning on immediately after service restart
+_startup_time = time.monotonic()
+_CHILLER_STARTUP_DELAY_S = 300  # 5 minutes delay before chiller can turn ON after service start
+
 MIN_OFF = {
-    # Tuned per request: only chiller power needs 60s cooldown
-    "chiller_power": 60,   # 60 seconds OFF minimum (compressor anti-short-cycle)
+    # Tuned per request: chiller power needs significant cooldown (compressor protection)
+    "chiller_power": 300,  # 5 MINUTES OFF minimum (compressor anti-short-cycle - prevents damage from rapid restarts)
     "chiller_pump": 5,     # same as main pump
     "main_pump": 5,        # 5 seconds
     "lights": 5,           # 5 seconds OFF minimum
@@ -384,6 +388,15 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False, act
 
     now = time.monotonic()
     current_state = _last_state.get(name, False)
+
+    # CHILLER STARTUP DELAY: Prevent chiller from turning ON too soon after service restart
+    # This protects the compressor from rapid cycling during deployments/restarts
+    if name == "chiller_power" and desired_on and not force:
+        time_since_startup = now - _startup_time
+        if time_since_startup < _CHILLER_STARTUP_DELAY_S:
+            remaining = int(_CHILLER_STARTUP_DELAY_S - time_since_startup)
+            logger.info(f"[CHILLER] Blocked ON: startup delay active ({remaining}s remaining) - protects compressor during restarts")
+            return {"changed": False, "state": current_state, "reason": "startup_delay", "cooldown_remaining": remaining}
 
     # Controller mode gating for circulation pumps (block non-forced automation when auto disabled)
     # Uses unified auto-enable system: should_automate("circulation")

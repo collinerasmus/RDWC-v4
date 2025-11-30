@@ -1,11 +1,14 @@
 <!doctype html>
-<!-- BUILD_COMMIT: 43fa8ee -->
+<!-- BUILD_COMMIT: 1764522441 -->
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
 <title>RDWC v4 — Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="version" content="20251115ac"/><!-- pH: add Pump Control; move Dose Log; tidy -->
+<meta name="version" content="1764438922"/><!-- Updated build version stamp for cache bust -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <link rel="stylesheet" href="/static/css/theme_v4.css?v=10" />
   <!-- Eager chart library load (was deferred) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -767,6 +770,7 @@ body{
   <!-- Top-level Tabs Navigation -->
   <nav id="tabs-nav" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px 0;padding-bottom:4px;" aria-label="Primary sections">
     <span id="controllers-status-live" aria-live="polite"></span>
+    <span id="build-commit-chip" class="ui-status-chip neutral" title="Frontend build commit" style="margin-right:8px;">commit: 1764463303</span>
   <button class="btn-chip ctrl-with-dot" data-tab="overview" aria-label="Overview">
     <span class="ctrl-label">📊 Overview</span>
     <span class="ctrl-health-dot" data-controller="overview" aria-label="Overview status"></span>
@@ -1016,6 +1020,14 @@ body{
             var willAuto = controllers.ph && controllers.ph.will_automate;
             phStatusChip.textContent = willAuto ? 'AUTO' : 'MANUAL'; 
             phStatusChip.className = 'ui-status-chip ' + (willAuto ? 'success':'neutral'); 
+            // Clarify relationship between global AUTO and controller AUTO
+            if (!willAuto && globalAuto) {
+              phStatusChip.title = 'Global AUTO is ON; pH auto is OFF';
+            } else if (willAuto) {
+              phStatusChip.title = 'pH automation enabled';
+            } else {
+              phStatusChip.title = 'pH automation disabled';
+            }
           }
           var phHealth = document.getElementById('ov-ph-health'); 
           if (phHealth) { 
@@ -1613,6 +1625,10 @@ body{
               <div class="kpi-label">Targets</div>
               <div class="kpi-value" id="ph-band">5.8 – 6.2</div>
             </div>
+            <div class="kpi kpi-ph">
+              <div class="kpi-label">Learned</div>
+              <div class="kpi-value" id="ph-learned" title="Learned ml per 1.0 pH change">— ml/pH</div>
+            </div>
             <span id="ph-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
           </div>
 
@@ -1620,6 +1636,7 @@ body{
           <hr class="separator" style="margin:20px 0;" />
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-sm);">
             <div class="muted">Dose History</div>
+            <span id="ph-total-dosed" class="kpi-pill" style="display:none;font-size:var(--font-sm);padding:2px 8px;border-radius:12px;background:rgba(147,51,234,0.15);border:1px solid rgba(147,51,234,0.3);color:#c4b5fd;">Total: — ml</span>
           </div>
           <div id="ph-dose-chart-wrap" class="chart-card">
             <canvas id="phDoseChart"></canvas>
@@ -1630,6 +1647,7 @@ body{
           <!-- 4. Graph Controls (Standardized dropdown + always-visible datetime inputs) -->
           <div class="ph-dose-controls trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
             <select id="phDoseRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
+              <option value="1h" selected>Last Hour</option>
               <option value="24h">Last 24 Hours</option>
               <option value="7d">Last 7 Days</option>
               <option value="30d">Last 30 Days</option>
@@ -1649,9 +1667,16 @@ body{
 
           <!-- 5. Settings -->
 
-          <details style="margin-top:12px;">
+          <details style="margin-top:12px;" open>
             <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Parameters</summary>
             <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+              <!-- Live status chips showing current values -->
+              <div id="ph-params-live" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;font-size:11px;">
+                <span class="ui-status-chip neutral" id="phChipInitial" title="Initial micro-dose size">INITIAL: —</span>
+                <span class="ui-status-chip neutral" id="phChipInterval" title="Min seconds between doses">INTERVAL: —</span>
+                <span class="ui-status-chip neutral" id="phChipMaxDelta" title="Max predicted ΔpH per dose">MAXΔ: —</span>
+                <span class="ui-status-chip neutral" id="phChipStabilize" title="Stabilization wait time">STAB: —</span>
+              </div>
               <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure pH targets, dosing parameters, and alert thresholds.</div>
               <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                 <div>
@@ -1673,38 +1698,45 @@ body{
                   <input type="number" id="phAlertHigh" step="0.1" min="3.0" max="8.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
                 </div>
               </div>
+              <!-- pH dosing & safety parameters (merged) -->
               <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                 <div>
-                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Micro (ml)</label>
-                  <input type="number" id="phPulseMicro" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.0" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min Interval (s)</label>
+                  <input type="number" id="phMinInterval" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="300" />
                 </div>
                 <div>
-                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Grow (ml)</label>
-                  <input type="number" id="phPulseGrow" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.0" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Max Press (s)</label>
+                  <input type="number" id="phMaxPressSeconds" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="10" />
                 </div>
                 <div>
-                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Bloom (ml)</label>
-                  <input type="number" id="phPulseBloom" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.0" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Daily Cap (ml)</label>
+                  <input type="number" id="phDailyCapMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="380" />
                 </div>
               </div>
-              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
+              <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                 <div>
-                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">pH Up ml/s</label>
-                  <input type="number" id="phUpMlPerSec" step="0.01" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.83" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Stabilization (s)</label>
+                  <input type="number" id="phStabilizationWindow" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="300" />
                 </div>
                 <div>
-                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Mix delay (s)</label>
-                  <input type="number" id="phMixDelay" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Stable ΔpH</label>
+                  <input type="number" id="phStableDeltaThreshold" step="0.01" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.02" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Max ΔpH/Dose</label>
+                  <input type="number" id="phMaxPredictedDelta" step="0.01" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.5" />
                 </div>
               </div>
               <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:var(--space-md);align-items:end;">
                 <div>
-                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Max ml/hour</label>
-                  <input type="number" id="phMaxMlHour" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">pH Up ml/s</label>
+                  <input type="number" id="phUpMlPerSec" step="0.001" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.758" />
+                  <div class="muted" style="font-size:9px;margin-top:2px;">Calibrated flow rate</div>
                 </div>
                 <div>
-                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Max ml/day</label>
-                  <input type="number" id="phMaxMlDay" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0" />
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Initial Auto ml</label>
+                  <input type="number" id="phInitialMl" step="0.01" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.10" />
+                  <div class="muted" style="font-size:9px;margin-top:2px;">First auto dose when learner unknown</div>
                 </div>
               </div>
               <button id="btnSavePhSettings" class="btn-secondary btn-full">Save pH Settings</button>
@@ -2728,45 +2760,168 @@ function toggleRecentReadings(){
   }
 }
 
-// Camera: MJPEG streaming with fallback
+// Camera: robust MJPEG streaming with health-based mode switching
 (function initCameraStream(){
   const pill = document.getElementById('camera-status-pill');
   const img = document.getElementById('camera-stream');
   const overlay = document.getElementById('camera-overlay');
   const obj = document.getElementById('camera-object');
   
-  function refreshStatus(){
-    fetch('/camera/status').then(r=>r.json()).then(d=>{
-      if(pill) pill.textContent = d.available ? 'Status: streaming' : 'Status: unavailable';
-    }).catch(()=>{ if(pill) pill.textContent='Status: error'; });
+  // State management
+  let currentMode = 'none'; // 'none', 'snapshot', 'streaming'
+  let healthCheckInterval = null;
+  let lastHealthy = false;
+  let switchDebounce = 0; // Debounce counter to prevent flapping
+  
+  // Placeholder SVG as data URI (gray camera icon)
+  const PLACEHOLDER_SVG = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="200" height="150">' +
+    '<rect fill="#374151" width="100" height="100"/>' +
+    '<text x="50" y="55" text-anchor="middle" fill="#9ca3af" font-size="12">Camera Unavailable</text>' +
+    '</svg>'
+  );
+  
+  function updatePill(mode){
+    if(!pill) return;
+    const labels = { none: 'Status: unavailable', snapshot: 'Status: snapshot', streaming: 'Status: streaming' };
+    pill.textContent = labels[mode] || labels.none;
   }
   
-  function startStream(){
-    if(!img || !overlay) return;
+  function usePlaceholder(){
+    if(currentMode === 'none') return; // Already showing placeholder
+    currentMode = 'none';
+    if(obj){ obj.style.display = 'none'; obj.data = ''; }
+    if(img){ img.src = PLACEHOLDER_SVG; img.style.display = 'block'; }
+    if(overlay){ overlay.textContent = 'Camera Unavailable'; overlay.style.display = 'flex'; }
+    updatePill('none');
+  }
+  
+  function useSnapshot(){
+    if(currentMode === 'snapshot') return; // Already in snapshot mode
+    currentMode = 'snapshot';
+    if(obj){ obj.style.display = 'none'; obj.data = ''; }
+    if(img){ 
+      img.src = '/camera/snapshot.jpg?t=' + Date.now();
+      img.style.display = 'block';
+      img.onerror = function(){ usePlaceholder(); };
+    }
+    if(overlay){ overlay.style.display = 'none'; }
+    updatePill('snapshot');
+  }
+  
+  function useStream(){
+    if(currentMode === 'streaming') return; // Already streaming
+    currentMode = 'streaming';
     const streamUrl = '/camera/stream?t=' + Date.now();
-    
-    // Try <object> element first (best for MJPEG)
-    if(obj){
-      obj.data = streamUrl;
-      obj.style.display = 'block';
-      img.style.display = 'none';
-    } else {
-      // Fallback to <img>
+    // Use only img element - object element causes chunked encoding issues
+    if(obj){ obj.style.display = 'none'; obj.data = ''; }
+    if(img){
       img.src = streamUrl;
       img.style.display = 'block';
+      // Fallback to snapshot on stream error (prevents console errors)
+      img.onerror = function(){
+        console.log('[Camera] Stream error - falling back to snapshot');
+        switchDebounce = 3; // Prevent immediate retry
+        useSnapshot();
+      };
     }
-    
-    // Hide overlay after 2 seconds
-    setTimeout(() => {
-      if(overlay) overlay.style.display = 'none';
-    }, 2000);
+    if(overlay){ overlay.style.display = 'none'; }
+    updatePill('streaming');
   }
   
-  refreshStatus();
-  startStream();
+  function checkHealthAndSwitch(){
+    // Debounce: skip if recently switched
+    if(switchDebounce > 0){
+      switchDebounce--;
+      return;
+    }
+    
+    // First check availability
+    fetch('/camera/status', { method: 'GET' })
+      .then(r => r.json())
+      .then(st => {
+        if(!st || !st.available){
+          lastHealthy = false;
+          if(currentMode !== 'none') usePlaceholder();
+          return;
+        }
+        // Camera available - check stream health
+        return fetch('/camera/stream/health', { method: 'GET' })
+          .then(r => {
+            const healthy = (r.status === 204);
+            if(healthy && !lastHealthy){
+              // Became healthy - switch to stream after grace period
+              switchDebounce = 2; // Wait 2 cycles before streaming
+              lastHealthy = true;
+              useSnapshot(); // Use snapshot during grace period
+            } else if(healthy && lastHealthy && switchDebounce === 0){
+              // Consistently healthy - use stream
+              if(currentMode !== 'streaming') useStream();
+            } else if(!healthy){
+              // Unhealthy - use snapshot
+              lastHealthy = false;
+              if(currentMode === 'streaming'){
+                console.log('[Camera] Health check failed - switching to snapshot');
+                useSnapshot();
+              } else if(currentMode === 'none'){
+                useSnapshot();
+              }
+            }
+          })
+          .catch(() => {
+            lastHealthy = false;
+            if(currentMode === 'streaming') useSnapshot();
+          });
+      })
+      .catch(() => {
+        lastHealthy = false;
+        if(currentMode !== 'none') usePlaceholder();
+      });
+  }
+  
+  function startHealthPolling(){
+    if(healthCheckInterval) clearInterval(healthCheckInterval);
+    // Check health every 5 seconds
+    healthCheckInterval = setInterval(checkHealthAndSwitch, 5000);
+  }
+  
+  function stopHealthPolling(){
+    if(healthCheckInterval){
+      clearInterval(healthCheckInterval);
+      healthCheckInterval = null;
+    }
+  }
+  
+  // Initial setup
+  if(overlay){ overlay.textContent = 'Connecting...'; overlay.style.display = 'flex'; }
+  
+  // Initial health check and start polling
+  checkHealthAndSwitch();
+  startHealthPolling();
+  
+  // Pause polling when tab hidden, resume when visible
+  document.addEventListener('visibilitychange', function(){
+    if(document.hidden){
+      stopHealthPolling();
+      // Stop stream to prevent console errors in background
+      if(currentMode === 'streaming' && img){
+        img.src = PLACEHOLDER_SVG;
+        currentMode = 'none';
+      }
+    } else {
+      checkHealthAndSwitch();
+      startHealthPolling();
+    }
+  });
   
   // Expose camera control
-  window.cameraControl = { refreshStatus, startStream };
+  window.cameraControl = { 
+    checkHealth: checkHealthAndSwitch,
+    useSnapshot: useSnapshot,
+    useStream: useStream,
+    usePlaceholder: usePlaceholder,
+    getMode: function(){ return currentMode; }
+  };
 })();
 // Calibration functions moved into Settings > Calibration panel (settings.js)
 
@@ -2895,6 +3050,7 @@ window.CircControl = (function(){
             // Load polling_manager FIRST (core system), then range.js (date range utilities) BEFORE any controllers needing it.
             // Reordered: range.js immediately after core to satisfy rdwcRange dependency for pH & EC charts before sensors/ph/ec modules run.
           // Instrumented loader: log each script as it begins loading (sequence is synchronous via promises)
+          window.BUILD_COMMIT = '1764522441';
           return seq(['polling_manager.js','range.js','ph_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','trends.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .catch(function(){
