@@ -420,12 +420,19 @@ def ph_status():
         holding_reason = "auto_disabled"
     if _dose_lock.locked() and holding_reason is None:
         holding_reason = "cooldown"
-    # Surface safety-related parameters for UI transparency (no extra calculations)
+    # Surface safety-related parameters for UI transparency (canonical key set)
+    # Canonical pH automation safety keys (single source of truth):
+    #   dosing.ph_up_initial_ml
+    #   dosing.ph_min_interval_s
+    #   dosing.ph_max_predicted_delta_ph
+    #   dosing.ph_stabilization_window_s
+    #   dosing.ph_stabilization_delta_threshold
+    # Backward compatibility: fall back to legacy duplicate keys if canonical missing.
     initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
-    max_est_change = _settings_get_float("safety.max_estimated_ph_change", 0.5)
-    est_guard = (_settings_get("safety.estimated_change_guard", "true").lower() == "true")
-    stabilize_wait_s = _settings_get_int("dosing.stabilize_wait_s", 300)
-    stability_delta = _settings_get_float("dosing.stability_delta", 0.02)
+    max_est_change = _settings_get_float("dosing.ph_max_predicted_delta_ph", _settings_get_float("safety.max_estimated_ph_change", 0.5))
+    est_guard = (_settings_get("safety.estimated_change_guard", "true").lower() == "true")  # guard key retained in safety.* namespace
+    stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 300))
+    stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", _settings_get_float("dosing.stability_delta", 0.02))
     stability_samples = _settings_get_int("dosing.stability_samples", 3)
     return {
         "ph": ph_val,
@@ -513,9 +520,10 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
     """
     try:
         # Configuration
-        stabilize_wait_s = _settings_get_int("dosing.stabilize_wait_s", 300)  # 5 minutes default
-        stability_delta = _settings_get_float("dosing.stability_delta", 0.02)  # Max range for stable
-        stability_samples = _settings_get_int("dosing.stability_samples", 3)  # Number of samples to check
+        # Use canonical stabilization keys with fallback to legacy duplicates
+        stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 300))
+        stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", _settings_get_float("dosing.stability_delta", 0.02))
+        stability_samples = _settings_get_int("dosing.stability_samples", 3)  # sample count remained unchanged
         poll_interval = 10.0  # Poll every 10 seconds
         
         deadline = time.time() + max(0, max_wait_s)

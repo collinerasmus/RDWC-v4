@@ -1003,9 +1003,10 @@
       const safetyPairs = [
         ['phSafetyInputInitial','dosing.ph_up_initial_ml','0.01'],
         ['phSafetyInputInterval','dosing.ph_min_interval_s','900'],
-        ['phSafetyInputMaxDelta','safety.max_estimated_ph_change','0.5'],
-        ['phSafetyInputStabWait','dosing.stabilize_wait_s','300'],
-        ['phSafetyInputStabDelta','dosing.stability_delta','0.02'],
+        ['phSafetyInputMaxDelta','dosing.ph_max_predicted_delta_ph','0.5'],
+        ['phSafetyInputStabWait','dosing.ph_stabilization_window_s','300'],
+        ['phSafetyInputStabDelta','dosing.ph_stabilization_delta_threshold','0.02'],
+        // samples canonical key not previously defined - retain existing
         ['phSafetyInputStabSamples','dosing.stability_samples','3'],
         ['phSafetyInputEstGuard','safety.estimated_change_guard','true']
       ];
@@ -1316,9 +1317,9 @@
           const map = [
             ['phSafetyInputInitial','dosing.ph_up_initial_ml'],
             ['phSafetyInputInterval','dosing.ph_min_interval_s'],
-            ['phSafetyInputMaxDelta','safety.max_estimated_ph_change'],
-            ['phSafetyInputStabWait','dosing.stabilize_wait_s'],
-            ['phSafetyInputStabDelta','dosing.stability_delta'],
+            ['phSafetyInputMaxDelta','dosing.ph_max_predicted_delta_ph'],
+            ['phSafetyInputStabWait','dosing.ph_stabilization_window_s'],
+            ['phSafetyInputStabDelta','dosing.ph_stabilization_delta_threshold'],
             ['phSafetyInputStabSamples','dosing.stability_samples'],
             ['phSafetyInputEstGuard','safety.estimated_change_guard']
           ];
