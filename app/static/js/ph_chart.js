@@ -680,7 +680,7 @@
     init();
   }
 
-  // Auto-refresh when pH tab is active (every 5 seconds for live updates)
+  // Auto-refresh chart every 5 seconds for live updates
   let autoRefreshTimer = null;
   
   function startAutoRefresh() {
@@ -688,24 +688,20 @@
     
     console.log('[pH Chart] Starting auto-refresh (5s interval)');
     autoRefreshTimer = setInterval(() => {
-      // Only refresh if pH tab is active
-      const phTab = document.querySelector('#tabs-nav [data-tab="ph"]');
-      if (phTab && phTab.classList.contains('active')) {
-        // Use last known range, or default to 1h if not set
-        let currentStart = PH_CHART_STATE.lastStart;
-        let currentEnd = PH_CHART_STATE.lastEnd;
-        
-        // Fallback to 1h range if no previous range exists
-        if (!currentStart || !currentEnd) {
-          const now = new Date();
-          currentEnd = now.toISOString();
-          currentStart = new Date(now.getTime() - 3600*1000).toISOString();
-          console.log('[pH Chart] Auto-refresh using default 1h range');
-        }
-        
-        console.log('[pH Chart] Auto-refresh triggered');
-        phLoadRangeAndRender({ start: currentStart, end: currentEnd });
+      // Use last known range, or default to 1h if not set
+      let currentStart = PH_CHART_STATE.lastStart;
+      let currentEnd = PH_CHART_STATE.lastEnd;
+      
+      // Fallback to 1h range if no previous range exists
+      if (!currentStart || !currentEnd) {
+        const now = new Date();
+        currentEnd = now.toISOString();
+        currentStart = new Date(now.getTime() - 3600*1000).toISOString();
+        console.log('[pH Chart] Auto-refresh using default 1h range');
       }
+      
+      console.log('[pH Chart] Auto-refresh triggered');
+      phLoadRangeAndRender({ start: currentStart, end: currentEnd });
     }, 5000); // 5 second interval for responsive live updates
   }
   
