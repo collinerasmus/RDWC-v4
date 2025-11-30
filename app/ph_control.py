@@ -783,6 +783,21 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
         "result": "ok", "reason": ("maintenance_override; " + reason) if maint_override else (("force_bypass; " + reason) if (force_req and allow_force) else reason)
     })
 
+    # UNIFIED LOGGING: Also insert into dose_events table for unified analytics
+    # This ensures interval guard and UI see the dose in both tables
+    try:
+        dose_seconds = round(duration_ms / 1000.0, 3)
+        ts_unix = int(datetime.fromisoformat(ts_iso.replace('Z', '+00:00')).timestamp())
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            conn.execute(
+                """INSERT INTO dose_events (pump, ts, seconds, reason, blocked_by, pre_ph, pre_ec, post_ph)
+                   VALUES (?, ?, ?, ?, NULL, ?, NULL, NULL)""",
+                ("ph_up", ts_unix, dose_seconds, reason, pre_ph)
+            )
+            conn.commit()
+    except Exception as e:
+        print(f"[pH] Warning: Failed to insert into dose_events: {e}")
+
     # Schedule background observe to update post_ph with next sample (avoid request blocking)
     observe_s = max(1, min(1800, _settings_get_int("dosing.observe_s_after_dose", 600)))
     threading.Thread(target=_background_observe_and_update, args=(rowid, pre_ts, observe_s), daemon=True).start()

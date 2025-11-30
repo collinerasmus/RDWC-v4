@@ -56,7 +56,7 @@
   // Short-lived fast poll timer for immediate pump state feedback
   let fastPumpTimer = null;
   
-  let doseLogCollapsed = localStorage.getItem('ph_dose_log_collapsed') !== 'false'; // default hidden
+  let doseLogCollapsed = localStorage.getItem('ph_dose_log_collapsed') === 'true'; // default EXPANDED (not hidden)
 
   function el(id){ return document.getElementById(id); }
 
