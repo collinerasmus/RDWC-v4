@@ -782,10 +782,10 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
     Returns a conservative default if not enough data.
     """
     baseline = _settings_get_float("dosing.ec_baseline_min", 0.2)
-    # SAFETY: Use realistic default for ~100L reservoir with standard pH Up concentration
-    # 0.1 was too strong (meant 0.1ml would raise pH by 1.0, causing overdose blocks)
-    # 5.0 ml/pH means 5ml needed to raise pH by 1.0 in typical hydro setup
-    default_ml_per_pH = _settings_get_float("dosing.ph_up_ml_per_pH_default", 5.0)  # 5.0 ml per 1.0 pH (realistic)
+    # SAFETY: User's system spec: 1ml pH Up solution = roughly 1 pH unit change
+    # Concentration is calibrated to the specific reservoir size
+    # This is the default used for learning when no historical data exists
+    default_ml_per_pH = _settings_get_float("dosing.ph_up_ml_per_pH_default", 1.0)  # User spec: 1ml = 1 pH
     try:
         with sqlite3.connect(str(DB_PATH)) as conn:
             cur = conn.cursor()
@@ -985,9 +985,9 @@ def _auto_loop():
                         # Safe initial micro-dose when learner unknown/default
                         initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
                         est_val = _estimate_ml_per_pH(_get_latest_ec()[0])
-                        # SAFETY: Treat default (0.1) as unknown and use initial micro-dose
-                        # Also treat values <= 0.1 as unreliable (need more learning data)
-                        safe_default = _settings_get_float("dosing.ph_up_ml_per_pH_default", 0.1)
+                        # SAFETY: If learned value equals default (1.0), treat as "no learning yet" and use micro-dose
+                        # Also treat values <= 1.0 as indicating more learning needed
+                        safe_default = _settings_get_float("dosing.ph_up_ml_per_pH_default", 1.0)
                         if est_val is None or est_val <= safe_default or abs(est_val - safe_default) < 1e-6:
                             ml = initial_ml
                         else:
