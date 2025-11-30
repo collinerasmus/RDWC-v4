@@ -420,6 +420,13 @@ def ph_status():
         holding_reason = "auto_disabled"
     if _dose_lock.locked() and holding_reason is None:
         holding_reason = "cooldown"
+    # Surface safety-related parameters for UI transparency (no extra calculations)
+    initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
+    max_est_change = _settings_get_float("safety.max_estimated_ph_change", 0.5)
+    est_guard = (_settings_get("safety.estimated_change_guard", "true").lower() == "true")
+    stabilize_wait_s = _settings_get_int("dosing.stabilize_wait_s", 300)
+    stability_delta = _settings_get_float("dosing.stability_delta", 0.02)
+    stability_samples = _settings_get_int("dosing.stability_samples", 3)
     return {
         "ph": ph_val,
         "ts": ts,
@@ -430,6 +437,16 @@ def ph_status():
         "remaining_cooldown_s": remaining,
         "maintenance_override": maint_override,
         "last_dose_ts": int(last_ok.timestamp()) if last_ok else None,
+        "safety": {
+            "initial_ml": initial_ml,
+            "estimated_change_guard": est_guard,
+            "max_estimated_delta_ph": max_est_change,
+            "stabilization": {
+                "wait_s": stabilize_wait_s,
+                "delta": stability_delta,
+                "samples": stability_samples,
+            }
+        }
     }
 
 
