@@ -243,6 +243,11 @@
         console.error('[pH Chart] ❌ Canvas #phDoseChart not found!');
         return;
       }
+      // Fixed pH axis range for stability (prevents y-axis jumping)
+      // Hydroponic systems typically operate in 4.0-8.0 range
+      const phMin = 4.0;
+      const phMax = 8.0;
+      console.log('[pH Chart] Using fixed y-axis range:', phMin, '-', phMax);
 
       var hasPhReadings = phReadings && phReadings.length > 0;
       var hasDoseData = datasets && datasets.some(function(ds) { return (ds.data||[]).length > 0; });
@@ -281,9 +286,7 @@
         return;
       }
 
-      // Fixed pH axis range (4.0-8.0) for hydroponic systems
-      // Using fixed range prevents y-axis jumping when switching time windows or when data changes
-      var phMin = 4.0, phMax = 8.0;
+      // Using previously declared fixed pH axis range (phMin, phMax)
 
     // Build annotations
     var annotations = {};
