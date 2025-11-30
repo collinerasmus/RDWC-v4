@@ -100,7 +100,7 @@ DEFAULTS: Dict[str, str] = {
     "dosing.ec_baseline_min": "0.2",
     # Initial micro-dose used when learner has not produced a refined ml/pH estimate yet
     # Ensures first automated correction is a very small, safe amount
-    "dosing.ph_up_initial_ml": "0.1",
+    "dosing.ph_up_initial_ml": "0.5",  # 0.5ml initial dose when learned value is unknown
 
     # EC automation
     # NOTE: ec.auto_enabled is DEPRECATED - use controls.ec_auto via auto_control.py

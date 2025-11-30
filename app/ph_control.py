@@ -599,9 +599,9 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
     # Block if estimated pH change exceeds threshold (default 0.5 pH)
     # This helps prevent overdosing when concentration is high or reservoir is small
     # Constants for the guard
-    # SAFETY: Use conservative default of 0.1 ml/pH (forces micro-dose path when learner is unknown)
-    # 50.0 was dangerously high and could cause massive overdoses
-    DEFAULT_ML_PER_PH_FALLBACK = 0.1  # Conservative default ml per 1.0 pH if no learned value
+    # SAFETY: Realistic default for typical hydro setup (~100L, standard pH Up)
+    # 0.1 was too strong (would block even tiny doses thinking they'd cause 1.0 pH swings)
+    DEFAULT_ML_PER_PH_FALLBACK = 5.0  # Realistic default: 5ml per 1.0 pH change
     MIN_ML_PER_PH = 0.01  # Minimum divisor to prevent division by zero
     
     pre_ph_for_check, _ = _get_latest_ph()
@@ -782,9 +782,10 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
     Returns a conservative default if not enough data.
     """
     baseline = _settings_get_float("dosing.ec_baseline_min", 0.2)
-    # SAFETY: Use conservative default of 0.1 ml/pH (forces micro-dose path when learner is unknown)
-    # 50.0 was dangerously high and could cause massive overdoses
-    default_ml_per_pH = _settings_get_float("dosing.ph_up_ml_per_pH_default", 0.1)  # 0.1 ml per 1.0 pH (conservative)
+    # SAFETY: Use realistic default for ~100L reservoir with standard pH Up concentration
+    # 0.1 was too strong (meant 0.1ml would raise pH by 1.0, causing overdose blocks)
+    # 5.0 ml/pH means 5ml needed to raise pH by 1.0 in typical hydro setup
+    default_ml_per_pH = _settings_get_float("dosing.ph_up_ml_per_pH_default", 5.0)  # 5.0 ml per 1.0 pH (realistic)
     try:
         with sqlite3.connect(str(DB_PATH)) as conn:
             cur = conn.cursor()
