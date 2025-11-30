@@ -187,13 +187,19 @@ def migrate_from_legacy():
             set_global_auto_enabled(True)
             logger.info("Migrated unified_mode=auto → global_auto=true")
         
-        # Migrate old per-controller auto_enabled settings
+        # Migrate old per-controller auto_enabled settings ONLY if new key doesn't exist
+        # This prevents overwriting user's safety actions (e.g., manual disable)
         for ctrl in CONTROLLERS:
             old_key = f"{ctrl}.auto_enabled"
-            old_val = get_setting_key(old_key, "false")
-            if old_val and old_val.lower() == "true":
-                set_controller_auto_enabled(ctrl, True)
-                logger.info(f"Migrated {old_key}=true → {ctrl}_auto=true")
+            new_key = f"controls.{ctrl}_auto"
+            # Check if new key already exists
+            existing = conn.execute("SELECT 1 FROM settings WHERE key=?", (new_key,)).fetchone()
+            if not existing:
+                # Safe to migrate from old key
+                old_val = get_setting_key(old_key, "false")
+                if old_val and old_val.lower() == "true":
+                    set_controller_auto_enabled(ctrl, True)
+                    logger.info(f"Migrated {old_key}=true → {ctrl}_auto=true")
         
         # Set circulation and lights to auto_enabled=true if not explicitly set
         # (They are schedule-driven and always safe to automate)

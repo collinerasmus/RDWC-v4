@@ -794,6 +794,7 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
                 SELECT ts_utc, volume_ml, pre_ph, post_ph
                 FROM ph_dose_log
                 WHERE result='ok' AND volume_ml IS NOT NULL AND pre_ph IS NOT NULL AND post_ph IS NOT NULL
+                  AND (reason IS NULL OR reason NOT LIKE '%unsettled%')
                 ORDER BY id DESC LIMIT 50
                 """
             )
@@ -823,8 +824,8 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
                 continue
         if total_dpH > 0.02 and total_ml > 0:
             est = float(total_ml / total_dpH)  # ml for 1.0 pH
-            # Clamp to [5,100] ml per 1.0 pH (0.5–10 per 0.1 pH)
-            est = max(5.0, min(100.0, est))
+            # Clamp to [1.0,100] ml per 1.0 pH (user spec: 1ml = 1 pH unit)
+            est = max(1.0, min(100.0, est))
             return est
     except Exception:
         pass

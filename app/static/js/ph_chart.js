@@ -680,32 +680,35 @@
     init();
   }
 
-  // Auto-refresh chart every 5 seconds for live updates with rolling time window
+  // Auto-refresh chart every 5 seconds for live updates
+  // User-selected ranges are preserved (no rolling). Only default 1h range auto-rolls.
   let autoRefreshTimer = null;
+  let isUserSelectedRange = false; // Track if user manually changed range
   
   function startAutoRefresh() {
     if (autoRefreshTimer) return; // Already running
     
     console.log('[pH Chart] Starting auto-refresh (5s interval)');
     autoRefreshTimer = setInterval(() => {
-      // Calculate rolling window: keep same span but always end at "now"
       let currentStart = PH_CHART_STATE.lastStart;
       let currentEnd = PH_CHART_STATE.lastEnd;
       
-      // Calculate the time span from the last range
-      let spanMs = 3600*1000; // Default to 1 hour
-      if (currentStart && currentEnd) {
+      // Only roll window forward if range was NOT manually selected by user
+      if (!isUserSelectedRange && currentStart && currentEnd) {
         const startMs = new Date(currentStart).getTime();
         const endMs = new Date(currentEnd).getTime();
-        spanMs = endMs - startMs;
+        const spanMs = endMs - startMs;
+        
+        // Roll forward: keep span, move to "now"
+        const now = new Date();
+        currentEnd = now.toISOString();
+        currentStart = new Date(now.getTime() - spanMs).toISOString();
+        console.log('[pH Chart] Auto-refresh with rolling window');
+      } else {
+        // User selected a range - just refresh data within that fixed window
+        console.log('[pH Chart] Auto-refresh with fixed user range');
       }
       
-      // Roll the window forward to "now"
-      const now = new Date();
-      currentEnd = now.toISOString();
-      currentStart = new Date(now.getTime() - spanMs).toISOString();
-      
-      console.log('[pH Chart] Auto-refresh with rolling window');
       phLoadRangeAndRender({ start: currentStart, end: currentEnd });
     }, 5000); // 5 second interval for responsive live updates
   }
