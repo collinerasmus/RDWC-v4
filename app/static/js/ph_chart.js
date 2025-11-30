@@ -680,7 +680,7 @@
     init();
   }
 
-  // Auto-refresh chart every 5 seconds for live updates
+  // Auto-refresh chart every 5 seconds for live updates with rolling time window
   let autoRefreshTimer = null;
   
   function startAutoRefresh() {
@@ -688,19 +688,24 @@
     
     console.log('[pH Chart] Starting auto-refresh (5s interval)');
     autoRefreshTimer = setInterval(() => {
-      // Use last known range, or default to 1h if not set
+      // Calculate rolling window: keep same span but always end at "now"
       let currentStart = PH_CHART_STATE.lastStart;
       let currentEnd = PH_CHART_STATE.lastEnd;
       
-      // Fallback to 1h range if no previous range exists
-      if (!currentStart || !currentEnd) {
-        const now = new Date();
-        currentEnd = now.toISOString();
-        currentStart = new Date(now.getTime() - 3600*1000).toISOString();
-        console.log('[pH Chart] Auto-refresh using default 1h range');
+      // Calculate the time span from the last range
+      let spanMs = 3600*1000; // Default to 1 hour
+      if (currentStart && currentEnd) {
+        const startMs = new Date(currentStart).getTime();
+        const endMs = new Date(currentEnd).getTime();
+        spanMs = endMs - startMs;
       }
       
-      console.log('[pH Chart] Auto-refresh triggered');
+      // Roll the window forward to "now"
+      const now = new Date();
+      currentEnd = now.toISOString();
+      currentStart = new Date(now.getTime() - spanMs).toISOString();
+      
+      console.log('[pH Chart] Auto-refresh with rolling window');
       phLoadRangeAndRender({ start: currentStart, end: currentEnd });
     }, 5000); // 5 second interval for responsive live updates
   }
