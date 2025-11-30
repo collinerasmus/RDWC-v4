@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- BUILD_COMMIT: 1764513764 -->
+<!-- BUILD_COMMIT: 1764516250 -->
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -1667,9 +1667,16 @@ body{
 
           <!-- 5. Settings -->
 
-          <details style="margin-top:12px;">
+          <details style="margin-top:12px;" open>
             <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Parameters</summary>
             <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+              <!-- Live status chips showing current values -->
+              <div id="ph-params-live" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;font-size:11px;">
+                <span class="ui-status-chip neutral" id="phChipInitial" title="Initial micro-dose size">INITIAL: —</span>
+                <span class="ui-status-chip neutral" id="phChipInterval" title="Min seconds between doses">INTERVAL: —</span>
+                <span class="ui-status-chip neutral" id="phChipMaxDelta" title="Max predicted ΔpH per dose">MAXΔ: —</span>
+                <span class="ui-status-chip neutral" id="phChipStabilize" title="Stabilization wait time">STAB: —</span>
+              </div>
               <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure pH targets, dosing parameters, and alert thresholds.</div>
               <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                 <div>
@@ -2920,7 +2927,7 @@ window.CircControl = (function(){
             // Load polling_manager FIRST (core system), then range.js (date range utilities) BEFORE any controllers needing it.
             // Reordered: range.js immediately after core to satisfy rdwcRange dependency for pH & EC charts before sensors/ph/ec modules run.
           // Instrumented loader: log each script as it begins loading (sequence is synchronous via promises)
-          window.BUILD_COMMIT = '1764513764';
+          window.BUILD_COMMIT = '1764516250';
           return seq(['polling_manager.js','range.js','ph_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','trends.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .catch(function(){
