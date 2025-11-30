@@ -377,6 +377,13 @@
   async function tick(){
     const s = await fetchStatus();
     renderStatus(s||{});
+    // Refresh chart on each polling tick (not just on init/manual)
+    // This ensures live updates as sensor readings change
+    try {
+      await refreshDoseChart();
+    } catch(e) {
+      console.debug('[pH] Chart refresh during tick skipped:', e?.message);
+    }
   }
 
   function schedule(){ /* legacy no-op; pollingManager now owns cadence */ }

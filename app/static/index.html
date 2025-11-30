@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- BUILD_COMMIT: 1764462178 -->
+<!-- BUILD_COMMIT: 1764463303 -->
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -770,7 +770,7 @@ body{
   <!-- Top-level Tabs Navigation -->
   <nav id="tabs-nav" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px 0;padding-bottom:4px;" aria-label="Primary sections">
     <span id="controllers-status-live" aria-live="polite"></span>
-    <span id="build-commit-chip" class="ui-status-chip neutral" title="Frontend build commit" style="margin-right:8px;">commit: 1764438922</span>
+    <span id="build-commit-chip" class="ui-status-chip neutral" title="Frontend build commit" style="margin-right:8px;">commit: 1764463303</span>
   <button class="btn-chip ctrl-with-dot" data-tab="overview" aria-label="Overview">
     <span class="ctrl-label">📊 Overview</span>
     <span class="ctrl-health-dot" data-controller="overview" aria-label="Overview status"></span>
@@ -2920,7 +2920,7 @@ window.CircControl = (function(){
             // Load polling_manager FIRST (core system), then range.js (date range utilities) BEFORE any controllers needing it.
             // Reordered: range.js immediately after core to satisfy rdwcRange dependency for pH & EC charts before sensors/ph/ec modules run.
           // Instrumented loader: log each script as it begins loading (sequence is synchronous via promises)
-          window.BUILD_COMMIT = '1764462178';
+          window.BUILD_COMMIT = '1764463303';
           return seq(['polling_manager.js','range.js','ph_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','trends.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .catch(function(){
