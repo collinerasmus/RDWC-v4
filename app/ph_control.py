@@ -1094,6 +1094,60 @@ def ph_auto_learn_reset():
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 
+@router.post("/api/ph/auto/reset_to_safe_defaults")
+def ph_auto_reset_to_safe_defaults():
+    """Reset ALL pH dosing settings to safe conservative defaults.
+    
+    This updates the database settings to use:
+    - initial_ml: 0.01 (was 0.1 - too aggressive for some systems)
+    - min_interval_s: 900 (15 minutes between doses)
+    - ml_per_pH_default: 1.0 (conservative starting estimate)
+    
+    Also clears the learned estimator to force fresh learning.
+    
+    Call this after the system has been over-dosing to reset to safe values.
+    """
+    try:
+        from app.settings import upsert_settings
+        
+        # Set safe conservative defaults
+        safe_settings = {
+            "dosing.ph_up_initial_ml": "0.01",        # Ultra-conservative 0.01ml initial dose
+            "dosing.ph_min_interval_s": "900",         # 15 minutes between doses
+            "dosing.ph_up_ml_per_pH_default": "1.0",   # 1ml per 1 pH unit (will be learned)
+            "dosing.ph_stabilization_window_s": "300", # 5 minutes to stabilize
+            "dosing.ph_max_predicted_delta_ph": "0.3", # Max 0.3 pH change per dose
+        }
+        
+        upsert_settings(safe_settings)
+        
+        # Also clear the learned estimator
+        ts_now = datetime.now(timezone.utc).isoformat()
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            conn.execute("UPDATE ph_dose_log SET post_ph = NULL WHERE result = 'ok'")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS system_state (
+                    key TEXT PRIMARY KEY,
+                    value TEXT,
+                    updated_at TEXT
+                )
+            """)
+            conn.execute(
+                "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES (?, ?, ?)",
+                ("ph_learner_reset_ts", ts_now, ts_now)
+            )
+            conn.commit()
+        
+        return {
+            "ok": True, 
+            "message": "Reset to safe defaults and cleared learned estimator",
+            "settings_applied": safe_settings,
+            "reset_at": ts_now
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
 @router.get("/api/ph/auto/debug")
 def ph_auto_debug():
     """Compact introspection endpoint for automation state."""
