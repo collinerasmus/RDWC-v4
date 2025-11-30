@@ -8,6 +8,9 @@
   // Module state
   let PH_CHART = null;
   let PH_CHART_STATE = { lastStart: null, lastEnd: null, lastCount: 0 };
+  // Rolling window & user range selection flags (defined early so all functions can reference)
+  let USER_RANGE_SELECTED = false;
+  let ROLLING_STATE = { active: true, initialized: false, spanMs: 3600*1000, endMs: Date.now() };
 
   // Constants
   const MIN_PUMP_BAR_WIDTH_MS = 5000; // Minimum 5 seconds width for pump event visibility
@@ -66,6 +69,16 @@
       pumpEventsCount: pumpEvents?.length,
       hasSchedule: !!schedule
     });
+
+    // If rolling state is active and initialized and user has NOT selected a fixed range,
+    // enforce monotonic window regardless of incoming timeMin/timeMax to prevent back jumps.
+    if (ROLLING_STATE.initialized && ROLLING_STATE.active && !USER_RANGE_SELECTED) {
+      const enforcedMax = new Date(ROLLING_STATE.endMs);
+      const enforcedMin = new Date(ROLLING_STATE.endMs - ROLLING_STATE.spanMs);
+      timeMin = enforcedMin;
+      timeMax = enforcedMax;
+      console.log('[pH Chart] ⏩ Enforcing monotonic window', { enforcedMin, enforcedMax });
+    }
     
     const el = document.getElementById('phDoseChart');
     const empty = document.getElementById('ph-dose-empty');
@@ -683,16 +696,14 @@
   // Auto-refresh chart every 10 seconds for smoother, less erratic shifts
   // User-selected ranges are preserved (no rolling). Only default 1h range auto-rolls.
   let autoRefreshTimer = null;
-  let isUserSelectedRange = false; // Track if user manually changed range
-  // Maintain a monotonic rolling window to prevent left-right oscillation
-  const ROLLING_STATE = { active: true, initialized: false, spanMs: 3600*1000, endMs: Date.now() };
+  // ROLLING_STATE & USER_RANGE_SELECTED declared at top
   
   function startAutoRefresh() {
     if (autoRefreshTimer) return; // Already running
     
     console.log('[pH Chart] Starting auto-refresh (10s interval)');
     // Initialize rolling span once from current state
-    if (!ROLLING_STATE.initialized) {
+      if (!ROLLING_STATE.initialized) {
       const ls = PH_CHART_STATE?.lastStart;
       const le = PH_CHART_STATE?.lastEnd;
       if (ls && le) {
@@ -710,7 +721,7 @@
       let startISO = PH_CHART_STATE.lastStart;
       let endISO = PH_CHART_STATE.lastEnd;
 
-      if (!isUserSelectedRange && ROLLING_STATE.active) {
+      if (!USER_RANGE_SELECTED && ROLLING_STATE.active) {
         // Monotonic advance: prefer steady cadence, never go backwards
         const stepMs = 10000; // 10s
         ROLLING_STATE.endMs = Math.max(ROLLING_STATE.endMs + stepMs, Date.now());
