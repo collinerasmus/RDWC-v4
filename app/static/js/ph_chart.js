@@ -680,7 +680,7 @@
     init();
   }
 
-  // Auto-refresh chart every 5 seconds for live updates
+  // Auto-refresh chart every 10 seconds for smoother, less erratic shifts
   // User-selected ranges are preserved (no rolling). Only default 1h range auto-rolls.
   let autoRefreshTimer = null;
   let isUserSelectedRange = false; // Track if user manually changed range
@@ -688,7 +688,7 @@
   function startAutoRefresh() {
     if (autoRefreshTimer) return; // Already running
     
-    console.log('[pH Chart] Starting auto-refresh (5s interval)');
+    console.log('[pH Chart] Starting auto-refresh (10s interval)');
     autoRefreshTimer = setInterval(() => {
       let currentStart = PH_CHART_STATE.lastStart;
       let currentEnd = PH_CHART_STATE.lastEnd;
@@ -710,7 +710,7 @@
       }
       
       phLoadRangeAndRender({ start: currentStart, end: currentEnd });
-    }, 5000); // 5 second interval for responsive live updates
+    }, 10000); // 10 second interval for smoother live updates matching sensors chart cadence
   }
   
   function stopAutoRefresh() {
