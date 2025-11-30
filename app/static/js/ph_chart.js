@@ -7,9 +7,11 @@
 
   //==========================================================================
   // ChartController - Consolidated state management for pH chart
+  // STABILITY FIXES: Single owner of chart state, mutex for renders,
+  // cached data to prevent flicker, locked legend config
   //==========================================================================
   const ChartController = {
-    // Core chart instance
+    // Core chart instance - SINGLE OWNER
     chart: null,
     
     // Chart state
@@ -26,25 +28,53 @@
     // User range selection
     userRangeSelected: false,
     
-    // Prevent concurrent renders
-    isRendering: false,
-    renderQueued: false,
+    // Render mutex - prevents ALL concurrent render operations
+    renderMutex: false,
+    pendingRender: null,
     
-    // Last datasets cache to prevent empty data flicker
-    lastDatasets: null,
-    lastPhReadings: null,
+    // Data cache to prevent empty flicker on transient API failures
+    cachedPhReadings: null,
+    cachedDoseEvents: null,
+    cachedTargets: null,
+    cachedCurrentPH: null,
     
     // Visibility state for tab throttling
     isVisible: true,
+    
+    // Debounce tracking
+    lastRenderTime: 0,
+    
+    // Locked legend configuration - never changes
+    LEGEND_CONFIG: {
+      display: true,
+      position: 'top',
+      labels: { usePointStyle: true, boxWidth: 10, padding: 12 }
+    },
     
     // Constants
     REFRESH_INTERVAL_MS: 10000,
     ROLLING_DEFAULT_SPAN_MS: 3600 * 1000,
     MIN_PUMP_BAR_WIDTH_MS: 5000,
+    MIN_RENDER_INTERVAL_MS: 3000, // Minimum time between renders
     
     // Round timestamp to nearest refresh boundary (prevents micro jitter)
     roundTs(ts) {
       return Math.floor(ts / this.REFRESH_INTERVAL_MS) * this.REFRESH_INTERVAL_MS;
+    },
+    
+    // Acquire render mutex - returns true if acquired, false if already held
+    acquireMutex() {
+      if (this.renderMutex) {
+        console.log('[pH Chart] Render blocked (mutex held)');
+        return false;
+      }
+      this.renderMutex = true;
+      return true;
+    },
+    
+    // Release render mutex
+    releaseMutex() {
+      this.renderMutex = false;
     },
     
     // Persist state to localStorage
@@ -171,21 +201,28 @@
   }
 
   /**
-   * Build or update the pH chart - STABLE VERSION
+   * Build or update the pH chart - STABLE VERSION v2
    * Key stability features:
-   * - Never destroy/recreate chart if in-place update works
-   * - Cache last datasets to prevent empty data flicker
-   * - Preserve legend configuration on every update
-   * - Prevent concurrent render operations
+   * - Mutex prevents ALL concurrent render operations
+   * - Cache valid data, never show empty on transient errors
+   * - Locked legend config - never modified during updates
+   * - Debounce rapid calls
+   * - Single in-place update path, minimize chart rebuilds
    */
   function phBuildChart(datasets, timeMin, timeMax, currentPH, targets, phReadings, pumpEvents, schedule) {
-    // Prevent concurrent renders
-    if (ChartController.isRendering) {
-      ChartController.renderQueued = true;
-      console.log('[pH Chart] Render queued (previous still running)');
+    // Acquire mutex - strict single execution
+    if (!ChartController.acquireMutex()) {
+      return; // Another render in progress, skip this one
+    }
+    
+    // Debounce check - prevent rapid-fire renders
+    const now = Date.now();
+    if (now - ChartController.lastRenderTime < ChartController.MIN_RENDER_INTERVAL_MS) {
+      console.log('[pH Chart] Debounced (too fast)');
+      ChartController.releaseMutex();
       return;
     }
-    ChartController.isRendering = true;
+    ChartController.lastRenderTime = now;
     
     try {
       // If rolling mode active, enforce monotonic window
@@ -210,18 +247,29 @@
       var hasPhReadings = phReadings && phReadings.length > 0;
       var hasDoseData = datasets && datasets.some(function(ds) { return (ds.data||[]).length > 0; });
       var hasPumpEvents = pumpEvents && pumpEvents.length > 0;
-      var hasData = hasPhReadings || hasDoseData || hasPumpEvents;
       
-      // Cache datasets to prevent empty data flicker on transient API errors
-      if (hasPhReadings || (phReadings && phReadings.length > 0)) {
-        ChartController.lastPhReadings = phReadings;
-      } else if (ChartController.lastPhReadings && ChartController.lastPhReadings.length > 0) {
-        // Use cached data if new fetch returned empty
-        phReadings = ChartController.lastPhReadings;
+      // STABILITY: Cache valid data - never show empty on transient errors
+      if (hasPhReadings) {
+        ChartController.cachedPhReadings = phReadings;
+      } else if (ChartController.cachedPhReadings && ChartController.cachedPhReadings.length > 0) {
+        phReadings = ChartController.cachedPhReadings;
         hasPhReadings = true;
-        hasData = true;
-        console.log('[pH Chart] Using cached pH readings (empty fetch fallback)');
+        console.log('[pH Chart] Using cached pH readings');
       }
+      
+      if (currentPH != null && !isNaN(currentPH)) {
+        ChartController.cachedCurrentPH = currentPH;
+      } else if (ChartController.cachedCurrentPH != null) {
+        currentPH = ChartController.cachedCurrentPH;
+      }
+      
+      if (targets && targets.low != null) {
+        ChartController.cachedTargets = targets;
+      } else if (ChartController.cachedTargets) {
+        targets = ChartController.cachedTargets;
+      }
+      
+      var hasData = hasPhReadings || hasDoseData || hasPumpEvents;
       
       if (empty) {
         empty.style.display = hasData ? 'none' : 'block';
@@ -439,13 +487,9 @@
       };
     }
 
-    // Build plugins config
+    // Build plugins config - LOCKED LEGEND: use frozen config, never modify
     var pluginsConfig = {
-      legend: { 
-        display: true,
-        position: 'top',
-        labels: { usePointStyle: true, boxWidth: 10, padding: 12 }
-      },
+      legend: JSON.parse(JSON.stringify(ChartController.LEGEND_CONFIG)), // Deep copy
       tooltip: {
         enabled: true,
         callbacks: {
@@ -471,10 +515,10 @@
       pluginsConfig.annotation = { annotations: annotations };
     }
 
-    // In-place update if chart exists - STABLE: never destroy on transient errors
-    if (ChartController.chart) {
+    // STABILITY: In-place update ONLY if chart exists and is valid
+    if (ChartController.chart && ChartController.chart.canvas) {
       try {
-        // Update datasets
+        // Directly update datasets array
         ChartController.chart.data.datasets = dsUse;
         
         // Update x-axis bounds
@@ -487,12 +531,12 @@
         ChartController.chart.options.scales.yPh.min = phMin;
         ChartController.chart.options.scales.yPh.max = phMax;
         
-        // Ensure yDose axis exists/is updated if needed
+        // Ensure yDose axis exists if needed
         if (hasDoseAxis && !ChartController.chart.options.scales.yDose) {
           ChartController.chart.options.scales.yDose = scales.yDose;
         }
         
-        // Update annotations preserving plugin structure
+        // Update annotations - preserve structure
         if (ANNOTATION_AVAILABLE) {
           if (!ChartController.chart.options.plugins.annotation) {
             ChartController.chart.options.plugins.annotation = { annotations: annotations };
@@ -501,35 +545,24 @@
           }
         }
         
-        // Preserve legend - ensure it's always visible and stable
-        if (ChartController.chart.options.plugins.legend) {
-          ChartController.chart.options.plugins.legend.display = true;
-          ChartController.chart.options.plugins.legend.position = 'top';
-        }
+        // LOCKED LEGEND: Force legend config on every update
+        ChartController.chart.options.plugins.legend = JSON.parse(JSON.stringify(ChartController.LEGEND_CONFIG));
         
         // Update without animation to prevent flicker
         ChartController.chart.update('none');
-        console.log('[pH Chart] ♻ In-place chart update');
+        console.log('[pH Chart] ♻ In-place update');
         return;
       } catch(updateErr) {
-        console.warn('[pH Chart] In-place update failed:', updateErr);
-        // Don't destroy on first error - try one more update
+        console.warn('[pH Chart] In-place update failed, rebuilding:', updateErr.message);
+        // Destroy and rebuild
         try {
-          ChartController.chart.update('none');
-          console.log('[pH Chart] ♻ Recovery update succeeded');
-          return;
-        } catch(e) {
-          // Only destroy if recovery also fails
-          console.warn('[pH Chart] Recovery failed, rebuilding chart');
-          if (typeof ChartController.chart.destroy === 'function') {
-            ChartController.chart.destroy();
-          }
-          ChartController.chart = null;
-        }
+          ChartController.chart.destroy();
+        } catch(e) { /* ignore */ }
+        ChartController.chart = null;
       }
     }
     
-    // Create new chart
+    // Create new chart (only when necessary)
     try {
       ChartController.chart = new Chart(ctx, {
         type: 'line',
@@ -545,21 +578,14 @@
         }
       });
       
-      console.log('[pH Chart] ✅ Chart created successfully');
+      console.log('[pH Chart] ✅ Chart created');
     } catch (chartErr) {
       console.error('[pH Chart] ❌ Chart creation FAILED:', chartErr);
     }
     
     } finally {
-      // Release render lock
-      ChartController.isRendering = false;
-      
-      // Process queued render if any
-      if (ChartController.renderQueued) {
-        ChartController.renderQueued = false;
-        console.log('[pH Chart] Processing queued render');
-        // Don't immediately re-render - let next tick handle it
-      }
+      // Always release mutex
+      ChartController.releaseMutex();
     }
   }
 
@@ -826,7 +852,6 @@
 
   // Auto-refresh management with visibility handling
   var autoRefreshTimer = null;
-  var lastRefreshTime = 0;
   
   function startAutoRefresh() {
     if (autoRefreshTimer) return;
@@ -848,33 +873,29 @@
     }
 
     autoRefreshTimer = setInterval(function() {
-      // Skip if tab is hidden (browser throttles anyway, but this prevents data fetch)
+      // Skip if tab is hidden
       if (!ChartController.isVisible) {
-        console.log('[pH Chart] Skipping refresh (tab hidden)');
         return;
       }
       
-      // Debounce: skip if last refresh was too recent (prevents double updates)
-      var now = Date.now();
-      if (now - lastRefreshTime < 5000) {
-        console.log('[pH Chart] Skipping refresh (debounced)');
+      // Skip if mutex is held (another render in progress)
+      if (ChartController.renderMutex) {
+        console.log('[pH Chart] Auto-refresh skipped (render in progress)');
         return;
       }
-      lastRefreshTime = now;
       
       var startISO = ChartController.state.lastStart;
       var endISO = ChartController.state.lastEnd;
 
       if (!ChartController.userRangeSelected && ChartController.rolling.active) {
-        // Monotonic advance with clock regression defense
+        // Monotonic advance with strict guarantee
         var nowRounded = ChartController.roundTs(Date.now());
         var stepMs = ChartController.REFRESH_INTERVAL_MS;
         var nextEnd = ChartController.rolling.endMs + stepMs;
         
-        // Never regress - strict monotonic guarantee
+        // Never regress - strict monotonic
         var newEndMs = Math.max(nextEnd, nowRounded, ChartController.rolling.endMs);
         
-        // Only update if we're actually moving forward
         if (newEndMs > ChartController.rolling.endMs) {
           ChartController.rolling.endMs = newEndMs;
         }
@@ -901,16 +922,20 @@
   document.addEventListener('visibilitychange', function() {
     ChartController.isVisible = !document.hidden;
     if (document.hidden) {
-      console.log('[pH Chart] Tab hidden - pausing updates');
+      console.log('[pH Chart] Tab hidden');
     } else {
-      console.log('[pH Chart] Tab visible - resuming updates');
-      // Do an immediate refresh when tab becomes visible again
+      console.log('[pH Chart] Tab visible');
+      // Refresh when tab becomes visible (if we have valid state)
       if (autoRefreshTimer && ChartController.state.lastStart && ChartController.state.lastEnd) {
-        lastRefreshTime = 0; // Clear debounce
-        phLoadRangeAndRender({ 
-          start: ChartController.state.lastStart, 
-          end: ChartController.state.lastEnd 
-        });
+        // Wait a moment to avoid competing with other visibility handlers
+        setTimeout(function() {
+          if (!ChartController.renderMutex) {
+            phLoadRangeAndRender({ 
+              start: ChartController.state.lastStart, 
+              end: ChartController.state.lastEnd 
+            });
+          }
+        }, 500);
       }
     }
   });
