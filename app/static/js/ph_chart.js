@@ -593,6 +593,13 @@
    * Load data and render chart with comprehensive error handling
    */
   async function phLoadRangeAndRender(params) {
+    // Initialize rolling state if this is first call
+    if (!ChartController.rolling.initialized) {
+      ChartController.rolling.endMs = ChartController.roundTs(Date.now());
+      ChartController.rolling.initialized = true;
+      console.log('[pH Chart] Rolling window initialized');
+    }
+    
     var start = params.start;
     var end = params.end;
     
@@ -850,97 +857,23 @@
     init();
   }
 
-  // Auto-refresh management with visibility handling
-  var autoRefreshTimer = null;
+  // REMOVED INTERNAL AUTO-REFRESH: ph.js pollingManager drives all updates via phLoadRangeAndRender
+  // This eliminates competing refresh timers that caused legend/data flicker
   
+  // Handle visibility changes - just track state, let ph.js handle refresh timing
+  document.addEventListener('visibilitychange', function() {
+    ChartController.isVisible = !document.hidden;
+    console.log('[pH Chart] Tab visibility:', ChartController.isVisible ? 'visible' : 'hidden');
+  });
+  
+  // Stub functions for backward compatibility (ph.js may call these)
   function startAutoRefresh() {
-    if (autoRefreshTimer) return;
-    
-    console.log('[pH Chart] Starting auto-refresh (10s interval)');
-    
-    if (!ChartController.rolling.initialized) {
-      var ls = ChartController.state ? ChartController.state.lastStart : null;
-      var le = ChartController.state ? ChartController.state.lastEnd : null;
-      if (ls && le) {
-        var s = new Date(ls).getTime();
-        var e = new Date(le).getTime();
-        if (isFinite(s) && isFinite(e) && e > s) {
-          ChartController.rolling.spanMs = e - s;
-        }
-      }
-      ChartController.rolling.endMs = ChartController.roundTs(Date.now());
-      ChartController.rolling.initialized = true;
-    }
-
-    autoRefreshTimer = setInterval(function() {
-      // Skip if tab is hidden
-      if (!ChartController.isVisible) {
-        return;
-      }
-      
-      // Skip if mutex is held (another render in progress)
-      if (ChartController.renderMutex) {
-        console.log('[pH Chart] Auto-refresh skipped (render in progress)');
-        return;
-      }
-      
-      var startISO = ChartController.state.lastStart;
-      var endISO = ChartController.state.lastEnd;
-
-      if (!ChartController.userRangeSelected && ChartController.rolling.active) {
-        // Monotonic advance with strict guarantee
-        var nowRounded = ChartController.roundTs(Date.now());
-        var stepMs = ChartController.REFRESH_INTERVAL_MS;
-        var nextEnd = ChartController.rolling.endMs + stepMs;
-        
-        // Never regress - strict monotonic
-        var newEndMs = Math.max(nextEnd, nowRounded, ChartController.rolling.endMs);
-        
-        if (newEndMs > ChartController.rolling.endMs) {
-          ChartController.rolling.endMs = newEndMs;
-        }
-        
-        var endMs = ChartController.rolling.endMs;
-        var startMs = endMs - ChartController.rolling.spanMs;
-        endISO = new Date(endMs).toISOString();
-        startISO = new Date(startMs).toISOString();
-      }
-
-      phLoadRangeAndRender({ start: startISO, end: endISO });
-    }, 10000);
+    console.log('[pH Chart] Auto-refresh managed by ph.js pollingManager');
   }
   
   function stopAutoRefresh() {
-    if (autoRefreshTimer) {
-      console.log('[pH Chart] Stopping auto-refresh');
-      clearInterval(autoRefreshTimer);
-      autoRefreshTimer = null;
-    }
+    console.log('[pH Chart] Auto-refresh managed by ph.js pollingManager');
   }
-  
-  // Handle visibility changes to pause/resume refresh
-  document.addEventListener('visibilitychange', function() {
-    ChartController.isVisible = !document.hidden;
-    if (document.hidden) {
-      console.log('[pH Chart] Tab hidden');
-    } else {
-      console.log('[pH Chart] Tab visible');
-      // Refresh when tab becomes visible (if we have valid state)
-      if (autoRefreshTimer && ChartController.state.lastStart && ChartController.state.lastEnd) {
-        // Wait a moment to avoid competing with other visibility handlers
-        setTimeout(function() {
-          if (!ChartController.renderMutex) {
-            phLoadRangeAndRender({ 
-              start: ChartController.state.lastStart, 
-              end: ChartController.state.lastEnd 
-            });
-          }
-        }, 500);
-      }
-    }
-  });
-  
-  startAutoRefresh();
   
   window.phDoseChart.startAutoRefresh = startAutoRefresh;
   window.phDoseChart.stopAutoRefresh = stopAutoRefresh;
