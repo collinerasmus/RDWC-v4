@@ -2768,9 +2768,13 @@ function toggleRecentReadings(){
   const obj = document.getElementById('camera-object');
   
   function refreshStatus(){
-    fetch('/camera/status').then(r=>r.json()).then(d=>{
-      if(pill) pill.textContent = d.available ? 'Status: streaming' : 'Status: unavailable';
-    }).catch(()=>{ if(pill) pill.textContent='Status: error'; });
+    return fetch('/camera/status')
+      .then(r=>r.json())
+      .then(d=>{
+        if(pill) pill.textContent = d.available ? 'Status: streaming' : 'Status: unavailable';
+        return d;
+      })
+      .catch(()=>{ if(pill) pill.textContent='Status: error'; return {available:false}; });
   }
   
   function startStream(){
@@ -2786,6 +2790,12 @@ function toggleRecentReadings(){
       // Fallback to <img>
       img.src = streamUrl;
       img.style.display = 'block';
+      img.onerror = function(){
+        if(pill) pill.textContent = 'Status: unavailable';
+        img.style.display = 'none';
+        if(obj){ obj.style.display = 'none'; obj.data = ''; }
+        if(overlay) overlay.style.display = 'block';
+      };
     }
     
     // Hide overlay after 2 seconds
@@ -2794,8 +2804,14 @@ function toggleRecentReadings(){
     }, 2000);
   }
   
-  refreshStatus();
-  startStream();
+  refreshStatus().then(st => {
+    if(st && st.available){
+      startStream();
+    } else {
+      // Keep overlay visible and avoid starting stream to prevent console errors
+      if(overlay) overlay.style.display = 'block';
+    }
+  });
   
   // Expose camera control
   window.cameraControl = { refreshStatus, startStream };
