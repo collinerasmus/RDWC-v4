@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- BUILD_COMMIT: 1764493032 -->
+<!-- BUILD_COMMIT: 1764494968 -->
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -2920,7 +2920,7 @@ window.CircControl = (function(){
             // Load polling_manager FIRST (core system), then range.js (date range utilities) BEFORE any controllers needing it.
             // Reordered: range.js immediately after core to satisfy rdwcRange dependency for pH & EC charts before sensors/ph/ec modules run.
           // Instrumented loader: log each script as it begins loading (sequence is synchronous via promises)
-          window.BUILD_COMMIT = '1764493032';
+          window.BUILD_COMMIT = '1764494968';
           return seq(['polling_manager.js','range.js','ph_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','trends.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .catch(function(){

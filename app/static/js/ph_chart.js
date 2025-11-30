@@ -281,23 +281,9 @@
         return;
       }
 
-      // Calculate pH axis range
-      var phMin = 4.5, phMax = 8.0;
-      if (hasPhReadings) {
-        var phValues = phReadings.map(function(p) { return p.y; }).filter(function(v) { return v != null && !isNaN(v); });
-        if (phValues.length > 0) {
-          var dataMin = Math.min.apply(null, phValues);
-          var dataMax = Math.max.apply(null, phValues);
-          phMin = Math.min(phMin, dataMin - 0.2);
-          phMax = Math.max(phMax, dataMax + 0.2);
-        }
-      }
-      if (targets && targets.low != null) phMin = Math.min(phMin, targets.low - 0.3);
-      if (targets && targets.high != null) phMax = Math.max(phMax, targets.high + 0.3);
-      if (currentPH != null) {
-        phMin = Math.min(phMin, currentPH - 0.2);
-        phMax = Math.max(phMax, currentPH + 0.2);
-      }
+      // Fixed pH axis range (4.0-8.0) for hydroponic systems
+      // Using fixed range prevents y-axis jumping when switching time windows or when data changes
+      var phMin = 4.0, phMax = 8.0;
 
     // Build annotations
     var annotations = {};
