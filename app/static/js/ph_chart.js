@@ -684,32 +684,47 @@
   // User-selected ranges are preserved (no rolling). Only default 1h range auto-rolls.
   let autoRefreshTimer = null;
   let isUserSelectedRange = false; // Track if user manually changed range
+  // Maintain a monotonic rolling window to prevent left-right oscillation
+  const ROLLING_STATE = { active: true, initialized: false, spanMs: 3600*1000, endMs: Date.now() };
   
   function startAutoRefresh() {
     if (autoRefreshTimer) return; // Already running
     
     console.log('[pH Chart] Starting auto-refresh (10s interval)');
+    // Initialize rolling span once from current state
+    if (!ROLLING_STATE.initialized) {
+      const ls = PH_CHART_STATE?.lastStart;
+      const le = PH_CHART_STATE?.lastEnd;
+      if (ls && le) {
+        const s = new Date(ls).getTime();
+        const e = new Date(le).getTime();
+        if (isFinite(s) && isFinite(e) && e > s) {
+          ROLLING_STATE.spanMs = e - s;
+        }
+      }
+      ROLLING_STATE.endMs = Date.now();
+      ROLLING_STATE.initialized = true;
+    }
+
     autoRefreshTimer = setInterval(() => {
-      let currentStart = PH_CHART_STATE.lastStart;
-      let currentEnd = PH_CHART_STATE.lastEnd;
-      
-      // Only roll window forward if range was NOT manually selected by user
-      if (!isUserSelectedRange && currentStart && currentEnd) {
-        const startMs = new Date(currentStart).getTime();
-        const endMs = new Date(currentEnd).getTime();
-        const spanMs = endMs - startMs;
-        
-        // Roll forward: keep span, move to "now"
-        const now = new Date();
-        currentEnd = now.toISOString();
-        currentStart = new Date(now.getTime() - spanMs).toISOString();
-        console.log('[pH Chart] Auto-refresh with rolling window');
+      let startISO = PH_CHART_STATE.lastStart;
+      let endISO = PH_CHART_STATE.lastEnd;
+
+      if (!isUserSelectedRange && ROLLING_STATE.active) {
+        // Monotonic advance: prefer steady cadence, never go backwards
+        const stepMs = 10000; // 10s
+        ROLLING_STATE.endMs = Math.max(ROLLING_STATE.endMs + stepMs, Date.now());
+        const endMs = ROLLING_STATE.endMs;
+        const startMs = endMs - ROLLING_STATE.spanMs;
+        endISO = new Date(endMs).toISOString();
+        startISO = new Date(startMs).toISOString();
+        console.log('[pH Chart] Auto-refresh with monotonic rolling window');
       } else {
         // User selected a range - just refresh data within that fixed window
         console.log('[pH Chart] Auto-refresh with fixed user range');
       }
-      
-      phLoadRangeAndRender({ start: currentStart, end: currentEnd });
+
+      phLoadRangeAndRender({ start: startISO, end: endISO });
     }, 10000); // 10 second interval for smoother live updates matching sensors chart cadence
   }
   
