@@ -123,20 +123,23 @@
       // Display range optimized for typical hydroponic values (0-2 mS/cm)
       // but can auto-scale if readings exceed this
       const ecMin = 0;
-      let ecMax = 2.0; // Default max for typical hydro EC values
+      const EC_DEFAULT_MAX = 2.0; // Default max for typical hydro EC values
+      const EC_PROBE_MAX = 8.0;   // K=0.1 probe maximum range
+      let ecMax = EC_DEFAULT_MAX;
       
       // Auto-adjust max if we have readings that exceed the default
+      // Using reduce instead of spread operator to avoid stack overflow on large datasets
       if (ecReadings && ecReadings.length > 0) {
-        const maxReading = Math.max(...ecReadings.map(r => r.y || 0));
+        const maxReading = ecReadings.reduce((max, r) => Math.max(max, r.y || 0), 0);
         if (maxReading > ecMax) {
           ecMax = Math.ceil(maxReading * 1.2); // 20% headroom
-          if (ecMax > 8) ecMax = 8; // Cap at probe max (K=0.1 range)
+          if (ecMax > EC_PROBE_MAX) ecMax = EC_PROBE_MAX;
         }
       }
       // Also check current EC
       if (currentEC != null && currentEC > ecMax) {
         ecMax = Math.ceil(currentEC * 1.2);
-        if (ecMax > 8) ecMax = 8;
+        if (ecMax > EC_PROBE_MAX) ecMax = EC_PROBE_MAX;
       }
 
       const hasEcReadings = ecReadings && ecReadings.length > 0;
@@ -511,10 +514,11 @@
     try {
       const todayEl = document.getElementById('ec-total-today');
       const weekEl = document.getElementById('ec-total-week');
+      const DEFAULT_PUMP_RATE = '20'; // ml/sec default if not configured
       const rate = {
-        grow: parseFloat(window.rdwcSettings?.get('dosing.grow_ml_per_sec') || '20'),
-        micro: parseFloat(window.rdwcSettings?.get('dosing.micro_ml_per_sec') || '20'),
-        bloom: parseFloat(window.rdwcSettings?.get('dosing.bloom_ml_per_sec') || '20')
+        grow: parseFloat(window.rdwcSettings?.get('dosing.grow_ml_per_sec') || DEFAULT_PUMP_RATE),
+        micro: parseFloat(window.rdwcSettings?.get('dosing.micro_ml_per_sec') || DEFAULT_PUMP_RATE),
+        bloom: parseFloat(window.rdwcSettings?.get('dosing.bloom_ml_per_sec') || DEFAULT_PUMP_RATE)
       };
       
       // Calculate totals
