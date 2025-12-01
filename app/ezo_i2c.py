@@ -17,6 +17,11 @@ ADDR_PH  = 0x63
 ADDR_EC  = 0x64
 ADDR_RTD = 0x66
 
+# EC unit detection threshold: values above this are assumed to be in µS/cm
+# Atlas EZO K=0.1 probe returns µS/cm (range 0.07-50,000 µS/cm)
+# Typical hydro nutrient EC: 1.0-3.0 mS/cm = 1000-3000 µS/cm
+EC_UNIT_THRESHOLD = 10.0  # µS/cm values above this get converted to mS/cm
+
 # Env-tunable timeouts (fast defaults, stable in prod)
 POLL_TIMEOUT_S   = float(os.getenv("RDWC_I2C_POLL_TIMEOUT_S",   "1.0"))   # was 6.0
 RETRY_DELAY_S    = float(os.getenv("RDWC_I2C_RETRY_DELAY_S",    "0.15"))  # was 0.35
@@ -295,12 +300,10 @@ def read_all(bus_id: int = DEFAULT_I2C_BUS) -> dict:
 
     try:
         ec_val = read_single(ADDR_EC, bus_id=bus_id)
-        # Robust EC unit conversion with heuristic for missing units
+        # EC unit conversion using threshold constant
         if ec_val is not None:
             v = float(ec_val)
-            # Heuristic: if value > 10, assume µS/cm and convert to mS/cm
-            # Typical nutrient EC: 1.0–3.0 mS/cm == 1000–3000 µS/cm
-            out["ec_ms_cm"] = v / 1000.0 if v > 10.0 else v
+            out["ec_ms_cm"] = v / 1000.0 if v > EC_UNIT_THRESHOLD else v
         else:
             out["ec_ms_cm"] = None
     except Exception as e:
@@ -419,8 +422,7 @@ def read_all_fast():
         ec_val = read_single(ADDR_EC)
         if ec_val is not None:
             v = float(ec_val)
-            # Heuristic: if value > 10, assume µS/cm and convert to mS/cm
-            out["ec_mscm"] = v / 1000.0 if v > 10 else v
+            out["ec_mscm"] = v / 1000.0 if v > EC_UNIT_THRESHOLD else v
     except Exception:
         pass
     

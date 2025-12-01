@@ -33,6 +33,12 @@ PH_ADDR = 0x63
 EC_ADDR = 0x64
 RTD_ADDR = 0x66
 
+# EC unit detection threshold: values above this are assumed to be in µS/cm
+# Atlas EZO K=0.1 probe returns µS/cm (range 0.07-50,000 µS/cm)
+# Typical hydro nutrient EC: 1.0-3.0 mS/cm = 1000-3000 µS/cm
+# Pure/low-conductivity water: <0.01 mS/cm = <10 µS/cm (edge case, rare in hydro)
+EC_UNIT_THRESHOLD = 10.0  # µS/cm values above this get converted to mS/cm
+
 logger = logging.getLogger(__name__)
 
 
@@ -173,10 +179,8 @@ def read_all(bus_num: int = 1):
             pass
         ec_raw = float(ec.read_value(timeout=1.5))
         
-        # Convert EC from µS/cm to mS/cm (K=0.1 probe returns µS/cm)
-        # Heuristic: if value > 10, assume µS/cm and convert to mS/cm
-        # Typical nutrient EC: 1.0–3.0 mS/cm == 1000–3000 µS/cm
-        ec_ms_cm = ec_raw / 1000.0 if ec_raw > 10.0 else ec_raw
+        # Convert EC from µS/cm to mS/cm using threshold constant
+        ec_ms_cm = ec_raw / 1000.0 if ec_raw > EC_UNIT_THRESHOLD else ec_raw
 
         return {"temperature": temp_c, "ph": ph_val, "ec_ms": ec_ms_cm}
     finally:
