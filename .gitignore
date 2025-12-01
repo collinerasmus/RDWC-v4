@@ -1,3 +1,5 @@
+# Ignore local benchmark capture artifacts
+benchmarks/
 # Local diagnostics and artifacts
 collect-rdwc-v4-info.ps1
 collect-rdwc-v4-info.sh
