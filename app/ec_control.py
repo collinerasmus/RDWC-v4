@@ -260,6 +260,7 @@ def _dose_events_range(start: Optional[str] = None, end: Optional[str] = None, h
         volume_ml = _compute_volume_ml(pump, seconds) if seconds else None
         out.append({
             "ts": ts_iso,
+            "pump": pump,  # Added: pump name for chart markers
             "seconds": float(seconds) if seconds is not None else None,
             "volume_ml": volume_ml,
             "detail": r[3] or r[4] or pump,  # reason, actor, or pump name

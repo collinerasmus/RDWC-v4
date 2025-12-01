@@ -38,14 +38,25 @@
       params.set('gran', '60'); // 1 minute granularity
       params.set('max', '2000');
       
-      const res = await fetch('/api/trends?' + params.toString(), { cache: 'no-store' });
-      if (!res.ok) return [];
+      const url = '/api/trends?' + params.toString();
+      console.log('[EC Chart] Fetching EC readings from:', url);
+      
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) {
+        console.error('[EC Chart] EC readings fetch failed:', res.status);
+        return [];
+      }
       
       const data = await res.json();
-      return (data?.series?.ec || []).map(p => ({
+      console.log('[EC Chart] Trends API response:', data);
+      
+      const ecData = (data?.series?.ec || []).map(p => ({
         x: new Date(p.ts * 1000),
         y: Number(p.value)
       })).filter(p => !isNaN(p.y));
+      
+      console.log('[EC Chart] Parsed EC readings:', ecData.length, 'points');
+      return ecData;
     } catch (e) {
       console.error('[EC Chart] Failed to fetch EC readings:', e);
       return [];
@@ -62,10 +73,18 @@
       if (endISO) params.set('end', endISO);
       params.set('limit', '500');
       
-      const res = await fetch('/api/ec/dose_log?' + params.toString(), { cache: 'no-store' });
-      if (!res.ok) return [];
+      const url = '/api/ec/dose_log?' + params.toString();
+      console.log('[EC Chart] Fetching dose events from:', url);
       
-      return await res.json();
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) {
+        console.error('[EC Chart] Dose events fetch failed:', res.status);
+        return [];
+      }
+      
+      const data = await res.json();
+      console.log('[EC Chart] Dose events response:', data);
+      return data;
     } catch (e) {
       console.error('[EC Chart] Failed to fetch dose events:', e);
       return [];
@@ -89,6 +108,11 @@
    * Build and render the chart
    */
   function renderChart(ecReadings, doseEvents, status) {
+    console.log('[EC Chart] renderChart called with:', 
+      'ecReadings:', ecReadings?.length || 0,
+      'doseEvents:', doseEvents?.length || 0,
+      'status:', status ? 'present' : 'null');
+    
     const canvas = document.getElementById('ecDoseChart');
     const emptyMsg = document.getElementById('ec-dose-empty');
     
@@ -110,7 +134,10 @@
     const microDoses = [];
     const bloomDoses = [];
     
-    (doseEvents || []).forEach(e => {
+    console.log('[EC Chart] Processing dose events...');
+    (doseEvents || []).forEach((e, i) => {
+      if (i < 3) console.log('[EC Chart] Dose event', i, ':', e);
+      
       const point = {
         x: new Date(e.ts || e.ts_utc || e.ts_iso),
         y: e.ec_after ?? e.ec_before ?? 0,
@@ -124,6 +151,8 @@
       else if (e.pump === 'micro') microDoses.push(point);
       else if (e.pump === 'bloom') bloomDoses.push(point);
     });
+    
+    console.log('[EC Chart] Dose counts - grow:', growDoses.length, 'micro:', microDoses.length, 'bloom:', bloomDoses.length);
 
     // Build datasets
     const datasets = [];
