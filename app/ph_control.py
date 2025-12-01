@@ -800,7 +800,7 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
         ts_unix = int(datetime.fromisoformat(ts_iso.replace('Z', '+00:00')).timestamp())
         with sqlite3.connect(str(DB_PATH)) as conn:
             conn.execute(
-                """INSERT INTO dose_events (pump, ts, seconds, reason, blocked_by, pre_ph, pre_ec, post_ph)
+                """INSERT INTO dose_events (pump, ts, seconds, reason, blocked_by, ph_before, ec_before, ph_after)
                    VALUES (?, ?, ?, ?, NULL, ?, NULL, NULL)""",
                 ("ph_up", ts_unix, dose_seconds, reason, pre_ph)
             )
