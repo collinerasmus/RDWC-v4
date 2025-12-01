@@ -423,7 +423,11 @@
       }
     }catch(e){
       console.warn('[EC] preview fetch error:', e);
-      if(decisionEl) decisionEl.textContent = 'Error loading preview';
+      if(decisionEl){
+        decisionEl.textContent = 'Error';
+        decisionEl.style.color = '#ef4444';
+      }
+      if(reasonEl) reasonEl.textContent = `Load failed: ${e.message}`;
     }
   }
 
@@ -501,10 +505,12 @@
       
       table.innerHTML = events.map(e => {
         // Format time as relative (e.g., "2 min ago") or absolute
+        // Support both ts_iso and ts_utc fields for compatibility
         let timeDisplay = '—';
         let timeAgo = '';
-        if(e.ts_iso){
-          const ts = new Date(e.ts_iso);
+        const tsField = e.ts_iso || e.ts_utc;
+        if(tsField){
+          const ts = new Date(tsField);
           const now = new Date();
           const diffSec = Math.floor((now - ts) / 1000);
           if(diffSec < 60) timeAgo = `${diffSec}s ago`;
