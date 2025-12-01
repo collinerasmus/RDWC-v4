@@ -219,21 +219,26 @@ def _today_total_ml(now_dt: datetime) -> float:
     with sqlite3.connect(str(DB_PATH)) as conn:
         cur = conn.cursor()
         # Check unified dose_events table first (convert seconds to ml using calibrated rate)
-        cur.execute(
-            "SELECT COALESCE(SUM(seconds),0) FROM dose_events WHERE pump='ph_up' AND blocked_by IS NULL AND ts >= ?",
-            (int(start_utc.timestamp()),)
-        )
-        row = cur.fetchone()
-        if row and row[0] is not None:
-            # Convert seconds to ml using calibrated rate from settings
-            total_seconds = float(row[0])
-            try:
-                from app.settings import get_setting_key
-                ml_per_sec = float(get_setting_key("dosing.ph_up_ml_per_sec", "0") or "0")
-                if ml_per_sec > 0:
-                    return total_seconds * ml_per_sec
-            except Exception:
-                pass
+        # Table may not exist in test environments
+        try:
+            cur.execute(
+                "SELECT COALESCE(SUM(seconds),0) FROM dose_events WHERE pump='ph_up' AND blocked_by IS NULL AND ts >= ?",
+                (int(start_utc.timestamp()),)
+            )
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                # Convert seconds to ml using calibrated rate from settings
+                total_seconds = float(row[0])
+                try:
+                    from app.settings import get_setting_key
+                    ml_per_sec = float(get_setting_key("dosing.ph_up_ml_per_sec", "0") or "0")
+                    if ml_per_sec > 0:
+                        return total_seconds * ml_per_sec
+                except Exception:
+                    pass
+        except sqlite3.OperationalError:
+            # dose_events table doesn't exist - that's OK, fall through to legacy table
+            pass
         # Fallback to old ph_dose_log table
         cur.execute(
             "SELECT COALESCE(SUM(volume_ml),0) FROM ph_dose_log WHERE result='ok' AND ts_utc >= ?",
@@ -257,13 +262,18 @@ def _last_ok_ts() -> Optional[datetime]:
             except Exception:
                 pass
         # FALLBACK: Check unified dose_events table (for backward compatibility)
-        cur.execute("SELECT ts FROM dose_events WHERE pump='ph_up' AND blocked_by IS NULL ORDER BY id DESC LIMIT 1")
-        row = cur.fetchone()
-        if row:
-            try:
-                return datetime.fromtimestamp(row[0], tz=timezone.utc)
-            except Exception:
-                pass
+        # Table may not exist in test environments
+        try:
+            cur.execute("SELECT ts FROM dose_events WHERE pump='ph_up' AND blocked_by IS NULL ORDER BY id DESC LIMIT 1")
+            row = cur.fetchone()
+            if row:
+                try:
+                    return datetime.fromtimestamp(row[0], tz=timezone.utc)
+                except Exception:
+                    pass
+        except sqlite3.OperationalError:
+            # dose_events table doesn't exist - that's OK, primary table was checked
+            pass
         return None
 
 # --- Sensors/Settings helpers ------------------------------------------------

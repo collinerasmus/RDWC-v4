@@ -51,10 +51,13 @@ def test_manual_custom_mix_split(mod):
     # Speed test by skipping actual sleeps
     mod.time.sleep = lambda s: None
 
-    # Stub guards to allow dosing
-    mod._check_guards = lambda: (True, None)
+    # Stub guards to allow dosing (v2 signature returns 3 values)
+    mod._check_guards = lambda p, s: (True, None, {})
+    mod._check_ec_high_guard = lambda: (True, None)
     mod._check_interval_guard = lambda now: (True, None)
     mod._check_daily_cap = lambda now: (True, None)
+    mod._is_dry_run_ec = lambda: False  # Disable dry-run for this test
+    mod._get_dose_lock = lambda: type('MockLock', (), {'acquire': lambda self, **k: True, 'release': lambda self: None, 'locked': lambda self: False})()
 
     # Stub actuator to capture values
     captured = {}
@@ -89,15 +92,23 @@ def test_dose_reject_invalid_ml(mod):
 
 @with_temp_db
 def test_daily_summary_totals(mod):
-    mod._ensure_tables()
+    # V2: Now reads from dose_events table
+    mod._ensure_dose_events_table()
+    mod._get_settings_dict = lambda: {'dosing.grow_ml_per_sec': '10'}  # 10 ml/s for easy math
+    
     now = datetime.now(timezone.utc)
+    now_ts = int(now.timestamp())
     yday = now - timedelta(days=1)
+    yday_ts = int(yday.timestamp())
+    
     with sqlite3.connect(str(mod.DB_PATH)) as conn:
         cur = conn.cursor()
-        cur.execute("INSERT INTO ec_dose_log(ts_utc, action, volume_ml, duration_ms, pre_ec, post_ec, result, reason) VALUES(?,?,?,?,?,?,?,?)",
-                    (now.isoformat(), 'dose', 10.0, 1000, None, None, 'ok', 'manual'))
-        cur.execute("INSERT INTO ec_dose_log(ts_utc, action, volume_ml, duration_ms, pre_ec, post_ec, result, reason) VALUES(?,?,?,?,?,?,?,?)",
-                    (yday.isoformat(), 'dose', 20.0, 1000, None, None, 'ok', 'manual'))
+        # Insert into dose_events: 1 second of 'grow' at 10 ml/s = 10ml
+        cur.execute("INSERT INTO dose_events(ts, pump, seconds, actor) VALUES(?,?,?,?)",
+                    (now_ts, 'grow', 1.0, 'manual'))
+        # Insert yesterday: 2 seconds = 20ml
+        cur.execute("INSERT INTO dose_events(ts, pump, seconds, actor) VALUES(?,?,?,?)",
+                    (yday_ts, 'grow', 2.0, 'manual'))
         conn.commit()
     rows = mod._dose_daily_range(days=2)
     assert len(rows) >= 2
