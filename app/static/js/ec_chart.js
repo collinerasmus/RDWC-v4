@@ -1,418 +1,574 @@
-// EC Dose Chart Rendering Module
+/**
+ * EC Dose Chart - Clean implementation
+ * Shows EC sensor readings over time with dose events overlaid per pump
+ */
 (function(){
   'use strict';
+  console.log('[EC Chart] Initializing...');
 
-  let EC_CHART = null;
-  let EC_STATE = { startISO: null, endISO: null, lastCount: 0 };
+  let chart = null;
+  let currentRange = { preset: '24h', start: null, end: null };
 
-  // Defensive Chart.js registration (v4 UMD usually auto-registers)
-  if (window.Chart && Chart.register && window.RDWC_CHART_REG_EC === undefined) {
+  // Register Chart.js components if needed
+  if (window.Chart && Chart.register) {
     try {
       Chart.register(
-        Chart.controllers.BarController,
         Chart.controllers.LineController,
         Chart.controllers.ScatterController,
-        Chart.elements.BarElement,
         Chart.elements.PointElement,
         Chart.elements.LineElement,
         Chart.scales.TimeScale,
         Chart.scales.LinearScale,
         Chart.plugins.Tooltip,
-        Chart.plugins.Legend,
-        Chart.plugins.Title
+        Chart.plugins.Legend
       );
-      // Register annotation plugin if available
-      if (window.chartjs && window.chartjs.Annotation) {
-        Chart.register(window.chartjs.Annotation);
-      } else if (window.ChartAnnotation) {
-        Chart.register(window.ChartAnnotation);
-      }
     } catch (e) {
-      // ignore
+      // Already registered
     }
-    window.RDWC_CHART_REG_EC = true;
   }
 
-  function buildChart(datasets, tmin, tmax, axisTitle, currentEC) {
-    const el = document.getElementById('ecDoseChart');
-    const empty = document.getElementById('ec-dose-empty');
-    if (!el) return;
+  /**
+   * Fetch EC readings from trends API
+   */
+  async function fetchEcReadings(startISO, endISO) {
+    try {
+      const params = new URLSearchParams();
+      if (startISO) params.set('from', startISO);
+      if (endISO) params.set('to', endISO);
+      params.set('gran', '60'); // 1 minute granularity
+      params.set('max', '2000');
+      
+      const res = await fetch('/api/trends?' + params.toString(), { cache: 'no-store' });
+      if (!res.ok) return [];
+      
+      const data = await res.json();
+      return (data?.series?.ec || []).map(p => ({
+        x: new Date(p.ts * 1000),
+        y: Number(p.value)
+      })).filter(p => !isNaN(p.y));
+    } catch (e) {
+      console.error('[EC Chart] Failed to fetch EC readings:', e);
+      return [];
+    }
+  }
 
-    const hasData = datasets && datasets.some(ds => (ds.data||[]).length > 0);
-    if (empty) empty.style.display = hasData ? 'none' : 'block';
+  /**
+   * Fetch dose events from API
+   */
+  async function fetchDoseEvents(startISO, endISO) {
+    try {
+      const params = new URLSearchParams();
+      if (startISO) params.set('start', startISO);
+      if (endISO) params.set('end', endISO);
+      params.set('limit', '500');
+      
+      const res = await fetch('/api/ec/dose_log?' + params.toString(), { cache: 'no-store' });
+      if (!res.ok) return [];
+      
+      return await res.json();
+    } catch (e) {
+      console.error('[EC Chart] Failed to fetch dose events:', e);
+      return [];
+    }
+  }
 
-    const ctx = el.getContext('2d');
-    if (EC_CHART && typeof EC_CHART.destroy === 'function') {
-      EC_CHART.destroy();
-      EC_CHART = null;
+  /**
+   * Fetch current EC status for targets
+   */
+  async function fetchEcStatus() {
+    try {
+      const res = await fetch('/api/ec/status', { cache: 'no-store' });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Build and render the chart
+   */
+  function renderChart(ecReadings, doseEvents, status) {
+    const canvas = document.getElementById('ecDoseChart');
+    const emptyMsg = document.getElementById('ec-dose-empty');
+    
+    if (!canvas) {
+      console.error('[EC Chart] Canvas element #ecDoseChart not found');
+      return;
     }
 
-    const dsUse = hasData ? datasets : [{
-      label: 'No doses',
-      data: [],
-      showLine: false,
-      pointRadius: 0.0001,
-      borderWidth: 0
-    }];
+    // Destroy existing chart
+    if (chart) {
+      chart.destroy();
+      chart = null;
+    }
 
-    const hasCumulative = dsUse.some(ds => ds.yAxisID === 'y2');
+    const ctx = canvas.getContext('2d');
+    
+    // Group dose events by pump
+    const growDoses = [];
+    const microDoses = [];
+    const bloomDoses = [];
+    
+    (doseEvents || []).forEach(e => {
+      const point = {
+        x: new Date(e.ts || e.ts_utc || e.ts_iso),
+        y: e.ec_after ?? e.ec_before ?? 0,
+        seconds: e.seconds,
+        ecBefore: e.ec_before,
+        ecAfter: e.ec_after,
+        pump: e.pump
+      };
+      
+      if (e.pump === 'grow') growDoses.push(point);
+      else if (e.pump === 'micro') microDoses.push(point);
+      else if (e.pump === 'bloom') bloomDoses.push(point);
+    });
 
-    // Build annotation plugin config for EC reference line
+    // Build datasets
+    const datasets = [];
+    
+    // EC readings line (primary)
+    if (ecReadings && ecReadings.length > 0) {
+      datasets.push({
+        type: 'line',
+        label: 'EC (mS/cm)',
+        data: ecReadings,
+        borderColor: '#f59e0b',
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.3,
+        fill: false,
+        yAxisID: 'yEc'
+      });
+    }
+    
+    // Dose events - Grow
+    if (growDoses.length > 0) {
+      datasets.push({
+        type: 'scatter',
+        label: '🌱 Grow',
+        data: growDoses,
+        pointRadius: 8,
+        pointStyle: 'triangle',
+        backgroundColor: 'rgba(34, 197, 94, 0.8)',
+        borderColor: '#16a34a',
+        borderWidth: 2,
+        yAxisID: 'yEc'
+      });
+    }
+    
+    // Dose events - Micro
+    if (microDoses.length > 0) {
+      datasets.push({
+        type: 'scatter',
+        label: '🔬 Micro',
+        data: microDoses,
+        pointRadius: 8,
+        pointStyle: 'rect',
+        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+        borderColor: '#2563eb',
+        borderWidth: 2,
+        yAxisID: 'yEc'
+      });
+    }
+    
+    // Dose events - Bloom
+    if (bloomDoses.length > 0) {
+      datasets.push({
+        type: 'scatter',
+        label: '🌸 Bloom',
+        data: bloomDoses,
+        pointRadius: 8,
+        pointStyle: 'circle',
+        backgroundColor: 'rgba(168, 85, 247, 0.8)',
+        borderColor: '#9333ea',
+        borderWidth: 2,
+        yAxisID: 'yEc'
+      });
+    }
+
+    // Show/hide empty message
+    const hasData = datasets.length > 0 && datasets.some(ds => ds.data.length > 0);
+    if (emptyMsg) {
+      emptyMsg.style.display = hasData ? 'none' : 'block';
+    }
+
+    // If no data, create placeholder dataset
+    if (!hasData) {
+      datasets.push({
+        label: 'No data',
+        data: [],
+        pointRadius: 0
+      });
+    }
+
+    // Calculate Y axis range
+    let yMin = 0;
+    let yMax = 2.0; // Default max for hydro
+    
+    if (ecReadings && ecReadings.length > 0) {
+      const maxReading = Math.max(...ecReadings.map(r => r.y));
+      if (maxReading > yMax) {
+        yMax = Math.ceil(maxReading * 1.2);
+      }
+    }
+    
+    // Check current EC
+    const currentEC = status?.ec_ms_cm ?? status?.ec;
+    if (currentEC && currentEC > yMax) {
+      yMax = Math.ceil(currentEC * 1.2);
+    }
+    
+    // Cap at probe max (K=0.1 = 8 mS/cm)
+    if (yMax > 8) yMax = 8;
+
+    // Build annotations for target band
     const annotations = {};
+    const targets = status?.targets;
+    
+    if (targets && targets.low != null && targets.high != null) {
+      annotations.targetBand = {
+        type: 'box',
+        yMin: targets.low,
+        yMax: targets.high,
+        yScaleID: 'yEc',
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        borderWidth: 0
+      };
+      
+      // Target setpoint line
+      const setpoint = (targets.low + targets.high) / 2;
+      annotations.setpointLine = {
+        type: 'line',
+        yMin: setpoint,
+        yMax: setpoint,
+        yScaleID: 'yEc',
+        borderColor: 'rgba(34, 197, 94, 0.5)',
+        borderWidth: 1,
+        borderDash: [4, 4],
+        label: {
+          display: true,
+          content: 'Target: ' + setpoint.toFixed(2),
+          position: 'end',
+          backgroundColor: 'rgba(34, 197, 94, 0.8)',
+          color: '#fff',
+          font: { size: 10 }
+        }
+      };
+    }
+    
+    // Current EC line
     if (currentEC != null && !isNaN(currentEC)) {
-      annotations.ecLine = {
+      annotations.currentLine = {
         type: 'line',
         yMin: currentEC,
         yMax: currentEC,
-        yScaleID: 'y',
-        borderColor: 'rgba(99, 102, 241, 0.8)',  // indigo-500
+        yScaleID: 'yEc',
+        borderColor: 'rgba(251, 191, 36, 0.9)',
         borderWidth: 2,
         borderDash: [6, 4],
         label: {
           display: true,
-          content: `Current EC: ${currentEC.toFixed(2)} mS/cm`,
+          content: 'Now: ' + currentEC.toFixed(2),
           position: 'start',
-          backgroundColor: 'rgba(99, 102, 241, 0.9)',
-          color: '#fff',
-          font: { size: 11, weight: 'bold' },
-          padding: 4
+          backgroundColor: 'rgba(251, 191, 36, 0.9)',
+          color: '#000',
+          font: { size: 11, weight: 'bold' }
         }
       };
     }
 
-    EC_CHART = new Chart(ctx, {
-      type: 'scatter',
-      data: { datasets: dsUse },
+    // Check if annotation plugin is available
+    const hasAnnotation = window.Chart && Chart.registry && 
+      Chart.registry.plugins && Chart.registry.plugins.get('annotation');
+
+    // Create chart
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: { datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        parsing: false,
+        animation: false,
         interaction: { mode: 'nearest', intersect: false },
         scales: {
           x: {
             type: 'time',
-            adapters: { date: {} },
-            min: tmin || undefined,
-            max: tmax || undefined,
-            ticks: { source: 'auto' }
+            time: {
+              tooltipFormat: 'MMM d, HH:mm',
+              displayFormats: {
+                minute: 'HH:mm',
+                hour: 'HH:mm',
+                day: 'MMM d'
+              }
+            },
+            min: currentRange.start ? new Date(currentRange.start) : undefined,
+            max: currentRange.end ? new Date(currentRange.end) : undefined,
+            grid: { color: 'rgba(148, 163, 184, 0.1)' },
+            ticks: { maxRotation: 0 }
           },
-          y: {
+          yEc: {
             type: 'linear',
             position: 'left',
-            title: { display: true, text: axisTitle || 'Dose (ml)' },
-            suggestedMin: 0
-          },
-          y2: hasCumulative ? {
-            type: 'linear',
-            position: 'right',
-            title: { display: true, text: 'Cumulative (ml)' },
-            suggestedMin: 0,
-            grid: { drawOnChartArea: false }
-          } : undefined
+            min: yMin,
+            max: yMax,
+            title: { display: true, text: 'EC (mS/cm)' },
+            grid: { color: 'rgba(148, 163, 184, 0.1)' }
+          }
         },
         plugins: {
-          legend: { display: true, position: 'top' },
+          legend: {
+            display: true,
+            position: 'top',
+            labels: { usePointStyle: true, boxWidth: 10 }
+          },
           tooltip: {
-            enabled: true,
             callbacks: {
-              label: (ctx) => {
-                const p = ctx.raw;
+              label: function(ctx) {
                 const ds = ctx.dataset;
-                if (ds.label && ds.label.includes('Cumulative')) {
-                  return `Total: ${ctx.parsed.y.toFixed(1)} ml`;
+                const raw = ctx.raw;
+                
+                if (ds.label === 'EC (mS/cm)') {
+                  return 'EC: ' + ctx.parsed.y.toFixed(3) + ' mS/cm';
                 }
-                if (ds.label && ds.label.includes('Daily')) {
-                  return `Day total: ${ctx.parsed.y.toFixed(1)} ml`;
+                
+                // Dose event
+                if (raw && raw.pump) {
+                  let label = raw.pump.charAt(0).toUpperCase() + raw.pump.slice(1);
+                  label += ': ' + (raw.seconds || 0).toFixed(1) + 's';
+                  if (raw.ecBefore != null && raw.ecAfter != null) {
+                    const delta = raw.ecAfter - raw.ecBefore;
+                    label += ' (Δ' + (delta >= 0 ? '+' : '') + delta.toFixed(3) + ')';
+                  }
+                  return label;
                 }
-                if (!p) return '';
-                const ml = (p.ml != null) ? `+${p.ml.toFixed(2)} ml` : (p.sec != null ? `~${p.sec.toFixed(2)} s` : '');
-                const ec = (p.ecb != null || p.eca != null) ? `  EC: ${p.ecb ?? '—'} → ${p.eca ?? '—'}` : '';
-                return `${ml}${ec}`;
+                
+                return ctx.parsed.y.toFixed(3);
               }
             }
           },
-          annotation: {
-            annotations: annotations
-          }
+          annotation: hasAnnotation ? { annotations } : undefined
         }
       }
     });
+
+    console.log('[EC Chart] Rendered with', ecReadings?.length || 0, 'EC readings and', 
+      (growDoses.length + microDoses.length + bloomDoses.length), 'dose events');
   }
 
-  async function loadRangeAndRender({start, end}){
-    // normalize inputs to ISO
-    const toIso = (v) => {
-      if (v == null) return null;
-      if (typeof v === 'string') {
-        try { const d = new Date(v); if (!isNaN(d)) return d.toISOString(); } catch(e) {}
-        return v;
-      }
-      if (typeof v === 'number') {
-        const d = new Date(v);
-        return isNaN(d) ? null : d.toISOString();
-      }
-      return null;
+  /**
+   * Load data and render chart
+   */
+  async function loadAndRender() {
+    console.log('[EC Chart] Loading data for range:', currentRange);
+    
+    // Calculate time range
+    let startISO, endISO;
+    const now = new Date();
+    
+    if (currentRange.start && currentRange.end) {
+      startISO = new Date(currentRange.start).toISOString();
+      endISO = new Date(currentRange.end).toISOString();
+    } else {
+      // Default to 24 hours
+      const start = new Date(now.getTime() - 24 * 3600 * 1000);
+      startISO = start.toISOString();
+      endISO = now.toISOString();
+      currentRange.start = startISO;
+      currentRange.end = endISO;
+    }
+
+    // Fetch all data in parallel
+    const [ecReadings, doseEvents, status] = await Promise.all([
+      fetchEcReadings(startISO, endISO),
+      fetchDoseEvents(startISO, endISO),
+      fetchEcStatus()
+    ]);
+
+    // Render chart
+    renderChart(ecReadings, doseEvents, status);
+    
+    // Update KPI badges if they exist
+    updateKpiBadges(doseEvents, status);
+  }
+
+  /**
+   * Update Today/Week KPI badges
+   */
+  function updateKpiBadges(doseEvents, status) {
+    const todayEl = document.getElementById('ec-total-today');
+    const weekEl = document.getElementById('ec-total-week');
+    
+    if (!todayEl && !weekEl) return;
+    
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const weekStart = todayStart - 7 * 24 * 3600 * 1000;
+    
+    // Get pump rates from settings or use defaults
+    const defaultRate = 1.0; // ml/sec default
+    const rates = {
+      grow: parseFloat(window.rdwcSettings?.get('dosing.grow_ml_per_sec')) || defaultRate,
+      micro: parseFloat(window.rdwcSettings?.get('dosing.micro_ml_per_sec')) || defaultRate,
+      bloom: parseFloat(window.rdwcSettings?.get('dosing.bloom_ml_per_sec')) || defaultRate
     };
-    const startISO = toIso(start);
-    const endISO = toIso(end);
-
-    let events = [];
-    let summary = [];
-    let currentEC = null;
-    try{
-      const [eRes, sRes, stRes] = await Promise.all([
-        fetch(`/api/ec/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`, {cache:'no-store'}),
-        fetch(`/api/ec/dose_summary?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`, {cache:'no-store'}),
-        fetch(`/api/ec/status`, {cache:'no-store'})
-      ]);
-      if (!eRes.ok) throw new Error(`dose_log HTTP ${eRes.status}`);
-      if (!sRes.ok) throw new Error(`dose_summary HTTP ${sRes.status}`);
-      events = await eRes.json();
-      summary = await sRes.json();
-      if (stRes.ok) {
-        const statusData = await stRes.json();
-        currentEC = statusData?.ec ?? null;
-      }
-    } catch(err){
-      console.error('[EC Chart] fetch error:', err);
-      buildChart([], null, null, 'Dose (ml)', null);
-      return;
+    
+    let todayMl = 0, weekMl = 0;
+    
+    (doseEvents || []).forEach(e => {
+      const ts = new Date(e.ts || e.ts_utc || e.ts_iso).getTime();
+      const ml = (e.volume_ml != null) ? e.volume_ml : ((e.seconds || 0) * (rates[e.pump] || defaultRate));
+      
+      if (ts >= todayStart) todayMl += ml;
+      if (ts >= weekStart) weekMl += ml;
+    });
+    
+    if (todayEl) {
+      const valEl = todayEl.querySelector('.kpi-value');
+      if (valEl) valEl.textContent = todayMl.toFixed(1) + ' ml';
     }
-
-  const hasAnyMl = events.some(r => r && r.volume_ml != null);
-    const pts = events.map(r => ({
-      x: new Date(r.ts),
-      y: hasAnyMl ? (r.volume_ml != null ? r.volume_ml : 0) : (r.seconds ?? 0),
-      ml: (r.volume_ml != null ? r.volume_ml : null),
-      sec: r.seconds ?? null,
-      ecb: r.ec_before ?? null,
-      eca: r.ec_after ?? null
-    }));
-
-    const cumulative = [];
-    if (hasAnyMl && events.length > 0) {
-      let running = 0;
-      events.forEach(r => {
-        running += (r.volume_ml ?? 0);
-        cumulative.push({ x: new Date(r.ts), y: running });
-      });
+    
+    if (weekEl) {
+      const valEl = weekEl.querySelector('.kpi-value');
+      if (valEl) valEl.textContent = weekMl.toFixed(1) + ' ml';
     }
-
-    const bars = hasAnyMl ? summary.map(d => ({ x: new Date(d.day), y: d.total_ml ?? 0 })) : [];
-
-    const datasets = [
-      bars.length ? {
-        type: 'bar',
-        label: 'Daily total (ml)',
-        data: bars,
-        order: 3,
-        backgroundColor: 'rgba(34,197,94,0.35)',
-        borderColor: 'rgba(34,197,94,0.6)',
-        yAxisID: 'y'
-      } : null,
-      cumulative.length ? {
-        type: 'line',
-        label: 'Cumulative total (ml)',
-        data: cumulative,
-        order: 2,
-        borderColor: 'rgba(168,85,247,0.8)',
-        backgroundColor: 'rgba(168,85,247,0.1)',
-        borderWidth: 2,
-        pointRadius: 0,
-        fill: false,
-        tension: 0,
-        yAxisID: 'y2'
-      } : null,
-      {
-        type: 'scatter',
-        label: hasAnyMl ? 'Dose events (ml)' : 'Dose events (s)',
-        data: pts,
-        order: 1,
-        pointRadius: 3,
-        backgroundColor: 'rgba(59,130,246,0.9)',
-        yAxisID: 'y'
-      }
-    ].filter(Boolean);
-
-    const axisTitle = hasAnyMl ? 'Dose (ml)' : 'Dose (s)';
-    const tmin = startISO ? new Date(startISO) : null;
-    const tmax = endISO ? new Date(endISO) : null;
-    buildChart(datasets, tmin, tmax, axisTitle, currentEC);
-
-    EC_STATE = { startISO, endISO, lastCount: events.length };
-
-    // Update summary badges if present
-    try {
-      const todayEl = document.getElementById('ec-total-today');
-      const weekEl = document.getElementById('ec-total-week');
-      if (todayEl && hasAnyMl) {
-        const todayStr = new Date().toISOString().slice(0,10);
-        const todayTotal = (summary.find(d => d.day === todayStr)?.total_ml) ?? 0;
-        todayEl.textContent = `Today: ${Number(todayTotal).toFixed(1)} ml`;
-      }
-      if (weekEl && hasAnyMl) {
-        const sum7 = summary.slice(-7).reduce((a, d) => a + (d.total_ml || 0), 0);
-        weekEl.textContent = `Week: ${Number(sum7).toFixed(1)} ml`;
-      }
-    } catch(e) { /* ignore */ }
   }
 
-  let currentRange = { preset: '24h', start: null, end: null };
-
-  async function selectPreset(preset){
+  /**
+   * Select a preset range
+   */
+  function selectPreset(preset) {
     currentRange.preset = preset;
+    
+    const now = new Date();
+    let start;
+    
+    switch (preset) {
+      case '24h':
+        start = new Date(now.getTime() - 24 * 3600 * 1000);
+        break;
+      case '7d':
+        start = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+        break;
+      case '30d':
+        start = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+        break;
+      case '90d':
+        start = new Date(now.getTime() - 90 * 24 * 3600 * 1000);
+        break;
+      case 'today':
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      case 'grow':
+        const growDate = window.rdwcSettings?.get('general.grow_start_date');
+        start = growDate ? new Date(growDate) : new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+        break;
+      default:
+        start = new Date(now.getTime() - 24 * 3600 * 1000);
+    }
+    
+    currentRange.start = start.toISOString();
+    currentRange.end = now.toISOString();
+    
+    // Save preference
     if (window.rdwcRange) {
       window.rdwcRange.saveLastPreset('rdwc.ec.range', preset);
     }
     
-    // Update button states
-    const btns = document.querySelectorAll('[data-ec-range]');
-    btns.forEach(btn => {
-      btn.classList.toggle('active', btn.getAttribute('data-ec-range') === preset);
-    });
-    
-    // Load range
-    await loadRange(preset);
+    loadAndRender();
   }
 
-  async function loadRange(preset){
-    if (!window.rdwcRange) {
-      // Fallback to simple time-based ranges
-      const now = new Date();
-      let start;
-      if (preset === '24h') start = new Date(now.getTime() - 24*3600*1000);
-      else if (preset === '7d') start = new Date(now.getTime() - 7*24*3600*1000);
-      else if (preset === '30d') start = new Date(now.getTime() - 30*24*3600*1000);
-      else if (preset === '90d') start = new Date(now.getTime() - 90*24*3600*1000);
-      else start = new Date(now.getTime() - 24*3600*1000);
-      
-      currentRange.start = start.toISOString();
-      currentRange.end = now.toISOString();
-      loadRangeAndRender({ start: currentRange.start, end: currentRange.end });
-      return;
-    }
-    
-    const growDate = window.rdwcSettings?.get('general.grow_start_date');
-    const customRange = window.rdwcRange.getCustomRange('rdwc.ec.range');
-    
-    // Compute start/end
-    const range = await window.rdwcRange.rangeToStartEnd(
-      preset, 
-      customRange.start, 
-      customRange.end, 
-      growDate
-    );
-    
-    if (!range) {
-      console.warn('[EC Chart] Invalid range');
-      return;
-    }
-    
-    currentRange.start = range.start;
-    currentRange.end = range.end;
-    
-    // Auto-populate datetime inputs
-    const fromEl = document.getElementById('ecDoseFrom');
-    const toEl = document.getElementById('ecDoseTo');
-    if (fromEl && toEl && range.start && range.end) {
-      const formatForInput = (ts) => {
-        const d = new Date(ts);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        const hh = String(d.getHours()).padStart(2, '0');
-        const min = String(d.getMinutes()).padStart(2, '0');
-        return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
-      };
-      
-      fromEl.value = formatForInput(range.start);
-      toEl.value = formatForInput(range.end);
-    }
-    
-    // Render chart
-    loadRangeAndRender({ start: range.start, end: range.end });
-  }
-
-  function toggleCustomInputs(enabled){
-    const fromEl = document.getElementById('ecDoseFrom');
-    const toEl = document.getElementById('ecDoseTo');
-    const applyEl = document.getElementById('ecDoseApply');
-    if(!fromEl || !toEl || !applyEl) return;
-    fromEl.disabled = !enabled; toEl.disabled = !enabled; applyEl.disabled = !enabled;
-    fromEl.style.opacity = enabled ? '1' : '0.55';
-    toEl.style.opacity = enabled ? '1' : '0.55';
-  }
-
-  async function wireRangeControls(){
-    // Restore last preset
-    const savedPreset = window.rdwcRange?.getLastPreset('rdwc.ec.range') || '24h';
-    currentRange.preset = savedPreset;
+  /**
+   * Wire up UI controls
+   */
+  function wireControls() {
+    // Range select dropdown
     const selectEl = document.getElementById('ecDoseRangeSelect');
-    if(selectEl){
-      // Disable grow if no start date
-      const growDate = window.rdwcSettings?.get('general.grow_start_date');
-      if(!growDate){
-        const opt = selectEl.querySelector('option[value="grow"]');
-        if(opt){ opt.disabled = true; opt.textContent = 'Entire Grow (set start date)'; }
-        if(savedPreset==='grow') currentRange.preset='24h';
-      }
-      selectEl.value = currentRange.preset;
-      selectEl.addEventListener('change', ()=>{
-        const val = selectEl.value;
-        selectPreset(val);
-        toggleCustomInputs(val==='custom');
+    if (selectEl) {
+      // Restore last preset
+      const savedPreset = window.rdwcRange?.getLastPreset('rdwc.ec.range') || '24h';
+      selectEl.value = savedPreset;
+      currentRange.preset = savedPreset;
+      
+      selectEl.addEventListener('change', function() {
+        selectPreset(this.value);
       });
-      toggleCustomInputs(selectEl.value==='custom');
     }
-    // Custom range apply
+    
+    // Custom range inputs
     const fromEl = document.getElementById('ecDoseFrom');
     const toEl = document.getElementById('ecDoseTo');
     const applyEl = document.getElementById('ecDoseApply');
-    if(applyEl && fromEl && toEl){
-      applyEl.addEventListener('click', ()=>{
-        const start = fromEl.value; const end = toEl.value;
-        if(start && end){
-          window.rdwcRange.saveCustomRange('rdwc.ec.range', start, end);
-          selectPreset('custom');
-          if(selectEl) selectEl.value='custom';
-          toggleCustomInputs(true);
+    
+    if (applyEl && fromEl && toEl) {
+      applyEl.addEventListener('click', function() {
+        const start = fromEl.value;
+        const end = toEl.value;
+        if (start && end) {
+          currentRange.preset = 'custom';
+          currentRange.start = new Date(start).toISOString();
+          currentRange.end = new Date(end).toISOString();
+          loadAndRender();
         }
       });
     }
-    await loadRange(currentRange.preset);
+    
+    // Refresh button
+    const refreshBtn = document.getElementById('btnEcRefreshChart');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', function() {
+        loadAndRender();
+      });
+    }
+    
+    // Export CSV button
+    const exportBtn = document.getElementById('btnEcExport');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', function() {
+        let url = '/api/ec/dose_log.csv?hours=24';
+        if (currentRange.start && currentRange.end) {
+          url = '/api/ec/dose_log.csv?start=' + encodeURIComponent(currentRange.start) + 
+                '&end=' + encodeURIComponent(currentRange.end);
+        }
+        window.open(url, '_blank');
+      });
+    }
   }
 
-  async function init(){
-    wireRangeControls();
+  /**
+   * Initialize
+   */
+  function init() {
+    console.log('[EC Chart] Init called');
+    wireControls();
+    selectPreset(currentRange.preset);
   }
 
-  // Export small API for other modules (ec.js calls refresh after dosing)
+  // Export API for other modules
   window.ecChart = {
-    refresh: function(){
-      // Re-render with current range to pick up new dose data
+    refresh: loadAndRender,
+    render: loadAndRender,
+    init: init,
+    selectPreset: selectPreset,
+    getRange: function() { return currentRange; },
+    exportCSV: function() {
+      let url = '/api/ec/dose_log.csv?hours=24';
       if (currentRange.start && currentRange.end) {
-        loadRangeAndRender({ start: currentRange.start, end: currentRange.end });
-      } else {
-        const now = new Date();
-        const start = new Date(now.getTime() - 24*3600*1000).toISOString();
-        loadRangeAndRender({ start, end: now.toISOString() });
+        url = '/api/ec/dose_log.csv?start=' + encodeURIComponent(currentRange.start) + 
+              '&end=' + encodeURIComponent(currentRange.end);
       }
-    },
-    render: loadRangeAndRender,
-    init,
-    getRange: function(){ return {start: currentRange.start, end: currentRange.end, preset: currentRange.preset}; },
-    exportCSV: function(){
-      let start = currentRange.start, end = currentRange.end;
-      if(!start || !end){ window.open('/api/ec/dose_log.csv?hours=24','_blank'); return; }
-      const startISO = new Date(start).toISOString();
-      const endISO = new Date(end).toISOString();
-      window.open(`/api/ec/dose_log.csv?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=5000`, '_blank');
+      window.open(url, '_blank');
     }
   };
 
+  // Auto-init when DOM ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
   }
+
+  console.log('[EC Chart] Module loaded');
 })();
