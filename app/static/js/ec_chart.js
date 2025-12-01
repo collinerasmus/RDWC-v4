@@ -1,146 +1,389 @@
 // EC Dose Chart Rendering Module
+// Shows EC sensor readings over time with dose events overlaid (Grow, Micro, Bloom)
 (function(){
   'use strict';
+  console.log('[EC Chart] Loader enter (ec_chart.js start)');
 
-  let EC_CHART = null;
-  let EC_STATE = { startISO: null, endISO: null, lastCount: 0 };
-
-  // Defensive Chart.js registration (v4 UMD usually auto-registers)
-  if (window.Chart && Chart.register && window.RDWC_CHART_REG_EC === undefined) {
-    try {
-      Chart.register(
-        Chart.controllers.BarController,
-        Chart.controllers.LineController,
-        Chart.controllers.ScatterController,
-        Chart.elements.BarElement,
-        Chart.elements.PointElement,
-        Chart.elements.LineElement,
-        Chart.scales.TimeScale,
-        Chart.scales.LinearScale,
-        Chart.plugins.Tooltip,
-        Chart.plugins.Legend,
-        Chart.plugins.Title
-      );
-      // Register annotation plugin if available
-      if (window.chartjs && window.chartjs.Annotation) {
-        Chart.register(window.chartjs.Annotation);
-      } else if (window.ChartAnnotation) {
-        Chart.register(window.ChartAnnotation);
-      }
-    } catch (e) {
-      // ignore
+  //==========================================================================
+  // ChartController - State management for EC chart
+  //==========================================================================
+  const ChartController = {
+    chart: null,
+    state: { lastStart: null, lastEnd: null, lastCount: 0, lastFetchTs: 0 },
+    rolling: { active: true, initialized: false, spanMs: 24 * 3600 * 1000, endMs: Date.now() },
+    userRangeSelected: false,
+    renderMutex: false,
+    lastRenderTime: 0,
+    
+    // Data cache
+    cachedEcReadings: null,
+    cachedDoseEvents: null,
+    cachedTargets: null,
+    cachedCurrentEC: null,
+    
+    // Constants
+    REFRESH_INTERVAL_MS: 10000,
+    MIN_RENDER_INTERVAL_MS: 3000,
+    
+    acquireMutex() {
+      if (this.renderMutex) return false;
+      this.renderMutex = true;
+      return true;
+    },
+    releaseMutex() {
+      this.renderMutex = false;
     }
-    window.RDWC_CHART_REG_EC = true;
+  };
+
+  // Check annotation plugin availability
+  let ANNOTATION_AVAILABLE = false;
+  if (window.Chart && typeof Chart.register === 'function') {
+    const annoPlugin = window['chartjs-plugin-annotation'] || 
+                       (window.chartjs && window.chartjs['plugin-annotation']) || 
+                       window.ChartAnnotation;
+    if (annoPlugin) {
+      try {
+        Chart.register(annoPlugin);
+        ANNOTATION_AVAILABLE = true;
+        console.log('[EC Chart] ✓ Annotation plugin registered');
+      } catch (e) {
+        ANNOTATION_AVAILABLE = true;
+      }
+    }
   }
 
-  function buildChart(datasets, tmin, tmax, axisTitle, currentEC) {
-    const el = document.getElementById('ecDoseChart');
-    const empty = document.getElementById('ec-dose-empty');
-    if (!el) return;
+  // Granularity settings for time-based bucketing
+  function presetParams(spanMs) {
+    const hours = spanMs / (3600 * 1000);
+    if (hours <= 2)   return { gran: 30, max: 1000 };
+    if (hours <= 24)  return { gran: 60, max: 1500 };
+    if (hours <= 168) return { gran: 300, max: 2100 };
+    if (hours <= 720) return { gran: 900, max: 3000 };
+    return { gran: 3600, max: 2500 };
+  }
 
-    const hasData = datasets && datasets.some(ds => (ds.data||[]).length > 0);
-    if (empty) empty.style.display = hasData ? 'none' : 'block';
-
-    const ctx = el.getContext('2d');
-    if (EC_CHART && typeof EC_CHART.destroy === 'function') {
-      EC_CHART.destroy();
-      EC_CHART = null;
+  /**
+   * Fetch EC readings from trends API
+   */
+  async function fetchEcReadings(fromISO, toISO, gran, max) {
+    const q = new URLSearchParams();
+    if (fromISO) q.set('from', fromISO);
+    if (toISO) q.set('to', toISO);
+    if (gran) q.set('gran', String(gran));
+    if (max) q.set('max', String(max));
+    
+    const url = '/api/trends?' + q.toString();
+    
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) {
+        console.warn('[EC Chart] Trends API failed:', res.status);
+        return { data: [], error: 'HTTP ' + res.status };
+      }
+      const data = await res.json();
+      
+      const ecSeries = (data?.series?.ec || []).map(function(p) {
+        return {
+          x: new Date(p.ts * 1000),
+          y: Number(p.value)
+        };
+      }).filter(function(p) { return !isNaN(p.y); });
+      
+      return { data: ecSeries, error: null };
+    } catch (err) {
+      console.error('[EC Chart] Failed to fetch EC readings:', err);
+      return { data: [], error: err.message };
     }
+  }
 
-    const dsUse = hasData ? datasets : [{
-      label: 'No doses',
-      data: [],
-      showLine: false,
-      pointRadius: 0.0001,
-      borderWidth: 0
-    }];
-
-    const hasCumulative = dsUse.some(ds => ds.yAxisID === 'y2');
-
-    // Build annotation plugin config for EC reference line
-    const annotations = {};
-    if (currentEC != null && !isNaN(currentEC)) {
-      annotations.ecLine = {
-        type: 'line',
-        yMin: currentEC,
-        yMax: currentEC,
-        yScaleID: 'y',
-        borderColor: 'rgba(99, 102, 241, 0.8)',  // indigo-500
-        borderWidth: 2,
-        borderDash: [6, 4],
-        label: {
-          display: true,
-          content: `Current EC: ${currentEC.toFixed(2)} mS/cm`,
-          position: 'start',
-          backgroundColor: 'rgba(99, 102, 241, 0.9)',
-          color: '#fff',
-          font: { size: 11, weight: 'bold' },
-          padding: 4
-        }
-      };
+  /**
+   * Build the EC chart with EC readings and dose events per pump
+   */
+  function buildChart(datasets, tmin, tmax, currentEC, targets, ecReadings, pumpEvents) {
+    if (!ChartController.acquireMutex()) return;
+    
+    const now = Date.now();
+    if (now - ChartController.lastRenderTime < ChartController.MIN_RENDER_INTERVAL_MS) {
+      ChartController.releaseMutex();
+      return;
     }
+    ChartController.lastRenderTime = now;
+    
+    try {
+      const el = document.getElementById('ecDoseChart');
+      const empty = document.getElementById('ec-dose-empty');
+      if (!el) {
+        console.error('[EC Chart] ❌ Canvas #ecDoseChart not found!');
+        return;
+      }
 
-    EC_CHART = new Chart(ctx, {
-      type: 'scatter',
-      data: { datasets: dsUse },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        parsing: false,
-        interaction: { mode: 'nearest', intersect: false },
-        scales: {
-          x: {
-            type: 'time',
-            adapters: { date: {} },
-            min: tmin || undefined,
-            max: tmax || undefined,
-            ticks: { source: 'auto' }
-          },
-          y: {
-            type: 'linear',
-            position: 'left',
-            title: { display: true, text: axisTitle || 'Dose (ml)' },
-            suggestedMin: 0
-          },
-          y2: hasCumulative ? {
-            type: 'linear',
-            position: 'right',
-            title: { display: true, text: 'Cumulative (ml)' },
-            suggestedMin: 0,
-            grid: { drawOnChartArea: false }
-          } : undefined
-        },
-        plugins: {
-          legend: { display: true, position: 'top' },
-          tooltip: {
-            enabled: true,
-            callbacks: {
-              label: (ctx) => {
-                const p = ctx.raw;
-                const ds = ctx.dataset;
-                if (ds.label && ds.label.includes('Cumulative')) {
-                  return `Total: ${ctx.parsed.y.toFixed(1)} ml`;
-                }
-                if (ds.label && ds.label.includes('Daily')) {
-                  return `Day total: ${ctx.parsed.y.toFixed(1)} ml`;
-                }
-                if (!p) return '';
-                const ml = (p.ml != null) ? `+${p.ml.toFixed(2)} ml` : (p.sec != null ? `~${p.sec.toFixed(2)} s` : '');
-                const ec = (p.ecb != null || p.eca != null) ? `  EC: ${p.ecb ?? '—'} → ${p.eca ?? '—'}` : '';
-                return `${ml}${ec}`;
-              }
-            }
-          },
-          annotation: {
-            annotations: annotations
-          }
+      // Fixed EC axis range for K=0.1 probe (0-8 mS/cm range)
+      // Display range optimized for typical hydroponic values (0-2 mS/cm)
+      // but can auto-scale if readings exceed this
+      const ecMin = 0;
+      let ecMax = 2.0; // Default max for typical hydro EC values
+      
+      // Auto-adjust max if we have readings that exceed the default
+      if (ecReadings && ecReadings.length > 0) {
+        const maxReading = Math.max(...ecReadings.map(r => r.y || 0));
+        if (maxReading > ecMax) {
+          ecMax = Math.ceil(maxReading * 1.2); // 20% headroom
+          if (ecMax > 8) ecMax = 8; // Cap at probe max (K=0.1 range)
         }
       }
-    });
+      // Also check current EC
+      if (currentEC != null && currentEC > ecMax) {
+        ecMax = Math.ceil(currentEC * 1.2);
+        if (ecMax > 8) ecMax = 8;
+      }
+
+      const hasEcReadings = ecReadings && ecReadings.length > 0;
+      const hasDoseData = datasets && datasets.some(ds => (ds.data||[]).length > 0);
+      
+      // Cache valid data
+      if (hasEcReadings) {
+        ChartController.cachedEcReadings = ecReadings;
+      } else if (ChartController.cachedEcReadings && ChartController.cachedEcReadings.length > 0) {
+        ecReadings = ChartController.cachedEcReadings;
+      }
+      
+      if (currentEC != null && !isNaN(currentEC)) {
+        ChartController.cachedCurrentEC = currentEC;
+      } else if (ChartController.cachedCurrentEC != null) {
+        currentEC = ChartController.cachedCurrentEC;
+      }
+      
+      if (targets && targets.low != null) {
+        ChartController.cachedTargets = targets;
+      } else if (ChartController.cachedTargets) {
+        targets = ChartController.cachedTargets;
+      }
+      
+      const hasData = (ecReadings && ecReadings.length > 0) || hasDoseData;
+      if (empty) empty.style.display = hasData ? 'none' : 'block';
+
+      const ctx = el.getContext('2d');
+      if (!ctx) {
+        console.error('[EC Chart] ❌ Failed to get 2D context!');
+        return;
+      }
+
+      // Build annotations
+      const annotations = {};
+      
+      // Target EC band (hysteresis)
+      if (targets && targets.low != null && targets.high != null) {
+        annotations.ecBand = {
+          type: 'box',
+          yMin: targets.low,
+          yMax: targets.high,
+          yScaleID: 'yEc',
+          backgroundColor: 'rgba(34, 197, 94, 0.12)',
+          borderWidth: 0,
+          drawTime: 'beforeDatasetsDraw'
+        };
+        
+        const setpoint = (targets.low + targets.high) / 2;
+        annotations.ecSetpoint = {
+          type: 'line',
+          yMin: setpoint,
+          yMax: setpoint,
+          yScaleID: 'yEc',
+          borderColor: 'rgba(34, 197, 94, 0.5)',
+          borderWidth: 1,
+          borderDash: [4, 4],
+          label: {
+            display: true,
+            content: 'Target: ' + setpoint.toFixed(2),
+            position: 'end',
+            backgroundColor: 'rgba(34, 197, 94, 0.8)',
+            color: '#fff',
+            font: { size: 10 },
+            padding: 3
+          }
+        };
+      }
+      
+      // Current EC line
+      if (currentEC != null && !isNaN(currentEC)) {
+        annotations.ecLine = {
+          type: 'line',
+          yMin: currentEC,
+          yMax: currentEC,
+          yScaleID: 'yEc',
+          borderColor: 'rgba(251, 191, 36, 0.8)',
+          borderWidth: 2,
+          borderDash: [6, 4],
+          label: {
+            display: true,
+            content: 'Current: ' + currentEC.toFixed(2),
+            position: 'start',
+            backgroundColor: 'rgba(251, 191, 36, 0.9)',
+            color: '#000',
+            font: { size: 11, weight: 'bold' },
+            padding: 4
+          }
+        };
+      }
+
+      // Build datasets
+      const finalDatasets = [];
+      
+      // EC readings line (primary)
+      if (ecReadings && ecReadings.length > 0) {
+        finalDatasets.push({
+          type: 'line',
+          label: 'EC (mS/cm)',
+          data: ecReadings,
+          order: 0,
+          yAxisID: 'yEc',
+          borderColor: '#f59e0b', // amber-500
+          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.3,
+          fill: false,
+          spanGaps: true
+        });
+      }
+      
+      // Add dose datasets (Grow, Micro, Bloom as separate series)
+      if (datasets && datasets.length > 0) {
+        datasets.forEach(ds => {
+          const clone = { ...ds };
+          clone.yAxisID = 'yDose';
+          finalDatasets.push(clone);
+        });
+      }
+      
+      const dsUse = finalDatasets.length > 0 ? finalDatasets : [{
+        label: 'No data',
+        data: [],
+        showLine: false,
+        pointRadius: 0.0001,
+        borderWidth: 0
+      }];
+
+      const hasDoseAxis = dsUse.some(ds => ds.yAxisID === 'yDose' && (ds.data||[]).length > 0);
+
+      // Build scales
+      const scales = {
+        x: {
+          type: 'time',
+          adapters: { date: {} },
+          min: tmin || undefined,
+          max: tmax || undefined,
+          ticks: { source: 'auto', maxRotation: 0, autoSkip: true },
+          time: {
+            tooltipFormat: 'yyyy-MM-dd HH:mm',
+            displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'MMM d' }
+          },
+          grid: { color: 'rgba(148,163,184,0.15)', drawTicks: false }
+        },
+        yEc: {
+          type: 'linear',
+          position: 'left',
+          title: { display: true, text: 'EC (mS/cm)' },
+          min: ecMin,
+          max: ecMax,
+          grid: { color: 'rgba(148,163,184,0.12)', drawTicks: false }
+        }
+      };
+      
+      if (hasDoseAxis) {
+        scales.yDose = {
+          type: 'linear',
+          position: 'right',
+          title: { display: true, text: 'Dose (s)' },
+          beginAtZero: true,
+          grid: { drawOnChartArea: false }
+        };
+      }
+
+      // Plugins config
+      const pluginsConfig = {
+        legend: { display: true, position: 'top', labels: { usePointStyle: true, boxWidth: 10, padding: 12 } },
+        tooltip: {
+          enabled: true,
+          callbacks: {
+            label: function(ctx) {
+              const p = ctx.raw;
+              const ds = ctx.dataset;
+              
+              if (ds.label === 'EC (mS/cm)') {
+                const v = Number(ctx.parsed.y);
+                return ' EC: ' + v.toFixed(3) + ' mS/cm';
+              }
+              
+              if (!p) return '';
+              const sec = p.sec != null ? p.sec.toFixed(2) + 's' : '';
+              const ec = (p.ecb != null || p.eca != null) ? '  EC: ' + (p.ecb ?? '—') + ' → ' + (p.eca ?? '—') : '';
+              return sec + ec;
+            }
+          }
+        }
+      };
+      
+      if (ANNOTATION_AVAILABLE && Object.keys(annotations).length > 0) {
+        pluginsConfig.annotation = { annotations: annotations };
+      }
+
+      // In-place update if chart exists
+      if (ChartController.chart && ChartController.chart.canvas) {
+        try {
+          ChartController.chart.data.datasets = dsUse;
+          if (tmin && tmax) {
+            ChartController.chart.options.scales.x.min = tmin;
+            ChartController.chart.options.scales.x.max = tmax;
+          }
+          ChartController.chart.options.scales.yEc.min = ecMin;
+          ChartController.chart.options.scales.yEc.max = ecMax;
+          if (hasDoseAxis && !ChartController.chart.options.scales.yDose) {
+            ChartController.chart.options.scales.yDose = scales.yDose;
+          }
+          if (ANNOTATION_AVAILABLE) {
+            if (!ChartController.chart.options.plugins.annotation) {
+              ChartController.chart.options.plugins.annotation = { annotations: annotations };
+            } else {
+              ChartController.chart.options.plugins.annotation.annotations = annotations;
+            }
+          }
+          ChartController.chart.update('none');
+          console.log('[EC Chart] ♻ In-place update');
+          return;
+        } catch(updateErr) {
+          console.warn('[EC Chart] In-place update failed, rebuilding:', updateErr.message);
+          try { ChartController.chart.destroy(); } catch(e) {}
+          ChartController.chart = null;
+        }
+      }
+      
+      // Create new chart
+      try {
+        ChartController.chart = new Chart(ctx, {
+          type: 'line',
+          data: { datasets: dsUse },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            parsing: false,
+            animation: false,
+            interaction: { mode: 'nearest', intersect: false },
+            scales: scales,
+            plugins: pluginsConfig
+          }
+        });
+        console.log('[EC Chart] ✅ Chart created');
+      } catch (chartErr) {
+        console.error('[EC Chart] ❌ Chart creation FAILED:', chartErr);
+      }
+      
+    } finally {
+      ChartController.releaseMutex();
+    }
   }
 
   async function loadRangeAndRender({start, end}){
-    // normalize inputs to ISO
     const toIso = (v) => {
       if (v == null) return null;
       if (typeof v === 'string') {
@@ -155,104 +398,145 @@
     };
     const startISO = toIso(start);
     const endISO = toIso(end);
+    
+    const startMs = startISO ? new Date(startISO).getTime() : Date.now() - 24*3600*1000;
+    const endMs = endISO ? new Date(endISO).getTime() : Date.now();
+    const spanMs = endMs - startMs;
+    const params = presetParams(spanMs);
 
     let events = [];
-    let summary = [];
     let currentEC = null;
-    try{
-      const [eRes, sRes, stRes] = await Promise.all([
+    let targets = null;
+    let ecReadings = [];
+    
+    try {
+      const [eRes, stRes, ecResult] = await Promise.all([
         fetch(`/api/ec/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`, {cache:'no-store'}),
-        fetch(`/api/ec/dose_summary?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`, {cache:'no-store'}),
-        fetch(`/api/ec/status`, {cache:'no-store'})
+        fetch('/api/ec/status', {cache:'no-store'}),
+        fetchEcReadings(startISO, endISO, params.gran, params.max)
       ]);
-      if (!eRes.ok) throw new Error(`dose_log HTTP ${eRes.status}`);
-      if (!sRes.ok) throw new Error(`dose_summary HTTP ${sRes.status}`);
-      events = await eRes.json();
-      summary = await sRes.json();
+      
+      if (eRes.ok) {
+        events = await eRes.json();
+      }
+      
+      ecReadings = ecResult.data;
+      
       if (stRes.ok) {
         const statusData = await stRes.json();
-        currentEC = statusData?.ec ?? null;
+        currentEC = statusData?.ec_ms_cm ?? statusData?.ec ?? null;
+        targets = statusData?.targets ?? null;
       }
-    } catch(err){
+    } catch(err) {
       console.error('[EC Chart] fetch error:', err);
-      buildChart([], null, null, 'Dose (ml)', null);
+      buildChart([], null, null, null, null, [], []);
       return;
     }
 
-  const hasAnyMl = events.some(r => r && r.volume_ml != null);
-    const pts = events.map(r => ({
-      x: new Date(r.ts),
-      y: hasAnyMl ? (r.volume_ml != null ? r.volume_ml : 0) : (r.seconds ?? 0),
-      ml: (r.volume_ml != null ? r.volume_ml : null),
-      sec: r.seconds ?? null,
-      ecb: r.ec_before ?? null,
-      eca: r.ec_after ?? null
-    }));
+    // Group dose events by pump type (grow, micro, bloom)
+    const growPts = [], microPts = [], bloomPts = [];
+    
+    events.forEach(r => {
+      const pt = {
+        x: new Date(r.ts),
+        y: r.seconds ?? 0,
+        sec: r.seconds ?? null,
+        ecb: r.ec_before ?? null,
+        eca: r.ec_after ?? null,
+        pump: r.pump
+      };
+      
+      if (r.pump === 'grow') growPts.push(pt);
+      else if (r.pump === 'micro') microPts.push(pt);
+      else if (r.pump === 'bloom') bloomPts.push(pt);
+    });
 
-    const cumulative = [];
-    if (hasAnyMl && events.length > 0) {
-      let running = 0;
-      events.forEach(r => {
-        running += (r.volume_ml ?? 0);
-        cumulative.push({ x: new Date(r.ts), y: running });
+    // Build datasets for each pump type
+    const datasets = [];
+    
+    if (growPts.length > 0) {
+      datasets.push({
+        type: 'scatter',
+        label: '🌱 Grow',
+        data: growPts,
+        order: 1,
+        yAxisID: 'yDose',
+        pointRadius: 6,
+        pointStyle: 'triangle',
+        backgroundColor: 'rgba(167, 243, 208, 0.9)', // green-200
+        borderColor: 'rgba(34, 197, 94, 1)',
+        borderWidth: 1
+      });
+    }
+    
+    if (microPts.length > 0) {
+      datasets.push({
+        type: 'scatter',
+        label: '🔬 Micro',
+        data: microPts,
+        order: 1,
+        yAxisID: 'yDose',
+        pointRadius: 6,
+        pointStyle: 'rect',
+        backgroundColor: 'rgba(147, 197, 253, 0.9)', // blue-300
+        borderColor: 'rgba(59, 130, 246, 1)',
+        borderWidth: 1
+      });
+    }
+    
+    if (bloomPts.length > 0) {
+      datasets.push({
+        type: 'scatter',
+        label: '🌸 Bloom',
+        data: bloomPts,
+        order: 1,
+        yAxisID: 'yDose',
+        pointRadius: 6,
+        pointStyle: 'circle',
+        backgroundColor: 'rgba(251, 191, 36, 0.9)', // amber-400
+        borderColor: 'rgba(245, 158, 11, 1)',
+        borderWidth: 1
       });
     }
 
-    const bars = hasAnyMl ? summary.map(d => ({ x: new Date(d.day), y: d.total_ml ?? 0 })) : [];
-
-    const datasets = [
-      bars.length ? {
-        type: 'bar',
-        label: 'Daily total (ml)',
-        data: bars,
-        order: 3,
-        backgroundColor: 'rgba(34,197,94,0.35)',
-        borderColor: 'rgba(34,197,94,0.6)',
-        yAxisID: 'y'
-      } : null,
-      cumulative.length ? {
-        type: 'line',
-        label: 'Cumulative total (ml)',
-        data: cumulative,
-        order: 2,
-        borderColor: 'rgba(168,85,247,0.8)',
-        backgroundColor: 'rgba(168,85,247,0.1)',
-        borderWidth: 2,
-        pointRadius: 0,
-        fill: false,
-        tension: 0,
-        yAxisID: 'y2'
-      } : null,
-      {
-        type: 'scatter',
-        label: hasAnyMl ? 'Dose events (ml)' : 'Dose events (s)',
-        data: pts,
-        order: 1,
-        pointRadius: 3,
-        backgroundColor: 'rgba(59,130,246,0.9)',
-        yAxisID: 'y'
-      }
-    ].filter(Boolean);
-
-    const axisTitle = hasAnyMl ? 'Dose (ml)' : 'Dose (s)';
     const tmin = startISO ? new Date(startISO) : null;
     const tmax = endISO ? new Date(endISO) : null;
-    buildChart(datasets, tmin, tmax, axisTitle, currentEC);
+    buildChart(datasets, tmin, tmax, currentEC, targets, ecReadings, []);
 
-    EC_STATE = { startISO, endISO, lastCount: events.length };
+    ChartController.state = { lastStart: startISO, lastEnd: endISO, lastCount: events.length, lastFetchTs: Date.now() };
 
-    // Update summary badges if present
+    // Update summary badges
     try {
       const todayEl = document.getElementById('ec-total-today');
       const weekEl = document.getElementById('ec-total-week');
-      if (todayEl && hasAnyMl) {
-        const todayStr = new Date().toISOString().slice(0,10);
-        const todayTotal = (summary.find(d => d.day === todayStr)?.total_ml) ?? 0;
-        todayEl.textContent = `Today: ${Number(todayTotal).toFixed(1)} ml`;
+      const rate = {
+        grow: parseFloat(window.rdwcSettings?.get('dosing.grow_ml_per_sec') || '20'),
+        micro: parseFloat(window.rdwcSettings?.get('dosing.micro_ml_per_sec') || '20'),
+        bloom: parseFloat(window.rdwcSettings?.get('dosing.bloom_ml_per_sec') || '20')
+      };
+      
+      // Calculate totals
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const weekStart = todayStart - 7 * 24 * 3600 * 1000;
+      
+      let todayMl = 0, weekMl = 0;
+      events.forEach(e => {
+        const ts = new Date(e.ts).getTime();
+        const ml = (e.seconds || 0) * (rate[e.pump] || 0);
+        if (ts >= todayStart) todayMl += ml;
+        if (ts >= weekStart) weekMl += ml;
+      });
+      
+      if (todayEl) {
+        const valEl = todayEl.querySelector('.kpi-value');
+        if (valEl) valEl.textContent = todayMl > 0 ? `${todayMl.toFixed(1)} ml` : '— ml';
+        else todayEl.textContent = `Today: ${todayMl.toFixed(1)} ml`;
       }
-      if (weekEl && hasAnyMl) {
-        const sum7 = summary.slice(-7).reduce((a, d) => a + (d.total_ml || 0), 0);
-        weekEl.textContent = `Week: ${Number(sum7).toFixed(1)} ml`;
+      if (weekEl) {
+        const valEl = weekEl.querySelector('.kpi-value');
+        if (valEl) valEl.textContent = weekMl > 0 ? `${weekMl.toFixed(1)} ml` : '— ml';
+        else weekEl.textContent = `Week: ${weekMl.toFixed(1)} ml`;
       }
     } catch(e) { /* ignore */ }
   }
