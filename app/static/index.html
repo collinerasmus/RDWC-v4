@@ -1976,7 +1976,12 @@ body{
                   <button id="btnSaveEcSettings" class="btn-secondary">Save Settings</button>
                   <button id="btnClearEcLearned" class="btn-secondary" title="Reset EC automation learned value">Clear Learned</button>
                 </div>
-                <!-- Hidden fields for backward compatibility -->
+                <!-- 
+                  Hidden fields for backward compatibility with ec.js loadECSettings() function.
+                  These IDs are referenced in ec.js lines ~577-590 for loading settings values.
+                  Can be safely removed once ec.js is updated to not reference these IDs,
+                  or if the detailed pump rate settings are moved to a dedicated calibration page.
+                -->
                 <input type="hidden" id="ecMicroMlPerSec" />
                 <input type="hidden" id="ecGrowMlPerSec" />
                 <input type="hidden" id="ecBloomMlPerSec" />

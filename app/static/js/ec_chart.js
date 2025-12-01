@@ -47,7 +47,9 @@
         ANNOTATION_AVAILABLE = true;
         console.log('[EC Chart] ✓ Annotation plugin registered');
       } catch (e) {
-        ANNOTATION_AVAILABLE = true;
+        // Registration failed - annotation features will be disabled
+        ANNOTATION_AVAILABLE = false;
+        console.warn('[EC Chart] Annotation plugin registration failed:', e.message);
       }
     }
   }
