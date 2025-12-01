@@ -642,6 +642,26 @@ body{
   .ec-v1-ui .btn-mini{padding:4px 8px;border-radius:6px;border:1px solid #374151;background:#1f2937;color:#e5e7eb;font-size:.7rem;cursor:pointer}
   .ec-v1-ui .btn-mini:hover{background:#374151}
   .ec-v1-ui .nowrap{white-space:nowrap}
+    /* EC Guard chips styling */
+    .ec-guard-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;font-size:0.7rem;font-weight:600;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:#22c55e;transition:all 0.2s ease;}
+    .ec-guard-chip.active{background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#ef4444;}
+    .ec-guard-chip.warning{background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.4);color:#f59e0b;}
+    /* EC Quick Dose button styling */
+    .ec-quick-dose{transition:all 0.15s ease;min-width:40px;}
+    .ec-quick-dose:disabled{opacity:0.5;cursor:not-allowed;}
+    .ec-quick-dose.dosing{background:rgba(34,197,94,0.3)!important;animation:ec-pulse 0.6s ease-in-out;}
+    @keyframes ec-pulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,0);}50%{box-shadow:0 0 0 4px rgba(34,197,94,0.3);}}
+    /* EC Dose log table improvements */
+    #ecDoseLogTable tr{transition:background 0.15s ease;}
+    #ecDoseLogTable tr:hover{background:rgba(148,163,184,0.08);}
+    #ecDoseLogTable .pump-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:4px;font-size:0.7rem;font-weight:600;}
+    #ecDoseLogTable .pump-badge.grow{background:rgba(34,197,94,0.15);color:#22c55e;}
+    #ecDoseLogTable .pump-badge.micro{background:rgba(59,130,246,0.15);color:#3b82f6;}
+    #ecDoseLogTable .pump-badge.bloom{background:rgba(168,85,247,0.15);color:#a855f7;}
+    #ecDoseLogTable .ec-delta{font-weight:600;}
+    #ecDoseLogTable .ec-delta.up{color:#22c55e;}
+    #ecDoseLogTable .ec-delta.down{color:#ef4444;}
+    #ecDoseLogTable .time-ago{color:#9ca3af;font-size:0.75rem;}
     /* Schedule timeline & targets lightweight styles */
     .schedule-timeline-lanes{min-height:120px;position:relative;font-size:var(--font-xs);}
     .schedule-week-block{position:relative;display:inline-block;height:14px;margin:2px 0;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.25);border-radius:4px;overflow:hidden;}
@@ -1840,9 +1860,10 @@ body{
     <!-- 5. EC Control Card -->
   <section id="ec-card" class="card card-wide tab-section" data-tab="ec" style="display:none;">
           <div class="card-header">
-            <div style="display:flex;align-items:center;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <h3 class="card-title" style="margin:0;">EC Control</h3>
               <span id="ec-health-indicator" class="ui-status-chip success" title="Controller health">OK</span>
+              <span id="ec-last-updated" class="muted" style="font-size:var(--font-xs);opacity:0.7;">Updated: —</span>
             </div>
           </div>
 
@@ -1852,47 +1873,136 @@ body{
                 Reservoir set to 0 L — dosing disabled
               </div>
             </div>
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
-              <div class="kpi kpi-ec">
-                <div class="kpi-label">EC</div>
-                <div class="kpi-value" id="ec-current">310.50</div>
+            
+            <!-- KPI Row with EC value, targets, and totals -->
+            <div style="display:flex;align-items:stretch;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
+              <div class="kpi kpi-ec" style="min-width:140px;">
+                <div class="kpi-label">Current EC</div>
+                <div class="kpi-value" style="font-size:1.5rem;" id="ec-current">—</div>
+                <div class="kpi-unit" style="font-size:var(--font-xs);opacity:0.7;">mS/cm</div>
               </div>
-              <div class="kpi kpi-ec">
-                <div class="kpi-label">Guards</div>
-                <div class="kpi-value" id="ec-guards">All clear</div>
-              </div>
-              <div class="kpi kpi-ec">
+              <div class="kpi kpi-ec" style="min-width:140px;">
                 <div class="kpi-label">Target Range</div>
-                <div class="kpi-value" id="ec-band">0.8 – 1.2 mS/cm</div>
+                <div class="kpi-value" id="ec-band">0.8 – 1.2</div>
+                <div class="kpi-unit" style="font-size:var(--font-xs);opacity:0.7;">mS/cm</div>
+              </div>
+              <div class="kpi kpi-ec" id="ec-total-today" style="min-width:100px;">
+                <div class="kpi-label">Today</div>
+                <div class="kpi-value">— ml</div>
+              </div>
+              <div class="kpi kpi-ec" id="ec-total-week" style="min-width:100px;">
+                <div class="kpi-label">Week</div>
+                <div class="kpi-value">— ml</div>
+              </div>
+              <div class="kpi kpi-ec" id="ec-learned-kpi" style="min-width:100px;display:none;">
+                <div class="kpi-label">Learned</div>
+                <div class="kpi-value">— ml/mS</div>
               </div>
               <span id="ec-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
             </div>
 
-            <!-- Tabs replaced by 3-mode header; keep recent/status always visible. -->
-            <div class="tabs" style="display:none;gap:10px;flex-wrap:wrap;margin:8px 0 12px 0;"></div>
-
-            <!-- Removed duplicate Recent Doses list (Dose Log below already covers recent) -->
-            <!-- Manual Mode Content -->
-            <div id="ec-manual-content" style="display:block;">
-              <!-- ML-based dosing moved to Settings → EC Manual Dosing -->
-            </div>
-            <!-- Auto Mode Content -->
-            <div id="ec-auto-content" style="display:none;">
-              <!-- Redundant automation button removed - use mode chips in header -->
-            </div>
-
-            <!-- Maintenance Mode Banner (shares manual controls; warning shown when in maintenance) -->
-            <div id="ec-maint-banner" class="info-banner-danger" style="display:none;">
-              <div class="info-banner-icon">⚠️</div>
-              <div class="info-banner-danger-content">
-                <strong>Maintenance Mode Active:</strong> Controller automation disabled. Manual dosing available with reduced safety restrictions (E-STOP and empty reservoir checks still enforced).
+            <!-- Guard Status Panel -->
+            <div id="ec-guards-panel" style="margin-bottom:var(--space-md);padding:10px 12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <span style="font-weight:600;font-size:var(--font-sm);">Guard Status</span>
+                <span id="ec-guards-summary" class="ui-status-chip success" style="font-size:0.65rem;">All Clear</span>
+              </div>
+              <div id="ec-guards-grid" style="display:flex;gap:8px;flex-wrap:wrap;">
+                <span class="ec-guard-chip" data-guard="estop" title="Emergency Stop">🛑 E-STOP</span>
+                <span class="ec-guard-chip" data-guard="sensor_stale" title="Sensor reading is stale">📡 Sensor</span>
+                <span class="ec-guard-chip" data-guard="interval" title="Min interval between doses">⏱ Interval</span>
+                <span class="ec-guard-chip" data-guard="daily_cap" title="Daily dose cap">📊 Daily Cap</span>
+                <span class="ec-guard-chip" data-guard="reservoir" title="Reservoir volume">💧 Reservoir</span>
+                <span class="ec-guard-chip" data-guard="mix_lock" title="Another dose in progress">🔒 Lock</span>
+                <span class="ec-guard-chip" data-guard="ec_high" title="EC already at target">📈 EC High</span>
               </div>
             </div>
 
-            <!-- History chart under KPI + summary; graph buttons under the graph -->
+            <!-- Controller Preview Section -->
+            <details id="ec-preview-section" style="margin-bottom:var(--space-md);">
+              <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);font-weight:600;">📊 Controller Preview</summary>
+              <div id="ec-preview-content" style="margin-top:12px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+                  <div>
+                    <div class="muted" style="font-size:var(--font-xs);margin-bottom:4px;">Decision</div>
+                    <div id="ec-preview-decision" style="font-weight:600;font-size:var(--font-base);">—</div>
+                  </div>
+                  <div>
+                    <div class="muted" style="font-size:var(--font-xs);margin-bottom:4px;">Reason</div>
+                    <div id="ec-preview-reason" style="font-size:var(--font-base);">—</div>
+                  </div>
+                  <div>
+                    <div class="muted" style="font-size:var(--font-xs);margin-bottom:4px;">Proposed Action</div>
+                    <div id="ec-preview-action" style="font-size:var(--font-base);">—</div>
+                  </div>
+                  <div>
+                    <div class="muted" style="font-size:var(--font-xs);margin-bottom:4px;">Ratio Source</div>
+                    <div id="ec-preview-ratio" style="font-size:var(--font-base);">—</div>
+                  </div>
+                </div>
+                <!-- Ratio Visualization -->
+                <div id="ec-ratio-viz" style="margin-top:12px;display:none;">
+                  <div class="muted" style="font-size:var(--font-xs);margin-bottom:6px;">G:M:B Mix Split</div>
+                  <div style="display:flex;height:24px;border-radius:4px;overflow:hidden;background:#1f2937;">
+                    <div id="ec-ratio-grow" style="background:#22c55e;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:600;color:#fff;" title="Grow">—</div>
+                    <div id="ec-ratio-micro" style="background:#3b82f6;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:600;color:#fff;" title="Micro">—</div>
+                    <div id="ec-ratio-bloom" style="background:#a855f7;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:600;color:#fff;" title="Bloom">—</div>
+                  </div>
+                </div>
+                <div style="margin-top:12px;">
+                  <button id="btnEcRefreshPreview" class="btn-secondary btn-small">Refresh Preview</button>
+                  <span id="ec-preview-dry-run" class="ui-status-chip warning" style="margin-left:8px;display:none;">DRY-RUN</span>
+                </div>
+              </div>
+            </details>
+
+            <!-- Maintenance Mode Banner -->
+            <div id="ec-maint-banner" class="info-banner-danger" style="display:none;">
+              <div class="info-banner-icon">⚠️</div>
+              <div class="info-banner-danger-content">
+                <strong>Maintenance Mode Active:</strong> Controller automation disabled. Manual dosing available with reduced safety restrictions.
+              </div>
+            </div>
+
+            <!-- Quick Manual Dosing Panel -->
+            <div style="margin-bottom:var(--space-md);padding:12px;border-radius:8px;background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.2);">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <div style="font-weight:600;font-size:var(--font-base);">Quick Dose</div>
+                <span id="ec-dose-feedback" class="muted" style="font-size:var(--font-xs);"></span>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+                <div style="text-align:center;">
+                  <div style="font-size:var(--font-xs);color:#22c55e;margin-bottom:4px;">🌱 Grow</div>
+                  <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
+                    <button id="btnQuickGrow05" class="btn-secondary btn-xs ec-quick-dose" data-pump="grow" data-sec="0.5" title="Grow 0.5s">0.5s</button>
+                    <button id="btnQuickGrow10" class="btn-secondary btn-xs ec-quick-dose" data-pump="grow" data-sec="1.0" title="Grow 1.0s">1.0s</button>
+                    <button id="btnQuickGrow20" class="btn-secondary btn-xs ec-quick-dose" data-pump="grow" data-sec="2.0" title="Grow 2.0s">2.0s</button>
+                  </div>
+                </div>
+                <div style="text-align:center;">
+                  <div style="font-size:var(--font-xs);color:#3b82f6;margin-bottom:4px;">🔬 Micro</div>
+                  <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
+                    <button id="btnQuickMicro05" class="btn-secondary btn-xs ec-quick-dose" data-pump="micro" data-sec="0.5" title="Micro 0.5s">0.5s</button>
+                    <button id="btnQuickMicro10" class="btn-secondary btn-xs ec-quick-dose" data-pump="micro" data-sec="1.0" title="Micro 1.0s">1.0s</button>
+                    <button id="btnQuickMicro20" class="btn-secondary btn-xs ec-quick-dose" data-pump="micro" data-sec="2.0" title="Micro 2.0s">2.0s</button>
+                  </div>
+                </div>
+                <div style="text-align:center;">
+                  <div style="font-size:var(--font-xs);color:#a855f7;margin-bottom:4px;">🌸 Bloom</div>
+                  <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
+                    <button id="btnQuickBloom05" class="btn-secondary btn-xs ec-quick-dose" data-pump="bloom" data-sec="0.5" title="Bloom 0.5s">0.5s</button>
+                    <button id="btnQuickBloom10" class="btn-secondary btn-xs ec-quick-dose" data-pump="bloom" data-sec="1.0" title="Bloom 1.0s">1.0s</button>
+                    <button id="btnQuickBloom20" class="btn-secondary btn-xs ec-quick-dose" data-pump="bloom" data-sec="2.0" title="Bloom 2.0s">2.0s</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- History chart -->
             <hr class="separator" />
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:var(--space-sm);">
-              <div class="muted">Dose History</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:var(--space-sm);">
+              <div class="muted" style="font-weight:600;">Dose History</div>
+              <button id="btnEcRefreshChart" class="btn-secondary btn-small" title="Refresh chart data">↻ Refresh</button>
             </div>
             <div id="ec-dose-chart-wrap" class="chart-card">
               <canvas id="ecDoseChart"></canvas>
@@ -2140,9 +2250,9 @@ body{
                       <tr>
                         <th style="padding:6px 8px;text-align:left;">Time</th>
                         <th style="padding:6px 8px;text-align:left;">Pump</th>
-                        <th style="padding:6px 8px;text-align:right;">Seconds</th>
-                        <th style="padding:6px 8px;text-align:right;">EC Before</th>
-                        <th style="padding:6px 8px;text-align:right;">EC After</th>
+                        <th style="padding:6px 8px;text-align:right;">Volume</th>
+                        <th style="padding:6px 8px;text-align:right;">EC Change</th>
+                        <th style="padding:6px 8px;text-align:center;">Δ</th>
                         <th style="padding:6px 8px;text-align:left;">Note</th>
                       </tr>
                     </thead>

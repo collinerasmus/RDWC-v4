@@ -64,11 +64,11 @@
     const ecVal = el('ec-current');
     const band = el('ec-band');
     const guards = el('ec-guards');
-  const resBanner = el('ec-reservoir-banner');
+    const resBanner = el('ec-reservoir-banner');
     const cdPill = el('ec-countdown-pill');
     
     if(ecVal){ ecVal.textContent = (s && s.ec_ms_cm!=null) ? s.ec_ms_cm.toFixed(2) : '—'; }
-    if(band && s){ band.textContent = `Targets ${s.targets.low} – ${s.targets.high} mS/cm`; }
+    if(band && s){ band.textContent = `${s.targets.low} – ${s.targets.high}`; }
     if(guards && s){
       const list = guardList(s.guards);
       guards.textContent = list.length ? list.join(' · ') : 'All clear';
@@ -77,8 +77,15 @@
     }
     if(resBanner && s){ resBanner.style.display = s.guards?.reservoir ? 'block' : 'none'; }
 
-    // Freshness indicator
-    // Removed freshness dot in EC header (uses global health indicator)
+    // Update last updated timestamp
+    const lastUpdatedEl = el('ec-last-updated');
+    if(lastUpdatedEl){
+      const now = new Date();
+      lastUpdatedEl.textContent = `Updated: ${now.toLocaleTimeString()}`;
+    }
+
+    // Update guard chips visualization
+    updateGuardChips(s?.guards || {});
 
     // Override badge in header
     const overrideBadge = el('ecOverrideBadge');
@@ -86,14 +93,13 @@
       const override = (window.rdwcSettings?.get('safety.maintenance_override')||'false').toLowerCase() === 'true';
       overrideBadge.style.display = override ? 'inline-block' : 'none';
     }
-    // (Removed recent list rendering)
     
     // Update learned value KPI in readings row
     const learnedKPI = el('ec-learned-kpi');
-    if (learnedKPI && s && s.learned_ml_per_mScm !== null && s.learned_ml_per_mScm !== undefined && s.learned_ml_per_mScm > 0) {
+    if (learnedKPI && s && s.auto?.learned_ml_per_mScm !== null && s.auto?.learned_ml_per_mScm !== undefined && s.auto?.learned_ml_per_mScm > 0) {
       learnedKPI.style.display = 'inline-block';
       const valueEl = learnedKPI.querySelector('.kpi-value');
-      if (valueEl) valueEl.textContent = `${s.learned_ml_per_mScm.toFixed(2)} ml/mS`;
+      if (valueEl) valueEl.textContent = `${s.auto.learned_ml_per_mScm.toFixed(2)} ml/mS`;
     } else if (learnedKPI) {
       learnedKPI.style.display = 'none';
     }
@@ -109,13 +115,21 @@
       else todayEl.textContent = `Today: ${(s.today_ml||0).toFixed(1)} ml`;
     }
 
-    // Determine disabled state
+    // Determine disabled state for quick dose buttons
     const g = s?.guards || {};
     const maint = (window.rdwcSettings?.get('safety.maintenance_override')||'false').toLowerCase() === 'true';
     const bypass = maint;
     const blockedCooldown = (g.interval || g.daily_cap) && !bypass;
     const blockedHard = !!(g.estop || g.sensor_stale || g.reservoir || g.mix_lock);
     const disabled = blockedCooldown || blockedHard;
+    
+    // Disable quick dose buttons when blocked
+    document.querySelectorAll('.ec-quick-dose').forEach(btn => {
+      btn.disabled = disabled;
+      btn.title = disabled ? 'Blocked by guard(s)' : `Dose ${btn.dataset.pump} for ${btn.dataset.sec}s`;
+    });
+    
+    // Disable legacy dose buttons
     ['btnEcDose10','btnEcDose50','btnEcDose100','btnEcDoseCustom','ecCustomMl'].forEach(id=>{
       const e = el(id); if(e){ e.disabled = disabled; e.title = disabled ? 'Blocked by guard(s)' : ''; }
     });
@@ -154,6 +168,55 @@
     
     // Update K-factor and calibration status chips in header
     updateHeaderChips();
+  }
+
+  // Update guard chip visualization
+  function updateGuardChips(guards){
+    const guardMap = {
+      'estop': guards.estop,
+      'sensor_stale': guards.sensor_stale,
+      'interval': guards.interval,
+      'daily_cap': guards.daily_cap,
+      'reservoir': guards.reservoir,
+      'mix_lock': guards.mix_lock,
+      'ec_high': guards.ec_high
+    };
+    
+    const chips = document.querySelectorAll('.ec-guard-chip');
+    let activeCount = 0;
+    let hardBlockCount = 0;
+    
+    chips.forEach(chip => {
+      const guard = chip.dataset.guard;
+      const isActive = guardMap[guard];
+      const isHard = ['estop', 'reservoir', 'mix_lock'].includes(guard);
+      
+      chip.classList.remove('active', 'warning');
+      if(isActive){
+        activeCount++;
+        if(isHard){
+          chip.classList.add('active');
+          hardBlockCount++;
+        } else {
+          chip.classList.add('warning');
+        }
+      }
+    });
+    
+    // Update summary chip
+    const summary = el('ec-guards-summary');
+    if(summary){
+      if(hardBlockCount > 0){
+        summary.textContent = 'BLOCKED';
+        summary.className = 'ui-status-chip error';
+      } else if(activeCount > 0){
+        summary.textContent = 'WAITING';
+        summary.className = 'ui-status-chip warning';
+      } else {
+        summary.textContent = 'All Clear';
+        summary.className = 'ui-status-chip success';
+      }
+    }
   }
 
   async function updateHeaderChips() {
@@ -272,6 +335,98 @@
     window.open('/api/ec/dose_log.csv?hours=24', '_blank');
   }
 
+  // Controller preview - fetches and displays decision logic
+  async function refreshControllerPreview(){
+    const decisionEl = el('ec-preview-decision');
+    const reasonEl = el('ec-preview-reason');
+    const actionEl = el('ec-preview-action');
+    const ratioEl = el('ec-preview-ratio');
+    const dryRunEl = el('ec-preview-dry-run');
+    const ratioViz = el('ec-ratio-viz');
+    
+    try{
+      const r = await fetch('/api/ec/control/preview', {cache:'no-store'});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const data = await r.json();
+      
+      // Decision
+      if(decisionEl){
+        if(data.would_dose){
+          decisionEl.textContent = '✅ Would Dose';
+          decisionEl.style.color = '#22c55e';
+        } else {
+          decisionEl.textContent = '⏸ No Dose';
+          decisionEl.style.color = '#9ca3af';
+        }
+      }
+      
+      // Reason
+      if(reasonEl){
+        const reasonMap = {
+          'sensor_null': 'No sensor reading',
+          'sensor_stale': 'Sensor reading is stale',
+          'in_range': 'EC is in target range',
+          'ec_below_target': 'EC below target'
+        };
+        let reason = data.reason || '—';
+        if(data.blocked_by) reason = `Blocked: ${data.blocked_by}`;
+        reasonEl.textContent = reasonMap[reason] || reason;
+      }
+      
+      // Proposed action
+      if(actionEl){
+        if(data.proposed_action){
+          const a = data.proposed_action;
+          const mix = a.mix || {};
+          actionEl.innerHTML = `<strong>${a.ml.toFixed(1)} ml</strong> (G:${mix.grow?.toFixed(1)||0} M:${mix.micro?.toFixed(1)||0} B:${mix.bloom?.toFixed(1)||0})`;
+        } else {
+          actionEl.textContent = '—';
+        }
+      }
+      
+      // Ratio source
+      if(ratioEl){
+        ratioEl.textContent = data.ratio_source || '—';
+      }
+      
+      // Dry run indicator
+      if(dryRunEl){
+        dryRunEl.style.display = data.dry_run ? 'inline-block' : 'none';
+      }
+      
+      // Ratio visualization
+      if(ratioViz && data.ratios){
+        ratioViz.style.display = 'block';
+        const total = (data.ratios.grow||0) + (data.ratios.micro||0) + (data.ratios.bloom||0);
+        if(total > 0){
+          const growPct = ((data.ratios.grow||0)/total*100);
+          const microPct = ((data.ratios.micro||0)/total*100);
+          const bloomPct = ((data.ratios.bloom||0)/total*100);
+          
+          const growBar = el('ec-ratio-grow');
+          const microBar = el('ec-ratio-micro');
+          const bloomBar = el('ec-ratio-bloom');
+          
+          if(growBar){
+            growBar.style.width = growPct + '%';
+            growBar.textContent = growPct >= 10 ? `G:${growPct.toFixed(0)}%` : '';
+          }
+          if(microBar){
+            microBar.style.width = microPct + '%';
+            microBar.textContent = microPct >= 10 ? `M:${microPct.toFixed(0)}%` : '';
+          }
+          if(bloomBar){
+            bloomBar.style.width = bloomPct + '%';
+            bloomBar.textContent = bloomPct >= 10 ? `B:${bloomPct.toFixed(0)}%` : '';
+          }
+        }
+      }
+    }catch(e){
+      console.warn('[EC] preview fetch error:', e);
+      if(decisionEl) decisionEl.textContent = 'Error loading preview';
+    }
+  }
+
   // Custom mix ratio UI removed (managed in Settings); stub retained for safety.
   function setupMixRatioToggle(){ /* no-op */ }
 
@@ -334,7 +489,7 @@
     if(!table) return;
     
     try{
-      const r = await fetch('/api/dose/recent?limit=20', {cache:'no-store'});
+      const r = await fetch('/api/ec/dose/recent?limit=20', {cache:'no-store'});
       if(!r.ok) throw new Error('HTTP '+r.status);
       const data = await r.json();
       const events = (data.events||[]).filter(e => ['grow','micro','bloom'].includes(e.pump));
@@ -345,18 +500,58 @@
       }
       
       table.innerHTML = events.map(e => {
-        const time = e.ts_utc ? new Date(e.ts_utc).toLocaleString() : '—';
-        const ec_before = e.ec_before != null ? e.ec_before.toFixed(2) : '—';
-        const ec_after = e.ec_after != null ? e.ec_after.toFixed(2) : '—';
-        const note = e.blocked_by || e.reason || '—';
-        const row_style = e.blocked_by ? 'color:#f59e0b;' : '';
-        return `<tr style="${row_style}">
-          <td style="padding:6px 8px;">${time}</td>
-          <td style="padding:6px 8px;">${e.pump}</td>
-          <td style="padding:6px 8px;text-align:right;">${e.seconds.toFixed(2)}s</td>
-          <td style="padding:6px 8px;text-align:right;">${ec_before}</td>
-          <td style="padding:6px 8px;text-align:right;">${ec_after}</td>
-          <td style="padding:6px 8px;">${note}</td>
+        // Format time as relative (e.g., "2 min ago") or absolute
+        let timeDisplay = '—';
+        let timeAgo = '';
+        if(e.ts_iso){
+          const ts = new Date(e.ts_iso);
+          const now = new Date();
+          const diffSec = Math.floor((now - ts) / 1000);
+          if(diffSec < 60) timeAgo = `${diffSec}s ago`;
+          else if(diffSec < 3600) timeAgo = `${Math.floor(diffSec/60)} min ago`;
+          else if(diffSec < 86400) timeAgo = `${Math.floor(diffSec/3600)}h ago`;
+          else timeAgo = ts.toLocaleDateString();
+          timeDisplay = ts.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+        }
+        
+        // Pump badge with icon and color
+        const pumpIcons = {grow: '🌱', micro: '🔬', bloom: '🌸'};
+        const pumpIcon = pumpIcons[e.pump] || '';
+        const pumpBadge = `<span class="pump-badge ${e.pump}">${pumpIcon} ${e.pump}</span>`;
+        
+        // Volume (ml) calculation from seconds if available
+        const volumeText = e.volume_ml != null ? `${e.volume_ml.toFixed(1)} ml` : `${(e.seconds||0).toFixed(2)}s`;
+        
+        // EC delta with color
+        let ecDeltaHtml = '—';
+        if(e.ec_before != null && e.ec_after != null){
+          const delta = e.ec_after - e.ec_before;
+          const deltaClass = delta >= 0 ? 'up' : 'down';
+          const deltaSign = delta >= 0 ? '+' : '';
+          ecDeltaHtml = `<span class="ec-delta ${deltaClass}">${deltaSign}${delta.toFixed(3)}</span>`;
+        }
+        
+        // EC before/after
+        const ecBefore = e.ec_before != null ? e.ec_before.toFixed(2) : '—';
+        const ecAfter = e.ec_after != null ? e.ec_after.toFixed(2) : '—';
+        
+        // Note/reason with blocked styling
+        let noteHtml = e.reason || '—';
+        const rowStyle = e.blocked_by ? 'color:#f59e0b;' : '';
+        if(e.blocked_by){
+          noteHtml = `<span style="color:#ef4444;">⛔ ${e.blocked_by}</span>`;
+        }
+        
+        return `<tr style="${rowStyle}">
+          <td style="padding:6px 8px;">
+            <div>${timeDisplay}</div>
+            <div class="time-ago">${timeAgo}</div>
+          </td>
+          <td style="padding:6px 8px;">${pumpBadge}</td>
+          <td style="padding:6px 8px;text-align:right;">${volumeText}</td>
+          <td style="padding:6px 8px;text-align:right;">${ecBefore} → ${ecAfter}</td>
+          <td style="padding:6px 8px;text-align:center;">${ecDeltaHtml}</td>
+          <td style="padding:6px 8px;">${noteHtml}</td>
         </tr>`;
       }).join('');
     }catch(e){
@@ -475,6 +670,36 @@
     // Dose log refresh
     el('btnEcRefreshDoseLog')?.addEventListener('click', refreshDoseLog);
     refreshDoseLog();
+
+    // Quick dose buttons (new UI)
+    document.querySelectorAll('.ec-quick-dose').forEach(btn => {
+      btn.addEventListener('click', async function(){
+        const pump = this.dataset.pump;
+        const seconds = parseFloat(this.dataset.sec);
+        if(!pump || !seconds) return;
+        
+        // Visual feedback
+        this.classList.add('dosing');
+        const feedbackEl = el('ec-dose-feedback');
+        if(feedbackEl) feedbackEl.textContent = `Dosing ${pump}...`;
+        
+        await doseUnified(pump, seconds, 'manual');
+        
+        // Clear feedback
+        this.classList.remove('dosing');
+        if(feedbackEl) feedbackEl.textContent = '';
+      });
+    });
+
+    // Refresh chart button
+    el('btnEcRefreshChart')?.addEventListener('click', () => {
+      if(window.ecChart && window.ecChart.refresh) window.ecChart.refresh();
+      showToast('Chart refreshed', 'success');
+    });
+
+    // Controller preview refresh button
+    el('btnEcRefreshPreview')?.addEventListener('click', refreshControllerPreview);
+    refreshControllerPreview();
 
   // Compute EC Today/Week totals from unified dose_events as fallback
   updateEcTotals().catch(()=>{});
