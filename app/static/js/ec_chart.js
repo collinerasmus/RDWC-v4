@@ -1,12 +1,13 @@
 /**
  * EC Dose Chart - Clean implementation
  * Shows EC sensor readings over time with dose events overlaid per pump
+ * All values normalized to mS/cm (K=0.1 probe range: 0-8 mS/cm)
  */
 (function(){
   'use strict';
   
-  // Debug flag - set to false in production
-  const DEBUG = false;
+  // Debug flag - enables console logging for troubleshooting
+  const DEBUG = true;
   const log = DEBUG ? console.log.bind(console, '[EC Chart]') : function(){};
   const logError = console.error.bind(console, '[EC Chart]');
   
@@ -56,12 +57,31 @@
       const data = await res.json();
       log('Trends API response - ec points:', data?.series?.ec?.length || 0);
       
-      const ecData = (data?.series?.ec || []).map(p => ({
+      // Parse EC data and normalize units
+      // If median value > 10, assume data is in µS/cm and convert to mS/cm
+      const rawEc = (data?.series?.ec || []).map(p => ({
         x: new Date(p.ts * 1000),
         y: Number(p.value)
       })).filter(p => !isNaN(p.y));
       
-      log('Parsed EC readings:', ecData.length, 'points');
+      // Calculate median to detect unit
+      function median(arr) {
+        if (!arr.length) return 0;
+        const sorted = arr.map(p => p.y).sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      }
+      
+      const med = median(rawEc);
+      const ecScale = (med > 10) ? 0.001 : 1.0;  // µS/cm → mS/cm if needed
+      
+      if (ecScale !== 1.0) {
+        log('EC unit conversion applied: µS/cm → mS/cm (median was', med.toFixed(1) + ')');
+      }
+      
+      const ecData = rawEc.map(p => ({ x: p.x, y: p.y * ecScale }));
+      
+      log('Parsed EC readings:', ecData.length, 'points, unit scale:', ecScale);
       return ecData;
     } catch (e) {
       logError('Failed to fetch EC readings:', e);
@@ -134,18 +154,28 @@
 
     const ctx = canvas.getContext('2d');
     
+    // Helper to normalize EC value (µS/cm → mS/cm if needed)
+    function normalizeEc(val) {
+      if (val == null || isNaN(val)) return null;
+      // If value > 10, assume it's in µS/cm and convert to mS/cm
+      return (val > 10) ? val / 1000.0 : val;
+    }
+    
     // Group dose events by pump
     const growDoses = [];
     const microDoses = [];
     const bloomDoses = [];
     
     (doseEvents || []).forEach((e) => {
+      const ecAfter = normalizeEc(e.ec_after);
+      const ecBefore = normalizeEc(e.ec_before);
+      
       const point = {
         x: new Date(e.ts || e.ts_utc || e.ts_iso),
-        y: e.ec_after ?? e.ec_before ?? 0,
+        y: ecAfter ?? ecBefore ?? 0,
         seconds: e.seconds,
-        ecBefore: e.ec_before,
-        ecAfter: e.ec_after,
+        ecBefore: ecBefore,
+        ecAfter: ecAfter,
         pump: e.pump
       };
       
@@ -237,7 +267,7 @@
 
     // Calculate Y axis range
     let yMin = 0;
-    let yMax = 2.0; // Default max for hydro
+    let yMax = 2.0; // Default max for hydro (mS/cm)
     
     if (ecReadings && ecReadings.length > 0) {
       const maxReading = Math.max(...ecReadings.map(r => r.y));
@@ -246,14 +276,19 @@
       }
     }
     
-    // Check current EC
-    const currentEC = status?.ec_ms_cm ?? status?.ec;
+    // Check current EC (normalize if needed)
+    let currentEC = status?.ec_ms_cm ?? status?.ec;
+    if (currentEC != null) {
+      currentEC = normalizeEc(currentEC);
+    }
     if (currentEC && currentEC > yMax) {
       yMax = Math.ceil(currentEC * 1.2);
     }
     
     // Cap at probe max (K=0.1 = 8 mS/cm)
     if (yMax > 8) yMax = 8;
+    
+    log('Y-axis range: 0 -', yMax, 'mS/cm, current EC:', currentEC?.toFixed(3) || 'null');
 
     // Build annotations for target band
     const annotations = {};
