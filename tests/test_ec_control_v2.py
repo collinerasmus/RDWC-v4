@@ -27,6 +27,7 @@ def with_temp_db(test_fn):
             mod.DB_PATH = mod.Path(tmp.name)
             
             # Also patch dosing module DB path
+            dosing_mod = None
             try:
                 import app.dosing as dosing_mod
                 dosing_mod.DB_PATH = mod.Path(tmp.name)
@@ -37,14 +38,15 @@ def with_temp_db(test_fn):
                 test_fn(mod)
             finally:
                 mod.DB_PATH = original_db
-                try:
-                    dosing_mod.DB_PATH = original_db
-                except Exception:
-                    pass
+                if dosing_mod is not None:
+                    try:
+                        dosing_mod.DB_PATH = original_db
+                    except (NameError, AttributeError):
+                        pass
         finally:
             try:
                 os.unlink(tmp.name)
-            except Exception:
+            except OSError:
                 pass
     return wrapper
 

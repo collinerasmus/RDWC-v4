@@ -47,6 +47,10 @@ _auto_last_decision: Dict[str, Any] = {}  # For debug endpoint
 # Learning estimator (ml per 1.0 mS/cm)
 _learned_ml_per_mScm: Optional[float] = None
 
+# Default ml per 1.0 mS/cm when no learned value is available
+# Based on typical 3-part nutrient dosing: ~30ml per 0.1 mS/cm = 300ml per 1.0 mS/cm
+DEFAULT_ML_PER_MSCM = 300.0
+
 # Use global dose lock from dosing module for consistency
 def _get_dose_lock():
     """Get the global dose lock from dosing module."""
@@ -205,7 +209,7 @@ def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
 
 def _compute_volume_ml(pump: str, seconds: float) -> Optional[float]:
     """Compute volume in ml from pump run time using pump rate from settings."""
-    if not pump or seconds is None:
+    if not pump or seconds is None or seconds < 0:
         return None
     rate_key = f"dosing.{pump}_ml_per_sec"
     rate = _f(rate_key, 20.0)  # Default 20 ml/s for nutrient pumps
@@ -468,15 +472,17 @@ def _get_schedule_ratios() -> Tuple[Dict[str, float], str]:
             if not row or not row[0]:
                 return ({"grow": 1/3, "micro": 1/3, "bloom": 1/3}, "equal_split:no_start_date")
             
+            # Parse start date with timezone handling
             try:
                 from app.settings import SA_TZ
                 start_date = datetime.strptime(row[0], "%Y-%m-%d")
                 try:
                     start_date = SA_TZ.localize(start_date)
-                except Exception:
+                except AttributeError:
+                    # SA_TZ may not have localize (e.g., datetime.timezone)
                     start_date = start_date.replace(tzinfo=timezone.utc)
-            except Exception:
-                return ({"grow": 1/3, "micro": 1/3, "bloom": 1/3}, "equal_split:invalid_date")
+            except (ValueError, ImportError) as e:
+                return ({"grow": 1/3, "micro": 1/3, "bloom": 1/3}, f"equal_split:invalid_date_{type(e).__name__}")
             
             now = datetime.now(timezone.utc)
             delta = now - start_date.astimezone(timezone.utc)
@@ -812,7 +818,10 @@ def dose_ec(body: dict = Body(...)):
                 set_dosing_bloom(False, reason="ec_dose_error", force=True)
             except Exception:
                 pass
-            return JSONResponse(status_code=500, content={"error": str(e)})
+            # Log error but don't expose internal details to client
+            import logging
+            logging.getLogger(__name__).error(f"EC dose error for pump {pump}: {e}")
+            return JSONResponse(status_code=500, content={"error": "Pump actuation failed"})
         finally:
             dose_lock.release()
         
@@ -1491,8 +1500,8 @@ def get_ec_control_preview():
     if _learned_ml_per_mScm:
         planned_ml = needed_mScm * _learned_ml_per_mScm * safety_factor
     else:
-        # Default: 30ml per 0.1 mS/cm = 300ml per 1.0 mS/cm
-        planned_ml = needed_mScm * 300 * safety_factor
+        # Use default ml per mS/cm when no learned value is available
+        planned_ml = needed_mScm * DEFAULT_ML_PER_MSCM * safety_factor
     
     # Clamp to step limits
     min_ml = _get_setting_with_fallback("dosing.ec_step_ml_min", "ec.step_min_ml", 10)
