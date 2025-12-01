@@ -2721,6 +2721,8 @@ function toggleRecentReadings(){
   let healthCheckInterval = null;
   let lastHealthy = false;
   let switchDebounce = 0; // Debounce counter to prevent flapping
+  let streamStartTime = 0; // Track when stream started for stall detection
+  let lastFrameTime = 0; // Track last successful frame
   
   // Placeholder SVG as data URI (gray camera icon)
   const PLACEHOLDER_SVG = 'data:image/svg+xml,' + encodeURIComponent(
@@ -2739,8 +2741,16 @@ function toggleRecentReadings(){
   function usePlaceholder(){
     if(currentMode === 'none') return; // Already showing placeholder
     currentMode = 'none';
+    streamStartTime = 0;
     if(obj){ obj.style.display = 'none'; obj.data = ''; }
-    if(img){ img.src = PLACEHOLDER_SVG; img.style.display = 'block'; }
+    if(img){ 
+      // Clear handlers before changing src to prevent double-fire
+      img.onerror = null;
+      img.onload = null;
+      img.onabort = null;
+      img.src = PLACEHOLDER_SVG; 
+      img.style.display = 'block'; 
+    }
     if(overlay){ overlay.textContent = 'Camera Unavailable'; overlay.style.display = 'flex'; }
     updatePill('none');
   }
@@ -2748,8 +2758,13 @@ function toggleRecentReadings(){
   function useSnapshot(){
     if(currentMode === 'snapshot') return; // Already in snapshot mode
     currentMode = 'snapshot';
+    streamStartTime = 0;
     if(obj){ obj.style.display = 'none'; obj.data = ''; }
     if(img){ 
+      // Clear handlers before changing src
+      img.onerror = null;
+      img.onload = null;
+      img.onabort = null;
       img.src = '/camera/snapshot.jpg?t=' + Date.now();
       img.style.display = 'block';
       img.onerror = function(){ usePlaceholder(); };
@@ -2761,18 +2776,41 @@ function toggleRecentReadings(){
   function useStream(){
     if(currentMode === 'streaming') return; // Already streaming
     currentMode = 'streaming';
+    streamStartTime = Date.now();
+    lastFrameTime = Date.now();
     const streamUrl = '/camera/stream?t=' + Date.now();
     // Use only img element - object element causes chunked encoding issues
     if(obj){ obj.style.display = 'none'; obj.data = ''; }
     if(img){
+      // Clear all handlers first to prevent stale callbacks
+      img.onerror = null;
+      img.onload = null;
+      img.onabort = null;
+      
+      // Robust error handling for chunked encoding issues
+      const handleStreamError = function(evt){
+        // Only log once and fallback gracefully
+        if(currentMode === 'streaming'){
+          console.log('[Camera] Stream error/abort - falling back to snapshot');
+          switchDebounce = 3; // Prevent immediate retry
+          useSnapshot();
+        }
+      };
+      
+      // Track successful frame loads (MJPEG sends continuous frames)
+      img.onload = function(){
+        lastFrameTime = Date.now();
+      };
+      
+      // Handle explicit errors
+      img.onerror = handleStreamError;
+      
+      // Handle aborted connections (chunked encoding issues often manifest here)
+      img.onabort = handleStreamError;
+      
+      // Set the source last (after handlers are set up)
       img.src = streamUrl;
       img.style.display = 'block';
-      // Fallback to snapshot on stream error (prevents console errors)
-      img.onerror = function(){
-        console.log('[Camera] Stream error - falling back to snapshot');
-        switchDebounce = 3; // Prevent immediate retry
-        useSnapshot();
-      };
     }
     if(overlay){ overlay.style.display = 'none'; }
     updatePill('streaming');
@@ -2783,6 +2821,18 @@ function toggleRecentReadings(){
     if(switchDebounce > 0){
       switchDebounce--;
       return;
+    }
+    
+    // Check for stalled stream (no frames in 10 seconds while streaming)
+    if(currentMode === 'streaming' && streamStartTime > 0){
+      const now = Date.now();
+      const stallThreshold = 10000; // 10 seconds
+      if(now - lastFrameTime > stallThreshold && now - streamStartTime > stallThreshold){
+        console.log('[Camera] Stream appears stalled - switching to snapshot');
+        switchDebounce = 3;
+        useSnapshot();
+        return;
+      }
     }
     
     // First check availability
