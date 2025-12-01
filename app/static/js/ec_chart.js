@@ -280,9 +280,18 @@
       };
     }
 
-    // Check if annotation plugin is available
-    const hasAnnotation = window.Chart && Chart.registry && 
-      Chart.registry.plugins && Chart.registry.plugins.get('annotation');
+    // Check if annotation plugin is available (multiple detection methods)
+    let hasAnnotation = false;
+    try {
+      hasAnnotation = !!(
+        (window.Chart && Chart.registry && Chart.registry.plugins && Chart.registry.plugins.get('annotation')) ||
+        (window['chartjs-plugin-annotation']) ||
+        (window.chartjs && window.chartjs['plugin-annotation']) ||
+        (window.ChartAnnotation)
+      );
+    } catch (e) {
+      hasAnnotation = false;
+    }
 
     // Create chart
     chart = new Chart(ctx, {
@@ -407,19 +416,19 @@
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const weekStart = todayStart - 7 * 24 * 3600 * 1000;
     
-    // Get pump rates from settings or use defaults
-    const defaultRate = 1.0; // ml/sec default
+    // Get pump rates from settings or use defaults (typical peristaltic pump rate)
+    const DEFAULT_PUMP_RATE = 1.5; // ml/sec - typical for small peristaltic pumps
     const rates = {
-      grow: parseFloat(window.rdwcSettings?.get('dosing.grow_ml_per_sec')) || defaultRate,
-      micro: parseFloat(window.rdwcSettings?.get('dosing.micro_ml_per_sec')) || defaultRate,
-      bloom: parseFloat(window.rdwcSettings?.get('dosing.bloom_ml_per_sec')) || defaultRate
+      grow: parseFloat(window.rdwcSettings?.get('dosing.grow_ml_per_sec')) || DEFAULT_PUMP_RATE,
+      micro: parseFloat(window.rdwcSettings?.get('dosing.micro_ml_per_sec')) || DEFAULT_PUMP_RATE,
+      bloom: parseFloat(window.rdwcSettings?.get('dosing.bloom_ml_per_sec')) || DEFAULT_PUMP_RATE
     };
     
     let todayMl = 0, weekMl = 0;
     
     (doseEvents || []).forEach(e => {
       const ts = new Date(e.ts || e.ts_utc || e.ts_iso).getTime();
-      const ml = (e.volume_ml != null) ? e.volume_ml : ((e.seconds || 0) * (rates[e.pump] || defaultRate));
+      const ml = (e.volume_ml != null) ? e.volume_ml : ((e.seconds || 0) * (rates[e.pump] || DEFAULT_PUMP_RATE));
       
       if (ts >= todayStart) todayMl += ml;
       if (ts >= weekStart) weekMl += ml;
