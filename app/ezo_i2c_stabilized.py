@@ -171,9 +171,14 @@ def read_all(bus_num: int = 1):
             ec.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.25)
         except Exception:
             pass
-        ec_val = float(ec.read_value(timeout=1.5))
+        ec_raw = float(ec.read_value(timeout=1.5))
+        
+        # Convert EC from µS/cm to mS/cm (K=0.1 probe returns µS/cm)
+        # Heuristic: if value > 10, assume µS/cm and convert to mS/cm
+        # Typical nutrient EC: 1.0–3.0 mS/cm == 1000–3000 µS/cm
+        ec_ms_cm = ec_raw / 1000.0 if ec_raw > 10.0 else ec_raw
 
-        return {"temperature": temp_c, "ph": ph_val, "ec_ms": ec_val}
+        return {"temperature": temp_c, "ph": ph_val, "ec_ms": ec_ms_cm}
     finally:
         # Always close bus connections to prevent file descriptor leak
         for dev in (rtd, ph, ec):
