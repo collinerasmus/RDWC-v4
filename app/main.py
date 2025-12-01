@@ -3273,13 +3273,10 @@ def api_controller_hold_all(body: dict = None):
         "_deprecated": "Use POST /api/auto/global instead"
     }
 
-@app.get("/cam_status")
-def cam_status():
-    svc = run(["systemctl", "is-active", "mjpg-streamer.service"], stdout=PIPE, stderr=PIPE, text=True)
-    active = (svc.stdout.strip() == "active")
-    return {"active": active, "url": "http://192.168.88.49:8081/?action=stream"}
+# Old /cam_status endpoint removed - was checking for mjpg-streamer service
+# which conflicts with the built-in OpenCV camera. Use /camera/status instead.
 
-# --- Camera endpoints ---
+# --- Camera endpoints (using built-in OpenCV, not external mjpg-streamer) ---
 @app.get("/camera/status")
 def camera_status():
     from app.camera import CameraManager

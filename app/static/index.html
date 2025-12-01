@@ -2514,11 +2514,10 @@ async function viewLightsLog(){
   }
 }
 // Old relay functions removed - relays.js now handles all relay UI
-function camRefresh(){
-  const u = `http://${location.hostname}:8081/?action=stream&ts=${Date.now()}`;
-  const cam = document.getElementById('cam');
-  if (cam) cam.src = u;
-}
+
+// Old camRefresh function removed - camera now handled by unified /camera/* endpoints
+// which use OpenCV and don't require external mjpg_streamer service
+
 // hook into existing refresh loop
 (async function boot(){
   try { await updateCharts(); } catch(e){}
