@@ -52,20 +52,20 @@ def with_temp_db(test_fn):
 
 
 @with_temp_db
-def test_dry_run_default_on(mod):
-    """Verify dry-run is enabled by default."""
-    # Patch settings to return dry_run_ec=true (default)
-    mod._get_settings_dict = lambda: {'dosing.dry_run_ec': 'true'}
+def test_dry_run_default_off(mod):
+    """Verify dry-run is disabled by default (pumps run water only)."""
+    # Patch settings to return empty (use fallback default)
+    mod._get_settings_dict = lambda: {}
     
-    assert mod._is_dry_run_ec() == True
+    assert mod._is_dry_run_ec() == False
 
 
 @with_temp_db  
-def test_dry_run_can_be_disabled(mod):
-    """Verify dry-run can be disabled via settings."""
-    mod._get_settings_dict = lambda: {'dosing.dry_run_ec': 'false'}
+def test_dry_run_can_be_enabled(mod):
+    """Verify dry-run can be enabled via settings when nutrients are loaded."""
+    mod._get_settings_dict = lambda: {'dosing.dry_run_ec': 'true'}
     
-    assert mod._is_dry_run_ec() == False
+    assert mod._is_dry_run_ec() == True
 
 
 @with_temp_db

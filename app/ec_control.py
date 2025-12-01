@@ -452,8 +452,8 @@ def _get_setting_with_fallback(primary: str, fallback: str, default: float) -> f
     return _f(fallback, default)
 
 def _is_dry_run_ec() -> bool:
-    """Check if EC dry-run mode is enabled (default: true for safety)."""
-    return _b("dosing.dry_run_ec", True)
+    """Check if EC dry-run mode is enabled (default: false - pumps run water only)."""
+    return _b("dosing.dry_run_ec", False)
 
 # --- Schedule Ratio Helpers --------------------------------------------------
 def _get_schedule_ratios() -> Tuple[Dict[str, float], str]:

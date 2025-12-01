@@ -14,24 +14,24 @@ All EC dose activity (manual, auto, preview/dry-run) is now logged to the unifie
 - `/api/ec/dose_log.csv` - Now reads from `dose_events`
 - `/api/ec/dose_summary` - Now computes from `dose_events`
 
-### 2. Dry-Run Mode (Default: ON)
+### 2. Dry-Run Mode (Default: OFF)
 
-EC dosing now defaults to dry-run mode for safety. When `dosing.dry_run_ec=true`:
+EC dosing defaults to live mode (pumps actuate). The dry-run option exists for testing when nutrients are loaded. When `dosing.dry_run_ec=true`:
 - Dose requests log shadow events to `dose_events` with `actor="dry-run"`
 - NO pump actuation occurs
 - Response includes `dry_run: true` and detailed `controller_state_json`
 - Both manual and auto dosing respect this setting
 
-**To enable hardware actuation:**
+**To enable dry-run mode (for testing with nutrients loaded):**
 ```sql
-UPDATE settings SET value='false' WHERE key='dosing.dry_run_ec';
+UPDATE settings SET value='true' WHERE key='dosing.dry_run_ec';
 ```
 
 Or via API:
 ```bash
 curl -X PUT http://localhost:8080/api/settings/import \
   -H "Content-Type: application/json" \
-  -d '{"dosing.dry_run_ec": "false"}'
+  -d '{"dosing.dry_run_ec": "true"}'
 ```
 
 ### 3. Schedule-Driven Ratios

@@ -109,8 +109,8 @@ DEFAULTS: Dict[str, str] = {
     "dosing.ec_safety_factor": "0.6",
     "dosing.ec_min_interval_s": "300",
     "dosing.ec_max_ml_day": "0",
-    # Dry-run mode for EC dosing (default ON for safety - no pump actuation until explicitly enabled)
-    "dosing.dry_run_ec": "true",
+    # Dry-run mode for EC dosing - OFF by default (pumps run water only, no nutrient)
+    "dosing.dry_run_ec": "false",
 
     # safety
     "safety.main_pump_min_off_s": "5",
