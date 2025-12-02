@@ -299,3 +299,156 @@ def ec_unit_check() -> Dict[str, Any]:
         }
     except Exception as e:
         return {"error": str(e), "note": "Run on Pi with I2C access"}
+
+
+@router.post("/ec_migrate")
+def ec_migrate_manual() -> Dict[str, Any]:
+    """
+    Manually trigger EC data migration from µS/cm to mS/cm.
+    
+    This converts all historical EC readings > 10 in the database
+    by dividing by 1000 (422 µS/cm → 0.422 mS/cm).
+    
+    Safe to run multiple times - only affects values > 10.
+    """
+    import sqlite3
+    import os
+    from pathlib import Path
+    
+    db_path = os.environ.get("RDWC_DB", "data/rdwc.db")
+    db_path = Path(db_path)
+    
+    if not db_path.exists():
+        return {"error": "Database not found", "path": str(db_path)}
+    
+    results = {
+        "readings": {"before": 0, "converted": 0},
+        "dose_events": {"before": 0, "converted": 0},
+        "ec_dose_log": {"before": 0, "converted": 0},
+    }
+    
+    try:
+        conn = sqlite3.connect(str(db_path))
+        
+        # Count and convert readings
+        cursor = conn.execute("SELECT COUNT(*) FROM readings WHERE ec_ms_cm > 10")
+        results["readings"]["before"] = cursor.fetchone()[0]
+        
+        if results["readings"]["before"] > 0:
+            conn.execute("UPDATE readings SET ec_ms_cm = ec_ms_cm / 1000.0 WHERE ec_ms_cm > 10")
+            conn.commit()
+            results["readings"]["converted"] = results["readings"]["before"]
+        
+        # Count and convert dose_events
+        try:
+            cursor = conn.execute("SELECT COUNT(*) FROM dose_events WHERE ec_before > 10 OR ec_after > 10")
+            results["dose_events"]["before"] = cursor.fetchone()[0]
+            if results["dose_events"]["before"] > 0:
+                conn.execute("UPDATE dose_events SET ec_before = ec_before / 1000.0 WHERE ec_before > 10")
+                conn.execute("UPDATE dose_events SET ec_after = ec_after / 1000.0 WHERE ec_after > 10")
+                conn.commit()
+                results["dose_events"]["converted"] = results["dose_events"]["before"]
+        except sqlite3.OperationalError:
+            results["dose_events"]["note"] = "table does not exist"
+        
+        # Count and convert ec_dose_log
+        try:
+            cursor = conn.execute("SELECT COUNT(*) FROM ec_dose_log WHERE ec_before > 10 OR ec_after > 10")
+            results["ec_dose_log"]["before"] = cursor.fetchone()[0]
+            if results["ec_dose_log"]["before"] > 0:
+                conn.execute("UPDATE ec_dose_log SET ec_before = ec_before / 1000.0 WHERE ec_before > 10")
+                conn.execute("UPDATE ec_dose_log SET ec_after = ec_after / 1000.0 WHERE ec_after > 10")
+                conn.commit()
+                results["ec_dose_log"]["converted"] = results["ec_dose_log"]["before"]
+        except sqlite3.OperationalError:
+            results["ec_dose_log"]["note"] = "table does not exist"
+        
+        conn.close()
+        
+        total = sum(r.get("converted", 0) for r in results.values())
+        return {
+            "status": "OK" if total > 0 else "NO_CHANGES_NEEDED",
+            "total_converted": total,
+            "details": results,
+            "note": "All EC values > 10 have been divided by 1000 (µS/cm → mS/cm)"
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.get("/ec_check")
+def ec_check_values() -> Dict[str, Any]:
+    """
+    Check current EC values across all sources to verify consistency.
+    
+    This is a diagnostic endpoint to verify single source of truth.
+    All values should show the same EC reading in mS/cm (< 10).
+    """
+    import sqlite3
+    import os
+    from pathlib import Path
+    
+    db_path = os.environ.get("RDWC_DB", "data/rdwc.db")
+    
+    result = {
+        "sources": {},
+        "all_consistent": True,
+        "all_in_mscm": True,
+    }
+    
+    # 1. Check cached value in main._last
+    try:
+        import app.main as main_module
+        cached = main_module._last.get("ec_ms_cm")
+        result["sources"]["main_cache"] = cached
+        if cached is not None and cached > 10:
+            result["all_in_mscm"] = False
+    except Exception as e:
+        result["sources"]["main_cache"] = f"error: {e}"
+    
+    # 2. Check database readings table
+    try:
+        conn = sqlite3.connect(db_path)
+        row = conn.execute("SELECT ec_ms_cm FROM readings ORDER BY ts DESC LIMIT 1").fetchone()
+        db_val = row[0] if row else None
+        result["sources"]["db_readings"] = db_val
+        if db_val is not None and db_val > 10:
+            result["all_in_mscm"] = False
+        
+        # Count how many bad values remain
+        bad_count = conn.execute("SELECT COUNT(*) FROM readings WHERE ec_ms_cm > 10").fetchone()[0]
+        result["db_readings_needing_migration"] = bad_count
+        conn.close()
+    except Exception as e:
+        result["sources"]["db_readings"] = f"error: {e}"
+    
+    # 3. Check /api/sensors response
+    try:
+        from app.sensors_core import read_sensors_from_db
+        sensors = read_sensors_from_db(max_age_sec=300)
+        api_val = sensors.get("ec_mscm")
+        result["sources"]["api_sensors"] = api_val
+        if api_val is not None and api_val > 10:
+            result["all_in_mscm"] = False
+    except Exception as e:
+        result["sources"]["api_sensors"] = f"error: {e}"
+    
+    # 4. Check /api/ec/status
+    try:
+        from app.ec_control import _get_latest_ec
+        ec_val, _ = _get_latest_ec()
+        result["sources"]["ec_status"] = ec_val
+        if ec_val is not None and ec_val > 10:
+            result["all_in_mscm"] = False
+    except Exception as e:
+        result["sources"]["ec_status"] = f"error: {e}"
+    
+    # Check consistency
+    values = [v for v in result["sources"].values() if isinstance(v, (int, float))]
+    if len(values) >= 2:
+        # All should be within 0.01 of each other
+        result["all_consistent"] = max(values) - min(values) < 0.01
+    
+    result["status"] = "OK" if (result["all_in_mscm"] and result["all_consistent"]) else "INCONSISTENT"
+    
+    return result
