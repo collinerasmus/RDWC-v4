@@ -328,42 +328,42 @@ def ec_migrate_manual() -> Dict[str, Any]:
     }
     
     try:
-        conn = sqlite3.connect(str(db_path))
-        
-        # Count and convert readings
-        cursor = conn.execute("SELECT COUNT(*) FROM readings WHERE ec_ms_cm > 10")
-        results["readings"]["before"] = cursor.fetchone()[0]
-        
-        if results["readings"]["before"] > 0:
-            conn.execute("UPDATE readings SET ec_ms_cm = ec_ms_cm / 1000.0 WHERE ec_ms_cm > 10")
-            conn.commit()
-            results["readings"]["converted"] = results["readings"]["before"]
-        
-        # Count and convert dose_events
-        try:
-            cursor = conn.execute("SELECT COUNT(*) FROM dose_events WHERE ec_before > 10 OR ec_after > 10")
-            results["dose_events"]["before"] = cursor.fetchone()[0]
-            if results["dose_events"]["before"] > 0:
-                conn.execute("UPDATE dose_events SET ec_before = ec_before / 1000.0 WHERE ec_before > 10")
-                conn.execute("UPDATE dose_events SET ec_after = ec_after / 1000.0 WHERE ec_after > 10")
+        with sqlite3.connect(str(db_path)) as conn:
+            # Count and convert readings
+            results["readings"]["before"] = conn.execute(
+                "SELECT COUNT(*) FROM readings WHERE ec_ms_cm > 10"
+            ).fetchone()[0]
+            
+            if results["readings"]["before"] > 0:
+                conn.execute("UPDATE readings SET ec_ms_cm = ec_ms_cm / 1000.0 WHERE ec_ms_cm > 10")
                 conn.commit()
-                results["dose_events"]["converted"] = results["dose_events"]["before"]
-        except sqlite3.OperationalError:
-            results["dose_events"]["note"] = "table does not exist"
-        
-        # Count and convert ec_dose_log
-        try:
-            cursor = conn.execute("SELECT COUNT(*) FROM ec_dose_log WHERE ec_before > 10 OR ec_after > 10")
-            results["ec_dose_log"]["before"] = cursor.fetchone()[0]
-            if results["ec_dose_log"]["before"] > 0:
-                conn.execute("UPDATE ec_dose_log SET ec_before = ec_before / 1000.0 WHERE ec_before > 10")
-                conn.execute("UPDATE ec_dose_log SET ec_after = ec_after / 1000.0 WHERE ec_after > 10")
-                conn.commit()
-                results["ec_dose_log"]["converted"] = results["ec_dose_log"]["before"]
-        except sqlite3.OperationalError:
-            results["ec_dose_log"]["note"] = "table does not exist"
-        
-        conn.close()
+                results["readings"]["converted"] = results["readings"]["before"]
+            
+            # Count and convert dose_events
+            try:
+                results["dose_events"]["before"] = conn.execute(
+                    "SELECT COUNT(*) FROM dose_events WHERE ec_before > 10 OR ec_after > 10"
+                ).fetchone()[0]
+                if results["dose_events"]["before"] > 0:
+                    conn.execute("UPDATE dose_events SET ec_before = ec_before / 1000.0 WHERE ec_before > 10")
+                    conn.execute("UPDATE dose_events SET ec_after = ec_after / 1000.0 WHERE ec_after > 10")
+                    conn.commit()
+                    results["dose_events"]["converted"] = results["dose_events"]["before"]
+            except sqlite3.OperationalError:
+                results["dose_events"]["note"] = "table does not exist"
+            
+            # Count and convert ec_dose_log
+            try:
+                results["ec_dose_log"]["before"] = conn.execute(
+                    "SELECT COUNT(*) FROM ec_dose_log WHERE ec_before > 10 OR ec_after > 10"
+                ).fetchone()[0]
+                if results["ec_dose_log"]["before"] > 0:
+                    conn.execute("UPDATE ec_dose_log SET ec_before = ec_before / 1000.0 WHERE ec_before > 10")
+                    conn.execute("UPDATE ec_dose_log SET ec_after = ec_after / 1000.0 WHERE ec_after > 10")
+                    conn.commit()
+                    results["ec_dose_log"]["converted"] = results["ec_dose_log"]["before"]
+            except sqlite3.OperationalError:
+                results["ec_dose_log"]["note"] = "table does not exist"
         
         total = sum(r.get("converted", 0) for r in results.values())
         return {
@@ -408,17 +408,16 @@ def ec_check_values() -> Dict[str, Any]:
     
     # 2. Check database readings table
     try:
-        conn = sqlite3.connect(db_path)
-        row = conn.execute("SELECT ec_ms_cm FROM readings ORDER BY ts DESC LIMIT 1").fetchone()
-        db_val = row[0] if row else None
-        result["sources"]["db_readings"] = db_val
-        if db_val is not None and db_val > 10:
-            result["all_in_mscm"] = False
-        
-        # Count how many bad values remain
-        bad_count = conn.execute("SELECT COUNT(*) FROM readings WHERE ec_ms_cm > 10").fetchone()[0]
-        result["db_readings_needing_migration"] = bad_count
-        conn.close()
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute("SELECT ec_ms_cm FROM readings ORDER BY ts DESC LIMIT 1").fetchone()
+            db_val = row[0] if row else None
+            result["sources"]["db_readings"] = db_val
+            if db_val is not None and db_val > 10:
+                result["all_in_mscm"] = False
+            
+            # Count how many bad values remain
+            bad_count = conn.execute("SELECT COUNT(*) FROM readings WHERE ec_ms_cm > 10").fetchone()[0]
+            result["db_readings_needing_migration"] = bad_count
     except Exception as e:
         result["sources"]["db_readings"] = f"error: {e}"
     

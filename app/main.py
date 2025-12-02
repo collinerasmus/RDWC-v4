@@ -451,67 +451,61 @@ def _migrate_ec_data_to_mscm():
         return
     
     try:
-        conn = sqlite3.connect(str(db_path))
-        
-        # Count how many records need conversion (EC > 10 means µS/cm)
-        cursor = conn.execute(
-            "SELECT COUNT(*) FROM readings WHERE ec_ms_cm > 10"
-        )
-        count = cursor.fetchone()[0]
-        
-        if count == 0:
-            print("[EC Migration] No µS/cm data to convert, all good")
-            conn.close()
-            return
-        
-        print(f"[EC Migration] Converting {count} EC readings from µS/cm to mS/cm...")
-        
-        # Convert all EC values > 10 by dividing by 1000
-        conn.execute(
-            "UPDATE readings SET ec_ms_cm = ec_ms_cm / 1000.0 WHERE ec_ms_cm > 10"
-        )
-        conn.commit()
-        
-        # Also fix any dose_events table if it exists
-        try:
-            cursor = conn.execute(
-                "SELECT COUNT(*) FROM dose_events WHERE ec_before > 10 OR ec_after > 10"
+        with sqlite3.connect(str(db_path)) as conn:
+            # Count how many records need conversion (EC > 10 means µS/cm)
+            count = conn.execute(
+                "SELECT COUNT(*) FROM readings WHERE ec_ms_cm > 10"
+            ).fetchone()[0]
+            
+            if count == 0:
+                print("[EC Migration] No µS/cm data to convert, all good")
+                return
+            
+            print(f"[EC Migration] Converting {count} EC readings from µS/cm to mS/cm...")
+            
+            # Convert all EC values > 10 by dividing by 1000
+            conn.execute(
+                "UPDATE readings SET ec_ms_cm = ec_ms_cm / 1000.0 WHERE ec_ms_cm > 10"
             )
-            dose_count = cursor.fetchone()[0]
-            if dose_count > 0:
-                conn.execute(
-                    "UPDATE dose_events SET ec_before = ec_before / 1000.0 WHERE ec_before > 10"
-                )
-                conn.execute(
-                    "UPDATE dose_events SET ec_after = ec_after / 1000.0 WHERE ec_after > 10"
-                )
-                conn.commit()
-                print(f"[EC Migration] Also converted {dose_count} dose_events records")
-        except sqlite3.OperationalError:
-            # Table doesn't exist, that's fine
-            pass
-        
-        # Also fix ec_dose_log if it exists
-        try:
-            cursor = conn.execute(
-                "SELECT COUNT(*) FROM ec_dose_log WHERE ec_before > 10 OR ec_after > 10"
-            )
-            log_count = cursor.fetchone()[0]
-            if log_count > 0:
-                conn.execute(
-                    "UPDATE ec_dose_log SET ec_before = ec_before / 1000.0 WHERE ec_before > 10"
-                )
-                conn.execute(
-                    "UPDATE ec_dose_log SET ec_after = ec_after / 1000.0 WHERE ec_after > 10"
-                )
-                conn.commit()
-                print(f"[EC Migration] Also converted {log_count} ec_dose_log records")
-        except sqlite3.OperationalError:
-            # Table doesn't exist, that's fine
-            pass
-        
-        conn.close()
-        print(f"[EC Migration] SUCCESS: Converted {count} readings to mS/cm")
+            conn.commit()
+            
+            # Also fix any dose_events table if it exists
+            try:
+                dose_count = conn.execute(
+                    "SELECT COUNT(*) FROM dose_events WHERE ec_before > 10 OR ec_after > 10"
+                ).fetchone()[0]
+                if dose_count > 0:
+                    conn.execute(
+                        "UPDATE dose_events SET ec_before = ec_before / 1000.0 WHERE ec_before > 10"
+                    )
+                    conn.execute(
+                        "UPDATE dose_events SET ec_after = ec_after / 1000.0 WHERE ec_after > 10"
+                    )
+                    conn.commit()
+                    print(f"[EC Migration] Also converted {dose_count} dose_events records")
+            except sqlite3.OperationalError:
+                # Table doesn't exist, that's fine
+                pass
+            
+            # Also fix ec_dose_log if it exists
+            try:
+                log_count = conn.execute(
+                    "SELECT COUNT(*) FROM ec_dose_log WHERE ec_before > 10 OR ec_after > 10"
+                ).fetchone()[0]
+                if log_count > 0:
+                    conn.execute(
+                        "UPDATE ec_dose_log SET ec_before = ec_before / 1000.0 WHERE ec_before > 10"
+                    )
+                    conn.execute(
+                        "UPDATE ec_dose_log SET ec_after = ec_after / 1000.0 WHERE ec_after > 10"
+                    )
+                    conn.commit()
+                    print(f"[EC Migration] Also converted {log_count} ec_dose_log records")
+            except sqlite3.OperationalError:
+                # Table doesn't exist, that's fine
+                pass
+            
+            print(f"[EC Migration] SUCCESS: Converted {count} readings to mS/cm")
         
     except Exception as e:
         print(f"[EC Migration] ERROR: {e}")
