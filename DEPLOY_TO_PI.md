@@ -76,13 +76,11 @@ ssh pi@192.168.88.49 "cd ~/rdwc-v4 && git fetch origin && git reset --hard origi
 
 ### 2. EC Unit Fix (Critical Bug Fix)
 - ✅ Fixed EC values displaying as µS/cm instead of mS/cm
-- ✅ Added safety conversion in 5 locations:
-  - Sensor KPI display
-  - Sensor override panel
-  - Recent readings
-  - EC chart
-  - EC status display
-  - Trends chart
+- ✅ Added safety conversion in 9 locations (complete coverage):
+  - sensors.js: KPI display, override panel, recent readings, direct fetch fallback (4 locations)
+  - ec.js: status display, delta calculation, calibration display (3 locations)
+  - ec_chart.js: current EC annotation (1 location)
+  - trends.js: removed incorrect autodetect logic (1 location)
 - ✅ All conversions log warnings for debugging
 
 ### 3. Code Quality

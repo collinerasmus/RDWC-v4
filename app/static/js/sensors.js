@@ -209,7 +209,13 @@
     if (origPh) origPh.textContent = fmtVal(data.original_ph);
     if (effPh)  effPh.textContent  = fmtVal(data.ph);
     // Safety: if EC > 20, assume it's in µS/cm and convert to mS/cm
-    const safeEC = (v) => (v != null && v > 20) ? v / 1000 : v;
+    const safeEC = (v) => {
+      if (v != null && v > 20) {
+        console.warn('[Sensors Override] EC value > 20, assuming µS/cm and converting to mS/cm:', v);
+        return v / 1000;
+      }
+      return v;
+    };
     if (origEc) origEc.textContent = fmtVal(safeEC(data.original_ec_mscm));
     if (effEc)  effEc.textContent  = fmtVal(safeEC(data.ec_mscm));
     if (origT)  origT.textContent  = fmtVal(data.original_temperature_c);
@@ -274,7 +280,10 @@
         const ph = e.ph!=null? e.ph.toFixed(2):'—';
         // Safety: if EC > 20, assume it's in µS/cm and convert to mS/cm
         let ecVal = e.ec_mscm;
-        if (ecVal != null && ecVal > 20) ecVal = ecVal / 1000;
+        if (ecVal != null && ecVal > 20) {
+          console.warn('[Sensors Recent] EC value > 20, assuming µS/cm and converting to mS/cm:', ecVal);
+          ecVal = ecVal / 1000;
+        }
         const ec = ecVal!=null? ecVal.toFixed(2):'—';
         const t  = e.temperature_c!=null? e.temperature_c.toFixed(2):'—';
         return `<div style="padding:2px 0;">${when} • pH ${ph} • EC ${ec} • Temp ${t}°C</div>`;
