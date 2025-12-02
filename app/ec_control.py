@@ -457,21 +457,19 @@ def _is_dry_run_ec() -> bool:
     return _b("dosing.dry_run_ec", False)
 
 # --- Schedule Ratio Helpers --------------------------------------------------
-def _get_schedule_ratios() -> Tuple[Dict[str, float], str]:
-    """Get G/M/B ratios from nutrient schedule for current week.
+def _get_current_schedule_week() -> Optional[int]:
+    """Get current grow week from settings and schedule.
     
     Returns:
-        (ratios: {grow, micro, bloom}, source: str)
-        where source is 'schedule', 'custom', or 'equal_split'
+        week number (1-12) or None if no start date set
     """
     try:
         with sqlite3.connect(str(DB_PATH)) as conn:
             cur = conn.cursor()
-            # Get current grow week
             cur.execute("SELECT value FROM settings WHERE key = 'general.grow_start_date'")
             row = cur.fetchone()
             if not row or not row[0]:
-                return ({"grow": 1/3, "micro": 1/3, "bloom": 1/3}, "equal_split:no_start_date")
+                return None
             
             # Parse start date with timezone handling
             try:
@@ -480,15 +478,55 @@ def _get_schedule_ratios() -> Tuple[Dict[str, float], str]:
                 try:
                     start_date = SA_TZ.localize(start_date)
                 except AttributeError:
-                    # SA_TZ may not have localize (e.g., datetime.timezone)
                     start_date = start_date.replace(tzinfo=timezone.utc)
-            except (ValueError, ImportError) as e:
-                return ({"grow": 1/3, "micro": 1/3, "bloom": 1/3}, f"equal_split:invalid_date_{type(e).__name__}")
+            except (ValueError, ImportError):
+                return None
             
             now = datetime.now(timezone.utc)
             delta = now - start_date.astimezone(timezone.utc)
             week = max(1, min(12, (delta.days // 7) + 1))
-            
+            return week
+    except Exception:
+        return None
+
+def _get_schedule_ec_target() -> Optional[float]:
+    """Get EC target from nutrient schedule for current week.
+    
+    Returns:
+        ec_target (mS/cm) or None if no schedule/week available
+    """
+    try:
+        week = _get_current_schedule_week()
+        if week is None:
+            return None
+        
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT ec_target FROM nutrient_schedule WHERE week = ?",
+                (week,)
+            )
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                return float(row[0])
+    except Exception:
+        pass
+    return None
+
+def _get_schedule_ratios() -> Tuple[Dict[str, float], str]:
+    """Get G/M/B ratios from nutrient schedule for current week.
+    
+    Returns:
+        (ratios: {grow, micro, bloom}, source: str)
+        where source is 'schedule', 'custom', or 'equal_split'
+    """
+    try:
+        week = _get_current_schedule_week()
+        if week is None:
+            return ({"grow": 1/3, "micro": 1/3, "bloom": 1/3}, "equal_split:no_start_date")
+        
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
             # Get schedule for this week
             cur.execute(
                 """
@@ -630,11 +668,17 @@ def _check_ec_high_guard() -> Tuple[bool, Optional[str]]:
     if ec_val is None:
         return (True, None)  # No reading, allow dosing
     
-    # Get threshold: prefer target+tolerance, else use ec_high
-    ec_tgt = _f("targets.ec_target", 0.0)
-    ec_tol = _f("targets.ec_tolerance", 0.0)
-    ec_hi = _f("targets.ec_high", 1.2)
-    threshold = (ec_tgt + ec_tol) if (ec_tgt > 0 and ec_tol > 0) else ec_hi
+    # Get threshold: prioritize schedule EC target
+    schedule_ec_target = _get_schedule_ec_target()
+    ec_tol = _f("targets.ec_tolerance", 0.2)
+    
+    if schedule_ec_target is not None:
+        threshold = schedule_ec_target + ec_tol
+    else:
+        # Fallback to settings
+        ec_tgt = _f("targets.ec_target", 0.0)
+        ec_hi = _f("targets.ec_high", 1.2)
+        threshold = (ec_tgt + ec_tol) if ec_tgt > 0 else ec_hi
     
     if threshold > 0 and ec_val >= threshold:
         return (False, f"ec_high_guard ({ec_val:.2f} >= {threshold:.2f})")
@@ -1137,9 +1181,22 @@ def get_ec_status():
     with _auto_lock:
         holding_reason = _auto_last_holding_reason
     
-    # Targets
-    ec_low = _f("targets.ec_low", 0.8)
-    ec_high = _f("targets.ec_high", 1.2)
+    # Targets - prioritize schedule EC target over settings
+    schedule_ec_target = _get_schedule_ec_target()
+    ec_tolerance = _f("targets.ec_tolerance", 0.2)
+    
+    if schedule_ec_target is not None:
+        # Use schedule target with tolerance to calculate band
+        ec_target = schedule_ec_target
+        ec_low = max(0.0, ec_target - ec_tolerance)
+        ec_high = ec_target + ec_tolerance
+        target_source = "schedule"
+    else:
+        # Fallback to settings-based targets
+        ec_low = _f("targets.ec_low", 0.8)
+        ec_high = _f("targets.ec_high", 1.2)
+        ec_target = _f("targets.ec_target", (ec_low + ec_high) / 2.0)
+        target_source = "settings"
     
     # Dry-run status
     dry_run = _is_dry_run_ec()
@@ -1153,7 +1210,12 @@ def get_ec_status():
     return {
         "ec_ms_cm": ec_val,
         "ec_ts": ec_ts,
-        "targets": {"low": ec_low, "high": ec_high},
+        "targets": {
+            "low": round(ec_low, 2),
+            "high": round(ec_high, 2),
+            "target": round(ec_target, 2),
+            "source": target_source
+        },
         "auto": {
             "enabled": auto_enabled,
             "holding_reason": holding_reason,
@@ -1416,17 +1478,24 @@ def get_ec_control_preview():
     if ec_ts is not None:
         ec_age_sec = int(time.time()) - ec_ts
     
-    # Get targets (with fallback to legacy keys)
-    ec_low = _get_setting_with_fallback("targets.ec_low", "ec.low", 0.8)
-    ec_high = _get_setting_with_fallback("targets.ec_high", "ec.high", 1.2)
-    ec_target = _get_setting_with_fallback("targets.ec_target", "ec.target", 0.0)
+    # Get targets - prioritize schedule EC target over settings
+    schedule_ec_target = _get_schedule_ec_target()
     ec_tolerance = _get_setting_with_fallback("targets.ec_tolerance", "ec.tolerance", 0.2)
     
-    # Use target if set, otherwise use midpoint of low/high
-    if ec_target > 0:
-        setpoint = ec_target
+    if schedule_ec_target is not None:
+        # Use schedule target with tolerance
+        setpoint = schedule_ec_target
+        ec_low = max(0.0, setpoint - ec_tolerance)
+        ec_high = setpoint + ec_tolerance
     else:
-        setpoint = (ec_low + ec_high) / 2.0
+        # Fallback to settings-based targets
+        ec_low = _get_setting_with_fallback("targets.ec_low", "ec.low", 0.8)
+        ec_high = _get_setting_with_fallback("targets.ec_high", "ec.high", 1.2)
+        ec_target = _get_setting_with_fallback("targets.ec_target", "ec.target", 0.0)
+        if ec_target > 0:
+            setpoint = ec_target
+        else:
+            setpoint = (ec_low + ec_high) / 2.0
     
     deadband = ec_tolerance if ec_tolerance > 0 else 0.05
     dry_run = _is_dry_run_ec()
