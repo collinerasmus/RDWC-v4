@@ -629,7 +629,10 @@
       // Age chip removed
       const sp = parseFloat(el('ecSetpoint')?.value||'');
       if(s && s.ec_ms_cm!=null && !isNaN(sp)){
-        const d = s.ec_ms_cm - sp;
+        // Safety: if EC > 20, assume it's in µS/cm and convert to mS/cm
+        let ecValue = s.ec_ms_cm;
+        if (ecValue > 20) ecValue = ecValue / 1000;
+        const d = ecValue - sp;
         const chip = el('ecDeltaChip');
         if(chip){ chip.textContent = (d>=0? '+' : '') + d.toFixed(2); chip.parentElement.style.color = d>=0? '#f59e0b':'#3b82f6'; }
       }
@@ -655,7 +658,13 @@
         el('ecKValue').textContent = status.k != null ? status.k.toFixed(1) : '—';
       }
       if(sensorRes && sensorRes.ec_ms_cm != null){
-        el('ecCalCurrentReading').textContent = sensorRes.ec_ms_cm.toFixed(2);
+        // Safety: if EC > 20, assume it's in µS/cm and convert to mS/cm
+        let ecValue = sensorRes.ec_ms_cm;
+        if (ecValue > 20) {
+          console.warn('[EC Cal] EC value > 20, assuming µS/cm and converting to mS/cm:', ecValue);
+          ecValue = ecValue / 1000;
+        }
+        el('ecCalCurrentReading').textContent = ecValue.toFixed(2);
       }
       showCalMessage('Status refreshed', 'info');
     }catch(err){
