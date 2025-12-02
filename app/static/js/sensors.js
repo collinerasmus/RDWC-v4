@@ -208,8 +208,10 @@
     const origT  = $('originalTemp'); const effT  = $('effectiveTemp');
     if (origPh) origPh.textContent = fmtVal(data.original_ph);
     if (effPh)  effPh.textContent  = fmtVal(data.ph);
-    if (origEc) origEc.textContent = fmtVal(data.original_ec_mscm);
-    if (effEc)  effEc.textContent  = fmtVal(data.ec_mscm);
+    // Safety: if EC > 20, assume it's in µS/cm and convert to mS/cm
+    const safeEC = (v) => (v != null && v > 20) ? v / 1000 : v;
+    if (origEc) origEc.textContent = fmtVal(safeEC(data.original_ec_mscm));
+    if (effEc)  effEc.textContent  = fmtVal(safeEC(data.ec_mscm));
     if (origT)  origT.textContent  = fmtVal(data.original_temperature_c);
     if (effT)   effT.textContent   = fmtVal(data.temperature_c);
   }
@@ -270,7 +272,10 @@
       list.innerHTML = rows.slice(0,5).map(e => {
         const when = e.ts?.replace('T',' ').replace('Z','') || '—';
         const ph = e.ph!=null? e.ph.toFixed(2):'—';
-        const ec = e.ec_mscm!=null? e.ec_mscm.toFixed(2):'—';
+        // Safety: if EC > 20, assume it's in µS/cm and convert to mS/cm
+        let ecVal = e.ec_mscm;
+        if (ecVal != null && ecVal > 20) ecVal = ecVal / 1000;
+        const ec = ecVal!=null? ecVal.toFixed(2):'—';
         const t  = e.temperature_c!=null? e.temperature_c.toFixed(2):'—';
         return `<div style="padding:2px 0;">${when} • pH ${ph} • EC ${ec} • Temp ${t}°C</div>`;
       }).join('');
@@ -306,7 +311,13 @@
           }
         }
         if (ecEl && data.ec_mscm != null) {
-          const newVal = data.ec_mscm.toFixed(2);
+          // Safety: if EC > 20, assume it's in µS/cm and convert to mS/cm
+          let ecValue = data.ec_mscm;
+          if (ecValue > 20) {
+            console.warn('[Sensors] EC value > 20, assuming µS/cm and converting to mS/cm:', ecValue);
+            ecValue = ecValue / 1000;
+          }
+          const newVal = ecValue.toFixed(2);
           if (newVal !== lastEc) {
             ecEl.textContent = newVal;
             lastEc = newVal;

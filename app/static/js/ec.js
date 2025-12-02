@@ -67,7 +67,15 @@
   const resBanner = el('ec-reservoir-banner');
     const cdPill = el('ec-countdown-pill');
     
-    if(ecVal){ ecVal.textContent = (s && s.ec_ms_cm!=null) ? s.ec_ms_cm.toFixed(2) : '—'; }
+    if(ecVal){
+      let ecValue = s?.ec_ms_cm;
+      // Safety: if EC > 20, assume it's in µS/cm and convert to mS/cm
+      if (ecValue != null && ecValue > 20) {
+        console.warn('[EC] EC value > 20, assuming µS/cm and converting to mS/cm:', ecValue);
+        ecValue = ecValue / 1000;
+      }
+      ecVal.textContent = (ecValue != null) ? ecValue.toFixed(2) : '—';
+    }
     if(band && s){ band.textContent = `Targets ${s.targets.low} – ${s.targets.high} mS/cm`; }
     if(guards && s){
       const list = guardList(s.guards);

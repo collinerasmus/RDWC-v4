@@ -404,16 +404,8 @@
       });
     }
 
-    // EC unit autodetect: if median > 20, assume µS/cm and convert to mS/cm
-    function median(arr){
-      if (!arr || !arr.length) return null;
-      const a = arr.map(v=>v.y).filter(Number.isFinite).sort((a,b)=>a-b);
-      const m = Math.floor(a.length/2);
-      return a.length % 2 ? a[m] : (a[m-1]+a[m])/2;
-    }
-    let ecScale = 1.0;
-    if (median(ecRaw) > 20) ecScale = 1/1000; // µS -> mS
-  let ec = ecRaw.map(p => ({ x:p.x, y: p.y * ecScale }));
+    // Backend always returns EC in mS/cm - no conversion needed
+  let ec = ecRaw.map(p => ({ x:p.x, y: p.y }));
   ec = interpSingles(ec);
 
     // KPIs are managed by sensors.js real-time polling; trends chart only renders historical data

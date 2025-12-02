@@ -171,7 +171,12 @@
       summary = await sRes.json();
       if (stRes.ok) {
         const statusData = await stRes.json();
-        currentEC = statusData?.ec ?? null;
+        currentEC = statusData?.ec_ms_cm ?? null;
+        // Safety: if EC > 20, assume it's in µS/cm and convert to mS/cm
+        if (currentEC != null && currentEC > 20) {
+          console.warn('[EC Chart] EC value > 20, assuming µS/cm and converting to mS/cm:', currentEC);
+          currentEC = currentEC / 1000;
+        }
       }
     } catch(err){
       console.error('[EC Chart] fetch error:', err);
