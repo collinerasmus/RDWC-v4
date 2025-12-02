@@ -493,7 +493,10 @@
             if (ecEl && (ecEl.textContent === '—' || ecEl.textContent === '--') && d.ec_mscm!=null) {
               // Safety: if EC > 20, assume it's in µS/cm and convert to mS/cm
               let ecValue = d.ec_mscm;
-              if (ecValue > 20) ecValue = ecValue / 1000;
+              if (ecValue > 20) {
+                console.warn('[Sensors Direct] EC value > 20, assuming µS/cm and converting to mS/cm:', ecValue);
+                ecValue = ecValue / 1000;
+              }
               ecEl.textContent = ecValue.toFixed(2);
             }
             if (tEl && (tEl.textContent === '—' || tEl.textContent === '--') && d.temperature_c!=null) tEl.textContent = d.temperature_c.toFixed(2);
