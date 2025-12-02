@@ -291,11 +291,11 @@ def ec_unit_check() -> Dict[str, Any]:
             "to_unit": to_unit,
             "cached_ec_ms_cm": cached_ec,
             "db_ec_mscm": db_ec,
-            "status": "OK" if (cached_ec is not None and cached_ec < 10) else "NEEDS_SERVICE_RESTART",
+            "status": "OK" if (cached_ec is not None and cached_ec < EC_UNIT_THRESHOLD) else "NEEDS_SERVICE_RESTART",
             "note": f"If raw={raw_value:.1f} {from_unit} and threshold={EC_UNIT_THRESHOLD}, "
                     f"converted should be {converted:.4f} {to_unit}. "
                     f"Cache shows {cached_ec}, DB shows {db_ec}. "
-                    f"If cache/DB shows >10, service needs restart."
+                    f"If cache/DB shows >{EC_UNIT_THRESHOLD}, service needs restart."
         }
     except Exception as e:
         return {"error": str(e), "note": "Run on Pi with I2C access"}
