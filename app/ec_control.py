@@ -460,6 +460,9 @@ def _is_dry_run_ec() -> bool:
 def _get_current_schedule_week() -> Optional[int]:
     """Get current grow week from settings and schedule.
     
+    Calculates the week number (1-12) based on grow start date from settings,
+    handling timezone conversion to UTC. Returns None if no start date is configured.
+    
     Returns:
         week number (1-12) or None if no start date set
     """
@@ -479,18 +482,24 @@ def _get_current_schedule_week() -> Optional[int]:
                     start_date = SA_TZ.localize(start_date)
                 except AttributeError:
                     start_date = start_date.replace(tzinfo=timezone.utc)
-            except (ValueError, ImportError):
+            except (ValueError, ImportError) as e:
+                # Invalid date format or timezone library import failed
                 return None
             
             now = datetime.now(timezone.utc)
             delta = now - start_date.astimezone(timezone.utc)
             week = max(1, min(12, (delta.days // 7) + 1))
             return week
-    except Exception:
+    except (sqlite3.Error, ValueError) as e:
+        # Database error or date parsing error
         return None
 
 def _get_schedule_ec_target() -> Optional[float]:
     """Get EC target from nutrient schedule for current week.
+    
+    Depends on _get_current_schedule_week() to determine the current week.
+    Returns None if no valid week is available, no schedule exists for that week,
+    or the schedule entry has no EC target set.
     
     Returns:
         ec_target (mS/cm) or None if no schedule/week available
@@ -509,7 +518,8 @@ def _get_schedule_ec_target() -> Optional[float]:
             row = cur.fetchone()
             if row and row[0] is not None:
                 return float(row[0])
-    except Exception:
+    except (sqlite3.Error, ValueError, TypeError) as e:
+        # Database error, invalid float conversion, or null value
         pass
     return None
 
