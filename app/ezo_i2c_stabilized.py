@@ -180,7 +180,13 @@ def read_all(bus_num: int = 1):
         ec_raw = float(ec.read_value(timeout=1.5))
         
         # Convert EC from µS/cm to mS/cm using threshold constant
-        ec_ms_cm = ec_raw / 1000.0 if ec_raw > EC_UNIT_THRESHOLD else ec_raw
+        # K=0.1 probe returns µS/cm (e.g., 422), convert to mS/cm (0.422)
+        if ec_raw > EC_UNIT_THRESHOLD:
+            ec_ms_cm = ec_raw / 1000.0
+            logger.debug(f"[EC CONVERT] {ec_raw:.1f} µS/cm → {ec_ms_cm:.4f} mS/cm")
+        else:
+            ec_ms_cm = ec_raw
+            logger.debug(f"[EC] Already in mS/cm: {ec_ms_cm:.4f}")
 
         return {"temperature": temp_c, "ph": ph_val, "ec_ms": ec_ms_cm}
     finally:

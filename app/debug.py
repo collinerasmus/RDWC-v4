@@ -242,3 +242,60 @@ def i2c_ec_id() -> Dict[str, Any]:
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+@router.get("/ec_unit_check")
+def ec_unit_check() -> Dict[str, Any]:
+    """
+    Diagnostic endpoint to verify EC unit conversion is working.
+    Compares raw sensor value with converted value.
+    """
+    try:
+        from app.ezo_i2c_stabilized import EZO, EC_ADDR, EC_UNIT_THRESHOLD
+        
+        ec_dev = EZO(1, EC_ADDR, "EC")
+        ec_dev.init_once()
+        time.sleep(0.3)
+        
+        # Read raw value directly
+        raw_str = ec_dev.read_value(timeout=1.5)
+        raw_value = float(raw_str)
+        
+        # Apply same conversion logic
+        if raw_value > EC_UNIT_THRESHOLD:
+            converted = raw_value / 1000.0
+            conversion_applied = True
+            from_unit = "µS/cm"
+            to_unit = "mS/cm"
+        else:
+            converted = raw_value
+            conversion_applied = False
+            from_unit = "mS/cm"
+            to_unit = "mS/cm"
+        
+        # Get what the API is returning
+        import app.main as main_module
+        cached_ec = main_module._last.get("ec_ms_cm")
+        
+        # Read from database
+        from app.sensors_core import read_sensors_from_db
+        db_data = read_sensors_from_db(max_age_sec=300)
+        db_ec = db_data.get("ec_mscm")
+        
+        return {
+            "EC_UNIT_THRESHOLD": EC_UNIT_THRESHOLD,
+            "raw_from_sensor": raw_value,
+            "conversion_applied": conversion_applied,
+            "converted_value": converted,
+            "from_unit": from_unit,
+            "to_unit": to_unit,
+            "cached_ec_ms_cm": cached_ec,
+            "db_ec_mscm": db_ec,
+            "status": "OK" if (cached_ec is not None and cached_ec < 10) else "NEEDS_SERVICE_RESTART",
+            "note": f"If raw={raw_value:.1f} {from_unit} and threshold={EC_UNIT_THRESHOLD}, "
+                    f"converted should be {converted:.4f} {to_unit}. "
+                    f"Cache shows {cached_ec}, DB shows {db_ec}. "
+                    f"If cache/DB shows >10, service needs restart."
+        }
+    except Exception as e:
+        return {"error": str(e), "note": "Run on Pi with I2C access"}
