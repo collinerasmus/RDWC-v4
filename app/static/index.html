@@ -156,7 +156,7 @@
       <!-- Settings -->
       <div style="margin-top:12px;">
         <h4 style="margin:0 0 12px 0;font-size:var(--font-xl);font-weight:600;">⚙️ Schedule Settings</h4>
-        <div class="details-content">
+        <div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:var(--space-lg);">
             <button id="scheduleSeedBtn" class="btn-secondary" title="Seed default 12-week schedule (non-destructive)">Seed Defaults</button>
           </div>
@@ -191,7 +191,7 @@
         </div>
 
         <!-- pH Probe Calibration -->
-        <div open class="minimal-settings" style="margin-bottom:var(--space-xl);">
+        <div style="margin-bottom:var(--space-xl);">
           <h4 style="margin:0 0 12px 0;font-size:var(--font-xl);font-weight:600;">
             🧪 pH Probe Calibration
           </h4>
@@ -234,7 +234,7 @@
         </div>
 
         <!-- Dosing Pump Calibration -->
-        <div class="minimal-settings" style="margin-bottom:var(--space-xl);">
+        <div style="margin-bottom:var(--space-xl);">
           <h4 style="margin:0 0 12px 0;font-size:var(--font-xl);font-weight:600;">
             💧 Dosing Pump Calibration
           </h4>
@@ -496,7 +496,7 @@
       </div>
 
       <!-- Manual Control -->
-      <div open style="margin-top:12px;">
+      <div style="margin-top:12px;">
         <h4 style="margin:0 0 12px 0;font-size:var(--font-xl);font-weight:600;">🎮 Manual Control</h4>
         <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
           <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Manual relay control. Honors Auto/Manual mode and cooldowns. In Auto mode, schedule controls lights automatically.</div>
@@ -528,7 +528,7 @@
       <!-- Info -->
       <div style="margin-top:12px;">
         <h4 style="margin:0 0 12px 0;font-size:var(--font-xl);font-weight:600;">ℹ️ Info</h4>
-        <div class="details-content" style="font-size:var(--font-base);">
+        <div style="font-size:var(--font-base);">
           <ul style="margin:0;padding-left:18px;line-height:1.4;">
             <li>Edge-only scheduler sets two transitions per day (no periodic enforcement).</li>
             <li>Manual mode ignores schedule; Auto enforces window; Maintenance keeps relay state but suppresses auto edges.</li>
@@ -562,7 +562,7 @@
       </div>
 
       <!-- Manual Control -->
-      <div open style="margin-top:12px;">
+      <div style="margin-top:12px;">
         <h4 style="margin:0 0 12px 0;font-size:var(--font-xl);font-weight:600;">🎮 Manual Control</h4>
         <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
           <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Manual relay control. Honors Auto/Manual mode and E‑STOP protections. Cooldowns enforced.</div>
@@ -586,7 +586,6 @@
             <div>
               <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Chiller Pump Min OFF (s)</label>
                 <input type="number" id="chillerPumpMinOff" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
-              </div>
             </div>
           </div>
           <button id="btnSaveCircSettings" class="btn-secondary btn-full">Save Circulation Settings</button>
@@ -656,7 +655,7 @@
         <!-- Sensor Reading Section -->
         <div class="sensors-settings-accordion" style="margin-top:8px;">
           <h4 style="margin:0 0 12px 0;font-size:var(--font-xl);font-weight:600;">📊 Sensor Reading</h4>
-          <div class="details-content-accent">
+          <div>
             <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Live Sensors are cached by the background poller. Use "Read now" for an immediate sample (only available in Manual/Maintenance mode). Health details are available from the green "OK" badge.</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
               <button id="btnSensorsReadNow" class="btn-secondary btn-xs">Read now</button>
@@ -670,7 +669,7 @@
         <!-- pH Probe Calibration Section -->
         <div class="sensors-settings-accordion" style="margin-top:8px;">
           <h4 style="margin:0 0 12px 0;font-size:var(--font-xl);font-weight:600;">🧪 pH Probe Calibration</h4>
-          <div class="details-content-accent">
+          <div>
           <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-base);">pH Probe Calibration</div>
           <div id="ph-calib-banner-inline" style="display:none;font-size:var(--font-xs);padding:6px 8px;border-radius:6px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);color:#fecaca;margin-bottom:var(--space-md);">
             ⚠️ Writes are disabled. Set CALIB_ENABLE=1 and restart service to enable calibration commands.
@@ -716,7 +715,7 @@
         <!-- EC Probe Calibration Section -->
         <div class="sensors-settings-accordion" style="margin-top:8px;">
           <h4 style="margin:0 0 12px 0;font-size:var(--font-xl);font-weight:600;">⚡ EC Probe Calibration</h4>
-          <div class="details-content-accent">
+          <div>
           <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-base);">EC Probe Calibration</div>
           
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
@@ -919,7 +918,7 @@
           <!-- pH Pump Calibration -->
           <div style="margin-top:12px;">
             <h4 style="margin:0 0 12px 0;font-size:var(--font-xl);font-weight:600;">💧 Pump Calibration</h4>
-            <div class="details-content-accent">
+            <div>
               <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-base);">pH Up Pump Flow Rate Calibration</div>
               <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">
                 <strong>Workflow:</strong> 1) Prime pump → 2) Run for X seconds → 3) Measure collected ml → 4) Commit rate
@@ -946,7 +945,7 @@
 
           <div style="margin-top:12px;">
             <h4 style="margin:0 0 12px 0;font-size:var(--font-xl);font-weight:600;">Automation</h4>
-            <div class="details-content">
+            <div>
               <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">pH automation learning and control.</div>
               <div id="ph-learned-display" style="display:none;margin-bottom:var(--space-md);padding:8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
                 <div class="muted" style="font-size:var(--font-sm);margin-bottom:4px;">Learned ml/pH:</div>
@@ -958,7 +957,7 @@
 
           <div style="margin-top:12px;">
             <h4 style="margin:0 0 12px 0;font-size:var(--font-xl);font-weight:600;">Manual Dosing</h4>
-            <div class="details-content-accent">
+            <div>
               <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">Dose pH Up manually. Safety guards enforced in Auto mode; only E-STOP/reservoir in Manual mode.</div>
               <div id="ph-dose-status" class="muted" style="font-size:var(--font-sm);margin-bottom:8px;padding:6px 8px;border-radius:6px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);color:#86efac;">
                 ✓ Ready to dose
@@ -980,7 +979,7 @@
           <!-- pH Dose Log (Last 20) -->
           <div style="margin-top:12px;">
             <h4 style="margin:0 0 12px 0;font-size:var(--font-xl);font-weight:600;">Dose Log (Last 20)</h4>
-            <div class="details-content">
+            <div>
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                 <div class="muted" style="font-weight:600;font-size:var(--font-lg);">Recent pH Doses</div>
                 <button id="btnRefreshDoseLog" class="btn-secondary btn-xs" title="Refresh dose log">Refresh</button>
