@@ -493,6 +493,12 @@
 
     // Force full chart update with recalculation
     trendChart.update();
+    
+    // Publish latest trends data for other modules (e.g., EC chart)
+    try {
+      window.trendsData = data;
+      window.dispatchEvent(new CustomEvent('trends:update', { detail: { data } }));
+    } catch(_e) { /* noop */ }
   }
 
   function scheduleAutoRefresh() {

@@ -1,6 +1,12 @@
 // EC Dose Chart Rendering Module
 (function(){
   'use strict';
+  
+  const DEBUG = true;
+  const log = DEBUG ? console.log.bind(console, '[EC Chart]') : function(){};
+  const logError = console.error.bind(console, '[EC Chart]');
+  
+  log('Initializing...');
 
   let EC_CHART = null;
   let EC_STATE = { startISO: null, endISO: null, lastCount: 0 };
@@ -31,6 +37,30 @@
       // ignore
     }
     window.RDWC_CHART_REG_EC = true;
+  }
+  
+  // Derive EC readings from trends owner data (published by trends.js)
+  function ecReadingsFromTrends(trendsData) {
+    try {
+      const raw = (trendsData?.series?.ec || []).map(p => ({
+        x: new Date(p.ts * 1000),
+        y: Number(p.value)
+      })).filter(p => Number.isFinite(p.y));
+
+      // Detect unit: if median > 20, convert µS/cm → mS/cm
+      const values = raw.map(p => p.y).sort((a,b)=>a-b);
+      const mid = Math.floor(values.length/2);
+      const med = values.length ? (values.length%2 ? values[mid] : (values[mid-1]+values[mid])/2) : 0;
+      const scale = med > 20 ? 1/1000 : 1.0;
+      if (scale !== 1.0) log('Applying unit conversion µS→mS based on median', med.toFixed(1));
+
+      const ec = raw.map(p => ({ x: p.x, y: p.y * scale }));
+      log('Derived EC readings from trends:', ec.length);
+      return ec;
+    } catch(e) {
+      logError('Failed to derive EC from trends:', e);
+      return [];
+    }
   }
 
   function buildChart(datasets, tmin, tmax, axisTitle, currentEC) {
@@ -199,8 +229,26 @@
     }
 
     const bars = hasAnyMl ? summary.map(d => ({ x: new Date(d.day), y: d.total_ml ?? 0 })) : [];
+    
+    // Get EC readings from trends owner data
+    const ecReadings = ecReadingsFromTrends(window.trendsData);
+    log('Rendering with', ecReadings.length, 'EC points and', events.length, 'dose events');
 
     const datasets = [
+      // EC sensor readings line (primary)
+      ecReadings.length ? {
+        type: 'line',
+        label: 'EC (mS/cm)',
+        data: ecReadings,
+        borderColor: '#f59e0b',
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.3,
+        fill: false,
+        yAxisID: 'y',
+        order: 0
+      } : null,
       bars.length ? {
         type: 'bar',
         label: 'Daily total (ml)',
@@ -410,6 +458,14 @@
     }
   };
 
+  // Subscribe to trends updates (published by trends.js)
+  window.addEventListener('trends:update', () => {
+    log('Received trends:update; re-rendering');
+    if (currentRange.start && currentRange.end) {
+      loadRangeAndRender({ start: currentRange.start, end: currentRange.end });
+    }
+  });
+  
   // Subscribe to live sensor updates to update current EC reference line
   let lastEcUpdate = 0;
   window.addEventListener('sensors:update', (e) => {
@@ -437,4 +493,6 @@
   } else {
     init();
   }
+  
+  log('Module loaded');
 })();
