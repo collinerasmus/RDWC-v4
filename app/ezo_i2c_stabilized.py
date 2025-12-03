@@ -171,7 +171,11 @@ def read_all(bus_num: int = 1):
             ec.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.25)
         except Exception:
             pass
-        ec_val = float(ec.read_value(timeout=1.5))
+        ec_raw = float(ec.read_value(timeout=1.5))
+        
+        # EZO EC circuit returns µS/cm by default; convert to mS/cm
+        # Heuristic: if value > 10, assume it's µS/cm and divide by 1000
+        ec_val = ec_raw / 1000.0 if ec_raw > 10 else ec_raw
 
         return {"temperature": temp_c, "ph": ph_val, "ec_ms": ec_val}
     finally:
