@@ -2694,6 +2694,86 @@ def debug_relay_try(name: str = Query(...), on: int = Query(...)):
         "cooldown_remaining": result.get("cooldown_remaining", 0)
     }
 
+@app.get("/debug/ec_check")
+def debug_ec_check():
+    """Verify EC units are in mS/cm throughout the system."""
+    import sqlite3
+    from pathlib import Path
+    
+    status = {"all_in_mscm": True, "checks": {}, "status": "OK"}
+    
+    # Check 1: Current sensor reading
+    try:
+        sensor_data = read_all_sensors()
+        ec_value = sensor_data.get("ec_mscm")
+        status["checks"]["current_sensor"] = {
+            "ec_mscm": ec_value,
+            "in_expected_range": (0.1 <= ec_value <= 5.0) if ec_value else False,
+            "note": "Expected range: 0.1-5.0 mS/cm for typical hydroponic systems"
+        }
+        if ec_value and (ec_value < 0.1 or ec_value > 5.0):
+            status["all_in_mscm"] = False
+            status["status"] = "WARNING"
+    except Exception as e:
+        status["checks"]["current_sensor"] = {"error": str(e)}
+    
+    # Check 2: Recent database readings
+    try:
+        db_path = Path("data/rdwc.db")
+        if db_path.exists():
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # Get 10 most recent readings
+            cursor.execute("SELECT ec_ms_cm FROM readings WHERE ec_ms_cm IS NOT NULL ORDER BY ts DESC LIMIT 10")
+            rows = cursor.fetchall()
+            
+            if rows:
+                ec_values = [row[0] for row in rows]
+                avg_ec = sum(ec_values) / len(ec_values)
+                min_ec = min(ec_values)
+                max_ec = max(ec_values)
+                
+                status["checks"]["database_readings"] = {
+                    "sample_size": len(ec_values),
+                    "avg_ec_mscm": round(avg_ec, 3),
+                    "min_ec": round(min_ec, 3),
+                    "max_ec": round(max_ec, 3),
+                    "in_expected_range": (0.1 <= avg_ec <= 5.0)
+                }
+                
+                if avg_ec < 0.1 or avg_ec > 5.0:
+                    status["all_in_mscm"] = False
+                    status["status"] = "WARNING"
+            
+            conn.close()
+    except Exception as e:
+        status["checks"]["database_readings"] = {"error": str(e)}
+    
+    # Check 3: API trends endpoint
+    try:
+        from_ts = int(time.time()) - 3600  # Last hour
+        rows = fetch_history_since(from_ts)
+        
+        if rows:
+            ec_values = [r.get("ec_ms_cm") for r in rows if r.get("ec_ms_cm") is not None]
+            if ec_values:
+                avg_ec = sum(ec_values) / len(ec_values)
+                status["checks"]["trends_api"] = {
+                    "sample_size": len(ec_values),
+                    "avg_ec_mscm": round(avg_ec, 3),
+                    "in_expected_range": (0.1 <= avg_ec <= 5.0)
+                }
+                
+                if avg_ec < 0.1 or avg_ec > 5.0:
+                    status["all_in_mscm"] = False
+                    status["status"] = "WARNING"
+    except Exception as e:
+        status["checks"]["trends_api"] = {"error": str(e)}
+    
+    return status
+
 @app.post("/debug/lights_hold")
 def debug_lights_hold(seconds: int = Body(..., embed=True)):
     """Set temporary hold on lights for debugging (blocks all changes)."""
