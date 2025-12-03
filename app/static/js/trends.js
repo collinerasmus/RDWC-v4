@@ -495,6 +495,67 @@
     trendChart.update();
   }
 
+  async function appendLatestSensor() {
+    // Fetch latest sensor reading and append to chart if newer than last point
+    try {
+      const r = await fetch('/api/sensors', { cache: 'no-store' });
+      if (!r.ok) return;
+      const data = await r.json();
+      
+      // Extract values with unit handling
+      const ts = data.ts ? data.ts * 1000 : Date.now(); // Convert to ms
+      const ph = data.ph != null ? Number(data.ph) : null;
+      const temp = data.temperature_c != null ? Number(data.temperature_c) : null;
+      
+      // Handle EC with µS/cm to mS/cm conversion if needed
+      let ec = data.ec_mscm != null ? Number(data.ec_mscm) : null;
+      if (ec == null && data.ec != null) {
+        ec = Number(data.ec);
+        // Convert µS/cm to mS/cm if value seems to be in µS/cm
+        if (ec > 20) {
+          console.warn('[Trends] Converting EC from µS/cm to mS/cm:', ec, '→', ec/1000);
+          ec = ec / 1000;
+        }
+      }
+      
+      // Check if point is within window and newer than existing data
+      if (!state.window.end || ts > state.window.end) return;
+      if (ts < state.window.start) return;
+      
+      // Append to each dataset if we have valid data
+      let updated = false;
+      trendChart.data.datasets.forEach(ds => {
+        if (ds.id === 'ph' && ph != null) {
+          const lastPoint = ds.data[ds.data.length - 1];
+          if (!lastPoint || ts > lastPoint.x) {
+            ds.data.push({ x: ts, y: ph });
+            updated = true;
+          }
+        } else if (ds.id === 'ec' && ec != null) {
+          const lastPoint = ds.data[ds.data.length - 1];
+          if (!lastPoint || ts > lastPoint.x) {
+            ds.data.push({ x: ts, y: ec });
+            updated = true;
+          }
+        } else if (ds.id === 'temp' && temp != null) {
+          const lastPoint = ds.data[ds.data.length - 1];
+          if (!lastPoint || ts > lastPoint.x) {
+            ds.data.push({ x: ts, y: temp });
+            updated = true;
+          }
+        }
+      });
+      
+      // Update chart if we added points
+      if (updated) {
+        console.log('[Trends] Appended latest sensor reading at', new Date(ts).toISOString());
+        trendChart.update('none'); // Update without animation for smooth scrolling
+      }
+    } catch (err) {
+      console.warn('[Trends] Failed to append latest sensor:', err);
+    }
+  }
+
   function scheduleAutoRefresh() {
     // Cancel existing timer
     if (state.refreshTimer) {
@@ -505,21 +566,41 @@
     // If window end is within 5 min of now, auto-refresh using configured interval
     const now = Date.now();
     if (state.window.end && Math.abs(state.window.end - now) < 5*60*1000) {
-      console.log('[Sensors] Auto-refresh enabled (near real-time)');
+      console.log('[Trends] Auto-refresh enabled (near real-time)');
+      const refreshInterval = Math.max(2000, parseInt((window.APP_POLL && window.APP_POLL.sensors) || 5000, 10));
+      
       state.refreshTimer = setTimeout(async () => {
         const preset = detectPreset();
         if (preset && preset !== 'custom') {
           // Rolling window: recalculate time range to keep end at "now"
           const { start, end } = rangeFromPreset(preset);
           state.window = { start, end };
+          
+          // Update x-axis to keep chart scrolling
+          trendChart.options.scales.x.min = start;
+          trendChart.options.scales.x.max = end;
         }
-        const fromISO = new Date(state.window.start).toISOString();
-        const toISO = new Date(state.window.end).toISOString();
-        const { gran, max } = presetParams(preset || 'custom');
-        const data = await fetchTrends(fromISO, toISO, gran, max);
-        render(data);
+        
+        // Append latest sensor reading for live updates
+        await appendLatestSensor();
+        
+        // Full refresh every 10 cycles to keep history clean
+        if (!state.refreshCount) state.refreshCount = 0;
+        state.refreshCount++;
+        
+        if (state.refreshCount >= 10) {
+          console.log('[Trends] Full refresh cycle');
+          state.refreshCount = 0;
+          const fromISO = new Date(state.window.start).toISOString();
+          const toISO = new Date(state.window.end).toISOString();
+          const { gran, max } = presetParams(preset || 'custom');
+          await fetchDoseEvents(); // Refresh dose markers
+          const data = await fetchTrends(fromISO, toISO, gran, max);
+          render(data);
+        }
+        
         scheduleAutoRefresh(); // reschedule
-      }, Math.max(1000, parseInt((window.APP_POLL && window.APP_POLL.sensors) || 5000, 10)));
+      }, refreshInterval);
     }
   }
 
