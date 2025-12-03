@@ -410,6 +410,28 @@
     }
   };
 
+  // Subscribe to live sensor updates to update current EC reference line
+  let lastEcUpdate = 0;
+  window.addEventListener('sensors:update', (e) => {
+    const { ec } = e.detail;
+    
+    // Throttle updates to once per 10 seconds
+    const now = Date.now();
+    if (now - lastEcUpdate < 10000) return;
+    lastEcUpdate = now;
+    
+    // Update current EC annotation if chart exists and EC value is valid
+    if (EC_CHART && ec != null && !isNaN(ec)) {
+      const annotations = EC_CHART.options.plugins?.annotation?.annotations;
+      if (annotations && annotations.ecLine) {
+        annotations.ecLine.yMin = ec;
+        annotations.ecLine.yMax = ec;
+        annotations.ecLine.label.content = `Current EC: ${ec.toFixed(2)} mS/cm`;
+        EC_CHART.update('none'); // Update without animation for better performance
+      }
+    }
+  });
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {

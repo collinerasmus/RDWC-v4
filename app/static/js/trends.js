@@ -504,31 +504,9 @@
   }
 
   function scheduleAutoRefresh() {
-    // Cancel existing timer
-    if (state.refreshTimer) {
-      clearTimeout(state.refreshTimer);
-      state.refreshTimer = null;
-    }
-
-    // If window end is within 5 min of now, auto-refresh using configured interval
-    const now = Date.now();
-    if (state.window.end && Math.abs(state.window.end - now) < 5*60*1000) {
-      console.log('[Sensors] Auto-refresh enabled (near real-time)');
-      state.refreshTimer = setTimeout(async () => {
-        const preset = detectPreset();
-        if (preset && preset !== 'custom') {
-          // Rolling window: recalculate time range to keep end at "now"
-          const { start, end } = rangeFromPreset(preset);
-          state.window = { start, end };
-        }
-        const fromISO = new Date(state.window.start).toISOString();
-        const toISO = new Date(state.window.end).toISOString();
-        const { gran, max } = presetParams(preset || 'custom');
-        const data = await fetchTrends(fromISO, toISO, gran, max);
-        render(data);
-        scheduleAutoRefresh(); // reschedule
-      }, Math.max(1000, parseInt((window.APP_POLL && window.APP_POLL.sensors) || 5000, 10)));
-    }
+    // Disabled: now using sensors:update event for live data instead of re-fetching /api/trends
+    // This eliminates duplicate polling and reduces API load
+    console.log('[Trends] Auto-refresh disabled - using live sensors:update events');
   }
 
   function detectPreset() {
@@ -595,6 +573,40 @@
       scheduleAutoRefresh();
     });
   }
+
+  // Subscribe to live sensor updates from sensors.js
+  window.addEventListener('sensors:update', (e) => {
+    const { temp, ec, ph, ts } = e.detail;
+    
+    // Only append if viewing near real-time (within 5 min of now)
+    const now = Date.now();
+    if (!state.window.end || Math.abs(state.window.end - now) > 5*60*1000) {
+      return; // Not viewing real-time data
+    }
+    
+    // Append new point to chart datasets
+    if (trendChart && trendChart.data && trendChart.data.datasets) {
+      const tsMs = new Date(ts).getTime();
+      
+      // Find and update datasets
+      trendChart.data.datasets.forEach(ds => {
+        if (ds.id === 'ph' && ph != null) {
+          ds.data.push({ x: tsMs, y: Number(ph) });
+          // Keep last 500 points to prevent memory issues
+          if (ds.data.length > 500) ds.data.shift();
+        } else if (ds.id === 'ec' && ec != null) {
+          ds.data.push({ x: tsMs, y: Number(ec) });
+          if (ds.data.length > 500) ds.data.shift();
+        } else if (ds.id === 'temp' && temp != null) {
+          ds.data.push({ x: tsMs, y: Number(temp) });
+          if (ds.data.length > 500) ds.data.shift();
+        }
+      });
+      
+      // Update chart
+      trendChart.update('none'); // 'none' mode for better performance
+    }
+  });
 
   // Initial: 24h (changed to match user preference for full window demo)
   loadPreset('24h').catch(err => {
