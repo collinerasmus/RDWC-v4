@@ -33,6 +33,12 @@ PH_ADDR = 0x63
 EC_ADDR = 0x64
 RTD_ADDR = 0x66
 
+# EC unit detection threshold: values above this are assumed to be in µS/cm
+# Atlas EZO K=0.1 probe returns µS/cm (range 0.07-50,000 µS/cm)
+# Typical hydro nutrient EC: 1.0-3.0 mS/cm = 1000-3000 µS/cm
+# Pure/low-conductivity water: <0.01 mS/cm = <10 µS/cm (edge case, rare in hydro)
+EC_UNIT_THRESHOLD = 10.0  # µS/cm values above this get converted to mS/cm
+
 logger = logging.getLogger(__name__)
 
 
@@ -171,9 +177,18 @@ def read_all(bus_num: int = 1):
             ec.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.25)
         except Exception:
             pass
-        ec_val = float(ec.read_value(timeout=1.5))
+        ec_raw = float(ec.read_value(timeout=1.5))
+        
+        # Convert EC from µS/cm to mS/cm using threshold constant
+        # K=0.1 probe returns µS/cm (e.g., 422), convert to mS/cm (0.422)
+        if ec_raw > EC_UNIT_THRESHOLD:
+            ec_ms_cm = ec_raw / 1000.0
+            logger.debug(f"[EC CONVERT] {ec_raw:.1f} µS/cm → {ec_ms_cm:.4f} mS/cm")
+        else:
+            ec_ms_cm = ec_raw
+            logger.debug(f"[EC] Already in mS/cm: {ec_ms_cm:.4f}")
 
-        return {"temperature": temp_c, "ph": ph_val, "ec_ms": ec_val}
+        return {"temperature": temp_c, "ph": ph_val, "ec_ms": ec_ms_cm}
     finally:
         # Always close bus connections to prevent file descriptor leak
         for dev in (rtd, ph, ec):

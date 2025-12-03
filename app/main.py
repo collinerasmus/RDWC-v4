@@ -432,9 +432,92 @@ async def sensor_loop():
                 pass
         await asyncio.sleep(10)
 
+def _migrate_ec_data_to_mscm():
+    """
+    One-time migration: Convert all EC readings from µS/cm to mS/cm.
+    
+    K=0.1 EC probe returns µS/cm (e.g., 422) but we store/display in mS/cm (0.422).
+    This fixes historical data that was stored before the conversion was added
+    at the sensor read level.
+    
+    Safe to run multiple times - only converts values > 10 (already in µS/cm).
+    """
+    import sqlite3
+    from pathlib import Path
+    
+    db_path = Path(DB_PATH)
+    if not db_path.exists():
+        print("[EC Migration] Database not found, skipping")
+        return
+    
+    try:
+        with sqlite3.connect(str(db_path)) as conn:
+            # Count how many records need conversion (EC > 10 means µS/cm)
+            count = conn.execute(
+                "SELECT COUNT(*) FROM readings WHERE ec_ms_cm > 10"
+            ).fetchone()[0]
+            
+            if count == 0:
+                print("[EC Migration] No µS/cm data to convert, all good")
+                return
+            
+            print(f"[EC Migration] Converting {count} EC readings from µS/cm to mS/cm...")
+            
+            # Convert all EC values > 10 by dividing by 1000
+            conn.execute(
+                "UPDATE readings SET ec_ms_cm = ec_ms_cm / 1000.0 WHERE ec_ms_cm > 10"
+            )
+            conn.commit()
+            
+            # Also fix any dose_events table if it exists
+            try:
+                dose_count = conn.execute(
+                    "SELECT COUNT(*) FROM dose_events WHERE ec_before > 10 OR ec_after > 10"
+                ).fetchone()[0]
+                if dose_count > 0:
+                    conn.execute(
+                        "UPDATE dose_events SET ec_before = ec_before / 1000.0 WHERE ec_before > 10"
+                    )
+                    conn.execute(
+                        "UPDATE dose_events SET ec_after = ec_after / 1000.0 WHERE ec_after > 10"
+                    )
+                    conn.commit()
+                    print(f"[EC Migration] Also converted {dose_count} dose_events records")
+            except sqlite3.OperationalError:
+                # Table doesn't exist, that's fine
+                pass
+            
+            # Also fix ec_dose_log if it exists
+            try:
+                log_count = conn.execute(
+                    "SELECT COUNT(*) FROM ec_dose_log WHERE ec_before > 10 OR ec_after > 10"
+                ).fetchone()[0]
+                if log_count > 0:
+                    conn.execute(
+                        "UPDATE ec_dose_log SET ec_before = ec_before / 1000.0 WHERE ec_before > 10"
+                    )
+                    conn.execute(
+                        "UPDATE ec_dose_log SET ec_after = ec_after / 1000.0 WHERE ec_after > 10"
+                    )
+                    conn.commit()
+                    print(f"[EC Migration] Also converted {log_count} ec_dose_log records")
+            except sqlite3.OperationalError:
+                # Table doesn't exist, that's fine
+                pass
+            
+            print(f"[EC Migration] SUCCESS: Converted {count} readings to mS/cm")
+        
+    except Exception as e:
+        print(f"[EC Migration] ERROR: {e}")
+
+
 @app.on_event("startup")
 async def _start_tasks():
     global sensor_task, watchdog_task
+    
+    # FIRST: Migrate EC data from µS/cm to mS/cm (one-time fix for historical data)
+    _migrate_ec_data_to_mscm()
+    
     # Initialize system mode tables
     from app.unified_mode import _init_tables
     _init_tables()
@@ -3273,13 +3356,10 @@ def api_controller_hold_all(body: dict = None):
         "_deprecated": "Use POST /api/auto/global instead"
     }
 
-@app.get("/cam_status")
-def cam_status():
-    svc = run(["systemctl", "is-active", "mjpg-streamer.service"], stdout=PIPE, stderr=PIPE, text=True)
-    active = (svc.stdout.strip() == "active")
-    return {"active": active, "url": "http://192.168.88.49:8081/?action=stream"}
+# Old /cam_status endpoint removed - was checking for mjpg-streamer service
+# which conflicts with the built-in OpenCV camera. Use /camera/status instead.
 
-# --- Camera endpoints ---
+# --- Camera endpoints (using built-in OpenCV, not external mjpg-streamer) ---
 @app.get("/camera/status")
 def camera_status():
     from app.camera import CameraManager
