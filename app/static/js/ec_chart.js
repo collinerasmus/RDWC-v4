@@ -388,7 +388,9 @@
   }
 
   async function init(){
-    wireRangeControls();
+    console.log('[EC Chart] Module initializing...');
+    await wireRangeControls();
+    console.log('[EC Chart] Module initialized');
   }
 
   // Export small API for other modules (ec.js calls refresh after dosing)
