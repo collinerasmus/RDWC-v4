@@ -15,6 +15,7 @@
 
   let chart = null;
   let currentRange = { preset: '24h', start: null, end: null };
+  let refreshTimer = null;  // Auto-refresh timer
 
   // Register Chart.js components if needed
   if (window.Chart && Chart.register) {
@@ -131,12 +132,50 @@
   }
 
   /**
+   * Fetch latest live sensor reading for real-time append
+   */
+  async function fetchLatestSensor() {
+    try {
+      const r = await fetch('/api/sensors', { cache: 'no-store' });
+      if (!r.ok) return null;
+      const j = await r.json();
+      if (!j || !j.ts) return null;
+      // API provides ts in seconds; convert to ms
+      const x = (j.ts || Math.floor(Date.now()/1000)) * 1000;
+      return {
+        x,
+        ec: Number(j.ec_mscm)  // EC in mS/cm
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
    * Build and render the chart
    */
-  function renderChart(ecReadings, doseEvents, status) {
+  async function renderChart(ecReadings, doseEvents, status) {
     log('renderChart called - ecReadings:', ecReadings?.length || 0,
       'doseEvents:', doseEvents?.length || 0,
       'status:', status ? 'present' : 'null');
+    
+    // Append latest live sensor if available and within window
+    try {
+      const live = await fetchLatestSensor();
+      if (live && currentRange.start && currentRange.end) {
+        const newestX = ecReadings.length ? ecReadings[ecReadings.length - 1].x.getTime() : 0;
+        const withinWindow = live.x >= new Date(currentRange.start).getTime() && 
+                            live.x <= new Date(currentRange.end).getTime();
+        const isNewer = live.x > newestX;
+        
+        if (withinWindow && isNewer && Number.isFinite(live.ec)) {
+          ecReadings.push({ x: new Date(live.x), y: live.ec });
+          log('Appended live EC reading:', live.ec.toFixed(3), 'at', new Date(live.x).toISOString());
+        }
+      }
+    } catch (e) {
+      // Silently ignore live append errors
+    }
     
     const canvas = document.getElementById('ecDoseChart');
     const emptyMsg = document.getElementById('ec-dose-empty');
@@ -346,17 +385,32 @@
       };
     }
 
-    // Check if annotation plugin is available (multiple detection methods)
+    // Check if annotation plugin is available
     let hasAnnotation = false;
     try {
-      hasAnnotation = !!(
-        (window.Chart && Chart.registry && Chart.registry.plugins && Chart.registry.plugins.get('annotation')) ||
-        (window['chartjs-plugin-annotation']) ||
-        (window.chartjs && window.chartjs['plugin-annotation']) ||
-        (window.ChartAnnotation)
-      );
+      // Chart.js 4.x uses registry.plugins.get
+      if (window.Chart && Chart.registry && Chart.registry.plugins) {
+        const plugin = Chart.registry.plugins.get('annotation');
+        hasAnnotation = !!plugin;
+        if (hasAnnotation) {
+          log('Annotation plugin detected via registry');
+        }
+      }
+      
+      // Fallback checks for alternative loading methods
+      if (!hasAnnotation && window['chartjs-plugin-annotation']) {
+        hasAnnotation = true;
+        log('Annotation plugin detected via global');
+      }
     } catch (e) {
+      logError('Annotation plugin detection error:', e);
       hasAnnotation = false;
+    }
+    
+    if (!hasAnnotation) {
+      logError('Chart annotation plugin NOT available - target range will not be displayed');
+    } else {
+      log('Annotation plugin available - will render', Object.keys(annotations).length, 'annotations');
     }
 
     // Create chart
@@ -379,10 +433,10 @@
                 day: 'MMM d'
               }
             },
-            min: currentRange.start ? new Date(currentRange.start) : undefined,
-            max: currentRange.end ? new Date(currentRange.end) : undefined,
+            min: currentRange.start ? new Date(currentRange.start).getTime() : undefined,
+            max: currentRange.end ? new Date(currentRange.end).getTime() : undefined,
             grid: { color: 'rgba(148, 163, 184, 0.1)' },
-            ticks: { maxRotation: 0 }
+            ticks: { maxRotation: 0, autoSkip: true }
           },
           yEc: {
             type: 'linear',
@@ -429,8 +483,13 @@
       }
     });
 
-    log('Rendered with', ecReadings?.length || 0, 'EC readings and', 
-      (growDoses.length + microDoses.length + bloomDoses.length), 'dose events');
+    log('Chart rendered successfully:');
+    log('  - EC readings:', ecReadings?.length || 0, 'points');
+    log('  - Dose events:', (growDoses.length + microDoses.length + bloomDoses.length));
+    log('  - Y-axis range:', yMin, '-', yMax, 'mS/cm');
+    log('  - Annotations:', hasAnnotation ? Object.keys(annotations).length : 'disabled');
+    log('  - Current EC:', currentEC?.toFixed(3) || 'null');
+    log('  - Target range:', targets ? `${targets.low} - ${targets.high}` : 'none');
   }
 
   /**
@@ -462,11 +521,76 @@
       fetchEcStatus()
     ]);
 
-    // Render chart
-    renderChart(ecReadings, doseEvents, status);
+    // Render chart (async to allow live data append)
+    await renderChart(ecReadings, doseEvents, status);
     
     // Update KPI badges if they exist
     updateKpiBadges(doseEvents, status);
+    
+    // Update date selectors to show current window
+    updateDateSelectors();
+    
+    // Schedule auto-refresh for live updates
+    scheduleAutoRefresh();
+  }
+
+  /**
+   * Update date/time selectors to reflect current time window
+   */
+  function updateDateSelectors() {
+    const fromEl = document.getElementById('ecDoseFrom');
+    const toEl = document.getElementById('ecDoseTo');
+    
+    if (fromEl && toEl && currentRange.start && currentRange.end) {
+      fromEl.value = formatForInput(new Date(currentRange.start).getTime());
+      toEl.value = formatForInput(new Date(currentRange.end).getTime());
+    }
+  }
+
+  /**
+   * Format timestamp for datetime-local input
+   */
+  function formatForInput(ts) {
+    const d = new Date(ts);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+  }
+
+  /**
+   * Schedule auto-refresh for near-real-time updates
+   */
+  function scheduleAutoRefresh() {
+    // Cancel existing timer
+    if (refreshTimer) {
+      clearTimeout(refreshTimer);
+      refreshTimer = null;
+    }
+
+    // Only auto-refresh if window end is within 5 minutes of now
+    const now = Date.now();
+    if (currentRange.end) {
+      const endMs = new Date(currentRange.end).getTime();
+      const isNearRealtime = Math.abs(endMs - now) < 5 * 60 * 1000;
+      
+      if (isNearRealtime) {
+        log('Auto-refresh enabled (near real-time)');
+        refreshTimer = setTimeout(async () => {
+          // For non-custom presets, roll the window forward
+          if (currentRange.preset && currentRange.preset !== 'custom') {
+            selectPreset(currentRange.preset);
+          } else {
+            // For custom range, just refresh data
+            await loadAndRender();
+          }
+        }, 5000);  // Refresh every 5 seconds
+      } else {
+        log('Auto-refresh disabled (historical view)');
+      }
+    }
   }
 
   /**
@@ -515,6 +639,7 @@
    * Select a preset range
    */
   function selectPreset(preset) {
+    log('Selecting preset:', preset);
     currentRange.preset = preset;
     
     const now = new Date();
@@ -546,6 +671,8 @@
     
     currentRange.start = start.toISOString();
     currentRange.end = now.toISOString();
+    
+    log('Time range set:', currentRange.start, 'to', currentRange.end);
     
     // Save preference
     if (window.rdwcRange) {
