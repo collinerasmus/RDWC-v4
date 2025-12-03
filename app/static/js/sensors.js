@@ -284,6 +284,8 @@
     
     // Cache last displayed values to prevent flicker when rounding produces same string
     let lastTemp = null, lastEc = null, lastPh = null;
+    // Track raw values to avoid dispatching events when data hasn't changed
+    let lastRawTemp = null, lastRawEc = null, lastRawPh = null, lastTs = null;
     
     // SIMPLIFIED: Just poll every 5 seconds and update the DOM directly
     async function simplePoll() {
@@ -322,8 +324,20 @@
           }
         }
         
-        // Dispatch event for other modules (ec_chart, trends, etc.)
-        if (data.temperature_c != null || data.ec_mscm != null || data.ph != null) {
+        // Dispatch event for other modules (ec_chart, trends, etc.) only if data changed
+        const dataChanged = (
+          data.temperature_c !== lastRawTemp ||
+          data.ec_mscm !== lastRawEc ||
+          data.ph !== lastRawPh ||
+          data.ts !== lastTs
+        );
+        
+        if (dataChanged && (data.temperature_c != null || data.ec_mscm != null || data.ph != null)) {
+          lastRawTemp = data.temperature_c;
+          lastRawEc = data.ec_mscm;
+          lastRawPh = data.ph;
+          lastTs = data.ts;
+          
           window.dispatchEvent(new CustomEvent('sensors:update', { 
             detail: { 
               temp: data.temperature_c, 

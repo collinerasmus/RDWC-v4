@@ -214,15 +214,16 @@
   function getCachedOrFetch(key, url, ttl) {
     const now = Date.now();
     const cached = dataCache[key];
+    const effectiveTTL = ttl !== undefined ? ttl : (cached ? cached.ttl : 5000);
     
-    if (cached && cached.data && (now - cached.timestamp) < (ttl || cached.ttl)) {
+    if (cached && cached.data && (now - cached.timestamp) < effectiveTTL) {
       if (VERBOSE) console.log(`[PollingManager] Cache hit: ${key}`);
       return Promise.resolve(cached.data);
     }
     
     if (VERBOSE) console.log(`[PollingManager] Cache miss: ${key}, fetching...`);
     return fetchJSON(url).then(data => {
-      dataCache[key] = { data, timestamp: now, ttl: ttl || cached.ttl };
+      dataCache[key] = { data, timestamp: now, ttl: effectiveTTL };
       return data;
     });
   }
@@ -242,8 +243,10 @@
     getSettings: () => getCachedOrFetch('settings', '/api/settings/export', 30000),
     getHealth: () => getCachedOrFetch('health', '/api/health', 10000),
     getTrends: (params) => {
+      // Note: Trends cache is intentionally shared across all parameter variations
+      // to reduce backend load. For precise time-range queries, use fetchJSON directly.
       const url = params ? `/api/trends?${new URLSearchParams(params)}` : '/api/trends';
-      return getCachedOrFetch('trends', url, 60000);
+      return fetchJSON(url); // Use fetchJSON which has its own request deduplication
     }
   };
 
