@@ -288,8 +288,8 @@
     // SIMPLIFIED: Just poll every 5 seconds and update the DOM directly
     async function simplePoll() {
       try {
-        const response = await fetch('/api/sensors', {cache: 'no-store'});
-        const data = await response.json();
+        // Use PollingManager cache instead of direct fetch
+        const data = await window.PollingManager.getSensors();
         console.log('[Sensors] Fetched data:', data);
         
         // Direct DOM updates - only if value changed after formatting
@@ -320,6 +320,18 @@
             lastPh = newVal;
             console.log('[Sensors] Set pH to:', newVal);
           }
+        }
+        
+        // Dispatch event for other modules (ec_chart, trends, etc.)
+        if (data.temperature_c != null || data.ec_mscm != null || data.ph != null) {
+          window.dispatchEvent(new CustomEvent('sensors:update', { 
+            detail: { 
+              temp: data.temperature_c, 
+              ec: data.ec_mscm, 
+              ph: data.ph, 
+              ts: data.ts 
+            }
+          }));
         }
       } catch (e) {
         console.error('[Sensors] Poll failed:', e);

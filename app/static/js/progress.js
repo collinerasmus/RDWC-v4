@@ -81,8 +81,8 @@
       const sys = await fetch('/api/relays/status', {cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null);
       tasks.find(t=>t.key==='system').ok = !!(sys && sys.mode && sys.estop===false);
 
-      // Sensors
-      const sensors = await fetch('/api/sensors', {cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null);
+      // Sensors - use PollingManager cache
+      const sensors = await window.PollingManager.getSensors().catch(()=>null);
       tasks.find(t=>t.key==='sensors').ok = !!(sensors && sensors.online===true && sensors.ts);
 
       // pH status

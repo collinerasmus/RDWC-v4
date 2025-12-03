@@ -5,7 +5,7 @@
   'use strict';
 
   let refreshInterval = null;
-  const REFRESH_INTERVAL_MS = 10000; // 10 seconds
+  const REFRESH_INTERVAL_MS = 30000; // 30 seconds (increased from 10s)
 
   // Format bytes to human-readable size
   function formatBytes(bytes) {

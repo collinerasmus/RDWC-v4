@@ -58,9 +58,9 @@
         btn.style.opacity = disabled ? '0.6':'1';
         btn.style.cursor = disabled ? 'not-allowed':'pointer';
       }
-      // settings window preview
+      // settings window preview - use PollingManager cache
       try{
-        const s = await (await fetch('/settings?'+Date.now(), {cache:'no-store'})).json();
+        const s = await window.PollingManager.getSettings();
         console.log('[LightsV2] Settings response:', s);
         console.log('[LightsV2] today_window:', s.today_window);
         updateWindowPreview(s.today_window);
@@ -87,7 +87,7 @@
   async function init(){
     $('btnLightsToggle')?.addEventListener('click', ()=> toggle());
     refresh();
-    setInterval(refresh, 4000);
+    setInterval(refresh, 30000); // Increased from 4s to 30s
   }
 
   if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();

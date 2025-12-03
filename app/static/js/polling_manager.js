@@ -22,6 +22,14 @@
   const requestCache = new Map();
   const CACHE_TTL = 8000; // raised to 8s to reduce hammering
 
+  // Shared data cache with TTLs for common endpoints
+  const dataCache = {
+    sensors: { data: null, timestamp: 0, ttl: 5000 },  // 5s
+    settings: { data: null, timestamp: 0, ttl: 30000 }, // 30s
+    health: { data: null, timestamp: 0, ttl: 10000 },   // 10s
+    trends: { data: null, timestamp: 0, ttl: 60000 }    // 60s
+  };
+
   // Connection state tracking
   let connectionLost = false;
   let lastSuccessfulFetch = Date.now();
@@ -202,6 +210,23 @@
     }
   });
 
+  // Get cached data or fetch with TTL management
+  function getCachedOrFetch(key, url, ttl) {
+    const now = Date.now();
+    const cached = dataCache[key];
+    
+    if (cached && cached.data && (now - cached.timestamp) < (ttl || cached.ttl)) {
+      if (VERBOSE) console.log(`[PollingManager] Cache hit: ${key}`);
+      return Promise.resolve(cached.data);
+    }
+    
+    if (VERBOSE) console.log(`[PollingManager] Cache miss: ${key}, fetching...`);
+    return fetchJSON(url).then(data => {
+      dataCache[key] = { data, timestamp: now, ttl: ttl || cached.ttl };
+      return data;
+    });
+  }
+
   // Public API
   window.pollingManager = {
     register,
@@ -211,7 +236,15 @@
     stop,
     pause,
     resume,
-    config  // Allow reading config
+    config,  // Allow reading config
+    // Cached data getters
+    getSensors: () => getCachedOrFetch('sensors', '/api/sensors', 5000),
+    getSettings: () => getCachedOrFetch('settings', '/api/settings/export', 30000),
+    getHealth: () => getCachedOrFetch('health', '/api/health', 10000),
+    getTrends: (params) => {
+      const url = params ? `/api/trends?${new URLSearchParams(params)}` : '/api/trends';
+      return getCachedOrFetch('trends', url, 60000);
+    }
   };
 
   // Auto-start when DOM ready
@@ -220,6 +253,9 @@
   } else {
     start();
   }
+
+  // Backward compatibility: expose as PollingManager (capital P) too
+  window.PollingManager = window.pollingManager;
 
   console.log('[PollingManager] Initialized - coordinated polling active');
 })();
