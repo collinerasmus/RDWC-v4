@@ -748,11 +748,23 @@
     selectPreset(currentRange.preset);
   }
 
+  /**
+   * Cleanup function - stops auto-refresh
+   */
+  function cleanup() {
+    if (refreshTimer) {
+      clearTimeout(refreshTimer);
+      refreshTimer = null;
+      log('Auto-refresh stopped (cleanup)');
+    }
+  }
+
   // Export API for other modules
   window.ecChart = {
     refresh: loadAndRender,
     render: loadAndRender,
     init: init,
+    cleanup: cleanup,
     selectPreset: selectPreset,
     getRange: function() { return currentRange; },
     exportCSV: function() {

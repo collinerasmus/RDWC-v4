@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EC Chart Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+            background: #0b0f14;
+            color: #e0e0e0;
+        }
+        h1 {
+            color: #10b981;
+        }
+        .chart-container {
+            position: relative;
+            height: 420px;
+            background: #1a1f2e;
+            border: 1px solid #374151;
+            border-radius: 12px;
+            padding: 16px;
+            margin: 20px 0;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        select, input, button {
+            padding: 8px 12px;
+            background: #1f2937;
+            border: 1px solid #374151;
+            color: #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        button {
+            cursor: pointer;
+        }
+        button:hover {
+            background: #374151;
+        }
+        .status {
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+        }
+        .status-item {
+            margin: 8px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .warning { color: #f59e0b; }
+    </style>
+    
+    <!-- Chart.js Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
+</head>
+<body>
+    <h1>EC Dose History Chart - Standalone Test</h1>
+    
+    <div class="status" id="status">
+        <h3>Status Log</h3>
+        <div id="statusLog">
+            <div class="status-item">Initializing test...</div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <select id="ecDoseRangeSelect">
+            <option value="24h" selected>Last 24 Hours</option>
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="custom">Custom Range...</option>
+        </select>
+        
+        <input type="datetime-local" id="ecDoseFrom" />
+        <span style="opacity:0.5;">to</span>
+        <input type="datetime-local" id="ecDoseTo" />
+        <button id="ecDoseApply">Apply</button>
+        
+        <button id="btnEcRefreshChart">↻ Refresh</button>
+        <button id="btnEcExport">Export CSV</button>
+    </div>
+    
+    <div class="chart-container">
+        <canvas id="ecDoseChart"></canvas>
+        <div id="ec-dose-empty" style="display:none; padding:20px; text-align:center;">
+            No doses recorded in this period.
+        </div>
+    </div>
+    
+    <script>
+        // Mock rdwcRange utility if not present
+        if (!window.rdwcRange) {
+            window.rdwcRange = {
+                getLastPreset: (key) => localStorage.getItem(key) || '24h',
+                saveLastPreset: (key, val) => localStorage.setItem(key, val)
+            };
+        }
+        
+        // Add status logger
+        function addStatus(message, type = 'info') {
+            const log = document.getElementById('statusLog');
+            const item = document.createElement('div');
+            item.className = 'status-item ' + type;
+            item.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+            log.appendChild(item);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        // Test Chart.js availability
+        addStatus('Testing Chart.js availability...', 'info');
+        if (typeof Chart !== 'undefined') {
+            addStatus('✓ Chart.js loaded (version ' + Chart.version + ')', 'success');
+        } else {
+            addStatus('✗ Chart.js NOT loaded!', 'error');
+        }
+        
+        // Test annotation plugin
+        addStatus('Testing annotation plugin...', 'info');
+        if (Chart.registry && Chart.registry.plugins) {
+            const plugin = Chart.registry.plugins.get('annotation');
+            if (plugin) {
+                addStatus('✓ Annotation plugin detected', 'success');
+            } else {
+                addStatus('⚠ Annotation plugin NOT detected', 'warning');
+            }
+        } else {
+            addStatus('✗ Chart.registry not available', 'error');
+        }
+        
+        // Test date-fns adapter
+        addStatus('Testing date-fns adapter...', 'info');
+        if (Chart._adapters && Chart._adapters._date) {
+            addStatus('✓ Date adapter loaded', 'success');
+        } else {
+            addStatus('⚠ Date adapter may not be loaded', 'warning');
+        }
+        
+        addStatus('Loading ec_chart.js module...', 'info');
+    </script>
+    
+    <!-- Load the actual EC chart module -->
+    <script src="app/static/js/ec_chart.js"></script>
+    
+    <script>
+        // Wait for chart to initialize
+        setTimeout(() => {
+            if (window.ecChart) {
+                addStatus('✓ EC Chart module loaded successfully', 'success');
+                addStatus('API methods available: ' + Object.keys(window.ecChart).join(', '), 'info');
+                
+                // Check for chart instance
+                setTimeout(() => {
+                    const canvas = document.getElementById('ecDoseChart');
+                    const ctx = canvas.getContext('2d');
+                    if (Chart.getChart(canvas)) {
+                        addStatus('✓ Chart instance created', 'success');
+                    } else {
+                        addStatus('⚠ Chart instance not found', 'warning');
+                    }
+                }, 1000);
+            } else {
+                addStatus('✗ EC Chart module NOT loaded', 'error');
+            }
+        }, 500);
+        
+        // Monitor console for errors
+        const originalError = console.error;
+        console.error = function(...args) {
+            addStatus('Console Error: ' + args.join(' '), 'error');
+            originalError.apply(console, args);
+        };
+        
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            addStatus('Console Warning: ' + args.join(' '), 'warning');
+            originalWarn.apply(console, args);
+        };
+    </script>
+</body>
+</html>
