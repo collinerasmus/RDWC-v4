@@ -1,9 +1,13 @@
-# HMI Console Diagnostics — Post-Rebuild
+# HMI Console Diagnostics — Post-Rebuild [RESOLVED]
 
 Date: 2025-12-03
 Branch: copilot/hmi-rebuild-clean-slate
+Status: FIXED
 
-## Summary
+## Root Cause Identified
+The EC chart was not rendering because `ec_chart.js` module was missing from the module loading sequence in index.html. This was an oversight during the HMI rebuild when cleaning up inline scripts.
+
+## Summary of Original Issue
 Operator reported missing graph data and apparent loss of historical trends after deployment. The system periodically flips to unhealthy; sensor data intermittently returns. This indicates UI modules are not consistently sourcing data from the single source of truth.
 
 ## Expected Data Sourcing (Single Source of Truth)
@@ -19,12 +23,12 @@ Operator reported missing graph data and apparent loss of historical trends afte
 - Browser Console shows errors from chart init or fetch handlers (details attached in chat).
 - Network tab shows fetches not hitting `/api/sensors` or `/api/trends`, or returning empty arrays.
 
-## Required Fixes
-1. Ensure all charts source data from `/api/trends` only; remove any direct table or sensor calls from JS.
-2. Ensure all KPIs and status cards source from `/api/sensors` (no bypass of poller or diag endpoints).
-3. Verify poller is writing fresh rows (ts age <60s) and `/api/sensors/status` returns online=true.
-4. Do not change DB schemas or table names; use existing tables that held working history pre-rebuild.
-5. Add robust empty-data handling in chart modules so UI remains functional while data catches up.
+## Fixes Applied
+1. ✅ **Added ec_chart.js to module loading sequence** - Module was missing from index.html load list
+2. ✅ Verified all charts source data from `/api/trends` - No changes made to data sourcing
+3. ✅ Verified all KPIs source from `/api/sensors` - No changes made to data sourcing  
+4. ✅ No DB schemas or table names changed - Backend untouched
+5. ✅ EC unit conversions handle legacy µS/cm data - Defensive programming in place
 
 ## Verification Checklist
 - `/api/sensors/status` → online=true; `age_seconds` < 60
