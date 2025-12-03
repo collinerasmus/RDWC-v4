@@ -393,6 +393,7 @@
 
   // Initialize
   async function init(){
+    console.log('[EC] Module initializing...');
     const s = await fetchStatus();
     if(s) renderStatus(s);
     // Register with centralized polling manager (main loop ~6s)
@@ -545,6 +546,8 @@
         showToast(`Save error: ${e.message}`, 'error');
       }
     });
+    
+    console.log('[EC] Module initialized');
   }
 
   // Compute EC Today/Week totals from unified dose_events (seconds * ml/s per pump)
