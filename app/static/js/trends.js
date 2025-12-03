@@ -206,6 +206,24 @@
     return { series: { ph:[], ec:[], temp:[] } };
   }
 
+  // Fetch latest live sensor sample (cached endpoint) and merge into series
+  async function fetchLatestSensor(){
+    try{
+      const r = await fetch('/api/sensors', { cache: 'no-store' });
+      if (!r.ok) return null;
+      const j = await r.json();
+      if (!j || !j.ts) return null;
+      // API provides ts in seconds; convert to ms
+      const x = (j.ts || Math.floor(Date.now()/1000)) * 1000;
+      return {
+        x,
+        ph:   Number(j.ph),
+        ec:   Number(j.ec_mscm),
+        temp: Number(j.temperature_c)
+      };
+    } catch(_){ return null; }
+  }
+
   // Dose markers cache
   let doseEventsCache = [];
   let lastDoseFetch = 0;
@@ -328,13 +346,33 @@
     }
   }
 
-  function render(data){
+  async function render(data){
     console.log('[Sensors] render');
 
     // Series to XY (timestamps in seconds from API, convert to ms)
     let ph    = (data?.series?.ph   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
     let ecRaw = (data?.series?.ec   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
     let temp  = (data?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
+
+    // Append latest live sample if newer than last history point to keep chart "moving"
+    try{
+      const live = await fetchLatestSensor();
+      if (live && state.window && state.window.end) {
+        // Only append if within the current window and newer than last known points
+        const newestX = Math.max(
+          ph.length ? ph[ph.length-1].x : 0,
+          ecRaw.length ? ecRaw[ecRaw.length-1].x : 0,
+          temp.length ? temp[temp.length-1].x : 0
+        );
+        const withinWindow = live.x >= state.window.start && live.x <= state.window.end;
+        const isNewer = live.x > newestX;
+        if (withinWindow && isNewer) {
+          if (Number.isFinite(live.ph))   ph.push({ x: live.x, y: live.ph });
+          if (Number.isFinite(live.ec))   ecRaw.push({ x: live.x, y: live.ec });
+          if (Number.isFinite(live.temp)) temp.push({ x: live.x, y: live.temp });
+        }
+      }
+    }catch(_){ /* ignore */ }
 
     // Helper: interpolate single-sample gaps for smoother rendering
     function interpSingles(series){
