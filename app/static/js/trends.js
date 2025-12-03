@@ -405,8 +405,8 @@
     }
 
     // Backend always returns EC in mS/cm - no conversion needed
-  let ec = ecRaw.map(p => ({ x:p.x, y: p.y }));
-  ec = interpSingles(ec);
+    let ec = ecRaw.map(p => ({ x:p.x, y: p.y }));
+    ec = interpSingles(ec);
 
     // KPIs are managed by sensors.js real-time polling; trends chart only renders historical data
 
