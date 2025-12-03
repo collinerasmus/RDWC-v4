@@ -93,7 +93,7 @@
 
     if (piStatsEl) {
       try {
-        const health = await getJSON('/health');
+        const health = await window.PollingManager.getHealth();
         const uptime = health.uptime_seconds || 0;
         const days = Math.floor(uptime / 86400);
         const hours = Math.floor((uptime % 86400) / 3600);
@@ -114,7 +114,7 @@
 
   function init(){
     refresh();
-    setInterval(refresh, 5000);
+    setInterval(refresh, 15000); // Increased from 5s to 15s, uses cached health data
     // DEPRECATED: Keep for backward compatibility
     window.systemSetMode = setMode;
   }
