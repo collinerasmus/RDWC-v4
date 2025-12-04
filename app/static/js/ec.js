@@ -454,7 +454,9 @@
       if(j.ok){
         showCalibMessage(`✓ ${pump} pump primed (0.5s)`, 'success');
       } else {
-        showCalibMessage(`✗ Prime failed: ${j.note||'unknown'}`, 'error');
+        const msg = j.note || 'unknown';
+        const hint = msg.includes('CALIB_ENABLE') ? ' (Set CALIB_ENABLE=1 in environment and restart)' : '';
+        showCalibMessage(`✗ Prime failed: ${msg}${hint}`, 'error');
       }
     }catch(e){
       showCalibMessage(`✗ Prime error: ${e.message}`, 'error');
@@ -482,7 +484,9 @@
       if(j.ok){
         showCalibMessage(`✓ ${pump} pump ran for ${seconds}s. Now measure and enter volume, then click Commit.`, 'success');
       } else {
-        showCalibMessage(`✗ Run failed: ${j.note||'unknown'}`, 'error');
+        const msg = j.note || 'unknown';
+        const hint = msg.includes('CALIB_ENABLE') ? ' (Set CALIB_ENABLE=1 in environment and restart)' : '';
+        showCalibMessage(`✗ Run failed: ${msg}${hint}`, 'error');
       }
     }catch(e){
       showCalibMessage(`✗ Run error: ${e.message}`, 'error');
@@ -518,7 +522,9 @@
         // Clear the measured input
         measuredEl.value = '';
       } else {
-        showCalibMessage(`✗ Commit failed: ${j.note||'unknown'}`, 'error');
+        const msg = j.note || 'unknown';
+        const hint = msg.includes('CALIB_ENABLE') ? ' (Set CALIB_ENABLE=1 in environment and restart)' : '';
+        showCalibMessage(`✗ Commit failed: ${msg}${hint}`, 'error');
       }
     }catch(e){
       showCalibMessage(`✗ Commit error: ${e.message}`, 'error');
