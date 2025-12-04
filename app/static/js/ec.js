@@ -413,6 +413,118 @@
     }catch(err){ wrap.innerHTML = '<span class="muted small">Load error</span>'; }
   }
 
+  // === EC Pump Calibration Functions ===
+  async function loadPumpRates(){
+    // Fetch current rates from backend and display them
+    try{
+      const r = await fetch('/calib/dose/pumps', {cache:'no-store'});
+      if(!r.ok) return;
+      const j = await r.json();
+      if(!j.ok || !j.pumps) return;
+      
+      for(const p of j.pumps){
+        if(p.key === 'grow') el('growPumpCurrentRate').textContent = `${p.ml_per_sec.toFixed(2)} ml/s`;
+        if(p.key === 'micro') el('microPumpCurrentRate').textContent = `${p.ml_per_sec.toFixed(2)} ml/s`;
+        if(p.key === 'bloom') el('bloomPumpCurrentRate').textContent = `${p.ml_per_sec.toFixed(2)} ml/s`;
+      }
+    }catch(e){
+      console.warn('[EC Calib] Failed to load pump rates:', e);
+    }
+  }
+
+  function showCalibMessage(msg, type='info'){
+    const msgEl = el('ecPumpsCalibMsg');
+    if(!msgEl) return;
+    msgEl.textContent = msg;
+    msgEl.style.display = 'block';
+    msgEl.style.backgroundColor = type==='error' ? 'rgba(239,68,68,0.1)' : type==='success' ? 'rgba(34,197,94,0.1)' : 'rgba(59,130,246,0.05)';
+    msgEl.style.borderColor = type==='error' ? 'rgba(239,68,68,0.3)' : type==='success' ? 'rgba(34,197,94,0.3)' : 'rgba(59,130,246,0.15)';
+    setTimeout(()=>{ if(msgEl) msgEl.style.display = 'none'; }, 5000);
+  }
+
+  async function calibPumpPrime(pump){
+    // Prime: short 0.5s pulse to prime the pump
+    try{
+      const r = await fetch('/calib/dose/prime', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({pump, seconds: 0.5})
+      });
+      const j = await r.json();
+      if(j.ok){
+        showCalibMessage(`✓ ${pump} pump primed (0.5s)`, 'success');
+      } else {
+        showCalibMessage(`✗ Prime failed: ${j.note||'unknown'}`, 'error');
+      }
+    }catch(e){
+      showCalibMessage(`✗ Prime error: ${e.message}`, 'error');
+    }
+  }
+
+  async function calibPumpRun(pump){
+    // Run: use the duration from the input field
+    const durationEl = el(`${pump}PumpDuration`);
+    if(!durationEl) return;
+    const seconds = parseFloat(durationEl.value || 10);
+    if(seconds < 5 || seconds > 60){
+      showCalibMessage(`✗ Duration must be 5-60 seconds`, 'error');
+      return;
+    }
+    
+    try{
+      showCalibMessage(`⏳ Running ${pump} pump for ${seconds}s...`, 'info');
+      const r = await fetch('/calib/dose/run', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({pump, seconds})
+      });
+      const j = await r.json();
+      if(j.ok){
+        showCalibMessage(`✓ ${pump} pump ran for ${seconds}s. Now measure and enter volume, then click Commit.`, 'success');
+      } else {
+        showCalibMessage(`✗ Run failed: ${j.note||'unknown'}`, 'error');
+      }
+    }catch(e){
+      showCalibMessage(`✗ Run error: ${e.message}`, 'error');
+    }
+  }
+
+  async function calibPumpCommit(pump){
+    // Commit: calculate and save the ml/s rate
+    const durationEl = el(`${pump}PumpDuration`);
+    const measuredEl = el(`${pump}PumpMeasured`);
+    if(!durationEl || !measuredEl) return;
+    
+    const seconds = parseFloat(durationEl.value || 0);
+    const measured_ml = parseFloat(measuredEl.value || 0);
+    
+    if(seconds < 0.1 || measured_ml < 0.1){
+      showCalibMessage(`✗ Enter valid duration and measured volume`, 'error');
+      return;
+    }
+    
+    try{
+      const r = await fetch('/calib/dose/commit', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({pump, seconds, measured_ml})
+      });
+      const j = await r.json();
+      if(j.ok){
+        const rate = j.rate_ml_per_sec || 0;
+        showCalibMessage(`✓ ${pump} pump calibrated: ${rate.toFixed(2)} ml/s`, 'success');
+        // Update the display
+        await loadPumpRates();
+        // Clear the measured input
+        measuredEl.value = '';
+      } else {
+        showCalibMessage(`✗ Commit failed: ${j.note||'unknown'}`, 'error');
+      }
+    }catch(e){
+      showCalibMessage(`✗ Commit error: ${e.message}`, 'error');
+    }
+  }
+
   // Initialize
   async function init(){
     const s = await fetchStatus();
@@ -567,6 +679,25 @@
         showToast(`Save error: ${e.message}`, 'error');
       }
     });
+
+    // === EC Pump Calibration Handlers ===
+    // Load current rates
+    await loadPumpRates();
+    
+    // Grow pump
+    el('btnGrowPumpPrime')?.addEventListener('click', ()=> calibPumpPrime('grow'));
+    el('btnGrowPumpRun')?.addEventListener('click', ()=> calibPumpRun('grow'));
+    el('btnGrowPumpCommit')?.addEventListener('click', ()=> calibPumpCommit('grow'));
+    
+    // Micro pump
+    el('btnMicroPumpPrime')?.addEventListener('click', ()=> calibPumpPrime('micro'));
+    el('btnMicroPumpRun')?.addEventListener('click', ()=> calibPumpRun('micro'));
+    el('btnMicroPumpCommit')?.addEventListener('click', ()=> calibPumpCommit('micro'));
+    
+    // Bloom pump
+    el('btnBloomPumpPrime')?.addEventListener('click', ()=> calibPumpPrime('bloom'));
+    el('btnBloomPumpRun')?.addEventListener('click', ()=> calibPumpRun('bloom'));
+    el('btnBloomPumpCommit')?.addEventListener('click', ()=> calibPumpCommit('bloom'));
   }
 
   // Compute EC Today/Week totals from unified dose_events (seconds * ml/s per pump)
