@@ -431,7 +431,10 @@
   }
 
   async function init(){
+    log('Init called');
     wireRangeControls();
+    // Load initial 24h range to fetch data before first render
+    await loadRange(currentRange.preset);
   }
 
   // Export small API for other modules (ec.js calls refresh after dosing)
