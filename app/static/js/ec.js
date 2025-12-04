@@ -88,17 +88,17 @@
         const pumpBloom = el('ec-pump-bloom');
         
         if (pumpGrow) {
-          const running = relays.dosing_grow === true;
+          const running = relays.dosing_grow?.is_on === true;
           pumpGrow.textContent = running ? 'Grow: Running' : 'Grow: Idle';
           pumpGrow.className = running ? 'ui-status-chip success' : 'ui-status-chip neutral';
         }
         if (pumpMicro) {
-          const running = relays.dosing_micro === true;
+          const running = relays.dosing_micro?.is_on === true;
           pumpMicro.textContent = running ? 'Micro: Running' : 'Micro: Idle';
           pumpMicro.className = running ? 'ui-status-chip success' : 'ui-status-chip neutral';
         }
         if (pumpBloom) {
-          const running = relays.dosing_bloom === true;
+          const running = relays.dosing_bloom?.is_on === true;
           pumpBloom.textContent = running ? 'Bloom: Running' : 'Bloom: Idle';
           pumpBloom.className = running ? 'ui-status-chip success' : 'ui-status-chip neutral';
         }
