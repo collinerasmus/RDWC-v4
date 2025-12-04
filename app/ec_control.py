@@ -299,37 +299,8 @@ def _get_ec_targets() -> Tuple[float, float]:
         return float(s.get(k, str(d)) or d)
     return (_f("targets.ec_low", 0.8), _f("targets.ec_high", 1.2))
 
-def _get_settings_dict() -> Dict[str, str]:
-    """Get all settings as string dict."""
-    try:
-        from app.settings import get_all_settings
-        return get_all_settings()
-    except Exception:
-        return {}
-
-def _s(key: str, default: str = "") -> str:
-    """Helper to get setting value or default."""
-    sett = _get_settings_dict()
-    return sett.get(key, default)
-
-def _f(key: str, default: float = 0.0) -> float:
-    """Helper to get setting as float."""
-    try:
-        return float(_s(key, str(default)))
-    except Exception:
-        return default
-
-def _i(key: str, default: int = 0) -> int:
-    """Helper to get setting as int."""
-    try:
-        return int(float(_s(key, str(default))))
-    except Exception:
-        return default
-
-def _b(key: str, default: bool = False) -> bool:
-    """Helper to get setting as bool."""
-    val = _s(key, "false" if not default else "true").strip().lower()
-    return val in ("true", "1", "yes", "on")
+# --- Settings helpers (centralized in settings_helpers.py) -------------------
+from app.settings_helpers import get_str as _s, get_float as _f, get_int as _i, get_bool as _b
 
 # --- GPIO helpers ------------------------------------------------------------
 def _actuate_mix(grow_ml: float, micro_ml: float, bloom_ml: float) -> Tuple[str, int]:
