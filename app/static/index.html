@@ -1668,6 +1668,12 @@ body{
             <button id="btnPhExport" class="btn-secondary btn-small" title="Export displayed pH dose history to CSV" style="margin-left:auto;">Export CSV</button>
           </div>
 
+          <!-- Grow Log (Recent Events) -->
+          <div style="margin-top:12px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);">
+            <div style="font-size:var(--font-sm);color:#9ca3af;font-weight:500;margin-bottom:6px;" id="ph-recent-header">Grow Log ▾</div>
+            <div id="ph-recent" style="max-height:140px;overflow-y:auto;padding-right:6px;font-size:var(--font-xs);"></div>
+          </div>
+
           <!-- 5. Settings -->
 
           <details style="margin-top:12px;" open>
@@ -1929,7 +1935,11 @@ body{
               <button id="btnEcExport" class="btn-secondary btn-small" title="Export displayed EC dose history to CSV" style="margin-left:auto;">Export CSV</button>
             </div>
 
-            <!-- Dose Log moved to Settings → EC Dose Log -->
+            <!-- Recent Doses -->
+            <div style="margin-top:12px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);">
+              <div style="font-size:var(--font-sm);color:#9ca3af;font-weight:500;margin-bottom:6px;" id="ec-recent-header">Recent Doses ▾</div>
+              <div id="ec-recent" style="max-height:140px;overflow-y:auto;padding-right:6px;font-size:var(--font-xs);"></div>
+            </div>
 
             <!-- EC-Specific Settings at the very bottom -->
             <details style="margin-top:12px;">
