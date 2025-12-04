@@ -4085,11 +4085,37 @@ def calib_ph_high(value: float = 10.00):
 @app.post("/api/ec/cal/clear")
 def ec_cal_clear():
     """Clear EC calibration"""
+    import os
+    import time
+    lock_path = "/tmp/rdwc_calib.lock"
+    
     try:
-        from app.ezo_i2c_stabilized import EZO, EC_ADDR
-        ec_dev = EZO(1, EC_ADDR, "EC")
-        response = ec_dev.cmd("Cal,clear", read_len=32, settle=0.3)
-        return {"ok": True, "response": response or "Calibration cleared"}
+        # Acquire calibration lock with timeout
+        lock_acquired = False
+        for attempt in range(10):
+            if not os.path.exists(lock_path):
+                try:
+                    with open(lock_path, 'w') as f:
+                        f.write(f"{os.getpid()}\n")
+                    lock_acquired = True
+                    break
+                except Exception:
+                    pass
+            time.sleep(0.1)
+        
+        if not lock_acquired:
+            return {"ok": False, "error": "Calibration lock held by another process"}
+        
+        try:
+            from app.ezo_i2c_stabilized import EZO, EC_ADDR
+            ec_dev = EZO(1, EC_ADDR, "EC")
+            response = ec_dev.cmd("Cal,clear", read_len=32, settle=0.3)
+            return {"ok": True, "response": response or "Calibration cleared"}
+        finally:
+            try:
+                os.remove(lock_path)
+            except:
+                pass
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -4097,13 +4123,39 @@ def ec_cal_clear():
 @app.post("/api/ec/cal/low")
 def ec_cal_low(body: dict = Body(...)):
     """Apply low-point EC calibration (typically 1413 µS/cm)"""
+    import os
+    import time
+    lock_path = "/tmp/rdwc_calib.lock"
+    
     try:
-        us_cm = body.get("us_cm", 1413)
-        from app.ezo_i2c_stabilized import EZO, EC_ADDR
-        ec_dev = EZO(1, EC_ADDR, "EC")
-        # EZO EC expects calibration value in µS/cm
-        response = ec_dev.cmd(f"Cal,low,{us_cm}", read_len=32, settle=0.9)
-        return {"ok": True, "response": response or f"Low calibration applied at {us_cm} µS/cm"}
+        # Acquire calibration lock with timeout
+        lock_acquired = False
+        for attempt in range(10):
+            if not os.path.exists(lock_path):
+                try:
+                    with open(lock_path, 'w') as f:
+                        f.write(f"{os.getpid()}\n")
+                    lock_acquired = True
+                    break
+                except Exception:
+                    pass
+            time.sleep(0.1)
+        
+        if not lock_acquired:
+            return {"ok": False, "error": "Calibration lock held by another process"}
+        
+        try:
+            us_cm = body.get("us_cm", 1413)
+            from app.ezo_i2c_stabilized import EZO, EC_ADDR
+            ec_dev = EZO(1, EC_ADDR, "EC")
+            # EZO EC expects calibration value in µS/cm
+            response = ec_dev.cmd(f"Cal,low,{us_cm}", read_len=32, settle=0.9)
+            return {"ok": True, "response": response or f"Low calibration applied at {us_cm} µS/cm"}
+        finally:
+            try:
+                os.remove(lock_path)
+            except:
+                pass
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -4111,12 +4163,38 @@ def ec_cal_low(body: dict = Body(...)):
 @app.post("/api/ec/cal/high")
 def ec_cal_high(body: dict = Body(...)):
     """Apply high-point EC calibration (typically 12,880 µS/cm)"""
+    import os
+    import time
+    lock_path = "/tmp/rdwc_calib.lock"
+    
     try:
-        us_cm = body.get("us_cm", 12880)
-        from app.ezo_i2c_stabilized import EZO, EC_ADDR
-        ec_dev = EZO(1, EC_ADDR, "EC")
-        response = ec_dev.cmd(f"Cal,high,{us_cm}", read_len=32, settle=0.9)
-        return {"ok": True, "response": response or f"High calibration applied at {us_cm} µS/cm"}
+        # Acquire calibration lock with timeout
+        lock_acquired = False
+        for attempt in range(10):
+            if not os.path.exists(lock_path):
+                try:
+                    with open(lock_path, 'w') as f:
+                        f.write(f"{os.getpid()}\n")
+                    lock_acquired = True
+                    break
+                except Exception:
+                    pass
+            time.sleep(0.1)
+        
+        if not lock_acquired:
+            return {"ok": False, "error": "Calibration lock held by another process"}
+        
+        try:
+            us_cm = body.get("us_cm", 12880)
+            from app.ezo_i2c_stabilized import EZO, EC_ADDR
+            ec_dev = EZO(1, EC_ADDR, "EC")
+            response = ec_dev.cmd(f"Cal,high,{us_cm}", read_len=32, settle=0.9)
+            return {"ok": True, "response": response or f"High calibration applied at {us_cm} µS/cm"}
+        finally:
+            try:
+                os.remove(lock_path)
+            except:
+                pass
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -4124,12 +4202,38 @@ def ec_cal_high(body: dict = Body(...)):
 @app.post("/api/ec/k")
 def ec_set_k(body: dict = Body(...)):
     """Set EC probe K factor (probe constant)"""
+    import os
+    import time
+    lock_path = "/tmp/rdwc_calib.lock"
+    
     try:
-        k = body.get("k", 1.0)
-        from app.ezo_i2c_stabilized import EZO, EC_ADDR
-        ec_dev = EZO(1, EC_ADDR, "EC")
-        response = ec_dev.cmd(f"K,{k:.1f}", read_len=32, settle=0.3)
-        return {"ok": True, "response": response or f"K factor set to {k}"}
+        # Acquire calibration lock with timeout
+        lock_acquired = False
+        for attempt in range(10):
+            if not os.path.exists(lock_path):
+                try:
+                    with open(lock_path, 'w') as f:
+                        f.write(f"{os.getpid()}\n")
+                    lock_acquired = True
+                    break
+                except Exception:
+                    pass
+            time.sleep(0.1)
+        
+        if not lock_acquired:
+            return {"ok": False, "error": "Calibration lock held by another process"}
+        
+        try:
+            k = body.get("k", 1.0)
+            from app.ezo_i2c_stabilized import EZO, EC_ADDR
+            ec_dev = EZO(1, EC_ADDR, "EC")
+            response = ec_dev.cmd(f"K,{k:.1f}", read_len=32, settle=0.3)
+            return {"ok": True, "response": response or f"K factor set to {k}"}
+        finally:
+            try:
+                os.remove(lock_path)
+            except:
+                pass
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -4162,11 +4266,11 @@ def ec_cal_status():
             from app.ezo_i2c_stabilized import EZO, EC_ADDR
             ec_dev = EZO(1, EC_ADDR, "EC")
             
-            # Query calibration status
-            cal_response = ec_dev.cmd("Cal,?", read_len=32, settle=0.3)
+            # Query calibration status (needs longer settle time, similar to Cal,low which uses 0.9s)
+            cal_response = ec_dev.cmd("Cal,?", read_len=32, settle=1.0)
             
-            # Query K value
-            k_response = ec_dev.cmd("K,?", read_len=32, settle=0.3)
+            # Query K value (needs longer settle time)
+            k_response = ec_dev.cmd("K,?", read_len=32, settle=1.0)
             
             # Parse cal status: "?Cal,0" = uncalibrated, "?Cal,1" = one-point, "?Cal,2" = two-point
             cal_status = "unknown"
