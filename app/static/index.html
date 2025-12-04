@@ -668,6 +668,9 @@ body{
 <script src="/static/js/error_reporter.js"></script>
 <!-- System Information Controller: fetches and displays comprehensive system info -->
 <script src="/static/system_info.js"></script>
+<!-- Trends & Charts Module Loader -->
+<script src="/static/js/trends.js"></script>
+<script src="/static/js/ec_chart.js"></script>
 </head>
 <body>
 <main id="rdwc-root" class="container">
@@ -1894,8 +1897,8 @@ body{
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:var(--space-sm);">
               <div class="muted">Dose History</div>
             </div>
-            <div id="ec-dose-chart-wrap" class="chart-card">
-              <canvas id="ecDoseChart"></canvas>
+            <div id="ec-dose-chart-wrap" class="chart-card" style="position:relative;height:var(--h-trends);min-height:var(--h-trends);max-height:var(--h-trends);overflow:hidden;contain:layout size;">
+              <canvas id="ecDoseChart" style="display:block;width:100%;height:var(--h-trends);"></canvas>
               <div id="ec-dose-empty" class="muted small" style="display:none;padding:8px 0;">
                 No doses recorded in this period.
               </div>
