@@ -7,6 +7,7 @@
   lastStatus = null;
   let countdownTimer = null;
   let lastPollAt = Date.now();
+  let recentCollapsed = false; // default visible (manual toggle only)
 
   function el(id){ return document.getElementById(id); }
 

@@ -48,11 +48,10 @@
   let countdownTimer = null;
   let lastPollAt = Date.now();
   let currentRange = { preset: null, start: null, end: null };
-  // Recent collapse state (manual only, no auto-hide)
-  let recentCollapsed = true;
+  // Recent collapse state (manual toggle only, default visible)
+  let recentCollapsed = false;
   let recentHeaderBound = false;
   let recentUserHold = false;
-  let recentHideTimer = null;
   // Short-lived fast poll timer for immediate pump state feedback
   let fastPumpTimer = null;
   
