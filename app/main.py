@@ -4240,7 +4240,7 @@ def ec_set_k(body: dict = Body(...)):
 
 @app.get("/api/ec/cal/status")
 def ec_cal_status():
-    """Get EC calibration status"""
+    """Get EC calibration status - Note: This probe does not support query commands (Cal,? K,?), so we return empty status"""
     import os
     import time
     lock_path = "/tmp/rdwc_calib.lock"
@@ -4263,39 +4263,19 @@ def ec_cal_status():
             return {"ok": False, "error": "Calibration lock held by another process"}
         
         try:
-            from app.ezo_i2c_stabilized import EZO, EC_ADDR
-            ec_dev = EZO(1, EC_ADDR, "EC")
-            
-            # Query calibration status (use polling method for better response capture)
-            cal_response = ec_dev.cmd_with_polling("Cal,?", timeout=2.0)
-            
-            # Query K value (use polling method for better response capture)
-            k_response = ec_dev.cmd_with_polling("K,?", timeout=2.0)
-            
-            # Parse cal status: "?Cal,0" = uncalibrated, "?Cal,1" = one-point, "?Cal,2" = two-point
-            cal_status = "unknown"
-            if cal_response:
-                if "0" in cal_response:
-                    cal_status = "none"
-                elif "1" in cal_response:
-                    cal_status = "low"
-                elif "2" in cal_response:
-                    cal_status = "two-point"
-            
-            # Parse K value
-            k_value = None
-            if k_response and "," in k_response:
-                try:
-                    k_value = float(k_response.split(",")[1])
-                except Exception:
-                    pass
-            
+            # NOTE: EZO EC probe on this system does not respond to Cal,? or K,? query commands
+            # Calibration status cannot be reliably queried. Instead, verify by:
+            # 1. Checking sensor readings before/after calibration
+            # 2. Trusting that calibration commands (Cal,low / Cal,high) were applied if they returned "ok":true
+            # 
+            # Return empty/unknown status since probe doesn't support queries
             return {
                 "ok": True,
-                "cal": cal_status,
-                "k": k_value,
-                "cal_raw": cal_response or "",
-                "k_raw": k_response or ""
+                "cal": "unknown",  # Cannot be queried
+                "k": None,  # Cannot be queried
+                "cal_raw": "",
+                "k_raw": "",
+                "note": "Probe does not respond to query commands (Cal,? K,?) - calibration cannot be verified via API"
             }
         finally:
             # Release lock
