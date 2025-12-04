@@ -69,7 +69,7 @@
     }
   }
 
-  function buildChart(datasets, tmin, tmax, axisTitle, currentEC) {
+  function buildChart(datasets, tmin, tmax, axisTitle, currentEC, ecTargetLow, ecTargetHigh) {
     const el = document.getElementById('ecDoseChart');
     const empty = document.getElementById('ec-dose-empty');
     if (!el) return;
@@ -113,6 +113,45 @@
           color: '#fff',
           font: { size: 11, weight: 'bold' },
           padding: 4
+        }
+      };
+    }
+    // Add EC target band annotation (low/high)
+    if (hasEC && typeof ecTargetLow === 'number' && typeof ecTargetHigh === 'number') {
+      annotations.ecTargetLow = {
+        type: 'line',
+        yMin: ecTargetLow,
+        yMax: ecTargetLow,
+        yScaleID: 'y3',
+        borderColor: 'rgba(34,197,94,0.7)', // green
+        borderWidth: 2,
+        borderDash: [2, 2],
+        label: {
+          display: true,
+          content: `Target Low: ${ecTargetLow.toFixed(2)} mS/cm`,
+          position: 'end',
+          backgroundColor: 'rgba(34,197,94,0.8)',
+          color: '#fff',
+          font: { size: 10, weight: 'bold' },
+          padding: 3
+        }
+      };
+      annotations.ecTargetHigh = {
+        type: 'line',
+        yMin: ecTargetHigh,
+        yMax: ecTargetHigh,
+        yScaleID: 'y3',
+        borderColor: 'rgba(239,68,68,0.7)', // red
+        borderWidth: 2,
+        borderDash: [2, 2],
+        label: {
+          display: true,
+          content: `Target High: ${ecTargetHigh.toFixed(2)} mS/cm`,
+          position: 'end',
+          backgroundColor: 'rgba(239,68,68,0.8)',
+          color: '#fff',
+          font: { size: 10, weight: 'bold' },
+          padding: 3
         }
       };
     }
@@ -219,6 +258,8 @@
     let events = [];
     let summary = [];
     let currentEC = null;
+    let ecTargetLow = null;
+    let ecTargetHigh = null;
     try{
       const [eRes, sRes, stRes] = await Promise.all([
         fetch(`/api/ec/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`, {cache:'no-store'}),
@@ -232,6 +273,8 @@
       if (stRes.ok) {
         const statusData = await stRes.json();
         currentEC = statusData?.ec ?? null;
+        ecTargetLow = statusData?.targets?.low ?? null;
+        ecTargetHigh = statusData?.targets?.high ?? null;
       }
     } catch(err){
       console.error('[EC Chart] fetch error:', err);
@@ -315,7 +358,7 @@
     const axisTitle = hasAnyMl ? 'Dose (ml)' : 'Dose (s)';
     const tmin = startISO ? new Date(startISO) : null;
     const tmax = endISO ? new Date(endISO) : null;
-    buildChart(datasets, tmin, tmax, axisTitle, currentEC);
+    buildChart(datasets, tmin, tmax, axisTitle, currentEC, ecTargetLow, ecTargetHigh);
 
     EC_STATE = { startISO, endISO, lastCount: events.length };
 
