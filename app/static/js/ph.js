@@ -51,7 +51,7 @@
   // Short-lived fast poll timer for immediate pump state feedback
   let fastPumpTimer = null;
   
-  let doseLogCollapsed = localStorage.getItem('ph_dose_log_collapsed') === 'true'; // default EXPANDED (not hidden)
+  let doseLogCollapsed = false; // Always expanded (localStorage ignored per requirements)
 
   function el(id){ return document.getElementById(id); }
 
@@ -87,19 +87,19 @@
   }
 
   function setDoseLogCollapsed(collapsed) {
-    doseLogCollapsed = collapsed;
-    localStorage.setItem('ph_dose_log_collapsed', collapsed);
+    // DISABLED: Grow Log now always visible per requirements
+    // Force expanded state and ignore collapse requests
+    doseLogCollapsed = false;
+    localStorage.setItem('ph_dose_log_collapsed', 'false');
     
     const header = el('ph-dose-log-header');
     const body = el('ph-dose-log-body');
     
     if (header) {
-      header.innerHTML = collapsed ? 
-        '📝 Dose Log (Last 20) ▸' : 
-        '📝 Dose Log (Last 20) ▾';
+      header.innerHTML = '📝 Dose Log (Last 20) ▾';
     }
     if (body) {
-      body.style.display = collapsed ? 'none' : 'block';
+      body.style.display = 'block'; // Always visible
     }
   }
 

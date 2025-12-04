@@ -645,6 +645,14 @@
     }
   };
 
+  // Auto-refresh every 60 seconds for live updates
+  setInterval(() => {
+    if (state.window.start && state.window.end) {
+      console.log('[Trends] Auto-refresh (60s timer)');
+      window.trendsRefresh();
+    }
+  }, 60000);
+
   // Initial: 24h (changed to match user preference for full window demo)
   loadPreset('24h').catch(err => {
     console.error('[Sensors]', err);
