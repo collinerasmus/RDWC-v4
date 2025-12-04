@@ -178,11 +178,6 @@
     if (banner && message) {
       message.textContent = `${reason}. ${suggest || ''}`;
       banner.style.display = 'block';
-      
-      // Auto-hide after 5 seconds
-      setTimeout(() => {
-        banner.style.display = 'none';
-      }, 5000);
     }
   }
 
