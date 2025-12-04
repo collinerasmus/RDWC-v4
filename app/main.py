@@ -4137,41 +4137,70 @@ def ec_set_k(body: dict = Body(...)):
 @app.get("/api/ec/cal/status")
 def ec_cal_status():
     """Get EC calibration status"""
+    import os
+    import time
+    lock_path = "/tmp/rdwc_calib.lock"
+    
     try:
-        from app.ezo_i2c_stabilized import EZO, EC_ADDR
-        ec_dev = EZO(1, EC_ADDR, "EC")
+        # Acquire calibration lock with timeout
+        lock_acquired = False
+        for attempt in range(10):
+            if not os.path.exists(lock_path):
+                try:
+                    with open(lock_path, 'w') as f:
+                        f.write(f"{os.getpid()}\n")
+                    lock_acquired = True
+                    break
+                except Exception:
+                    pass
+            time.sleep(0.1)
         
-        # Query calibration status
-        cal_response = ec_dev.cmd("Cal,?", read_len=32, settle=0.3)
+        if not lock_acquired:
+            return {"ok": False, "error": "Calibration lock held by another process"}
         
-        # Query K value
-        k_response = ec_dev.cmd("K,?", read_len=32, settle=0.3)
-        
-        # Parse cal status: "?Cal,0" = uncalibrated, "?Cal,1" = one-point, "?Cal,2" = two-point
-        cal_status = "unknown"
-        if cal_response:
-            if "0" in cal_response:
-                cal_status = "none"
-            elif "1" in cal_response:
-                cal_status = "low"
-            elif "2" in cal_response:
-                cal_status = "two-point"
-        
-        # Parse K value
-        k_value = None
-        if k_response and "," in k_response:
-            try:
-                k_value = float(k_response.split(",")[1])
-            except Exception:
-                pass
-        
-        return {
-            "ok": True,
-            "cal": cal_status,
-            "k": k_value,
-            "cal_raw": cal_response,
-            "k_raw": k_response
-        }
+        try:
+            from app.ezo_i2c_stabilized import EZO, EC_ADDR
+            ec_dev = EZO(1, EC_ADDR, "EC")
+            
+            # Query calibration status
+            cal_response = ec_dev.cmd("Cal,?", read_len=32, settle=0.3)
+            
+            # Query K value
+            k_response = ec_dev.cmd("K,?", read_len=32, settle=0.3)
+            
+            # Parse cal status: "?Cal,0" = uncalibrated, "?Cal,1" = one-point, "?Cal,2" = two-point
+            cal_status = "unknown"
+            if cal_response:
+                if "0" in cal_response:
+                    cal_status = "none"
+                elif "1" in cal_response:
+                    cal_status = "low"
+                elif "2" in cal_response:
+                    cal_status = "two-point"
+            
+            # Parse K value
+            k_value = None
+            if k_response and "," in k_response:
+                try:
+                    k_value = float(k_response.split(",")[1])
+                except Exception:
+                    pass
+            
+            return {
+                "ok": True,
+                "cal": cal_status,
+                "k": k_value,
+                "cal_raw": cal_response or "",
+                "k_raw": k_response or ""
+            }
+        finally:
+            # Release lock
+            if lock_acquired and os.path.exists(lock_path):
+                try:
+                    os.remove(lock_path)
+                except Exception:
+                    pass
+                    
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
