@@ -471,10 +471,8 @@
   async function calibPumpPrime(pump){
     // Prime: short pulse to prime the pump
     try{
-      const r = await fetch('/calib/dose/prime', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({pump, seconds: CALIB.PRIME_DURATION})
+      const r = await fetch(`/calib/dose/prime?pump=${encodeURIComponent(pump)}&seconds=${CALIB.PRIME_DURATION}`, {
+        method: 'POST'
       });
       const j = await r.json();
       if(j.ok){
@@ -501,10 +499,8 @@
     
     try{
       showCalibMessage(`⏳ Running ${pump} pump for ${seconds}s...`, 'info');
-      const r = await fetch('/calib/dose/run', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({pump, seconds})
+      const r = await fetch(`/calib/dose/run?pump=${encodeURIComponent(pump)}&seconds=${seconds}`, {
+        method: 'POST'
       });
       const j = await r.json();
       if(j.ok){
@@ -534,10 +530,8 @@
     }
     
     try{
-      const r = await fetch('/calib/dose/commit', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({pump, seconds, measured_ml})
+      const r = await fetch(`/calib/dose/commit?pump=${encodeURIComponent(pump)}&seconds=${seconds}&measured_ml=${measured_ml}`, {
+        method: 'POST'
       });
       const j = await r.json();
       if(j.ok){
