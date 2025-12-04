@@ -77,6 +77,36 @@
     }
     if(resBanner && s){ resBanner.style.display = s.guards?.reservoir ? 'block' : 'none'; }
 
+    // Update pump status indicators
+    try {
+      const relayRes = await fetch('/api/relays/status', {cache: 'no-store'});
+      if (relayRes.ok) {
+        const relayData = await relayRes.json();
+        const relays = relayData?.relays || {};
+        const pumpGrow = el('ec-pump-grow');
+        const pumpMicro = el('ec-pump-micro');
+        const pumpBloom = el('ec-pump-bloom');
+        
+        if (pumpGrow) {
+          const running = relays.dosing_grow === true;
+          pumpGrow.textContent = running ? 'Grow: Running' : 'Grow: Idle';
+          pumpGrow.className = running ? 'ui-status-chip success' : 'ui-status-chip neutral';
+        }
+        if (pumpMicro) {
+          const running = relays.dosing_micro === true;
+          pumpMicro.textContent = running ? 'Micro: Running' : 'Micro: Idle';
+          pumpMicro.className = running ? 'ui-status-chip success' : 'ui-status-chip neutral';
+        }
+        if (pumpBloom) {
+          const running = relays.dosing_bloom === true;
+          pumpBloom.textContent = running ? 'Bloom: Running' : 'Bloom: Idle';
+          pumpBloom.className = running ? 'ui-status-chip success' : 'ui-status-chip neutral';
+        }
+      }
+    } catch (e) {
+      console.error('[EC] Failed to fetch pump status:', e);
+    }
+
     // Freshness indicator
     // Removed freshness dot in EC header (uses global health indicator)
 
