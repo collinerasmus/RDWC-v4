@@ -414,6 +414,15 @@
   }
 
   // === EC Pump Calibration Functions ===
+  // Calibration constants
+  const CALIB = {
+    PRIME_DURATION: 0.5,      // seconds
+    DEFAULT_RUN_DURATION: 10, // seconds
+    MIN_RUN_DURATION: 5,      // seconds
+    MAX_RUN_DURATION: 60,     // seconds
+    MIN_MEASUREMENT: 0.1      // ml or seconds
+  };
+
   async function loadPumpRates(){
     // Fetch current rates from backend and display them
     try{
@@ -460,16 +469,16 @@
   }
 
   async function calibPumpPrime(pump){
-    // Prime: short 0.5s pulse to prime the pump
+    // Prime: short pulse to prime the pump
     try{
       const r = await fetch('/calib/dose/prime', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({pump, seconds: 0.5})
+        body: JSON.stringify({pump, seconds: CALIB.PRIME_DURATION})
       });
       const j = await r.json();
       if(j.ok){
-        showCalibMessage(`✓ ${pump} pump primed (0.5s)`, 'success');
+        showCalibMessage(`✓ ${pump} pump primed (${CALIB.PRIME_DURATION}s)`, 'success');
       } else {
         const msg = j.note || 'unknown';
         const hint = msg.includes('CALIB_ENABLE') ? ' (Set CALIB_ENABLE=1 in environment and restart)' : '';
@@ -484,9 +493,9 @@
     // Run: use the duration from the input field
     const durationEl = el(`${pump}PumpDuration`);
     if(!durationEl) return;
-    const seconds = parseFloat(durationEl.value || 10);
-    if(seconds < 5 || seconds > 60){
-      showCalibMessage(`✗ Duration must be 5-60 seconds`, 'error');
+    const seconds = parseFloat(durationEl.value || CALIB.DEFAULT_RUN_DURATION);
+    if(seconds < CALIB.MIN_RUN_DURATION || seconds > CALIB.MAX_RUN_DURATION){
+      showCalibMessage(`✗ Duration must be ${CALIB.MIN_RUN_DURATION}-${CALIB.MAX_RUN_DURATION} seconds`, 'error');
       return;
     }
     
@@ -519,8 +528,8 @@
     const seconds = parseFloat(durationEl.value || 0);
     const measured_ml = parseFloat(measuredEl.value || 0);
     
-    if(seconds < 0.1 || measured_ml < 0.1){
-      showCalibMessage(`✗ Enter valid duration and measured volume`, 'error');
+    if(seconds < CALIB.MIN_MEASUREMENT || measured_ml < CALIB.MIN_MEASUREMENT){
+      showCalibMessage(`✗ Enter valid duration and measured volume (min ${CALIB.MIN_MEASUREMENT})`, 'error');
       return;
     }
     
