@@ -501,10 +501,33 @@
     } catch(_e) { /* noop */ }
   }
 
+  // Auto-refresh timer for periodic trend data updates
+  let autoRefreshTimer = null;
   function scheduleAutoRefresh() {
-    // Disabled: now using sensors:update event for live data instead of re-fetching /api/trends
-    // This eliminates duplicate polling and reduces API load
-    console.log('[Trends] Auto-refresh disabled - using live sensors:update events');
+    // Clear any existing timer
+    if (autoRefreshTimer) {
+      clearTimeout(autoRefreshTimer);
+    }
+    
+    // Refresh every 60 seconds when chart is visible
+    const refreshInterval = 60000; // 1 minute
+    autoRefreshTimer = setTimeout(async () => {
+      if (!document.hidden && state.window.start && state.window.end) {
+        console.log('[Trends] Auto-refresh: fetching updated trends data');
+        try {
+          const data = await fetchTrends(
+            new Date(state.window.start).toISOString(),
+            new Date(state.window.end).toISOString()
+          );
+          render(data);
+        } catch(e) {
+          console.warn('[Trends] Auto-refresh failed:', e);
+        }
+        scheduleAutoRefresh(); // Schedule next refresh
+      } else {
+        scheduleAutoRefresh(); // Reschedule even if hidden
+      }
+    }, refreshInterval);
   }
 
   function detectPreset() {
@@ -605,6 +628,22 @@
       trendChart.update('none'); // 'none' mode for better performance
     }
   });
+
+  // Expose refresh function for tab visibility
+  window.trendsRefresh = async function() {
+    console.log('[Trends] Manual refresh triggered');
+    if (state.window.start && state.window.end) {
+      try {
+        const data = await fetchTrends(
+          new Date(state.window.start).toISOString(),
+          new Date(state.window.end).toISOString()
+        );
+        render(data);
+      } catch(e) {
+        console.warn('[Trends] Refresh failed:', e);
+      }
+    }
+  };
 
   // Initial: 24h (changed to match user preference for full window demo)
   loadPreset('24h').catch(err => {

@@ -866,6 +866,21 @@
   
   window.phDoseChart.startAutoRefresh = startAutoRefresh;
   window.phDoseChart.stopAutoRefresh = stopAutoRefresh;
+  
+  // Refresh function for tab visibility
+  window.phDoseChart.refresh = async function() {
+    console.log('[pH Chart] Manual refresh triggered');
+    if (ChartController.chart && ChartController.state.lastStart && ChartController.state.lastEnd) {
+      try {
+        await render(
+          new Date(ChartController.state.lastStart).toISOString(),
+          new Date(ChartController.state.lastEnd).toISOString()
+        );
+      } catch(e) {
+        console.warn('[pH Chart] Refresh failed:', e);
+      }
+    }
+  };
 
   console.log('[pH Chart] Module initialized');
 

@@ -25,6 +25,24 @@
     if (name==='temp'){
       // chiller.js poller runs on its own; nothing to do
     }
+    if (name==='ph'){
+      // Refresh pH chart when tab becomes visible
+      if (typeof window.phDoseChart!=='undefined' && window.phDoseChart.refresh){
+        try{ window.phDoseChart.refresh(); }catch(e){ console.warn('pH chart refresh error', e); }
+      }
+    }
+    if (name==='ec'){
+      // Refresh EC chart when tab becomes visible
+      if (typeof window.ecDoseChart!=='undefined' && window.ecDoseChart.refresh){
+        try{ window.ecDoseChart.refresh(); }catch(e){ console.warn('EC chart refresh error', e); }
+      }
+    }
+    if (name==='sensors'){
+      // Refresh trends chart when tab becomes visible
+      if (typeof window.trendsRefresh==='function'){
+        try{ window.trendsRefresh(); }catch(e){ console.warn('Trends refresh error', e); }
+      }
+    }
   }
   function init(){
     const nav = qs('#tabs-nav');

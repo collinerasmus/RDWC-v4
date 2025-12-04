@@ -564,6 +564,20 @@
     }
   });
 
+  // Expose refresh function for tab visibility
+  window.ecDoseChart = {
+    refresh: async function() {
+      log('Manual refresh triggered');
+      if (currentRange.start && currentRange.end) {
+        try {
+          await loadRangeAndRender({ start: currentRange.start, end: currentRange.end });
+        } catch(e) {
+          logError('Refresh failed:', e);
+        }
+      }
+    }
+  };
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
