@@ -1942,8 +1942,8 @@ body{
             </div>
 
             <!-- EC-Specific Settings at the very bottom -->
-            <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Parameters</summary>
+            <div style="margin-top:12px;">
+              <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">Parameters</div>
               <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
                 <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure EC targets, dosing parameters, and alert thresholds.</div>
                 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--space-md);align-items:center;">
@@ -2000,11 +2000,11 @@ body{
                 </div>
                 <button id="btnSaveEcSettings" class="btn-secondary btn-full">Save EC Settings</button>
               </div>
-            </details>
+            </div>
 
             <!-- EC Pumps Calibration (moved from Sensors tab) -->
-            <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">🌿 Pumps Calibration</summary>
+            <div style="margin-top:12px;">
+              <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">🌿 Pumps Calibration</div>
               <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
                 <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-base);">EC Nutrient Pumps Flow Rates</div>
                 <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Calibrate all three EC pumps (Grow, Micro, Bloom) for accurate nutrient dosing.</div>
@@ -2070,10 +2070,10 @@ body{
                 </div>
                 <div id="ecPumpsCalibMsg" class="muted" style="font-size:var(--font-xs);padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
               </div>
-            </details>
+            </div>
 
-            <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Automation</summary>
+            <div style="margin-top:12px;">
+              <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">Automation</div>
               <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
                 <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">EC automation learning and control.</div>
                 <div id="ec-learned-display" style="display:none;margin-bottom:var(--space-md);padding:8px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
@@ -2082,11 +2082,11 @@ body{
                 </div>
                 <button id="btnClearEcLearned" class="btn-secondary btn-full" title="Reset EC automation learned value">Clear Learned Value</button>
               </div>
-            </details>
+            </div>
 
             <!-- EC Manual Dosing (ML-based) -->
-            <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Manual Dosing (Volume)</summary>
+            <div style="margin-top:12px;">
+              <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">Manual Dosing (Volume)</div>
               <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
                 <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">Dose EC nutrients by volume (ml). System calculates pump time based on calibrated flow rates.</div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -2097,11 +2097,11 @@ body{
                   <button id="btnEcDoseCustom" class="btn-secondary">Dose</button>
                 </div>
               </div>
-            </details>
+            </div>
 
             <!-- EC Direct Pump Control (Time-based) -->
-            <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Pump Control (Time)</summary>
+            <div style="margin-top:12px;">
+              <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">Pump Control (Time)</div>
               <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
                 <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">Press and hold pattern for individual nutrient pumps. Safety caps enforced.</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
@@ -2144,11 +2144,11 @@ body{
                   <button id="btnRapidBloom" class="btn-mini" title="Bloom 0.4s">Bloom 0.4s</button>
                 </div>
               </div>
-            </details>
+            </div>
 
             <!-- EC Dose Log (Last 20) -->
-            <details style="margin-top:12px;">
-              <summary class="muted" style="cursor:pointer;font-size:var(--font-lg);">Dose Log (Last 20)</summary>
+            <div style="margin-top:12px;">
+              <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">Dose Log (Last 20)</div>
               <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                   <div class="muted" style="font-weight:600;font-size:var(--font-lg);">Recent EC Doses</div>
@@ -2172,7 +2172,7 @@ body{
                   </table>
                 </div>
               </div>
-            </details>
+            </div>
           </div>
   </section>
 
