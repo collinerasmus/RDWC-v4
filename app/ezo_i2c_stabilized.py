@@ -111,6 +111,36 @@ class EZO:
             logger.warning(f"EZO {self.name} cmd='{cmd}' returned: status={status} data='{data}'")
         return data
 
+    def cmd_with_polling(self, cmd: str, timeout: float = 2.0, poll: float = 0.15) -> str:
+        """Send command and poll for response (for query commands like Cal,? and K,?)."""
+        from time import monotonic
+        self._write(cmd.encode('ascii'))
+        # Query commands might need more time to process
+        sleep(0.5)
+        
+        start = monotonic()
+        while monotonic() - start < timeout:
+            raw = self._read(32)
+            if not raw:
+                sleep(poll)
+                continue
+            status = raw[0]
+            if status == 1:  # success
+                data_bytes = raw[1:].replace(b"\xff", b"\x00").rstrip(b"\x00")
+                data = data_bytes.decode('ascii', errors='ignore').strip()
+                logger.warning(f"EZO {self.name} cmd_with_polling('{cmd}') success: {data}")
+                return data
+            elif status == 2:
+                # Device error
+                logger.warning(f"EZO {self.name} cmd_with_polling('{cmd}') error frame")
+                return ""
+            # 254/255/0 => processing / not ready; wait then retry
+            sleep(poll)
+        
+        logger.warning(f"EZO {self.name} cmd_with_polling('{cmd}') timeout after {timeout}s")
+        return ""
+
+
     def init_once(self):
         # Disable continuous mode only (keep LED for diagnostics)
         try:

@@ -4266,11 +4266,11 @@ def ec_cal_status():
             from app.ezo_i2c_stabilized import EZO, EC_ADDR
             ec_dev = EZO(1, EC_ADDR, "EC")
             
-            # Query calibration status (needs longer settle time, similar to Cal,low which uses 0.9s)
-            cal_response = ec_dev.cmd("Cal,?", read_len=32, settle=1.0)
+            # Query calibration status (use polling method for better response capture)
+            cal_response = ec_dev.cmd_with_polling("Cal,?", timeout=2.0)
             
-            # Query K value (needs longer settle time)
-            k_response = ec_dev.cmd("K,?", read_len=32, settle=1.0)
+            # Query K value (use polling method for better response capture)
+            k_response = ec_dev.cmd_with_polling("K,?", timeout=2.0)
             
             # Parse cal status: "?Cal,0" = uncalibrated, "?Cal,1" = one-point, "?Cal,2" = two-point
             cal_status = "unknown"
