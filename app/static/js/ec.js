@@ -418,27 +418,44 @@
     // Fetch current rates from backend and display them
     try{
       const r = await fetch('/calib/dose/pumps', {cache:'no-store'});
-      if(!r.ok) return;
+      if(!r.ok) {
+        console.warn('[EC Calib] Failed to fetch pump rates, HTTP', r.status);
+        return;
+      }
       const j = await r.json();
-      if(!j.ok || !j.pumps) return;
+      if(!j.ok || !j.pumps) {
+        console.warn('[EC Calib] Invalid response from pump rates endpoint');
+        return;
+      }
       
       for(const p of j.pumps){
-        if(p.key === 'grow') el('growPumpCurrentRate').textContent = `${p.ml_per_sec.toFixed(2)} ml/s`;
-        if(p.key === 'micro') el('microPumpCurrentRate').textContent = `${p.ml_per_sec.toFixed(2)} ml/s`;
-        if(p.key === 'bloom') el('bloomPumpCurrentRate').textContent = `${p.ml_per_sec.toFixed(2)} ml/s`;
+        const rateEl = el(`${p.key}PumpCurrentRate`);
+        if(rateEl) {
+          rateEl.textContent = `${p.ml_per_sec.toFixed(2)} ml/s`;
+        }
       }
     }catch(e){
       console.warn('[EC Calib] Failed to load pump rates:', e);
+      // Don't throw - this is not critical for init
     }
   }
 
   function showCalibMessage(msg, type='info'){
     const msgEl = el('ecPumpsCalibMsg');
     if(!msgEl) return;
+    
+    // Color mapping for message types
+    const styles = {
+      error: { bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.3)' },
+      success: { bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.3)' },
+      info: { bg: 'rgba(59,130,246,0.05)', border: 'rgba(59,130,246,0.15)' }
+    };
+    const style = styles[type] || styles.info;
+    
     msgEl.textContent = msg;
     msgEl.style.display = 'block';
-    msgEl.style.backgroundColor = type==='error' ? 'rgba(239,68,68,0.1)' : type==='success' ? 'rgba(34,197,94,0.1)' : 'rgba(59,130,246,0.05)';
-    msgEl.style.borderColor = type==='error' ? 'rgba(239,68,68,0.3)' : type==='success' ? 'rgba(34,197,94,0.3)' : 'rgba(59,130,246,0.15)';
+    msgEl.style.backgroundColor = style.bg;
+    msgEl.style.borderColor = style.border;
     setTimeout(()=>{ if(msgEl) msgEl.style.display = 'none'; }, 5000);
   }
 
