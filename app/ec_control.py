@@ -246,6 +246,59 @@ def _get_latest_temp() -> Tuple[Optional[float], Optional[int]]:
         pass
     return (None, None)
 
+def _get_schedule_ec_target() -> Tuple[Optional[float], Optional[float]]:
+    """
+    Get EC target from current week in nutrient schedule.
+    Returns (ec_target, tolerance) or (None, None) if schedule not available.
+    Tolerance defaults to settings or 0.2.
+    """
+    try:
+        from app.settings import get_all_settings
+        from datetime import datetime, timezone
+        
+        settings = get_all_settings()
+        tolerance = float(settings.get("targets.ec_tolerance", "0.2") or 0.2)
+        
+        # Get grow start date
+        start_str = settings.get("general.grow_start_date", "")
+        if not start_str:
+            return (None, None)
+        
+        start_date = datetime.fromisoformat(start_str).replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        days = (now - start_date).days
+        current_week = (days // 7) + 1
+        
+        # Get schedule from DB
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT ec_target FROM nutrient_schedule WHERE week = ? LIMIT 1",
+                (current_week,)
+            )
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                return (float(row[0]), tolerance)
+    except Exception:
+        pass
+    return (None, None)
+
+def _get_ec_targets() -> Tuple[float, float]:
+    """
+    Get EC low and high targets.
+    Priority: 1) Current week schedule ± tolerance, 2) Manual settings.
+    Returns (ec_low, ec_high) in mS/cm.
+    """
+    schedule_target, schedule_tol = _get_schedule_ec_target()
+    if schedule_target is not None and schedule_tol is not None:
+        return (schedule_target - schedule_tol, schedule_target + schedule_tol)
+    
+    # Fallback to manual settings
+    s = _get_settings_dict()
+    def _f(k: str, d: float) -> float:
+        return float(s.get(k, str(d)) or d)
+    return (_f("targets.ec_low", 0.8), _f("targets.ec_high", 1.2))
+
 def _get_settings_dict() -> Dict[str, str]:
     """Get all settings as string dict."""
     try:
@@ -816,9 +869,8 @@ def get_ec_status():
     with _auto_lock:
         holding_reason = _auto_last_holding_reason
     
-    # Targets
-    ec_low = _f("targets.ec_low", 0.8)
-    ec_high = _f("targets.ec_high", 1.2)
+    # Targets from scheduler or manual settings
+    ec_low, ec_high = _get_ec_targets()
     
     # Totals
     today_ml = _today_total_ml(now_dt)
@@ -1102,8 +1154,7 @@ def get_ec_control_preview():
         ec_age_sec = int(time.time()) - ec_ts
     
     # Get targets
-    ec_low = _f("targets.ec_low", 0.8)
-    ec_high = _f("targets.ec_high", 1.2)
+    ec_low, ec_high = _get_ec_targets()
     target_mid = (ec_low + ec_high) / 2.0
     deadband = _f("ec.deadband", 0.05)
     
@@ -1253,8 +1304,7 @@ def _auto_worker():
             continue
         
         # Check if below target
-        ec_low = _f("targets.ec_low", 0.8)
-        ec_high = _f("targets.ec_high", 1.2)
+        ec_low, ec_high = _get_ec_targets()
         target_mid = (ec_low + ec_high) / 2.0
         
         if ec_val >= ec_low:
