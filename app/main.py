@@ -3897,17 +3897,17 @@ def api_relays_verify():
     return {"ok_all": all_ok, "relays": results, "count": len(results)}
 
 @app.post("/calib/dose/prime")
-def calib_dose_prime(pump: str, seconds: float = 0.5):
+def calib_dose_prime(pump: str = Body(...), seconds: float = Body(0.5)):
     seconds = max(0.2, min(2.0, float(seconds)))
     return _pulse_pump(pump, seconds)
 
 @app.post("/calib/dose/run")
-def calib_dose_run(pump: str, seconds: float = 5.0):
+def calib_dose_run(pump: str = Body(...), seconds: float = Body(5.0)):
     seconds = max(0.2, min(10.0, float(seconds)))
     return _pulse_pump(pump, seconds)
 
 @app.post("/calib/dose/commit")
-def calib_dose_commit(pump: str, seconds: float, measured_ml: float):
+def calib_dose_commit(pump: str = Body(...), seconds: float = Body(...), measured_ml: float = Body(...)):
     chk = _require_enabled()
     if chk:
         return chk
@@ -3941,7 +3941,7 @@ def calib_dose_status():
         return {"ok": False, "note": type(ex).__name__}
 
 @app.post("/calib/dose/start")
-def calib_dose_start(pump: str):
+def calib_dose_start(pump: str = Body(...)):
     if not _calib_enabled():
         return {"ok": False, "note": "Calibration writes disabled. Set CALIB_ENABLE=1 and restart."}
     if get_estop_status():
@@ -3959,7 +3959,7 @@ def calib_dose_start(pump: str):
     return {"ok": True, "state": bool(res.get("state"))}
 
 @app.post("/calib/dose/stop")
-def calib_dose_stop(pump: str):
+def calib_dose_stop(pump: str = Body(...)):
     if not _calib_enabled():
         return {"ok": False, "note": "Calibration writes disabled. Set CALIB_ENABLE=1 and restart."}
     name = _PUMP_MAP.get(pump)
