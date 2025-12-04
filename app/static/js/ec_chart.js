@@ -88,13 +88,14 @@
     const hasCumulative = dsUse.some(ds => ds.yAxisID === 'y2');
 
     // Build annotation plugin config for EC reference line
+    const hasEC = dsUse.some(ds => ds.yAxisID === 'y3');
     const annotations = {};
-    if (currentEC != null && !isNaN(currentEC)) {
+    if (hasEC && currentEC != null && !isNaN(currentEC)) {
       annotations.ecLine = {
         type: 'line',
         yMin: currentEC,
         yMax: currentEC,
-        yScaleID: 'y',
+        yScaleID: 'y3',
         borderColor: 'rgba(99, 102, 241, 0.8)',  // indigo-500
         borderWidth: 2,
         borderDash: [6, 4],
@@ -123,11 +124,27 @@
         type: 'linear',
         position: 'left',
         title: { display: true, text: axisTitle || 'Dose (ml)' },
-        suggestedMin: 0
+        suggestedMin: 0,
+        grid: { drawOnChartArea: true }
       }
     };
     
-    // Only add y2 scale if cumulative data exists
+    // Add y3 scale for EC readings (left, overlaid)
+    if (hasEC) {
+      scales.y3 = {
+        type: 'linear',
+        position: 'left',
+        title: { display: true, text: 'EC (mS/cm)' },
+        min: 0,
+        max: 2,
+        grid: { drawOnChartArea: false },
+        ticks: {
+          callback: (val) => val.toFixed(2)
+        }
+      };
+    }
+    
+    // Add y2 scale for cumulative dose (right)
     if (hasCumulative) {
       scales.y2 = {
         type: 'linear',
@@ -242,7 +259,7 @@
     log('Rendering with', ecReadings.length, 'EC points and', events.length, 'dose events');
 
     const datasets = [
-      // EC sensor readings line (primary)
+      // EC sensor readings line (primary) - uses dedicated y3 axis
       ecReadings.length ? {
         type: 'line',
         label: 'EC (mS/cm)',
@@ -253,7 +270,7 @@
         pointRadius: 0,
         tension: 0.3,
         fill: false,
-        yAxisID: 'y',
+        yAxisID: 'y3',
         order: 0
       } : null,
       bars.length ? {
