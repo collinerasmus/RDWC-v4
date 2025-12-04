@@ -4090,9 +4090,9 @@ def ec_cal_clear():
     lock_path = "/tmp/rdwc_calib.lock"
     
     try:
-        # Acquire calibration lock with timeout
+        # Acquire calibration lock with timeout (30 attempts × 0.1s = 3 second total timeout)
         lock_acquired = False
-        for attempt in range(10):
+        for attempt in range(30):
             if not os.path.exists(lock_path):
                 try:
                     with open(lock_path, 'w') as f:
@@ -4104,7 +4104,7 @@ def ec_cal_clear():
             time.sleep(0.1)
         
         if not lock_acquired:
-            return {"ok": False, "error": "Calibration lock held by another process"}
+            return {"ok": False, "error": "Calibration lock held by sensor poller"}
         
         try:
             from app.ezo_i2c_stabilized import EZO, EC_ADDR
@@ -4128,9 +4128,9 @@ def ec_cal_low(body: dict = Body(...)):
     lock_path = "/tmp/rdwc_calib.lock"
     
     try:
-        # Acquire calibration lock with timeout
+        # Acquire calibration lock with timeout (30 attempts × 0.1s = 3 second total timeout)
         lock_acquired = False
-        for attempt in range(10):
+        for attempt in range(30):
             if not os.path.exists(lock_path):
                 try:
                     with open(lock_path, 'w') as f:
@@ -4142,7 +4142,7 @@ def ec_cal_low(body: dict = Body(...)):
             time.sleep(0.1)
         
         if not lock_acquired:
-            return {"ok": False, "error": "Calibration lock held by another process"}
+            return {"ok": False, "error": "Calibration lock held by sensor poller"}
         
         try:
             us_cm = body.get("us_cm", 1413)
@@ -4168,9 +4168,9 @@ def ec_cal_high(body: dict = Body(...)):
     lock_path = "/tmp/rdwc_calib.lock"
     
     try:
-        # Acquire calibration lock with timeout
+        # Acquire calibration lock with timeout (30 attempts × 0.1s = 3 second total timeout)
         lock_acquired = False
-        for attempt in range(10):
+        for attempt in range(30):
             if not os.path.exists(lock_path):
                 try:
                     with open(lock_path, 'w') as f:
@@ -4182,7 +4182,7 @@ def ec_cal_high(body: dict = Body(...)):
             time.sleep(0.1)
         
         if not lock_acquired:
-            return {"ok": False, "error": "Calibration lock held by another process"}
+            return {"ok": False, "error": "Calibration lock held by sensor poller"}
         
         try:
             us_cm = body.get("us_cm", 12880)
@@ -4207,9 +4207,9 @@ def ec_set_k(body: dict = Body(...)):
     lock_path = "/tmp/rdwc_calib.lock"
     
     try:
-        # Acquire calibration lock with timeout
+        # Acquire calibration lock with timeout (30 attempts × 0.1s = 3 second total timeout)
         lock_acquired = False
-        for attempt in range(10):
+        for attempt in range(30):
             if not os.path.exists(lock_path):
                 try:
                     with open(lock_path, 'w') as f:
@@ -4221,7 +4221,7 @@ def ec_set_k(body: dict = Body(...)):
             time.sleep(0.1)
         
         if not lock_acquired:
-            return {"ok": False, "error": "Calibration lock held by another process"}
+            return {"ok": False, "error": "Calibration lock held by sensor poller"}
         
         try:
             k = body.get("k", 1.0)
@@ -4246,9 +4246,9 @@ def ec_cal_status():
     lock_path = "/tmp/rdwc_calib.lock"
     
     try:
-        # Acquire calibration lock with timeout
+        # Acquire calibration lock with timeout (30 attempts × 0.1s = 3 second total timeout)
         lock_acquired = False
-        for attempt in range(10):
+        for attempt in range(30):
             if not os.path.exists(lock_path):
                 try:
                     with open(lock_path, 'w') as f:
@@ -4260,7 +4260,7 @@ def ec_cal_status():
             time.sleep(0.1)
         
         if not lock_acquired:
-            return {"ok": False, "error": "Calibration lock held by another process"}
+            return {"ok": False, "error": "Calibration lock held by sensor poller (waited 3s)"}
         
         try:
             # NOTE: EZO EC probe on this system does not respond to Cal,? or K,? query commands
