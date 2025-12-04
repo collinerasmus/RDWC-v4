@@ -104,8 +104,11 @@ class EZO:
         data = data_bytes.decode('ascii', errors='ignore').strip()
         # Always log non-ready status for diagnostics (RTD timeout investigation)
         if status != 1:
-            logger.debug(f"EZO {self.name} status={status} raw_len={len(raw)} raw_head={raw[:8]!r} partial='{data}'")
+            logger.warning(f"EZO {self.name} cmd='{cmd}' status={status} raw_len={len(raw)} raw_head={raw[:8]!r} partial='{data}'")
             return ""
+        # Log query commands (Cal,? and K,?) to diagnose empty responses
+        if cmd in ("Cal,?", "K,?"):
+            logger.warning(f"EZO {self.name} cmd='{cmd}' returned: status={status} data='{data}'")
         return data
 
     def init_once(self):
