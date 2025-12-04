@@ -110,6 +110,34 @@
       };
     }
 
+    // Build scales object conditionally to avoid Chart.js errors
+    const scales = {
+      x: {
+        type: 'time',
+        adapters: { date: {} },
+        min: tmin || undefined,
+        max: tmax || undefined,
+        ticks: { source: 'auto' }
+      },
+      y: {
+        type: 'linear',
+        position: 'left',
+        title: { display: true, text: axisTitle || 'Dose (ml)' },
+        suggestedMin: 0
+      }
+    };
+    
+    // Only add y2 scale if cumulative data exists
+    if (hasCumulative) {
+      scales.y2 = {
+        type: 'linear',
+        position: 'right',
+        title: { display: true, text: 'Cumulative (ml)' },
+        suggestedMin: 0,
+        grid: { drawOnChartArea: false }
+      };
+    }
+
     EC_CHART = new Chart(ctx, {
       type: 'scatter',
       data: { datasets: dsUse },
@@ -118,28 +146,7 @@
         maintainAspectRatio: false,
         parsing: false,
         interaction: { mode: 'nearest', intersect: false },
-        scales: {
-          x: {
-            type: 'time',
-            adapters: { date: {} },
-            min: tmin || undefined,
-            max: tmax || undefined,
-            ticks: { source: 'auto' }
-          },
-          y: {
-            type: 'linear',
-            position: 'left',
-            title: { display: true, text: axisTitle || 'Dose (ml)' },
-            suggestedMin: 0
-          },
-          y2: hasCumulative ? {
-            type: 'linear',
-            position: 'right',
-            title: { display: true, text: 'Cumulative (ml)' },
-            suggestedMin: 0,
-            grid: { drawOnChartArea: false }
-          } : undefined
-        },
+        scales: scales,
         plugins: {
           legend: { display: true, position: 'top' },
           tooltip: {
