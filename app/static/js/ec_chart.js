@@ -40,7 +40,7 @@
   }
   
   // Derive EC readings from trends owner data (published by trends.js)
-  function ecReadingsFromTrends(trendsData) {
+  function ecReadingsFromTrends(trendsData, startISO, endISO) {
     try {
       const raw = (trendsData?.series?.ec || []).map(p => ({
         x: new Date(p.ts * 1000),
@@ -54,7 +54,13 @@
       const scale = med > 20 ? 1/1000 : 1.0;
       if (scale !== 1.0) log('Applying unit conversion µS→mS based on median', med.toFixed(1));
 
-      const ec = raw.map(p => ({ x: p.x, y: p.y * scale }));
+      let ec = raw.map(p => ({ x: p.x, y: p.y * scale }));
+      // Filter to selected time range if provided
+      if (startISO && endISO) {
+        const start = new Date(startISO);
+        const end = new Date(endISO);
+        ec = ec.filter(p => p.x >= start && p.x <= end);
+      }
       log('Derived EC readings from trends:', ec.length);
       return ec;
     } catch(e) {
@@ -254,8 +260,8 @@
 
     const bars = hasAnyMl ? summary.map(d => ({ x: new Date(d.day), y: d.total_ml ?? 0 })) : [];
     
-    // Get EC readings from trends owner data
-    const ecReadings = ecReadingsFromTrends(window.trendsData);
+    // Get EC readings from trends owner data, filtered to selected range
+    const ecReadings = ecReadingsFromTrends(window.trendsData, startISO, endISO);
     log('Rendering with', ecReadings.length, 'EC points and', events.length, 'dose events');
 
     const datasets = [
