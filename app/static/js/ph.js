@@ -48,10 +48,6 @@
   let countdownTimer = null;
   let lastPollAt = Date.now();
   let currentRange = { preset: null, start: null, end: null };
-  // Recent collapse state (manual toggle only, default visible)
-  let recentCollapsed = false;
-  let recentHeaderBound = false;
-  let recentUserHold = false;
   // Short-lived fast poll timer for immediate pump state feedback
   let fastPumpTimer = null;
   
@@ -241,18 +237,6 @@
         li.textContent = `${when} • ${r.action} • ${r.volume_ml||''} ml • ${r.result}${r.reason? ' • '+r.reason: ''}`;
         recent.appendChild(li);
       });
-
-      // Bind header click once
-      const hdr = el('ph-recent-header');
-      if (hdr && !recentHeaderBound){
-        recentHeaderBound = true;
-        hdr.addEventListener('click', ()=>{
-          setRecentCollapsed(!recentCollapsed);
-        });
-      }
-
-      // Keep current collapsed state (no auto-show on new events)
-      setRecentCollapsed(recentCollapsed);
     }
     // Determine disabled state; maintenance override bypasses cooldown/daily_cap
     const g = s?.guards || {};
@@ -445,15 +429,6 @@
       cdPill.textContent = `⏱ ${need}s`;
       cdPill.style.borderColor = 'rgba(239,68,68,.45)';
     }
-  }
-
-  // --- Recent list collapse helper (manual toggle only, no auto-hide) ---
-  function setRecentCollapsed(collapsed){
-    recentCollapsed = !!collapsed;
-    const list = el('ph-recent');
-    const hdr = el('ph-recent-header');
-    if (list){ list.style.display = collapsed ? 'none' : 'block'; }
-    if (hdr){ hdr.textContent = collapsed ? 'Grow Log ▸' : 'Grow Log ▾'; }
   }
 
   // --- Chart refresh (scoped here to access currentRange) ---
@@ -1168,12 +1143,7 @@
       window.pollingManager.register('ph-status', async ()=>{ await tick(); }, 'main');
     }
     refreshSummary();
-    // Ensure header text is set even before first status render
-    const _hdr = document.getElementById('ph-recent-header');
-    if (_hdr && !_hdr.textContent.includes('Grow Log')){
-      _hdr.textContent = 'Grow Log ▾';
-    }
-    // Fallback removed - recent list state managed manually by user
+    // Grow Log always visible (no collapse)
     // Chart will have been rendered by wireRangeControls → loadRange
   }
 

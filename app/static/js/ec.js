@@ -7,7 +7,6 @@
   lastStatus = null;
   let countdownTimer = null;
   let lastPollAt = Date.now();
-  let recentCollapsed = false; // default visible (manual toggle only)
 
   function el(id){ return document.getElementById(id); }
 
@@ -49,14 +48,6 @@
     if(g.reservoir) tips.push('Reservoir set to 0 L; dosing disabled.');
     if(g.mix_lock) tips.push('pH or EC dose in progress.');
     return tips.join('\n');
-  }
-
-  function setRecentCollapsed(collapsed){
-    recentCollapsed = !!collapsed;
-    const hdr = el('ec-recent-header');
-    const list = el('ec-recent');
-    if(hdr){ hdr.textContent = recentCollapsed ? 'Recent Doses ▸' : 'Recent Doses ▾'; }
-    if(list){ list.style.display = recentCollapsed ? 'none' : 'block'; }
   }
 
   async function renderStatus(s){
