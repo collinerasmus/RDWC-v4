@@ -31,7 +31,11 @@ def get_float(key: str, default: float = 0.0) -> float:
 
 
 def get_int(key: str, default: int = 0) -> int:
-    """Get setting value as int or default."""
+    """Get setting value as int or default.
+    
+    Note: Converts via float first to handle string values like "10.0"
+    which are common in settings storage.
+    """
     try:
         return int(float(get_str(key, str(default))))
     except Exception:
@@ -39,9 +43,13 @@ def get_int(key: str, default: int = 0) -> int:
 
 
 def get_bool(key: str, default: bool = False) -> bool:
-    """Get setting value as bool or default."""
+    """Get setting value as bool or default.
+    
+    Returns True for: "true", "1", "yes", "on" (case-insensitive)
+    Returns False for anything else.
+    """
     try:
-        val = get_str(key, str(default)).lower()
+        val = get_str(key, str(default)).strip().lower()
         return val in ("true", "1", "yes", "on")
     except Exception:
         return default
