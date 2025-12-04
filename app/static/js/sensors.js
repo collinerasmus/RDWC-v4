@@ -504,6 +504,195 @@
       } catch(e){ console.warn('[Sensors] KPI debug assist error', e); }
     }, 3000);
   }
+  // === EC Calibration Handlers (Sensors Tab) ===
+  async function ecSetKFromDropdown(){
+    const selectEl = $('ec-k-select');
+    const msgEl = $('ec-calib-msg');
+    if(!selectEl) { console.error('[Sensors] ec-k-select not found'); return; }
+    
+    const kVal = parseFloat(selectEl.value);
+    if(isNaN(kVal) || kVal <= 0){ 
+      if(msgEl){ 
+        msgEl.textContent = '✗ Invalid K value';
+        msgEl.style.display = 'block';
+        msgEl.style.background = 'rgba(239,68,68,0.08)';
+        msgEl.style.borderColor = 'rgba(239,68,68,0.3)';
+        msgEl.style.color = '#fecaca';
+      }
+      return; 
+    }
+    
+    try{
+      const r = await fetch('/api/ec/k', {
+        method:'POST', 
+        headers:{'Content-Type':'application/json'}, 
+        body:JSON.stringify({k:kVal})
+      });
+      const j = await r.json();
+      
+      if(msgEl){
+        msgEl.textContent = j.ok ? ('✓ K=' + kVal + ' ' + (j.response||'set successfully')) : ('✗ ' + (j.error||'Failed'));
+        msgEl.style.display = 'block';
+        msgEl.style.background = j.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)';
+        msgEl.style.borderColor = j.ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)';
+        msgEl.style.color = j.ok ? '#a7f3d0' : '#fecaca';
+      }
+      
+      if(j.ok) setTimeout(loadEcCalibrationStatus, 1000);
+    }catch(err){ 
+      if(msgEl){
+        msgEl.textContent = '✗ ' + err.message;
+        msgEl.style.display = 'block';
+        msgEl.style.background = 'rgba(239,68,68,0.08)';
+        msgEl.style.borderColor = 'rgba(239,68,68,0.3)';
+        msgEl.style.color = '#fecaca';
+      }
+      console.error('[Sensors] EC K set error:', err);
+    }
+  }
+  
+  async function loadEcCalibrationStatus(){
+    try{
+      const r = await fetch('/api/ec/cal/status', {cache:'no-store'});
+      if(!r.ok) return;
+      const j = await r.json();
+      
+      // Update K dropdown to match probe's actual K value
+      const selectEl = $('ec-k-select');
+      if(selectEl && j.k != null){
+        selectEl.value = j.k.toString();
+        console.log('[Sensors] EC K loaded from probe:', j.k);
+      }
+      
+      // Update current EC display
+      const ecCurrentEl = $('ec-current-calib');
+      if(ecCurrentEl){
+        try{
+          const sensorsData = await fetch('/api/sensors', {cache:'no-store'}).then(r=>r.json());
+          if(sensorsData.ec_mscm != null){
+            ecCurrentEl.textContent = sensorsData.ec_mscm.toFixed(2) + ' mS/cm';
+          }
+        }catch(e){ console.warn('[Sensors] Failed to load current EC:', e); }
+      }
+      
+    }catch(err){
+      console.error('[Sensors] Failed to load EC calibration status:', err);
+    }
+  }
+  
+  async function ecCalClear(){
+    const msgEl = $('ec-calib-msg');
+    if(!confirm('Clear EC calibration? This will reset all calibration points.')) return;
+    
+    try{
+      const r = await fetch('/api/ec/cal/clear', {method:'POST'});
+      const j = await r.json();
+      
+      if(msgEl){
+        msgEl.textContent = j.ok ? '✓ Calibration cleared' : ('✗ ' + (j.error||'Failed'));
+        msgEl.style.display = 'block';
+        msgEl.style.background = j.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)';
+        msgEl.style.borderColor = j.ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)';
+        msgEl.style.color = j.ok ? '#a7f3d0' : '#fecaca';
+      }
+      
+      if(j.ok) setTimeout(loadEcCalibrationStatus, 1000);
+    }catch(err){
+      if(msgEl){
+        msgEl.textContent = '✗ ' + err.message;
+        msgEl.style.display = 'block';
+      }
+      console.error('[Sensors] EC cal clear error:', err);
+    }
+  }
+  
+  async function ecCalLow(){
+    const msgEl = $('ec-calib-msg');
+    if(!confirm('Calibrate EC low point (1413 µS/cm)? Ensure probe is in calibration solution.')) return;
+    
+    try{
+      const r = await fetch('/api/ec/cal/low', {method:'POST'});
+      const j = await r.json();
+      
+      if(msgEl){
+        msgEl.textContent = j.ok ? '✓ Low point calibrated' : ('✗ ' + (j.error||'Failed'));
+        msgEl.style.display = 'block';
+        msgEl.style.background = j.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)';
+        msgEl.style.borderColor = j.ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)';
+        msgEl.style.color = j.ok ? '#a7f3d0' : '#fecaca';
+      }
+      
+      if(j.ok) setTimeout(loadEcCalibrationStatus, 1000);
+    }catch(err){
+      if(msgEl){
+        msgEl.textContent = '✗ ' + err.message;
+        msgEl.style.display = 'block';
+      }
+      console.error('[Sensors] EC cal low error:', err);
+    }
+  }
+  
+  async function ecCalHigh(){
+    const msgEl = $('ec-calib-msg');
+    if(!confirm('Calibrate EC high point (12,880 µS/cm)? Ensure probe is in calibration solution.')) return;
+    
+    try{
+      const r = await fetch('/api/ec/cal/high', {method:'POST'});
+      const j = await r.json();
+      
+      if(msgEl){
+        msgEl.textContent = j.ok ? '✓ High point calibrated' : ('✗ ' + (j.error||'Failed'));
+        msgEl.style.display = 'block';
+        msgEl.style.background = j.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)';
+        msgEl.style.borderColor = j.ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)';
+        msgEl.style.color = j.ok ? '#a7f3d0' : '#fecaca';
+      }
+      
+      if(j.ok) setTimeout(loadEcCalibrationStatus, 1000);
+    }catch(err){
+      if(msgEl){
+        msgEl.textContent = '✗ ' + err.message;
+        msgEl.style.display = 'block';
+      }
+      console.error('[Sensors] EC cal high error:', err);
+    }
+  }
+  
+  async function ecShowStatus(){
+    const msgEl = $('ec-calib-msg');
+    try{
+      const r = await fetch('/api/ec/cal/status', {cache:'no-store'});
+      const j = await r.json();
+      
+      if(msgEl){
+        let statusMsg = j.ok ? `Cal: ${j.cal || 'unknown'}, K: ${j.k != null ? j.k : 'unknown'}` : ('✗ ' + (j.error||'Failed'));
+        msgEl.textContent = statusMsg;
+        msgEl.style.display = 'block';
+        msgEl.style.background = 'rgba(59,130,246,0.08)';
+        msgEl.style.borderColor = 'rgba(59,130,246,0.3)';
+        msgEl.style.color = '#93c5fd';
+      }
+    }catch(err){
+      if(msgEl){
+        msgEl.textContent = '✗ ' + err.message;
+        msgEl.style.display = 'block';
+      }
+      console.error('[Sensors] EC status error:', err);
+    }
+  }
+  
+  // Wire up EC calibration buttons
+  $('btnEcSetK')?.addEventListener('click', ecSetKFromDropdown);
+  $('btnEcCalClear')?.addEventListener('click', ecCalClear);
+  $('btnEcCalLow')?.addEventListener('click', ecCalLow);
+  $('btnEcCalHigh')?.addEventListener('click', ecCalHigh);
+  $('btnEcStatus')?.addEventListener('click', ecShowStatus);
+  
+  // Load EC K value on boot
+  if($('ec-k-select')){
+    loadEcCalibrationStatus();
+  }
+  
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', __rdwcSensorsBoot);
     console.log('[Sensors] Waiting for DOMContentLoaded');
