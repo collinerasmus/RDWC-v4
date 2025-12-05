@@ -201,20 +201,14 @@ def api_progress(force: bool = Query(False)):
 def _startup_leds_apply():
     try:
         from app.settings import get_all_settings, upsert_settings
-        from app.ezo_i2c_stabilized import EZO, PH_ADDR, EC_ADDR, RTD_ADDR
+        from app.sensor_controller import set_sensor_leds
         s = get_all_settings()
         # Seed default if missing (should already be in DEFAULTS but guard anyway)
         if "sensors.leds_enabled" not in s:
             upsert_settings({"sensors.leds_enabled": "1"})
             s["sensors.leds_enabled"] = "1"
         want_on = s.get("sensors.leds_enabled", "1") in ("1", "true", "True")
-        cmd = "L,1" if want_on else "L,0"
-        for addr, name in ((PH_ADDR, "pH"), (EC_ADDR, "EC"), (RTD_ADDR, "RTD")):
-            try:
-                dev = EZO(1, addr, name)
-                dev.cmd(cmd, read_len=0, settle=0.05)
-            except Exception:
-                continue
+        set_sensor_leds(want_on)
     except Exception:
         # Non-fatal: service continues even if LEDs can't be set
         pass
@@ -246,18 +240,10 @@ def api_sensors_leds_set(enable: bool = True):
     """Persist and apply sensor LED state (Atlas EZO L,1 / L,0)."""
     try:
         from app.settings import upsert_settings
-        from app.ezo_i2c_stabilized import EZO, PH_ADDR, EC_ADDR, RTD_ADDR
+        from app.sensor_controller import set_sensor_leds
         upsert_settings({"sensors.leds_enabled": "1" if enable else "0"})
-        cmd = "L,1" if enable else "L,0"
-        applied = []
-        for addr, name in ((PH_ADDR, "pH"), (EC_ADDR, "EC"), (RTD_ADDR, "RTD")):
-            try:
-                dev = EZO(1, addr, name)
-                dev.cmd(cmd, read_len=0, settle=0.05)
-                applied.append(name)
-            except Exception:
-                continue
-        return {"ok": True, "enabled": enable, "applied": applied}
+        result = set_sensor_leds(enable)
+        return result
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -390,14 +376,13 @@ def _sensor_loop():
     global _last, _last_t
     while True:
         try:
-            # read_all() returns {"temperature": <float>, "ph": <float>, "ec_ms": <float>}
-            from app.ezo_i2c_stabilized import read_all
-            vals = read_all()
+            from app.sensor_controller import read_sensors
+            data = read_sensors()
             _last = {
-                "temp_c": vals.get("temperature"),
-                "ph": vals.get("ph"),
-                "ec_ms_cm": vals.get("ec_ms"),
-                "errors": {}
+                "temp_c": data.get("temperature_c"),
+                "ph": data.get("ph"),
+                "ec_ms_cm": data.get("ec_mscm"),
+                "errors": data.get("errors", {})
             }
             _last_t = time.time()
             # Always log to preserve history; NULLs allowed when some sensors are offline
@@ -411,13 +396,13 @@ async def sensor_loop():
     global _last, _last_t, _sensor_diag
     while True:
         try:
-            from app.ezo_i2c_stabilized import read_all
-            vals = read_all()
+            from app.sensor_controller import read_sensors
+            data = read_sensors()
             _last = {
-                "temp_c": vals.get("temperature"),
-                "ph": vals.get("ph"), 
-                "ec_ms_cm": vals.get("ec_ms"),
-                "errors": {}
+                "temp_c": data.get("temperature_c"),
+                "ph": data.get("ph"),
+                "ec_ms_cm": data.get("ec_mscm"),
+                "errors": data.get("errors", {})
             }
             _last_t = time.time()
             # Always log to preserve history; NULLs allowed when some sensors are offline
@@ -3033,68 +3018,32 @@ def api_sensors_override_clear(field: str):
 def diag_sensors_once():
     """
     Diagnostic endpoint: read each sensor once with timing.
-    Acquires calibration lock to prevent collision with sensor_poller.
+    Uses unified sensor_controller (which handles locking internally).
     Returns raw values and millisecond timing for each step.
     """
     import time as _t
     import datetime as _dt
-    import fcntl
-    from app import ezo_i2c as _ezo
-    
-    lock_path = "/tmp/rdwc_calib.lock"
-    lock_fd = None
-    
+    from app.sensor_controller import read_sensors
+
     try:
-        # Acquire lock to signal poller to skip
-        lock_fd = open(lock_path, 'w')
-        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
-        
         t0 = _t.time()
         steps = {}
-        
+
         def stamp(k):
             steps[k] = round((_t.time() - t0) * 1000, 1)
-        
-        t, ec, ph = None, None, None
-        
-        # RTD (temperature)
-        try:
-            v = _ezo.read_single(0x66)
-            t = float(v) if v is not None else None
-        except Exception:
-            pass
-        stamp("rtd_done_ms")
-        
-        # EC
-        try:
-            v = _ezo.read_single(0x64)
-            if v is not None:
-                v = float(v)
-                # Heuristic: if value > 10, assume µS/cm
-                ec = v / 1000.0 if v > 10 else v
-        except Exception:
-            pass
-        stamp("ec_done_ms")
-        
-        # pH
-        try:
-            v = _ezo.read_single(0x63)
-            ph = float(v) if v is not None else None
-        except Exception:
-            pass
-        stamp("ph_done_ms")
-        
+
+        data = read_sensors()
+        stamp("read_done_ms")
+
         return {
-            "temperature_c": t,
-            "ec_mscm": ec,
-            "ph": ph,
-            "ts": _dt.datetime.utcnow().isoformat() + "Z",
-            "steps": steps
+            "temperature_c": data.get("temperature_c"),
+            "ec_mscm": data.get("ec_mscm"),
+            "ph": data.get("ph"),
+            "ts": data.get("ts", _dt.datetime.utcnow().isoformat() + "Z"),
+            "steps": steps,
+            "online": data.get("online", False),
+            "errors": data.get("errors", {})
         }
-    finally:
-        if lock_fd:
-            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-            lock_fd.close()
 
 @app.get("/diag/sensors/leds")
 def diag_sensors_leds(on: int = 1):
@@ -3104,14 +3053,9 @@ def diag_sensors_leds(on: int = 1):
     /diag/sensors/leds?on=0  -> OFF
     """
     try:
-        from app.ezo_i2c_stabilized import EZO, PH_ADDR, EC_ADDR, RTD_ADDR
-        cmd = "L,1" if bool(on) else "L,0"
-        for addr, name in ((PH_ADDR, "pH"), (EC_ADDR, "EC"), (RTD_ADDR, "RTD")):
-            try:
-                EZO(1, addr, name).cmd(cmd, read_len=0, settle=0.05)
-            except Exception:
-                pass
-        return {"on": bool(on), "result": {"ok": True}}
+        from app.sensor_controller import set_sensor_leds
+        result = set_sensor_leds(bool(on))
+        return {"on": bool(on), "result": result}
     except Exception as e:
         return {"on": bool(on), "result": {"ok": False, "error": str(e)}}
 
@@ -3121,83 +3065,43 @@ def diag_sensors_flash(count: int = 8, period_ms: int = 250):
     Query: count (blinks), period_ms (on/off per half-cycle); leaves LEDs ON at end.
     """
     try:
-        from time import sleep
-        from app.ezo_i2c_stabilized import EZO, PH_ADDR, EC_ADDR, RTD_ADDR
-        period = max(0.05, period_ms/1000.0)
-        cnt = max(1, int(count))
-        for i in range(cnt):
-            for addr, name in ((PH_ADDR, "pH"), (EC_ADDR, "EC"), (RTD_ADDR, "RTD")):
-                try:
-                    EZO(1, addr, name).cmd("L,1", read_len=0, settle=0.02)
-                except Exception:
-                    pass
-            sleep(period)
-            for addr, name in ((PH_ADDR, "pH"), (EC_ADDR, "EC"), (RTD_ADDR, "RTD")):
-                try:
-                    EZO(1, addr, name).cmd("L,0", read_len=0, settle=0.02)
-                except Exception:
-                    pass
-            sleep(period)
-        # Leave ON at end
-        for addr, name in ((PH_ADDR, "pH"), (EC_ADDR, "EC"), (RTD_ADDR, "RTD")):
-            try:
-                EZO(1, addr, name).cmd("L,1", read_len=0, settle=0.02)
-            except Exception:
-                pass
-        return {"requested": {"count": int(count), "period_ms": int(period_ms)}, "result": {"ok": True}}
+        from app.sensor_controller import flash_sensor_leds
+        period_s = max(0.05, period_ms/1000.0)
+        result = flash_sensor_leds(count=count, period_s=period_s)
+        return {"requested": {"count": int(count), "period_ms": int(period_ms)}, "result": result}
     except Exception as e:
         return {"requested": {"count": int(count), "period_ms": int(period_ms)}, "result": {"ok": False, "error": str(e)}}
 
 @app.post("/read_now")
 def read_now():
     """
-    Force immediate sensor read (bypasses DB cache).
+    Force immediate sensor read via unified controller.
     WARNING: This temporarily contends with sensor_poller on I²C bus.
     Use sparingly - prefer /api/sensors for normal reads.
     """
-    import fcntl
-    lock_path = "/tmp/rdwc_calib.lock"
-    
     try:
-        # Acquire calibration lock to signal poller to skip next cycle
-        lock_fd = open(lock_path, 'w')
-        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
-        
-        try:
-            from app.ezo_i2c_stabilized import read_all
-            data = read_all()
-            return JSONResponse({"ok": True, "data": data})
-        finally:
-            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-            lock_fd.close()
+        from app.sensor_controller import read_sensors
+        data = read_sensors()
+        return JSONResponse({"ok": True, "data": data})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
 @app.post("/fix_ezo")
 def fix_ezo():
     """
-    Identify and test all EZO sensors.
-    Acquires calibration lock to prevent collision with sensor_poller.
+    Identify and test all EZO sensors via unified controller.
     """
-    import fcntl
-    lock_path = "/tmp/rdwc_calib.lock"
-    
     try:
-        # Acquire lock
-        lock_fd = open(lock_path, 'w')
-        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
-        
-        try:
-            from app.ezo_i2c import identify, ADDR_PH, ADDR_EC, ADDR_RTD
-            from app.ezo_i2c_stabilized import read_all
-            id_ph  = identify(addr=ADDR_PH)
-            id_ec  = identify(addr=ADDR_EC)
-            id_rtd = identify(addr=ADDR_RTD)
-            data   = read_all()
-            return JSONResponse({"ok": True, "ids": {"ph": id_ph, "ec": id_ec, "rtd": id_rtd}, "data": data})
-        finally:
-            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-            lock_fd.close()
+        from app.sensor_controller import read_sensors, identify_devices
+        ids_result = identify_devices()
+        data = read_sensors()
+        return JSONResponse({
+            "ok": True,
+            "ids": ids_result.get("ids", {}),
+            "data": data
+        })
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
@@ -4081,276 +3985,48 @@ def calib_ph_high(value: float = 10.00):
     return _apply_point("high", value)
 
 
-# EC Calibration Endpoints
+# EC Calibration Endpoints (unified via sensor_controller)
 @app.post("/api/ec/cal/clear")
 def ec_cal_clear():
-    """Clear EC calibration"""
-    import os
-    import time
-    lock_path = "/tmp/rdwc_calib.lock"
-    
-    try:
-        # Acquire calibration lock with timeout (30 attempts × 0.1s = 3 second total timeout)
-        lock_acquired = False
-        for attempt in range(30):
-            if not os.path.exists(lock_path):
-                try:
-                    with open(lock_path, 'w') as f:
-                        f.write(f"{os.getpid()}\n")
-                    lock_acquired = True
-                    break
-                except Exception:
-                    pass
-            time.sleep(0.1)
-        
-        if not lock_acquired:
-            return {"ok": False, "error": "Calibration lock held by sensor poller"}
-        
-        try:
-            from app.ezo_i2c_stabilized import EZO, EC_ADDR
-            ec_dev = EZO(1, EC_ADDR, "EC")
-            response = ec_dev.cmd("Cal,clear", read_len=32, settle=0.3)
-            return {"ok": True, "response": response or "Calibration cleared"}
-        finally:
-            try:
-                os.remove(lock_path)
-            except:
-                pass
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    from app.sensor_controller import clear_ec_calibration
+    return clear_ec_calibration()
 
 
 @app.post("/api/ec/cal/low")
 async def ec_cal_low(request: Request):
-    """Apply low-point EC calibration (typically 1413 µS/cm) and restore K value"""
-    import os
-    import time
-    lock_path = "/tmp/rdwc_calib.lock"
-    
+    from app.sensor_controller import calibrate_ec_low
     try:
-        # Acquire calibration lock with timeout (30 attempts × 0.1s = 3 second total timeout)
-        lock_acquired = False
-        for attempt in range(30):
-            if not os.path.exists(lock_path):
-                try:
-                    with open(lock_path, 'w') as f:
-                        f.write(f"{os.getpid()}\n")
-                    lock_acquired = True
-                    break
-                except Exception:
-                    pass
-            time.sleep(0.1)
-        
-        if not lock_acquired:
-            return {"ok": False, "error": "Calibration lock held by sensor poller"}
-        
-        try:
-            try:
-                payload = await request.json()
-            except Exception:
-                payload = {}
-            if not isinstance(payload, dict):
-                payload = {}
-            us_cm = payload.get("us_cm", 1413)
-            from app.ezo_i2c_stabilized import EZO, EC_ADDR
-            from app.settings import get_all_settings
-            
-            ec_dev = EZO(1, EC_ADDR, "EC")
-            # EZO EC expects calibration value in µS/cm
-            response = ec_dev.cmd(f"Cal,low,{us_cm}", read_len=32, settle=0.9)
-            
-            # After calibration, restore K value from settings to ensure proper conversion
-            # EZO EC probes don't persist K values across power cycles, so we must reapply
-            time.sleep(0.5)  # Brief settle after calibration
-            settings = get_all_settings()
-            k_value = float(settings.get("ec.k_value", "1.0"))
-            k_response = ec_dev.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.3)
-            
-            return {
-                "ok": True,
-                "response": response or f"Low calibration applied at {us_cm} µS/cm",
-                "k_restored": k_value,
-                "k_response": k_response or f"K={k_value} restored"
-            }
-        finally:
-            try:
-                os.remove(lock_path)
-            except:
-                pass
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    us_cm = payload.get("us_cm", 1413)
+    return calibrate_ec_low(us_cm)
 
 
 @app.post("/api/ec/cal/high")
 async def ec_cal_high(request: Request):
-    """Apply high-point EC calibration (typically 12,880 µS/cm) and restore K value"""
-    import os
-    import time
-    lock_path = "/tmp/rdwc_calib.lock"
-    
+    from app.sensor_controller import calibrate_ec_high
     try:
-        # Acquire calibration lock with timeout (30 attempts × 0.1s = 3 second total timeout)
-        lock_acquired = False
-        for attempt in range(30):
-            if not os.path.exists(lock_path):
-                try:
-                    with open(lock_path, 'w') as f:
-                        f.write(f"{os.getpid()}\n")
-                    lock_acquired = True
-                    break
-                except Exception:
-                    pass
-            time.sleep(0.1)
-        
-        if not lock_acquired:
-            return {"ok": False, "error": "Calibration lock held by sensor poller"}
-        
-        try:
-            try:
-                payload = await request.json()
-            except Exception:
-                payload = {}
-            if not isinstance(payload, dict):
-                payload = {}
-            us_cm = payload.get("us_cm", 12880)
-            from app.ezo_i2c_stabilized import EZO, EC_ADDR
-            from app.settings import get_all_settings
-            
-            ec_dev = EZO(1, EC_ADDR, "EC")
-            # EZO EC expects calibration value in µS/cm
-            response = ec_dev.cmd(f"Cal,high,{us_cm}", read_len=32, settle=0.9)
-            
-            # After calibration, restore K value from settings to ensure proper conversion
-            # EZO EC probes don't persist K values across power cycles, so we must reapply
-            time.sleep(0.5)  # Brief settle after calibration
-            settings = get_all_settings()
-            k_value = float(settings.get("ec.k_value", "1.0"))
-            k_response = ec_dev.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.3)
-            
-            return {
-                "ok": True,
-                "response": response or f"High calibration applied at {us_cm} µS/cm",
-                "k_restored": k_value,
-                "k_response": k_response or f"K={k_value} restored"
-            }
-        finally:
-            try:
-                os.remove(lock_path)
-            except:
-                pass
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    us_cm = payload.get("us_cm", 12880)
+    return calibrate_ec_high(us_cm)
 
 
 @app.post("/api/ec/k")
 def ec_set_k(body: dict = Body(...)):
-    """Set EC probe K factor (probe constant) and persist to settings"""
-    import os
-    import time
-    lock_path = "/tmp/rdwc_calib.lock"
-    
-    try:
-        # Acquire calibration lock with timeout (30 attempts × 0.1s = 3 second total timeout)
-        lock_acquired = False
-        for attempt in range(30):
-            if not os.path.exists(lock_path):
-                try:
-                    with open(lock_path, 'w') as f:
-                        f.write(f"{os.getpid()}\n")
-                    lock_acquired = True
-                    break
-                except Exception:
-                    pass
-            time.sleep(0.1)
-        
-        if not lock_acquired:
-            return {"ok": False, "error": "Calibration lock held by sensor poller"}
-        
-        try:
-            k = body.get("k", 1.0)
-            
-            # Validate k value is positive
-            if k <= 0:
-                return {"ok": False, "error": "K value must be positive"}
-            
-            # Warn if k value is not standard (but allow it)
-            valid_k_values = [0.1, 1.0, 10.0]
-            if k not in valid_k_values:
-                logger.warning(f"Non-standard EC K value {k} provided (standard: {valid_k_values})")
-            
-            from app.ezo_i2c_stabilized import EZO, EC_ADDR
-            from app.settings import upsert_settings
-            
-            ec_dev = EZO(1, EC_ADDR, "EC")
-            # Format with sufficient precision for common k values (0.1, 1.0, 10.0)
-            response = ec_dev.cmd(f"K,{k:.2f}", read_len=32, settle=0.3)
-            
-            # Persist k value to settings for restoration on restart
-            upsert_settings({"ec.k_value": str(k)})
-            
-            return {"ok": True, "response": response or f"K factor set to {k}", "k_value": k}
-        finally:
-            try:
-                os.remove(lock_path)
-            except:
-                pass
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    from app.sensor_controller import set_ec_k_factor
+    k = body.get("k", 1.0)
+    return set_ec_k_factor(k)
 
 
 @app.get("/api/ec/cal/status")
 def ec_cal_status():
-    """Get EC calibration status - Note: This probe does not support query commands (Cal,? K,?), so we return persisted k value from settings"""
-    import os
-    import time
-    lock_path = "/tmp/rdwc_calib.lock"
-    
-    try:
-        # Acquire calibration lock with timeout (30 attempts × 0.1s = 3 second total timeout)
-        lock_acquired = False
-        for attempt in range(30):
-            if not os.path.exists(lock_path):
-                try:
-                    with open(lock_path, 'w') as f:
-                        f.write(f"{os.getpid()}\n")
-                    lock_acquired = True
-                    break
-                except Exception:
-                    pass
-            time.sleep(0.1)
-        
-        if not lock_acquired:
-            return {"ok": False, "error": "Calibration lock held by sensor poller (waited 3s)"}
-        
-        try:
-            from app.settings import get_all_settings
-            
-            # Get k value from persisted settings
-            settings = get_all_settings()
-            k_value = float(settings.get("ec.k_value", "1.0"))
-            
-            # NOTE: EZO EC probe on this system does not respond to Cal,? or K,? query commands
-            # Calibration status cannot be reliably queried. Instead, verify by:
-            # 1. Checking sensor readings before/after calibration
-            # 2. Trusting that calibration commands (Cal,low / Cal,high) were applied if they returned "ok":true
-            # 
-            # Return k value from settings since probe doesn't support queries
-            return {
-                "ok": True,
-                "cal": "unknown",  # Cannot be queried from device
-                "k": k_value,  # From persisted settings
-                "cal_raw": "",
-                "k_raw": "",
-                "note": "Probe does not respond to query commands (Cal,? K,?) - K value from settings, calibration cannot be verified via API"
-            }
-        finally:
-            # Release lock
-            if lock_acquired and os.path.exists(lock_path):
-                try:
-                    os.remove(lock_path)
-                except Exception:
-                    pass
-                    
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    from app.sensor_controller import get_ec_calibration_status
+    return get_ec_calibration_status()
 

@@ -330,6 +330,64 @@ def calibrate_ec_high(us_cm: float = 12880) -> Dict[str, Any]:
         _release_calib_lock()
 
 
+def get_ec_raw() -> Dict[str, Any]:
+    """Direct raw EC reading for diagnostics (unit as returned by probe)."""
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "error": "I2C not available"}
+    try:
+        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+        try:
+            ec.init_once()
+            time.sleep(0.3)
+            raw_value = float(ec.read_value(timeout=1.5))
+            return {"ok": True, "raw_value": raw_value}
+        finally:
+            ec.close()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def identify_devices() -> Dict[str, Any]:
+    """Return identification strings from pH/EC/RTD devices (best-effort)."""
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "error": "I2C not available"}
+    results: Dict[str, str] = {}
+    for name, addr in (("ph", PH_ADDR), ("ec", EC_ADDR), ("rtd", RTD_ADDR)):
+        try:
+            dev = ezo_i2c_stabilized.EZO(1, addr, name)
+            info = dev.cmd("i", read_len=32, settle=0.3)
+            results[name] = info or ""
+            dev.close()
+        except Exception as e:
+            results[name] = f"ERR: {e}"
+    return {"ok": True, "ids": results}
+
+
+def identify_ec_details() -> Dict[str, Any]:
+    """Detailed EC probe info (id, k query, cal query, output params)."""
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "error": "I2C not available"}
+    try:
+        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+        try:
+            device_info = ec.cmd("I", read_len=32, settle=0.3)
+            k_value = ec.cmd("K,?", read_len=32, settle=0.3)
+            cal_status = ec.cmd("Cal,?", read_len=32, settle=0.3)
+            output_params = ec.cmd("O,?", read_len=32, settle=0.3)
+        finally:
+            ec.close()
+        return {
+            "ok": True,
+            "device_info": device_info or "No response",
+            "k_value": k_value or "No response",
+            "cal_status": cal_status or "No response",
+            "output_params": output_params or "No response",
+            "note": "All queries are best-effort; some probes may not respond"
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 def clear_ec_calibration() -> Dict[str, Any]:
     """
     Clear all EC calibration points.
@@ -404,3 +462,54 @@ def get_ec_calibration_status() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to get EC calibration status: {e}")
         return {"ok": False, "error": str(e)}
+
+
+def set_sensor_leds(enable: bool = True) -> Dict[str, Any]:
+    """Best-effort LED toggle for all sensors via unified controller."""
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "error": "I2C not available"}
+    cmd = "L,1" if enable else "L,0"
+    applied = []
+    errors: Dict[str, str] = {}
+    for addr, name in ((PH_ADDR, "pH"), (EC_ADDR, "EC"), (RTD_ADDR, "RTD")):
+        try:
+            dev = ezo_i2c_stabilized.EZO(1, addr, name)
+            try:
+                dev.cmd(cmd, read_len=0, settle=0.05)
+                applied.append(name)
+            finally:
+                dev.close()
+        except Exception as e:
+            errors[name] = str(e)
+    return {"ok": True, "enabled": enable, "applied": applied, "errors": errors}
+
+
+def flash_sensor_leds(count: int = 8, period_s: float = 0.25) -> Dict[str, Any]:
+    """Flash LEDs across all sensors; leaves LEDs ON at completion."""
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "error": "I2C not available"}
+    from time import sleep
+
+    cnt = max(1, int(count))
+    period = max(0.05, float(period_s))
+    sensors = ((PH_ADDR, "pH"), (EC_ADDR, "EC"), (RTD_ADDR, "RTD"))
+
+    def _send_all(command: str, settle: float = 0.02) -> None:
+        for addr, name in sensors:
+            try:
+                dev = ezo_i2c_stabilized.EZO(1, addr, name)
+                try:
+                    dev.cmd(command, read_len=0, settle=settle)
+                finally:
+                    dev.close()
+            except Exception:
+                continue
+
+    for _ in range(cnt):
+        _send_all("L,1")
+        sleep(period)
+        _send_all("L,0")
+        sleep(period)
+
+    _send_all("L,1")
+    return {"ok": True, "flashes": cnt, "period_s": period}

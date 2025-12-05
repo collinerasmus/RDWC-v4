@@ -18,16 +18,7 @@ ADDR_EC = 0x64   # EC sensor
 _last_t_sent_c: Optional[float] = None
 _last_t_set_ts: float = 0.0
 
-# Graceful I²C imports - works on Pi and dev PCs
-# Use ezo_i2c_stabilized (requires real smbus2 with i2c_rdwr support)
-I2C_AVAILABLE = False
-
-try:
-    from . import ezo_i2c_stabilized
-    I2C_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"I²C libraries not available - running in simulation mode: {e}")
-    ezo_i2c_stabilized = None  # type: ignore
+I2C_AVAILABLE = True  # sensor_controller already handles simulation fallback
 
 
 def _should_send_temp_comp(temp_c: float) -> tuple[bool, float]:
@@ -65,65 +56,24 @@ def _update_temp_comp_cache(temp_c: float):
     _last_t_set_ts = time.time()
 
 
-def _read_with_temp_comp_check():
-    """
-    Read sensors using ezo_i2c_stabilized.read_all() (working with real smbus2).
-    
-    Returns:
-        tuple: (t_write_performed, compensation_results, temp_c, ph_val, ec_val)
-    """
-    if not I2C_AVAILABLE:
-        # Simulated read
-        return False, {"ph": True, "ec": True}, 23.0, 6.5, 1500.0
-    
-    try:
-        from .ezo_i2c_stabilized import read_all
-        result = read_all()
-        
-        temp_c = result.get("temperature")
-        ph_val = result.get("ph")
-        ec_val = result.get("ec_ms")
-        
-        # ezo_i2c_stabilized doesn't report temp_comp details, assume it's handled
-        comp_results = {"ph": True, "ec": True}
-        
-        return True, comp_results, temp_c, ph_val, ec_val
-        
-    except Exception as e:
-        logger.error(f"Sensor read failed: {e}", exc_info=True)
-        raise
-
-
 def read_all_sensors() -> Dict[str, Any]:
     """
-    Simple read using ezo_i2c_stabilized (working with real smbus2).
+    Unified sensor read via sensor_controller (single source of truth).
     Returns sensor dict with temperature_c, ec_mscm, ph, online, ts, errors.
     """
-    import time
     import datetime as dt
-    
-    if not I2C_AVAILABLE:
-        # Simulation mode
-        return {
-            "temperature_c": 23.0, "ec_mscm": 1.5, "ph": 6.5,
-            "online": True, "ts": dt.datetime.utcnow().isoformat() + "Z",
-            "temp_comp_applied": False, "temp_comp_reason": "simulated",
-            "errors": {}
-        }
-    
     try:
-        from .ezo_i2c_stabilized import read_all
-        data = read_all()
-        
+        from .sensor_controller import read_sensors
+        data = read_sensors()
         return {
-            "temperature_c": data.get("temperature"),
-            "ec_mscm": data.get("ec_ms"),
+            "temperature_c": data.get("temperature_c"),
+            "ec_mscm": data.get("ec_mscm"),
             "ph": data.get("ph"),
-            "online": True,
-            "ts": dt.datetime.utcnow().isoformat() + "Z",
-            "temp_comp_applied": True,
-            "temp_comp_reason": "ezo_i2c_stabilized",
-            "errors": {}
+            "online": data.get("online", False),
+            "ts": data.get("ts") or dt.datetime.utcnow().isoformat() + "Z",
+            "temp_comp_applied": data.get("temp_comp_applied", True),
+            "temp_comp_reason": data.get("temp_comp_reason", "sensor_controller"),
+            "errors": data.get("errors", {})
         }
     except Exception as e:
         logger.error(f"Sensor read failed: {e}", exc_info=True)

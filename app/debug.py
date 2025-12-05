@@ -175,22 +175,19 @@ def log_tail(n: int = 200) -> Dict[str, Any]:
 def ec_raw() -> Dict[str, Any]:
     """Get raw EC reading from EZO device for scale diagnostics (read-only)"""
     try:
-        # Lazy import to avoid I2C ownership at module load
-        from app.ezo_i2c_stabilized import EZO, EC_ADDR
-        
-        ec_dev = EZO(1, EC_ADDR, "EC")
-        ec_dev.init_once()
-        time.sleep(0.3)
-        
-        # Read raw value from device
-        raw_str = ec_dev.read_value(timeout=1.5)
-        raw_value = float(raw_str)
-        
+        from app.sensor_controller import get_ec_raw
+        raw_result = get_ec_raw()
+        if not raw_result.get("ok"):
+            return raw_result
+        raw_value = raw_result.get("raw_value")
+
         # Get the processed value from _last (global in main.py)
         import app.main as main_module
         processed_mS_cm = main_module._last.get("ec_ms_cm")
-        
+
         # Infer unit based on magnitude
+        if raw_value is None:
+            return {"error": "No raw value returned"}
         if raw_value >= 1000:
             raw_unit = "µS/cm"
             suggested_scale = 0.001  # Convert µS/cm to mS/cm
@@ -200,7 +197,7 @@ def ec_raw() -> Dict[str, Any]:
         else:
             raw_unit = "mS/cm"
             suggested_scale = 1.0
-        
+
         return {
             "raw_value": raw_value,
             "raw_unit": raw_unit,
@@ -216,29 +213,7 @@ def ec_raw() -> Dict[str, Any]:
 def i2c_ec_id() -> Dict[str, Any]:
     """Get EZO EC device identification (read-only probe)"""
     try:
-        # Lazy import to avoid I2C ownership at module load
-        from app.ezo_i2c_stabilized import EZO, EC_ADDR
-        
-        ec_dev = EZO(1, EC_ADDR, "EC")
-        
-        # Query device info
-        device_info = ec_dev.cmd("I", read_len=32, settle=0.3)
-        
-        # Query K value (probe constant)
-        k_value = ec_dev.cmd("K,?", read_len=32, settle=0.3)
-        
-        # Query calibration status
-        cal_status = ec_dev.cmd("Cal,?", read_len=32, settle=0.3)
-        
-        # Query output parameters (shows if EC is in µS or mS)
-        output_params = ec_dev.cmd("O,?", read_len=32, settle=0.3)
-        
-        return {
-            "device_info": device_info or "No response",
-            "k_value": k_value or "No response",
-            "cal_status": cal_status or "No response",
-            "output_params": output_params or "No response",
-            "note": "Check cal_status for calibration type and output_params for units"
-        }
+        from app.sensor_controller import identify_ec_details
+        return identify_ec_details()
     except Exception as e:
         return {"error": str(e)}
