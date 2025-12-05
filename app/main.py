@@ -4121,7 +4121,7 @@ def ec_cal_clear():
 
 
 @app.post("/api/ec/cal/low")
-def ec_cal_low(body: dict = Body(...)):
+async def ec_cal_low(request: Request):
     """Apply low-point EC calibration (typically 1413 µS/cm)"""
     import os
     import time
@@ -4145,7 +4145,13 @@ def ec_cal_low(body: dict = Body(...)):
             return {"ok": False, "error": "Calibration lock held by sensor poller"}
         
         try:
-            us_cm = body.get("us_cm", 1413)
+            try:
+                payload = await request.json()
+            except Exception:
+                payload = {}
+            if not isinstance(payload, dict):
+                payload = {}
+            us_cm = payload.get("us_cm", 1413)
             from app.ezo_i2c_stabilized import EZO, EC_ADDR
             ec_dev = EZO(1, EC_ADDR, "EC")
             # EZO EC expects calibration value in µS/cm
@@ -4161,23 +4167,29 @@ def ec_cal_low(body: dict = Body(...)):
 
 
 @app.post("/api/ec/cal/high")
-def ec_cal_high(body: dict = Body(...)):
+async def ec_cal_high(request: Request):
     """Apply high-point EC calibration (typically 12,880 µS/cm)"""
     import os
     import time
     lock_path = "/tmp/rdwc_calib.lock"
-    
-    try:
-        # Acquire calibration lock with timeout (30 attempts × 0.1s = 3 second total timeout)
-        lock_acquired = False
-        for attempt in range(30):
-            if not os.path.exists(lock_path):
-                try:
-                    with open(lock_path, 'w') as f:
-                        f.write(f"{os.getpid()}\n")
-                    lock_acquired = True
-                    break
-                except Exception:
+        try:
+            try:
+                payload = await request.json()
+            except Exception:
+                payload = {}
+            if not isinstance(payload, dict):
+                payload = {}
+            us_cm = payload.get("us_cm", 12880)
+            from app.ezo_i2c_stabilized import EZO, EC_ADDR
+            ec_dev = EZO(1, EC_ADDR, "EC")
+            # EZO EC expects calibration value in µS/cm
+            response = ec_dev.cmd(f"Cal,high,{us_cm}", read_len=32, settle=0.9)
+            return {"ok": True, "response": response or f"High calibration applied at {us_cm} µS/cm"}
+        finally:
+            try:
+                os.remove(lock_path)
+            except:
+                pass
                     pass
             time.sleep(0.1)
         
