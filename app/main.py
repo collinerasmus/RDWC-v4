@@ -4201,7 +4201,7 @@ def ec_cal_high(body: dict = Body(...)):
 
 @app.post("/api/ec/k")
 def ec_set_k(body: dict = Body(...)):
-    """Set EC probe K factor (probe constant)"""
+    """Set EC probe K factor (probe constant) and persist to settings"""
     import os
     import time
     lock_path = "/tmp/rdwc_calib.lock"
@@ -4226,9 +4226,15 @@ def ec_set_k(body: dict = Body(...)):
         try:
             k = body.get("k", 1.0)
             from app.ezo_i2c_stabilized import EZO, EC_ADDR
+            from app.settings import upsert_settings
+            
             ec_dev = EZO(1, EC_ADDR, "EC")
             response = ec_dev.cmd(f"K,{k:.1f}", read_len=32, settle=0.3)
-            return {"ok": True, "response": response or f"K factor set to {k}"}
+            
+            # Persist k value to settings for restoration on restart
+            upsert_settings({"ec.k_value": str(k)})
+            
+            return {"ok": True, "response": response or f"K factor set to {k}", "k_value": k}
         finally:
             try:
                 os.remove(lock_path)
@@ -4240,7 +4246,7 @@ def ec_set_k(body: dict = Body(...)):
 
 @app.get("/api/ec/cal/status")
 def ec_cal_status():
-    """Get EC calibration status - Note: This probe does not support query commands (Cal,? K,?), so we return empty status"""
+    """Get EC calibration status - Note: This probe does not support query commands (Cal,? K,?), so we return persisted k value from settings"""
     import os
     import time
     lock_path = "/tmp/rdwc_calib.lock"
@@ -4263,19 +4269,25 @@ def ec_cal_status():
             return {"ok": False, "error": "Calibration lock held by sensor poller (waited 3s)"}
         
         try:
+            from app.settings import get_all_settings
+            
+            # Get k value from persisted settings
+            settings = get_all_settings()
+            k_value = float(settings.get("ec.k_value", "1.0"))
+            
             # NOTE: EZO EC probe on this system does not respond to Cal,? or K,? query commands
             # Calibration status cannot be reliably queried. Instead, verify by:
             # 1. Checking sensor readings before/after calibration
             # 2. Trusting that calibration commands (Cal,low / Cal,high) were applied if they returned "ok":true
             # 
-            # Return empty/unknown status since probe doesn't support queries
+            # Return k value from settings since probe doesn't support queries
             return {
                 "ok": True,
-                "cal": "unknown",  # Cannot be queried
-                "k": None,  # Cannot be queried
+                "cal": "unknown",  # Cannot be queried from device
+                "k": k_value,  # From persisted settings
                 "cal_raw": "",
                 "k_raw": "",
-                "note": "Probe does not respond to query commands (Cal,? K,?) - calibration cannot be verified via API"
+                "note": "Probe does not respond to query commands (Cal,? K,?) - K value from settings, calibration cannot be verified via API"
             }
         finally:
             # Release lock

@@ -147,6 +147,18 @@ class EZO:
             self.cmd("C,0", read_len=0, settle=0.06)
         except Exception:
             pass
+        
+        # Restore EC probe K value from settings (if this is EC sensor)
+        if self.name == "EC" and self.addr == EC_ADDR:
+            try:
+                from app.settings import get_all_settings
+                settings = get_all_settings()
+                k_value = float(settings.get("ec.k_value", "1.0"))
+                # Set K value on device to ensure it matches persisted setting
+                self.cmd(f"K,{k_value:.1f}", read_len=0, settle=0.3)
+                logger.info(f"EC probe K value restored to {k_value} from settings")
+            except Exception as e:
+                logger.warning(f"Failed to restore EC K value from settings: {e}")
 
     def read_value(self, request: str = "R", timeout: float = 1.8, poll: float = 0.15) -> str:
         """Issue a single measurement command and poll until ready or timeout.

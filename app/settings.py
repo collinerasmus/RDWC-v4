@@ -60,6 +60,9 @@ DEFAULTS: Dict[str, str] = {
     "targets.ec_target": "1.8",
     "targets.ec_tolerance": "0.2",
     "targets.temp_target_c": "20",
+    
+    # EC sensor calibration
+    "ec.k_value": "1.0",  # EC probe K factor (probe constant)
 
     # dosing
     "dosing.pulse_ml_grow": "0",
