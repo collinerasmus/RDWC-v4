@@ -62,7 +62,7 @@ DEFAULTS: Dict[str, str] = {
     "targets.temp_target_c": "20",
     
     # EC sensor calibration
-    "ec.k_value": "1.0",  # EC probe K factor (probe constant)
+    "ec.k_value": "0.1",  # EC probe K factor (probe constant) - must match physical probe label
 
     # dosing
     "dosing.pulse_ml_grow": "0",
