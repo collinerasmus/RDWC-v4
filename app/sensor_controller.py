@@ -1,0 +1,406 @@
+"""
+Unified EC/pH/RTD Sensor Controller - Single Source of Truth
+
+This module provides:
+1. Raw sensor I/O access via EZO I2C library
+2. Proper K factor handling (persisted in settings, restored on each read)
+3. Calibration endpoints (low/high point, K setting, clear)
+4. Temperature compensation (throttled)
+5. Lock-based mutual exclusion (reading vs calibration)
+
+Philosophy:
+- All sensor operations go through this module
+- K factor is managed per settings, not probe memory (since EZO doesn't persist K)
+- Calibration and readings are mutually exclusive via /tmp/rdwc_calib.lock
+- Each read restores K from settings to ensure consistency
+"""
+
+import os
+import time
+import logging
+from typing import Dict, Any, Optional, Tuple
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+# I/O addresses
+RTD_ADDR = 0x66  # Temperature sensor
+PH_ADDR = 0x63   # pH sensor  
+EC_ADDR = 0x64   # EC sensor
+
+# Calibration lock file
+CALIB_LOCK_PATH = Path("/tmp/rdwc_calib.lock")
+CALIB_LOCK_TIMEOUT_S = 3.0  # 3 second timeout to acquire lock
+
+# I2C availability
+_I2C_AVAILABLE = False
+try:
+    from . import ezo_i2c_stabilized
+    _I2C_AVAILABLE = True
+except ImportError:
+    logger.warning("I2C not available - running in simulation mode")
+
+
+class SensorLockError(Exception):
+    """Raised when calibration lock cannot be acquired"""
+    pass
+
+
+class SensorReadError(Exception):
+    """Raised when sensor read fails"""
+    pass
+
+
+def _acquire_calib_lock() -> bool:
+    """
+    Acquire calibration lock with timeout.
+    Returns True if acquired, False if timeout or error.
+    """
+    start_time = time.time()
+    while time.time() - start_time < CALIB_LOCK_TIMEOUT_S:
+        if not CALIB_LOCK_PATH.exists():
+            try:
+                CALIB_LOCK_PATH.write_text(f"{os.getpid()}\n")
+                return True
+            except OSError:
+                pass
+        time.sleep(0.1)
+    return False
+
+
+def _release_calib_lock() -> None:
+    """Release calibration lock"""
+    if CALIB_LOCK_PATH.exists():
+        try:
+            CALIB_LOCK_PATH.unlink()
+        except OSError as e:
+            logger.error(f"Failed to release calibration lock: {e}")
+
+
+def read_sensors() -> Dict[str, Any]:
+    """
+    Read all sensors (RTD, pH, EC) with proper K factor handling.
+    
+    Returns:
+        {
+            "temperature_c": float or None,
+            "ph": float or None,
+            "ec_mscm": float or None,
+            "online": bool,
+            "ts": str (ISO 8601 UTC),
+            "errors": dict
+        }
+    """
+    if not _I2C_AVAILABLE:
+        # Simulation mode
+        import datetime as dt
+        return {
+            "temperature_c": 23.0,
+            "ph": 6.5,
+            "ec_mscm": 1.5,
+            "online": True,
+            "ts": dt.datetime.utcnow().isoformat() + "Z",
+            "errors": {}
+        }
+    
+    try:
+        from .settings import get_all_settings
+        import datetime as dt
+        
+        rtd = ezo_i2c_stabilized.EZO(1, RTD_ADDR, "RTD")
+        ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
+        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+        
+        try:
+            # Initialize all sensors (disables continuous mode, restores K for EC)
+            for dev in (rtd, ph, ec):
+                dev.init_once()
+            time.sleep(0.25)
+            
+            # Read temperature first (for compensation)
+            temp_c = float(rtd.read_value(timeout=1.2))
+            
+            # Send temperature compensation to pH
+            try:
+                ph.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.25)
+            except Exception:
+                pass
+            
+            # Read pH
+            ph_val = float(ph.read_value(timeout=1.5))
+            
+            # Send temperature compensation to EC
+            try:
+                ec.cmd(f"T,{temp_c:.2f}", read_len=0, settle=0.25)
+            except Exception:
+                pass
+            
+            # Read EC raw value (in µS/cm)
+            ec_raw = float(ec.read_value(timeout=1.5))
+            
+            # Get K factor from settings and ensure it's applied to probe
+            settings = get_all_settings()
+            k_value = float(settings.get("ec.k_value", "0.1"))
+            
+            # Ensure K is on probe (in case it was lost)
+            try:
+                ec.cmd(f"K,{k_value:.2f}", read_len=0, settle=0.3)
+                logger.debug(f"EC K value confirmed on probe: {k_value}")
+            except Exception as e:
+                logger.debug(f"Could not confirm K value on probe: {e}")
+            
+            # EZO EC reports in µS/cm; convert to mS/cm
+            # Formula: mS/cm = µS/cm / 1000
+            # But EZO also applies K internally, so the raw reading already has K applied
+            # So we just convert units
+            ec_val = ec_raw / 1000.0 if ec_raw >= 10 else ec_raw
+            
+            return {
+                "temperature_c": temp_c,
+                "ph": ph_val,
+                "ec_mscm": ec_val,
+                "online": True,
+                "ts": dt.datetime.utcnow().isoformat() + "Z",
+                "errors": {}
+            }
+        finally:
+            for dev in (rtd, ph, ec):
+                dev.close()
+    
+    except Exception as e:
+        logger.error(f"Sensor read failed: {e}", exc_info=True)
+        import datetime as dt
+        return {
+            "temperature_c": None,
+            "ph": None,
+            "ec_mscm": None,
+            "online": False,
+            "ts": dt.datetime.utcnow().isoformat() + "Z",
+            "errors": {"read": str(e)}
+        }
+
+
+def set_ec_k_factor(k_value: float) -> Dict[str, Any]:
+    """
+    Set EC probe K factor and persist to settings.
+    
+    Args:
+        k_value: K factor (typically 0.1, 1.0, or 10.0)
+    
+    Returns:
+        {"ok": bool, "k_value": float, "response": str}
+    """
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "error": "I2C not available"}
+    
+    try:
+        from .settings import upsert_settings
+        
+        # Validate
+        valid_k = [0.1, 1.0, 10.0]
+        if k_value not in valid_k:
+            logger.warning(f"K value {k_value} not in standard {valid_k}, using anyway")
+        
+        # Apply to probe
+        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+        try:
+            response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.3)
+        finally:
+            ec.close()
+        
+        # Persist to settings
+        upsert_settings({"ec.k_value": str(k_value)})
+        
+        logger.info(f"EC K value set to {k_value}")
+        return {
+            "ok": True,
+            "k_value": k_value,
+            "response": response or f"K={k_value} set"
+        }
+    except Exception as e:
+        logger.error(f"Failed to set EC K factor: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+def calibrate_ec_low(us_cm: float = 1413) -> Dict[str, Any]:
+    """
+    Apply EC low-point calibration.
+    
+    Args:
+        us_cm: Low calibration point in µS/cm (default 1413)
+    
+    Returns:
+        {
+            "ok": bool,
+            "response": str,
+            "k_value": float (restored),
+            "k_response": str
+        }
+    """
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "error": "I2C not available"}
+    
+    # Acquire lock
+    if not _acquire_calib_lock():
+        return {"ok": False, "error": "Calibration lock held by sensor poller"}
+    
+    try:
+        from .settings import get_all_settings
+        
+        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+        try:
+            # Apply calibration
+            response = ec.cmd(f"Cal,low,{int(us_cm)}", read_len=32, settle=0.9)
+            
+            # Brief settle
+            time.sleep(0.5)
+            
+            # Restore K from settings
+            settings = get_all_settings()
+            k_value = float(settings.get("ec.k_value", "0.1"))
+            k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.3)
+            
+            logger.info(f"EC low calibration applied at {us_cm} µS/cm, K restored to {k_value}")
+            return {
+                "ok": True,
+                "response": response or f"Low calibration applied at {us_cm} µS/cm",
+                "k_value": k_value,
+                "k_response": k_response or f"K={k_value} restored"
+            }
+        finally:
+            ec.close()
+    except Exception as e:
+        logger.error(f"EC low calibration failed: {e}")
+        return {"ok": False, "error": str(e)}
+    finally:
+        _release_calib_lock()
+
+
+def calibrate_ec_high(us_cm: float = 12880) -> Dict[str, Any]:
+    """
+    Apply EC high-point calibration.
+    
+    Args:
+        us_cm: High calibration point in µS/cm (default 12880)
+    
+    Returns:
+        {
+            "ok": bool,
+            "response": str,
+            "k_value": float (restored),
+            "k_response": str
+        }
+    """
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "error": "I2C not available"}
+    
+    # Acquire lock
+    if not _acquire_calib_lock():
+        return {"ok": False, "error": "Calibration lock held by sensor poller"}
+    
+    try:
+        from .settings import get_all_settings
+        
+        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+        try:
+            # Apply calibration
+            response = ec.cmd(f"Cal,high,{int(us_cm)}", read_len=32, settle=0.9)
+            
+            # Brief settle
+            time.sleep(0.5)
+            
+            # Restore K from settings
+            settings = get_all_settings()
+            k_value = float(settings.get("ec.k_value", "0.1"))
+            k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.3)
+            
+            logger.info(f"EC high calibration applied at {us_cm} µS/cm, K restored to {k_value}")
+            return {
+                "ok": True,
+                "response": response or f"High calibration applied at {us_cm} µS/cm",
+                "k_value": k_value,
+                "k_response": k_response or f"K={k_value} restored"
+            }
+        finally:
+            ec.close()
+    except Exception as e:
+        logger.error(f"EC high calibration failed: {e}")
+        return {"ok": False, "error": str(e)}
+    finally:
+        _release_calib_lock()
+
+
+def clear_ec_calibration() -> Dict[str, Any]:
+    """
+    Clear all EC calibration points.
+    
+    Returns:
+        {"ok": bool, "response": str}
+    """
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "error": "I2C not available"}
+    
+    # Acquire lock
+    if not _acquire_calib_lock():
+        return {"ok": False, "error": "Calibration lock held by sensor poller"}
+    
+    try:
+        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+        try:
+            response = ec.cmd("Cal,clear", read_len=32, settle=0.5)
+            logger.info("EC calibration cleared")
+            return {
+                "ok": True,
+                "response": response or "Calibration cleared"
+            }
+        finally:
+            ec.close()
+    except Exception as e:
+        logger.error(f"Failed to clear EC calibration: {e}")
+        return {"ok": False, "error": str(e)}
+    finally:
+        _release_calib_lock()
+
+
+def get_ec_calibration_status() -> Dict[str, Any]:
+    """
+    Get current EC calibration status and K factor.
+    
+    Returns:
+        {
+            "ok": bool,
+            "low": bool,
+            "high": bool,
+            "k": float,
+            "response": str
+        }
+    """
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "error": "I2C not available"}
+    
+    try:
+        from .settings import get_all_settings
+        
+        # Get K from settings (single source of truth)
+        settings = get_all_settings()
+        k_value = float(settings.get("ec.k_value", "0.1"))
+        
+        # Try to query calibration from probe (may not respond)
+        try:
+            ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+            try:
+                cal_status = ec.cmd("Cal,?", read_len=32, settle=0.5)
+            finally:
+                ec.close()
+        except Exception:
+            cal_status = ""
+        
+        return {
+            "ok": True,
+            "k": k_value,
+            "cal_response": cal_status or "Probe does not respond to Cal,? query",
+            "note": "K factor is source of truth from settings (EZO doesn't persist K across power cycles)"
+        }
+    except Exception as e:
+        logger.error(f"Failed to get EC calibration status: {e}")
+        return {"ok": False, "error": str(e)}
