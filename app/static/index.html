@@ -1668,12 +1668,6 @@ body{
             <button id="btnPhExport" class="btn-secondary btn-small" title="Export displayed pH dose history to CSV" style="margin-left:auto;">Export CSV</button>
           </div>
 
-          <!-- Grow Log (Recent Events) -->
-          <div style="margin-top:12px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);">
-            <div style="font-size:var(--font-sm);color:#9ca3af;font-weight:500;margin-bottom:6px;" id="ph-recent-header">Grow Log ▾</div>
-            <div id="ph-recent" style="max-height:140px;overflow-y:auto;padding-right:6px;font-size:var(--font-xs);"></div>
-          </div>
-
           <!-- 5. Settings -->
 
           <details style="margin-top:12px;" open>
@@ -1887,16 +1881,6 @@ body{
             <!-- Tabs replaced by 3-mode header; keep recent/status always visible. -->
             <div class="tabs" style="display:none;gap:10px;flex-wrap:wrap;margin:8px 0 12px 0;"></div>
 
-            <!-- Removed duplicate Recent Doses list (Dose Log below already covers recent) -->
-            <!-- Manual Mode Content -->
-            <div id="ec-manual-content" style="display:block;">
-              <!-- ML-based dosing moved to Settings → EC Manual Dosing -->
-            </div>
-            <!-- Auto Mode Content -->
-            <div id="ec-auto-content" style="display:none;">
-              <!-- Redundant automation button removed - use mode chips in header -->
-            </div>
-
             <!-- Maintenance Mode Banner (shares manual controls; warning shown when in maintenance) -->
             <div id="ec-maint-banner" class="info-banner-danger" style="display:none;">
               <div class="info-banner-icon">⚠️</div>
@@ -1933,12 +1917,6 @@ body{
                 <button class="btn btn-secondary btn-compact" id="ecDoseApply">Apply</button>
               </div>
               <button id="btnEcExport" class="btn-secondary btn-small" title="Export displayed EC dose history to CSV" style="margin-left:auto;">Export CSV</button>
-            </div>
-
-            <!-- Recent Doses -->
-            <div style="margin-top:12px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);">
-              <div style="font-size:var(--font-sm);color:#9ca3af;font-weight:500;margin-bottom:6px;" id="ec-recent-header">Recent Doses ▾</div>
-              <div id="ec-recent" style="max-height:140px;overflow-y:auto;padding-right:6px;font-size:var(--font-xs);"></div>
             </div>
 
             <!-- EC-Specific Settings at the very bottom -->

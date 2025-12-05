@@ -147,7 +147,6 @@
     const guards = el('ph-guards');
     const pumpEl = el('ph-pump');
     const statusEl = el('ph-status');
-    const recent = el('ph-recent');
     const resBanner = el('ph-reservoir-banner');
     
     // Update learned value KPI in header
@@ -226,18 +225,6 @@
     
     // Update health indicator
     updateHealthIndicator();
-    if(recent && s){
-      recent.innerHTML = '';
-      // Ensure compact, scrollable log even if HTML wasn't updated
-      try{ recent.style.maxHeight = '140px'; recent.style.overflowY = 'auto'; recent.style.paddingRight = '6px'; }catch(e){}
-      (s.recent||[]).forEach(r => {
-        const li = document.createElement('div');
-        li.className = 'muted';
-        const when = r.ts_utc?.replace('T',' ').replace('Z','');
-        li.textContent = `${when} • ${r.action} • ${r.volume_ml||''} ml • ${r.result}${r.reason? ' • '+r.reason: ''}`;
-        recent.appendChild(li);
-      });
-    }
     // Determine disabled state; maintenance override bypasses cooldown/daily_cap
     const g = s?.guards || {};
   const maint = (s?.maintenance_override === true) || ((window.rdwcSettings?.get('safety.maintenance_override')||'false').toLowerCase() === 'true');
