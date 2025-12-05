@@ -154,6 +154,13 @@ class EZO:
                 from app.settings import get_all_settings
                 settings = get_all_settings()
                 k_value = float(settings.get("ec.k_value", "1.0"))
+                
+                # Validate k_value is within expected bounds
+                # Atlas EZO EC probes support K values: 0.1, 1.0, 10.0
+                valid_k_values = [0.1, 1.0, 10.0]
+                if k_value not in valid_k_values:
+                    logger.warning(f"EC K value {k_value} not in standard values {valid_k_values}, using anyway")
+                
                 # Set K value on device to ensure it matches persisted setting
                 # Format with sufficient precision for common k values (0.1, 1.0, 10.0)
                 self.cmd(f"K,{k_value:.2f}", read_len=0, settle=0.3)

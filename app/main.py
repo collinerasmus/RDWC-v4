@@ -4225,6 +4225,16 @@ def ec_set_k(body: dict = Body(...)):
         
         try:
             k = body.get("k", 1.0)
+            
+            # Validate k value is positive
+            if k <= 0:
+                return {"ok": False, "error": "K value must be positive"}
+            
+            # Warn if k value is not standard (but allow it)
+            valid_k_values = [0.1, 1.0, 10.0]
+            if k not in valid_k_values:
+                logger.warning(f"Non-standard EC K value {k} provided (standard: {valid_k_values})")
+            
             from app.ezo_i2c_stabilized import EZO, EC_ADDR
             from app.settings import upsert_settings
             
