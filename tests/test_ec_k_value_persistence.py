@@ -98,8 +98,8 @@ class TestECKValuePersistence:
                     # Verify that C,0 was sent (disable continuous mode)
                     assert "C,0" in commands_sent
                     
-                    # Verify that K,0.1 was sent (restore k value)
-                    assert "K,0.1" in commands_sent
+                    # Verify that K,0.10 was sent (restore k value with .2f formatting)
+                    assert "K,0.10" in commands_sent
     
     def test_non_ec_sensor_does_not_restore_k_value(self):
         """Test that non-EC sensors (pH, RTD) don't try to restore k value"""

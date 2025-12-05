@@ -149,13 +149,14 @@ class EZO:
             pass
         
         # Restore EC probe K value from settings (if this is EC sensor)
-        if self.name == "EC" and self.addr == EC_ADDR:
+        if self.addr == EC_ADDR:
             try:
                 from app.settings import get_all_settings
                 settings = get_all_settings()
                 k_value = float(settings.get("ec.k_value", "1.0"))
                 # Set K value on device to ensure it matches persisted setting
-                self.cmd(f"K,{k_value:.1f}", read_len=0, settle=0.3)
+                # Format with sufficient precision for common k values (0.1, 1.0, 10.0)
+                self.cmd(f"K,{k_value:.2f}", read_len=0, settle=0.3)
                 logger.info(f"EC probe K value restored to {k_value} from settings")
             except Exception as e:
                 logger.warning(f"Failed to restore EC K value from settings: {e}")

@@ -4229,7 +4229,8 @@ def ec_set_k(body: dict = Body(...)):
             from app.settings import upsert_settings
             
             ec_dev = EZO(1, EC_ADDR, "EC")
-            response = ec_dev.cmd(f"K,{k:.1f}", read_len=32, settle=0.3)
+            # Format with sufficient precision for common k values (0.1, 1.0, 10.0)
+            response = ec_dev.cmd(f"K,{k:.2f}", read_len=32, settle=0.3)
             
             # Persist k value to settings for restoration on restart
             upsert_settings({"ec.k_value": str(k)})
