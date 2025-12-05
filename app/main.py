@@ -3044,6 +3044,8 @@ def diag_sensors_once():
             "online": data.get("online", False),
             "errors": data.get("errors", {})
         }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 @app.get("/diag/sensors/leds")
 def diag_sensors_leds(on: int = 1):
