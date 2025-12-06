@@ -222,12 +222,66 @@ def set_ec_k_factor(k_value: float) -> Dict[str, Any]:
         return {"ok": False, "error": str(e)}
 
 
-def calibrate_ec_low(us_cm: float = 1413) -> Dict[str, Any]:
+def calibrate_ec_dry() -> Dict[str, Any]:
+    """
+    Apply EC dry calibration (zero point in air).
+    This is the first step for K=0.1 probes according to Atlas Scientific datasheet.
+    
+    Returns:
+        {
+            "ok": bool,
+            "response": str,
+            "k_value": float (restored),
+            "k_response": str
+        }
+    """
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "error": "I2C not available"}
+    
+    # Acquire lock
+    if not _acquire_calib_lock():
+        return {"ok": False, "error": "Calibration lock held by sensor poller"}
+    
+    try:
+        from .settings import get_all_settings
+        
+        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+        try:
+            # Apply dry calibration
+            response = ec.cmd("Cal,dry", read_len=32, settle=0.9)
+            
+            # Brief settle
+            time.sleep(0.5)
+            
+            # Restore K from settings
+            settings = get_all_settings()
+            k_value = float(settings.get("ec.k_value", "0.1"))
+            k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.3)
+            
+            logger.info(f"EC dry calibration applied, K restored to {k_value}")
+            return {
+                "ok": True,
+                "response": response or "Dry calibration applied",
+                "k_value": k_value,
+                "k_response": k_response or f"K={k_value} restored"
+            }
+        finally:
+            ec.close()
+    except Exception as e:
+        logger.error(f"EC dry calibration failed: {e}")
+        return {"ok": False, "error": str(e)}
+    finally:
+        _release_calib_lock()
+
+
+def calibrate_ec_low(us_cm: float = 84) -> Dict[str, Any]:
     """
     Apply EC low-point calibration.
+    For K=0.1 probes, use 84 µS/cm calibration solution.
+    For K=1.0 probes, use 1413 µS/cm calibration solution.
     
     Args:
-        us_cm: Low calibration point in µS/cm (default 1413)
+        us_cm: Low calibration point in µS/cm (default 84 for K=0.1)
     
     Returns:
         {
@@ -276,12 +330,14 @@ def calibrate_ec_low(us_cm: float = 1413) -> Dict[str, Any]:
         _release_calib_lock()
 
 
-def calibrate_ec_high(us_cm: float = 12880) -> Dict[str, Any]:
+def calibrate_ec_high(us_cm: float = 10000) -> Dict[str, Any]:
     """
     Apply EC high-point calibration.
+    For K=0.1 probes, use 10000 µS/cm calibration solution.
+    For K=1.0 probes, use 12880 µS/cm calibration solution.
     
     Args:
-        us_cm: High calibration point in µS/cm (default 12880)
+        us_cm: High calibration point in µS/cm (default 10000 for K=0.1)
     
     Returns:
         {
@@ -423,14 +479,18 @@ def clear_ec_calibration() -> Dict[str, Any]:
 def get_ec_calibration_status() -> Dict[str, Any]:
     """
     Get current EC calibration status and K factor.
+    Parses calibration response to determine which points are set.
     
     Returns:
         {
             "ok": bool,
+            "k": float,
+            "cal": str (e.g., "dry", "one-point", "two-point"),
+            "dry": bool,
             "low": bool,
             "high": bool,
-            "k": float,
-            "response": str
+            "cal_response": str,
+            "note": str
         }
     """
     if not _I2C_AVAILABLE:
@@ -444,18 +504,63 @@ def get_ec_calibration_status() -> Dict[str, Any]:
         k_value = float(settings.get("ec.k_value", "0.1"))
         
         # Try to query calibration from probe (may not respond)
+        cal_status = ""
+        dry = False
+        low = False
+        high = False
+        cal_summary = "uncalibrated"
+        
         try:
             ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
             try:
                 cal_status = ec.cmd("Cal,?", read_len=32, settle=0.5)
             finally:
                 ec.close()
-        except Exception:
+            
+            # Parse calibration status
+            # Response format: "?CAL,0" (uncalibrated), "?CAL,1" (one-point), "?CAL,2" (two-point), "?CAL,3" (dry+two-point)
+            if cal_status:
+                if "?CAL,0" in cal_status:
+                    cal_summary = "uncalibrated"
+                elif "?CAL,1" in cal_status:
+                    cal_summary = "one-point"
+                    low = True
+                elif "?CAL,2" in cal_status:
+                    cal_summary = "two-point"
+                    low = True
+                    high = True
+                elif "?CAL,3" in cal_status:
+                    cal_summary = "dry+two-point"
+                    dry = True
+                    low = True
+                    high = True
+                else:
+                    # Try alternative format
+                    cal_status_lower = cal_status.lower()
+                    if "dry" in cal_status_lower:
+                        dry = True
+                        cal_summary = "dry"
+                    if "low" in cal_status_lower:
+                        low = True
+                        if cal_summary == "dry":
+                            cal_summary = "dry+low"
+                        else:
+                            cal_summary = "one-point"
+                    if "high" in cal_status_lower:
+                        high = True
+                        if low:
+                            cal_summary = "two-point" if not dry else "dry+two-point"
+        except Exception as e:
+            logger.debug(f"Could not query EC calibration status: {e}")
             cal_status = ""
         
         return {
             "ok": True,
             "k": k_value,
+            "cal": cal_summary,
+            "dry": dry,
+            "low": low,
+            "high": high,
             "cal_response": cal_status or "Probe does not respond to Cal,? query",
             "note": "K factor is source of truth from settings (EZO doesn't persist K across power cycles)"
         }
