@@ -3427,7 +3427,7 @@ def export_sensors_csv(hours: float = Query(24.0)):
     return StreamingResponse(_iter(), media_type="text/csv")
 
 # --- Calibration (pH) endpoints ---
-# All pH calibration logic is now in sensor_controller.py for single source of truth
+# All pH calibration logic is now in sensor_controller.py for single source of truth.
 
 
 def _calib_enabled() -> bool:

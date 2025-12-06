@@ -869,15 +869,15 @@ def clear_ph_calibration() -> Dict[str, Any]:
         try:
             response = ph.cmd("Cal,clear", read_len=32, settle=1.2)
             
-            # Check if successful - EZO typically returns "1" or empty on success
-            if response or response == "":
+            # Check if successful - EZO typically returns "1" or empty string on success
+            if response is not None:
                 logger.info("pH calibration cleared")
                 return {"ok": True, "note": "Cleared"}
             else:
                 # Retry once on failure
                 time.sleep(0.5)
                 response = ph.cmd("Cal,clear", read_len=32, settle=1.6)
-                if response or response == "":
+                if response is not None:
                     logger.info("pH calibration cleared (retry)")
                     return {"ok": True, "note": "Cleared"}
                 else:
