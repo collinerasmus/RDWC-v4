@@ -389,7 +389,7 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
                 us_cm = 80000
             else:
                 # Unknown K, default to K=0.1 value
-                us_cm = 10000
+                us_cm = 1413
         
         ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
         try:
