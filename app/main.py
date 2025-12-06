@@ -3427,34 +3427,12 @@ def export_sensors_csv(hours: float = Query(24.0)):
     return StreamingResponse(_iter(), media_type="text/csv")
 
 # --- Calibration (pH) endpoints ---
- 
+# All pH calibration logic is now in sensor_controller.py for single source of truth.
+
 
 def _calib_enabled() -> bool:
     return os.environ.get("CALIB_ENABLE", "0") == "1"
 
-def _ph_cmd(cmd: str, settle: float = 0.35, timeout: float = 2.0):
-    """Send a pH command using EZO class.
-    Returns (status_code, payload_str). Status 1 = success, 0 = failure.
-    Adds structured logging to aid calibration debugging.
-    """
-    import logging
-    log = logging.getLogger("calib")
-    try:
-        from app.ezo_i2c_stabilized import EZO
-        ph_dev = EZO(1, 0x63, "pH")  # I2C bus 1, address 0x63
-        log.info(f"[PH CMD] send='{cmd}' settle={settle}s timeout={timeout}s")
-        
-        # Send command and read response
-        payload = ph_dev.cmd(cmd, read_len=32, settle=settle)
-        status = 1 if payload else 0  # EZO.cmd returns "" on failure
-        payload = payload or ""
-        
-        log.info(f"[PH CMD] status={status} payload='{payload}'")
-        return status, payload
-    except Exception as ex:
-        err = f"error:{type(ex).__name__}"
-        logging.getLogger("calib").warning(f"[PH CMD] exception {err}")
-        return 0, err
 
 @app.get("/calib/ph/caps")
 def calib_ph_caps():
@@ -3462,263 +3440,36 @@ def calib_ph_caps():
 
 @app.get("/calib/ph/read")
 def calib_ph_read():
-    """Robust, contention-safe single pH read for the Calibration UI.
-    Uses the same I2C lock and direct EZO class to avoid collisions
-    with the background poller. Retries once on transient errors.
-    """
-    import fcntl
-    import time as _time
-    from app.ezo_i2c_stabilized import EZO
-
-    def _read_once(timeout: float = 3.0):
-        try:
-            ph_dev = EZO(1, 0x63, "pH")  # I2C bus 1, address 0x63
-            # Disable continuous mode
-            ph_dev.cmd("C,0", read_len=0, settle=0.3)
-            # Read pH value with Atlas 'R' command
-            value_str = ph_dev.read_value("R", timeout=timeout, poll=0.15)
-            if value_str:
-                # Parse first token (pH value)
-                tok = value_str.split(",")[0].strip()
-                return float(tok)
-        except FileNotFoundError:
-            # I2C device not available (test/dev environment)
-            logger.debug(f"pH read_once failed: I2C device not found")
-            raise  # Re-raise to signal hardware unavailable
-        except Exception as e:
-            logger.debug(f"pH read_once failed: {e}")
-        return None
-
-    lock_path = "/tmp/rdwc_calib.lock"
-    # Quick hardware check first to avoid long waits when hardware is unavailable
-    try:
-        test_dev = EZO(1, 0x63, "pH")
-        test_dev.cmd("C,0", read_len=0, settle=0.05)
-    except FileNotFoundError:
-        return {"ok": False, "note": "HardwareUnavailable"}
-    except Exception:
-        pass
-    
-    hardware_unavailable = False
-    for attempt in (1, 2):
-        if hardware_unavailable:
-            break
-        lock_fd = None
-        try:
-            lock_fd = open(lock_path, 'w')
-            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
-            # Wait longer for background poller to notice lock and skip its cycle
-            # Poller checks lock every ~5s, so wait 6s to ensure it sees us
-            _time.sleep(6.0)
-            # Try up to 3 immediate reads under the same lock to get a payload
-            for tries in range(3):
-                try:
-                    val = _read_once(timeout=3.0 if attempt == 1 else 5.0)
-                    if val is not None:
-                        return {"ok": True, "value": round(float(val), 3)}
-                except FileNotFoundError:
-                    # Hardware not available, exit immediately
-                    hardware_unavailable = True
-                    break
-                _time.sleep(1.2)
-        except Exception:
-            pass
-        finally:
-            if lock_fd:
-                try:
-                    fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-                    lock_fd.close()
-                except Exception:
-                    pass
-        if not hardware_unavailable:
-            _time.sleep(0.5)  # brief backoff before retry
-
-    return {"ok": False, "note": "NoData" if not hardware_unavailable else "HardwareUnavailable"}
+    """Single pH read for calibration UI - delegated to sensor_controller."""
+    from app.sensor_controller import read_ph_single
+    return read_ph_single()
 
 @app.get("/calib/ph/status")
 def calib_ph_status():
-    import logging
-    import fcntl
-    import time as _time
-    log = logging.getLogger("calib")
-    lock_path = "/tmp/rdwc_calib.lock"
-    lock_fd = None
-    st = 0
-    payload = ""
-    try:
-        lock_fd = open(lock_path, 'w')
-        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
-        _time.sleep(0.6)
-        st, payload = _ph_cmd("Cal,?", settle=1.0, timeout=4.0)
-    except Exception as ex:
-        log.warning(f"[CALIB] status query error: {ex}")
-    finally:
-        if lock_fd:
-            try:
-                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-                lock_fd.close()
-            except Exception:
-                pass
-    # Status 1 = success (from _ph_cmd using EZO class)
-    ok = (st == 1)
-    flags = []
-    note = payload
-    # Typical payloads include text like "?,mid,low" when points are set
-    try:
-        if payload:
-            parts = [p.strip() for p in payload.split(",") if p.strip()]
-            # Remove leading '?' if present
-            if parts and parts[0] == '?':
-                parts = parts[1:]
-            flags = parts
-    except Exception:
-        pass
-    # Derive points list from flags. Atlas pH 'Cal,?' responses vary by firmware:
-    # Examples:
-    #   '?CAL,mid,low' -> explicit names
-    #   '?CAL,2'       -> numeric count only (mid+low assumed)
-    # We map numeric forms to plausible point names for UI friendliness.
-    points: list[str] = []
-    try:
-        if flags:
-            # If any non-numeric tokens beyond first, treat them as explicit calibration points
-            named = [f for f in flags if not f.isdigit() and f.lower() not in ("?cal",)]
-            if named:
-                points = named
-            else:
-                # Numeric-only form; first numeric token = count
-                nums = [int(f) for f in flags if f.isdigit()]
-                if nums:
-                    cnt = nums[0]
-                    if cnt == 1:
-                        points = ["mid"]
-                    elif cnt == 2:
-                        points = ["mid", "low"]
-                    elif cnt >= 3:
-                        points = ["mid", "low", "high"]
-    except Exception:
-        points = []
-    return {"ok": ok, "status": note, "flags": flags, "points": points}
+    """Get pH calibration status - delegated to sensor_controller."""
+    from app.sensor_controller import get_ph_calibration_status
+    return get_ph_calibration_status()
 
 @app.get("/calib/ph/read_stable")
 def calib_ph_read_stable(timeout_s: float = 25.0, delta: float = 0.03, min_samples: int = 4, poll_s: float = 2.0):
-    """Robust stabilization loop using the same locked single-read path as /calib/ph/read.
-
-    Logic:
-    1. Acquire calibration lock per sample to avoid contention.
-    2. Perform an explicit 'R' read with EZO class (1.0s settle).
-    3. Track moving window; declare stable when absolute delta between last two samples <= delta
-       AND (optionally) variance across last 3 samples is small.
-    4. Returns {ok, stable, value, samples, duration_s}.
-
-    Parameters are relaxed slightly (delta=0.03) to reflect realistic probe micro-variance.
-    """
-    import fcntl
-    import time as _time
-    from app.ezo_i2c_stabilized import EZO
-    start = _time.monotonic()
-    readings = []
-
-    def _locked_read(timeout: float = 4.5, fast_fail: bool = False):
-        try:
-            ph_dev = EZO(1, 0x63, "pH")  # I2C bus 1, address 0x63
-            # Disable continuous mode
-            ph_dev.cmd("C,0", read_len=0, settle=0.3)
-            # Read pH value with Atlas 'R' command
-            # Use shorter timeout for fast fail mode to avoid long hangs when hardware is unavailable
-            actual_timeout = 0.5 if fast_fail else timeout
-            value_str = ph_dev.read_value("R", timeout=actual_timeout, poll=0.15)
-            if value_str:
-                return float(value_str.split(',')[0].strip())
-        except RuntimeError as e:
-            # EZO raises RuntimeError when SMBus is not available (Windows/test env)
-            # Re-raise to signal hardware unavailability
-            raise
-        except Exception:
-            pass
-        return None
-
-    lock_path = "/tmp/rdwc_calib.lock"
-    attempt = 0
-    consecutive_failures = 0
-    hardware_unavailable = False
-    while _time.monotonic() - start < float(timeout_s):
-        attempt += 1
-        # Start with short timeout for first attempt, then use fast_fail for subsequent
-        # This avoids long hangs when hardware is genuinely unavailable
-        fast_fail = attempt > 1 or consecutive_failures > 0
-        read_timeout = 1.0 if attempt == 1 else (0.5 if fast_fail else 4.5)
-        lock_fd = None
-        try:
-            lock_fd = open(lock_path, 'w')
-            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
-            _time.sleep(0.3)
-            val = _locked_read(timeout=read_timeout, fast_fail=fast_fail)
-        except RuntimeError:
-            # Hardware not available (e.g., SMBus unavailable in test env)
-            hardware_unavailable = True
-            val = None
-        except Exception:
-            val = None
-        finally:
-            if lock_fd:
-                try:
-                    fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-                    lock_fd.close()
-                except Exception:
-                    pass
-        
-        # Exit immediately if hardware is unavailable
-        if hardware_unavailable:
-            return {"ok": False, "stable": False, "value": None, "samples": len(readings), "duration_s": round(_time.monotonic() - start, 3), "error": "Hardware unavailable"}
-
-        if val is not None:
-            consecutive_failures = 0
-            readings.append(val)
-            if len(readings) >= int(min_samples):
-                last = readings[-1]
-                prev = readings[-2]
-                recent = readings[-3:]
-                max_dev = max(recent) - min(recent)
-                if abs(last - prev) <= float(delta) and max_dev <= float(delta) * 1.5:
-                    return {"ok": True, "stable": True, "value": round(last, 3), "samples": len(readings), "duration_s": round(_time.monotonic() - start, 3)}
-        else:
-            consecutive_failures += 1
-            # Fail fast if hardware appears unavailable (3 consecutive failures)
-            if consecutive_failures >= 3:
-                return {"ok": False, "stable": False, "value": None, "samples": len(readings), "duration_s": round(_time.monotonic() - start, 3), "error": "Hardware unavailable"}
-        # Use shorter sleep in fast fail mode
-        sleep_time = 0.5 if fast_fail else float(poll_s)
-        _time.sleep(sleep_time)
-
-    return {"ok": True, "stable": False, "value": (round(readings[-1], 3) if readings else None), "samples": len(readings), "duration_s": round(_time.monotonic() - start, 3)}
+    """Wait for pH reading to stabilize - delegated to sensor_controller."""
+    from app.sensor_controller import read_ph_stable
+    return read_ph_stable(timeout_s, delta, min_samples, poll_s)
 
 @app.post("/calib/leds/on")
 def calib_leds_on():
-    try:
-        from app import ezo_i2c as _ezo
-        out = _ezo.enable_all_leds(True)
-        return {"ok": True, **out}
-    except Exception as ex:
-        return {"ok": False, "note": type(ex).__name__}
+    from app.sensor_controller import set_sensor_leds
+    return set_sensor_leds(True)
 
 @app.post("/calib/leds/off")
 def calib_leds_off():
-    try:
-        from app import ezo_i2c as _ezo
-        out = _ezo.enable_all_leds(False)
-        return {"ok": True, **out}
-    except Exception as ex:
-        return {"ok": False, "note": type(ex).__name__}
+    from app.sensor_controller import set_sensor_leds
+    return set_sensor_leds(False)
 
 @app.post("/calib/leds/blink")
 def calib_leds_blink(count: int = 8, period_s: float = 0.25):
-    try:
-        from app import ezo_i2c as _ezo
-        out = _ezo.blink_leds(count=count, period_s=period_s)
-        return out
-    except Exception as ex:
-        return {"ok": False, "note": type(ex).__name__}
+    from app.sensor_controller import flash_sensor_leds
+    return flash_sensor_leds(count, period_s)
 
 # ---------------- Dosing Calibration ------------------------------
 _PUMP_MAP = {
@@ -3884,107 +3635,32 @@ def calib_ph_clear():
     chk = _require_enabled()
     if chk:
         return chk
-    # Use same I2C lock and longer timeouts as calibration points
-    import fcntl
-    lock_path = "/tmp/rdwc_calib.lock"
-    lock_fd = None
-    try:
-        lock_fd = open(lock_path, 'w')
-        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
-        time.sleep(1.0)  # allow in-flight reads to finish
-        st, payload = _ph_cmd("Cal,clear", settle=1.2, timeout=4.0)
-        from app import ezo_i2c as _ezo
-        ok = (st == _ezo.EZO_STATUS_SUCCESS)
-        if not ok and st == _ezo.EZO_STATUS_SYNTAX_ERROR:
-            # One retry on syntax error
-            time.sleep(0.5)
-            st, payload = _ph_cmd("Cal,clear", settle=1.6, timeout=5.0)
-            ok = (st == _ezo.EZO_STATUS_SUCCESS)
-        return {"ok": ok, "note": payload or ("Cleared" if ok else f"Status {st}")}
-    finally:
-        if lock_fd:
-            try:
-                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-                lock_fd.close()
-            except Exception:
-                pass
-
-def _apply_point(kind: str, value: float):
-    import logging
-    log = logging.getLogger("calib")
-    log.info(f"[CALIB] apply kind={kind} raw_value={value}")
-    chk = _require_enabled()
-    if chk:
-        log.warning(f"[CALIB] rejected (disabled): {chk}")
-        return chk
-    v = max(0.0, min(14.0, float(value)))
-    log.info(f"[CALIB] normalized value={v:.2f}")
-    
-    # CRITICAL: Pause sensor polling to avoid I2C bus contention during calibration
-    import fcntl
-    lock_path = "/tmp/rdwc_calib.lock"
-    lock_fd = None
-    try:
-        # Acquire exclusive lock to block sensor polling
-        lock_fd = open(lock_path, 'w')
-        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
-        
-        # Wait for any in-flight sensor read to complete
-        time.sleep(2.0)
-        
-        # Atlas Scientific EZO pH: Cal,mid,7.00 or Cal,low,4.00 or Cal,high,10.00
-        # Calibration commands take 900ms-1600ms, use longer timeout
-        # Attempt up to 3 times with progressively longer settle/timeout for transient 2/254/255 states
-        from app import ezo_i2c as _ezo
-        attempts = [
-            (1.6, 5.0),
-            (2.2, 6.5),
-            (2.8, 8.0),
-        ]
-        last_st, last_payload = None, ""
-        for idx, (settle_s, to_s) in enumerate(attempts, start=1):
-            # Defensive: ensure continuous is off and device is ready between tries
-            try:
-                from app.infra.i2c_bus import get_bus as _get_bus
-                bus = _get_bus()
-                _ezo._send_cmd(bus, _ezo.ADDR_PH, "C,0")
-                time.sleep(0.25)
-                _ezo._poll_until_ready(bus, _ezo.ADDR_PH, timeout_s=2.0)
-            except Exception:
-                pass
-
-            st, payload = _ph_cmd(f"Cal,{kind},{v:.2f}", settle=settle_s, timeout=to_s)
-            last_st, last_payload = st, payload
-            if st == _ezo.EZO_STATUS_SUCCESS:
-                log.info(f"[CALIB] success on attempt {idx} settle={settle_s} timeout={to_s}")
-                return {"ok": True, "note": payload or f"{kind.title()} calibrated at {v:.2f}"}
-
-            # If syntax error (2), pending (254) or timeout/other (255/0), back off then retry
-            log.warning(f"[CALIB] attempt {idx} non-success status={st} payload='{payload}', backing off")
-            time.sleep(0.8 if idx == 1 else 1.2)
-
-        log.error(f"[CALIB] all attempts failed, status={last_st} payload='{last_payload}'")
-        return {"ok": False, "note": f"Status {last_st}, response: '{last_payload}'"}
-    finally:
-        # Always release lock
-        if lock_fd:
-            try:
-                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-                lock_fd.close()
-            except Exception:
-                pass
+    from app.sensor_controller import clear_ph_calibration
+    return clear_ph_calibration()
 
 @app.post("/calib/ph/mid")
 def calib_ph_mid(value: float = 7.00):
-    return _apply_point("mid", value)
+    chk = _require_enabled()
+    if chk:
+        return chk
+    from app.sensor_controller import calibrate_ph_point
+    return calibrate_ph_point("mid", value)
 
 @app.post("/calib/ph/low")
 def calib_ph_low(value: float = 4.00):
-    return _apply_point("low", value)
+    chk = _require_enabled()
+    if chk:
+        return chk
+    from app.sensor_controller import calibrate_ph_point
+    return calibrate_ph_point("low", value)
 
 @app.post("/calib/ph/high")
 def calib_ph_high(value: float = 10.00):
-    return _apply_point("high", value)
+    chk = _require_enabled()
+    if chk:
+        return chk
+    from app.sensor_controller import calibrate_ph_point
+    return calibrate_ph_point("high", value)
 
 
 # EC Calibration Endpoints (unified via sensor_controller)

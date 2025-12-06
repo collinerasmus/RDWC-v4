@@ -84,15 +84,6 @@ def read_all_sensors() -> Dict[str, Any]:
             "errors": {"read": str(e)}
         }
 
-    DEADLINE_S = float(os.getenv("RDWC_SENSORS_READ_DEADLINE_S", "2.5"))
-    t0 = time.time()
-    
-    def left() -> float:
-        return DEADLINE_S - (time.time() - t0)
-
-    def timed_out() -> bool:
-        return left() <= 0.0
-
 
 
 def get_last_temp_comp_state() -> Dict[str, Any]:

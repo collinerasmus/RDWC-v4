@@ -650,3 +650,310 @@ def flash_sensor_leds(count: int = 8, period_s: float = 0.25) -> Dict[str, Any]:
 
     _send_all("L,1")
     return {"ok": True, "flashes": cnt, "period_s": period}
+
+
+# ==================== pH Calibration Functions ====================
+
+
+def read_ph_single() -> Dict[str, Any]:
+    """
+    Perform a single locked pH reading for calibration UI.
+    Uses calibration lock to avoid contention with sensor poller.
+    
+    Returns:
+        {"ok": bool, "value": float, "note": str}
+    """
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "note": "HardwareUnavailable"}
+    
+    # Acquire lock
+    if not _acquire_calib_lock():
+        return {"ok": False, "note": "Calibration lock held by sensor poller"}
+    
+    try:
+        # Wait for any in-flight sensor read to complete
+        time.sleep(1.0)
+        
+        ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
+        try:
+            # Disable continuous mode
+            ph.cmd("C,0", read_len=0, settle=0.3)
+            
+            # Retry read up to 3 times
+            for attempt in range(3):
+                try:
+                    value_str = ph.read_value(timeout=3.0)
+                    if value_str:
+                        # Parse first token (pH value)
+                        val = float(value_str.split(",")[0].strip())
+                        return {"ok": True, "value": round(val, 3)}
+                except Exception as e:
+                    logger.debug(f"pH read attempt {attempt + 1} failed: {e}")
+                    if attempt < 2:
+                        time.sleep(0.5)
+            
+            return {"ok": False, "note": "NoData"}
+        finally:
+            ph.close()
+    except Exception as e:
+        logger.error(f"pH single read failed: {e}")
+        return {"ok": False, "note": str(e)}
+    finally:
+        _release_calib_lock()
+
+
+def read_ph_stable(timeout_s: float = 25.0, delta: float = 0.03, 
+                   min_samples: int = 4, poll_s: float = 2.0) -> Dict[str, Any]:
+    """
+    Wait for pH reading to stabilize.
+    
+    Args:
+        timeout_s: Maximum time to wait for stability
+        delta: Maximum allowed difference between consecutive readings
+        min_samples: Minimum number of samples before declaring stable
+        poll_s: Time between samples
+        
+    Returns:
+        {
+            "ok": bool,
+            "stable": bool,
+            "value": float or None,
+            "samples": int,
+            "duration_s": float
+        }
+    """
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "stable": False, "note": "HardwareUnavailable"}
+    
+    start_time = time.time()
+    readings = []
+    
+    while time.time() - start_time < timeout_s:
+        result = read_ph_single()
+        
+        if not result.get("ok"):
+            # If hardware unavailable, exit immediately
+            if "HardwareUnavailable" in result.get("note", ""):
+                return {
+                    "ok": False,
+                    "stable": False,
+                    "note": "HardwareUnavailable",
+                    "samples": len(readings),
+                    "duration_s": time.time() - start_time
+                }
+            # Otherwise continue trying
+            time.sleep(poll_s)
+            continue
+        
+        value = result.get("value")
+        if value is not None:
+            readings.append(value)
+        
+        # Check for stability
+        if len(readings) >= min_samples:
+            # Check if last readings are within delta
+            recent = readings[-min_samples:]
+            max_val = max(recent)
+            min_val = min(recent)
+            if max_val - min_val <= delta:
+                avg_val = sum(recent) / len(recent)
+                return {
+                    "ok": True,
+                    "stable": True,
+                    "value": round(avg_val, 3),
+                    "samples": len(readings),
+                    "duration_s": round(time.time() - start_time, 1)
+                }
+        
+        time.sleep(poll_s)
+    
+    # Timeout - not stable
+    avg_val = sum(readings) / len(readings) if readings else None
+    return {
+        "ok": True,
+        "stable": False,
+        "value": round(avg_val, 3) if avg_val is not None else None,
+        "samples": len(readings),
+        "duration_s": round(time.time() - start_time, 1),
+        "note": "Timeout - reading did not stabilize"
+    }
+
+
+def get_ph_calibration_status() -> Dict[str, Any]:
+    """
+    Get current pH calibration status.
+    
+    Returns:
+        {
+            "ok": bool,
+            "status": str (raw response),
+            "flags": list (parsed calibration points),
+            "points": list (friendly point names)
+        }
+    """
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "error": "I2C not available"}
+    
+    # Acquire lock for status query
+    if not _acquire_calib_lock():
+        return {"ok": False, "error": "Calibration lock held by sensor poller"}
+    
+    try:
+        time.sleep(0.6)  # Allow in-flight reads to complete
+        
+        ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
+        try:
+            response = ph.cmd("Cal,?", read_len=32, settle=1.0)
+            
+            # Parse response
+            flags = []
+            if response:
+                parts = [p.strip() for p in response.split(",") if p.strip()]
+                # Remove leading '?' if present
+                if parts and parts[0] == '?':
+                    parts = parts[1:]
+                flags = parts
+            
+            # Derive friendly point names
+            points = []
+            if flags:
+                # If any non-numeric tokens beyond first, treat them as explicit calibration points
+                named = [f for f in flags if not f.isdigit() and f.lower() not in ("?cal",)]
+                if named:
+                    points = named
+                else:
+                    # Numeric-only form; first numeric token = count
+                    nums = [int(f) for f in flags if f.isdigit()]
+                    if nums:
+                        cnt = nums[0]
+                        if cnt == 1:
+                            points = ["mid"]
+                        elif cnt == 2:
+                            points = ["mid", "low"]
+                        elif cnt >= 3:
+                            points = ["mid", "low", "high"]
+            
+            return {
+                "ok": True,
+                "status": response or "No response",
+                "flags": flags,
+                "points": points
+            }
+        finally:
+            ph.close()
+    except Exception as e:
+        logger.error(f"Failed to get pH calibration status: {e}")
+        return {"ok": False, "error": str(e)}
+    finally:
+        _release_calib_lock()
+
+
+def clear_ph_calibration() -> Dict[str, Any]:
+    """
+    Clear all pH calibration points.
+    
+    Returns:
+        {"ok": bool, "note": str}
+    """
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "note": "I2C not available"}
+    
+    # Acquire lock
+    if not _acquire_calib_lock():
+        return {"ok": False, "note": "Calibration lock held by sensor poller"}
+    
+    try:
+        time.sleep(1.0)  # Allow in-flight reads to finish
+        
+        ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
+        try:
+            response = ph.cmd("Cal,clear", read_len=32, settle=1.2)
+            
+            # Check if successful - EZO typically returns "1" or empty string on success
+            if response is not None:
+                logger.info("pH calibration cleared")
+                return {"ok": True, "note": "Cleared"}
+            else:
+                # Retry once on failure
+                time.sleep(0.5)
+                response = ph.cmd("Cal,clear", read_len=32, settle=1.6)
+                if response is not None:
+                    logger.info("pH calibration cleared (retry)")
+                    return {"ok": True, "note": "Cleared"}
+                else:
+                    return {"ok": False, "note": "Clear failed"}
+        finally:
+            ph.close()
+    except Exception as e:
+        logger.error(f"Failed to clear pH calibration: {e}")
+        return {"ok": False, "note": str(e)}
+    finally:
+        _release_calib_lock()
+
+
+def calibrate_ph_point(point: str, value: float) -> Dict[str, Any]:
+    """
+    Apply pH calibration at a specific point (mid, low, or high).
+    
+    Args:
+        point: Calibration point name ("mid", "low", or "high")
+        value: pH value of the calibration buffer
+        
+    Returns:
+        {"ok": bool, "note": str}
+    """
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "note": "I2C not available"}
+    
+    # Validate inputs
+    if point not in ("mid", "low", "high"):
+        return {"ok": False, "note": f"Invalid point: {point}"}
+    
+    value = max(0.0, min(14.0, float(value)))
+    
+    # Acquire lock
+    if not _acquire_calib_lock():
+        return {"ok": False, "note": "Calibration lock held by sensor poller"}
+    
+    try:
+        # Wait for any in-flight sensor read to complete
+        time.sleep(2.0)
+        
+        ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
+        try:
+            # Ensure continuous mode is off and device is ready
+            ph.cmd("C,0", read_len=0, settle=0.25)
+            time.sleep(0.25)
+            
+            # Attempt calibration with progressively longer settle times
+            attempts = [
+                (1.6, 5.0),
+                (2.2, 6.5),
+                (2.8, 8.0),
+            ]
+            
+            for idx, (settle_s, timeout_s) in enumerate(attempts, start=1):
+                try:
+                    response = ph.cmd(f"Cal,{point},{value:.2f}", read_len=32, settle=settle_s)
+                    
+                    # Consider it successful if we get any response or empty string
+                    # EZO pH returns "1" on success or empty string
+                    if response is not None:
+                        logger.info(f"pH {point} calibration success on attempt {idx}")
+                        return {
+                            "ok": True,
+                            "note": f"{point.title()} calibrated at {value:.2f}"
+                        }
+                except Exception as e:
+                    logger.warning(f"pH calibration attempt {idx} failed: {e}")
+                    if idx < len(attempts):
+                        time.sleep(0.8)
+            
+            return {"ok": False, "note": "All calibration attempts failed"}
+        finally:
+            ph.close()
+    except Exception as e:
+        logger.error(f"pH calibration failed: {e}")
+        return {"ok": False, "note": str(e)}
+    finally:
+        _release_calib_lock()
