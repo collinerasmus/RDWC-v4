@@ -274,14 +274,16 @@ def calibrate_ec_dry() -> Dict[str, Any]:
         _release_calib_lock()
 
 
-def calibrate_ec_low(us_cm: float = 84) -> Dict[str, Any]:
+def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
     """
     Apply EC low-point calibration.
-    For K=0.1 probes, use 84 µS/cm calibration solution.
-    For K=1.0 probes, use 1413 µS/cm calibration solution.
+    Automatically selects default based on current K value:
+    - K=0.1: 84 µS/cm (default)
+    - K=1.0: 1413 µS/cm
+    - K=10.0: 12880 µS/cm
     
     Args:
-        us_cm: Low calibration point in µS/cm (default 84 for K=0.1)
+        us_cm: Low calibration point in µS/cm (None to use K-based default)
     
     Returns:
         {
@@ -301,6 +303,22 @@ def calibrate_ec_low(us_cm: float = 84) -> Dict[str, Any]:
     try:
         from .settings import get_all_settings
         
+        # Get K value to determine default calibration value
+        settings = get_all_settings()
+        k_value = float(settings.get("ec.k_value", "0.1"))
+        
+        # Auto-select calibration value based on K if not specified
+        if us_cm is None:
+            if k_value == 0.1:
+                us_cm = 84
+            elif k_value == 1.0:
+                us_cm = 1413
+            elif k_value == 10.0:
+                us_cm = 12880
+            else:
+                # Unknown K, default to K=0.1 value
+                us_cm = 84
+        
         ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
         try:
             # Apply calibration
@@ -309,9 +327,7 @@ def calibrate_ec_low(us_cm: float = 84) -> Dict[str, Any]:
             # Brief settle
             time.sleep(0.5)
             
-            # Restore K from settings
-            settings = get_all_settings()
-            k_value = float(settings.get("ec.k_value", "0.1"))
+            # Restore K from settings (already loaded above)
             k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.3)
             
             logger.info(f"EC low calibration applied at {us_cm} µS/cm, K restored to {k_value}")
@@ -330,14 +346,16 @@ def calibrate_ec_low(us_cm: float = 84) -> Dict[str, Any]:
         _release_calib_lock()
 
 
-def calibrate_ec_high(us_cm: float = 10000) -> Dict[str, Any]:
+def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
     """
     Apply EC high-point calibration.
-    For K=0.1 probes, use 10000 µS/cm calibration solution.
-    For K=1.0 probes, use 12880 µS/cm calibration solution.
+    Automatically selects default based on current K value:
+    - K=0.1: 10000 µS/cm (default)
+    - K=1.0: 12880 µS/cm
+    - K=10.0: 80000 µS/cm
     
     Args:
-        us_cm: High calibration point in µS/cm (default 10000 for K=0.1)
+        us_cm: High calibration point in µS/cm (None to use K-based default)
     
     Returns:
         {
@@ -357,6 +375,22 @@ def calibrate_ec_high(us_cm: float = 10000) -> Dict[str, Any]:
     try:
         from .settings import get_all_settings
         
+        # Get K value to determine default calibration value
+        settings = get_all_settings()
+        k_value = float(settings.get("ec.k_value", "0.1"))
+        
+        # Auto-select calibration value based on K if not specified
+        if us_cm is None:
+            if k_value == 0.1:
+                us_cm = 10000
+            elif k_value == 1.0:
+                us_cm = 12880
+            elif k_value == 10.0:
+                us_cm = 80000
+            else:
+                # Unknown K, default to K=0.1 value
+                us_cm = 10000
+        
         ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
         try:
             # Apply calibration
@@ -365,9 +399,7 @@ def calibrate_ec_high(us_cm: float = 10000) -> Dict[str, Any]:
             # Brief settle
             time.sleep(0.5)
             
-            # Restore K from settings
-            settings = get_all_settings()
-            k_value = float(settings.get("ec.k_value", "0.1"))
+            # Restore K from settings (already loaded above)
             k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.3)
             
             logger.info(f"EC high calibration applied at {us_cm} µS/cm, K restored to {k_value}")

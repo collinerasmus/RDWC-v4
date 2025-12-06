@@ -4008,7 +4008,8 @@ def ec_cal_dry():
 async def ec_cal_low(request: Request):
     """
     Apply EC low-point calibration.
-    Default: 84 µS/cm for K=0.1 probes, or pass custom value via {"us_cm": value}
+    Automatically selects default based on K value, or pass custom value via {"us_cm": value}
+    K=0.1: 84 µS/cm, K=1.0: 1413 µS/cm, K=10.0: 12880 µS/cm
     """
     from app.sensor_controller import calibrate_ec_low
     try:
@@ -4017,8 +4018,8 @@ async def ec_cal_low(request: Request):
         payload = {}
     if not isinstance(payload, dict):
         payload = {}
-    # Default to 84 for K=0.1, allow override
-    us_cm = payload.get("us_cm", 84)
+    # Use None to trigger K-based auto-selection, or allow override
+    us_cm = payload.get("us_cm", None)
     return calibrate_ec_low(us_cm)
 
 
@@ -4026,7 +4027,8 @@ async def ec_cal_low(request: Request):
 async def ec_cal_high(request: Request):
     """
     Apply EC high-point calibration.
-    Default: 10000 µS/cm for K=0.1 probes, or pass custom value via {"us_cm": value}
+    Automatically selects default based on K value, or pass custom value via {"us_cm": value}
+    K=0.1: 10000 µS/cm, K=1.0: 12880 µS/cm, K=10.0: 80000 µS/cm
     """
     from app.sensor_controller import calibrate_ec_high
     try:
@@ -4035,8 +4037,8 @@ async def ec_cal_high(request: Request):
         payload = {}
     if not isinstance(payload, dict):
         payload = {}
-    # Default to 10000 for K=0.1, allow override
-    us_cm = payload.get("us_cm", 10000)
+    # Use None to trigger K-based auto-selection, or allow override
+    us_cm = payload.get("us_cm", None)
     return calibrate_ec_high(us_cm)
 
 

@@ -192,8 +192,9 @@
       if (kChip) {
         kChip.textContent = k != null ? `K=${k}` : 'K=—';
         // Success if K=0.1 (correct for K=0.1 probes), warning for other values
-        kChip.className = 'ui-status-chip ' + (k === 0.1 ? 'success' : (k > 0 ? 'warning' : 'neutral'));
-        kChip.title = k === 0.1 ? 'K=0.1 (correct for K=0.1 probe)' : (k > 0 ? `K=${k} (verify probe type)` : 'K factor not set');
+        // Use tolerance for floating point comparison
+        kChip.className = 'ui-status-chip ' + (Math.abs(k - 0.1) < 0.01 ? 'success' : (k > 0 ? 'warning' : 'neutral'));
+        kChip.title = Math.abs(k - 0.1) < 0.01 ? 'K=0.1 (correct for K=0.1 probe)' : (k > 0 ? `K=${k} (verify probe type)` : 'K factor not set');
       }
       
       // Update Cal chip
@@ -863,25 +864,27 @@
     }catch(err){ showCalMessage('✗ '+err.message, 'error'); }
   }
   async function ecCalLow(){
-    if(!confirm('Apply low-point (84 µS/cm for K=0.1)? Probe must be in calibration solution and stable (30s).')) return;
+    if(!confirm('Apply low-point calibration? Value auto-selected based on K factor. Probe must be in calibration solution and stable (30s).')) return;
     try{
-      const r = await fetch('/api/ec/cal/low', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({us_cm:84})});
+      // Don't pass us_cm to use K-based auto-selection
+      const r = await fetch('/api/ec/cal/low', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({})});
       const j = await r.json();
       showCalMessage(j.ok ? ('✓ '+j.response) : ('✗ '+j.error), j.ok?'success':'error');
       if(j.ok) setTimeout(refreshCalStatus, 1000);
     }catch(err){ showCalMessage('✗ '+err.message, 'error'); }
   }
   async function ecCalHigh(){
-    if(!confirm('Apply high-point (10000 µS/cm for K=0.1)? Requires dry and low-point first. Probe must be in calibration solution and stable (30s).')) return;
+    if(!confirm('Apply high-point calibration? Value auto-selected based on K factor. Requires dry and low-point first. Probe must be in calibration solution and stable (30s).')) return;
     try{
-      const r = await fetch('/api/ec/cal/high', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({us_cm:10000})});
+      // Don't pass us_cm to use K-based auto-selection
+      const r = await fetch('/api/ec/cal/high', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({})});
       const j = await r.json();
       showCalMessage(j.ok ? ('✓ '+j.response) : ('✗ '+j.error), j.ok?'success':'error');
       if(j.ok) setTimeout(refreshCalStatus, 1000);
     }catch(err){ showCalMessage('✗ '+err.message, 'error'); }
   }
   async function ecSetK(){
-    const k = prompt('Enter K factor (probe constant, 0.1 for K=0.1 probes, 1.0 for K=1.0 probes, or 10.0 for K=10 probes):', '0.1');
+    const k = prompt('Enter K factor (0.1, 1.0, or 10.0):', '0.1');
     if(!k) return;
     const kVal = parseFloat(k);
     if(isNaN(kVal) || kVal <= 0){ alert('Invalid K value'); return; }
