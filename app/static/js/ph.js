@@ -653,6 +653,8 @@
     // Central log append with type coloring
     function appendLog(message, type='info'){
       if(!logEl) return;
+      // Make log visible when messages are appended
+      logEl.style.display = 'block';
       const div = document.createElement('div');
       let color = '#9ca3af';
       if(type==='error') color = '#f87171';
@@ -669,6 +671,8 @@
       if(msgEl){
         msgEl.textContent = message || '';
         msgEl.style.color = ok ? '#e5e7eb' : '#fca5a5';
+        // Make message visible when set
+        msgEl.style.display = 'block';
       }
       const t = typeOverride || (ok ? 'info' : 'error');
       appendLog(message, t);

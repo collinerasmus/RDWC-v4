@@ -899,6 +899,8 @@
     const msgEl = el('ecCalMessage');
     if(!msgEl) return;
     msgEl.textContent = msg;
+    // Make message visible when set
+    msgEl.style.display = 'block';
     const colors = {
       success: {bg:'rgba(34,197,94,0.08)', border:'rgba(34,197,94,0.3)', text:'#a7f3d0'},
       error: {bg:'rgba(239,68,68,0.08)', border:'rgba(239,68,68,0.3)', text:'#fecaca'},
