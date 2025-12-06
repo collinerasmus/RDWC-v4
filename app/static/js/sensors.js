@@ -293,6 +293,12 @@
         // Use PollingManager cache instead of direct fetch
         const data = await window.PollingManager.getSensors();
         console.log('[Sensors] Fetched data:', data);
+
+        // Guard against unexpected empty/undefined payloads to avoid TypeError loops
+        if (!data || typeof data !== 'object') {
+          console.warn('[Sensors] Missing/invalid sensors payload, skipping update');
+          return;
+        }
         
         // Direct DOM updates - only if value changed after formatting
         const tempEl = document.getElementById('kpiTemp');
