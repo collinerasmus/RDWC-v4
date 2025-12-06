@@ -247,23 +247,47 @@ def calibrate_ec_dry() -> Dict[str, Any]:
         
         ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
         try:
-            # Apply dry calibration
-            response = ec.cmd("Cal,dry", read_len=32, settle=0.9)
+            # Ensure continuous mode is OFF before calibration
+            ec.cmd("C,0", read_len=0, settle=0.3)
+            time.sleep(0.5)
             
-            # Brief settle
+            # Send dry calibration command
+            # Note: Atlas EZO calibration commands take 600-900ms to process
+            # We need to wait and poll for completion
+            ec._write("Cal,dry".encode('ascii'))
+            time.sleep(1.5)  # Wait for processing (Atlas spec: 600-900ms)
+            
+            # Poll for completion - check multiple times
+            success = False
+            for attempt in range(5):
+                raw = ec._read(32)
+                if raw and len(raw) > 0:
+                    status = raw[0]
+                    if status == 1:  # Success
+                        success = True
+                        break
+                    elif status == 254:  # Still processing
+                        time.sleep(0.3)
+                        continue
+                time.sleep(0.2)
+            
+            if not success:
+                return {"ok": False, "error": "Dry calibration command not acknowledged by probe - ensure probe is dry and try again"}
+            
+            # Wait before K restore
             time.sleep(0.5)
             
             # Restore K from settings
             settings = get_all_settings()
             k_value = float(settings.get("ec.k_value", "0.1"))
-            k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.3)
+            k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
             
             logger.info(f"EC dry calibration applied, K restored to {k_value}")
             return {
                 "ok": True,
-                "response": response or "Dry calibration applied",
+                "response": "Dry calibration applied",
                 "k_value": k_value,
-                "k_response": k_response or f"K={k_value} restored"
+                "k_response": k_response or f"K={k_value} set"
             }
         finally:
             ec.close()
@@ -321,21 +345,43 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
         
         ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
         try:
-            # Apply calibration
-            response = ec.cmd(f"Cal,low,{int(us_cm)}", read_len=32, settle=0.9)
+            # Ensure continuous mode OFF
+            ec.cmd("C,0", read_len=0, settle=0.3)
+            time.sleep(0.3)
             
-            # Brief settle
+            # Send low calibration command and poll for completion
+            ec._write(f"Cal,low,{int(us_cm)}".encode('ascii'))
+            time.sleep(1.5)  # Wait for processing (Atlas spec: 600-900ms)
+            
+            # Poll for completion
+            success = False
+            for attempt in range(5):
+                raw = ec._read(32)
+                if raw and len(raw) > 0:
+                    status = raw[0]
+                    if status == 1:  # Success
+                        success = True
+                        break
+                    elif status == 254:  # Still processing
+                        time.sleep(0.3)
+                        continue
+                time.sleep(0.2)
+            
+            if not success:
+                return {"ok": False, "error": f"Low calibration command not acknowledged - ensure probe is in {us_cm} µS/cm solution"}
+            
+            # Wait before K restore
             time.sleep(0.5)
             
             # Restore K from settings (already loaded above)
-            k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.3)
+            k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
             
             logger.info(f"EC low calibration applied at {us_cm} µS/cm, K restored to {k_value}")
             return {
                 "ok": True,
-                "response": response or f"Low calibration applied at {us_cm} µS/cm",
+                "response": f"Low calibration applied at {us_cm} µS/cm",
                 "k_value": k_value,
-                "k_response": k_response or f"K={k_value} restored"
+                "k_response": k_response or f"K={k_value} set"
             }
         finally:
             ec.close()
@@ -393,21 +439,43 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
         
         ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
         try:
-            # Apply calibration
-            response = ec.cmd(f"Cal,high,{int(us_cm)}", read_len=32, settle=0.9)
+            # Ensure continuous mode OFF
+            ec.cmd("C,0", read_len=0, settle=0.3)
+            time.sleep(0.3)
             
-            # Brief settle
+            # Send high calibration command and poll for completion
+            ec._write(f"Cal,high,{int(us_cm)}".encode('ascii'))
+            time.sleep(1.5)  # Wait for processing (Atlas spec: 600-900ms)
+            
+            # Poll for completion
+            success = False
+            for attempt in range(5):
+                raw = ec._read(32)
+                if raw and len(raw) > 0:
+                    status = raw[0]
+                    if status == 1:  # Success
+                        success = True
+                        break
+                    elif status == 254:  # Still processing
+                        time.sleep(0.3)
+                        continue
+                time.sleep(0.2)
+            
+            if not success:
+                return {"ok": False, "error": f"High calibration command not acknowledged - ensure probe is in {us_cm} µS/cm solution"}
+            
+            # Wait before K restore
             time.sleep(0.5)
             
             # Restore K from settings (already loaded above)
-            k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.3)
+            k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
             
             logger.info(f"EC high calibration applied at {us_cm} µS/cm, K restored to {k_value}")
             return {
                 "ok": True,
-                "response": response or f"High calibration applied at {us_cm} µS/cm",
+                "response": f"High calibration applied at {us_cm} µS/cm",
                 "k_value": k_value,
-                "k_response": k_response or f"K={k_value} restored"
+                "k_response": k_response or f"K={k_value} set"
             }
         finally:
             ec.close()
