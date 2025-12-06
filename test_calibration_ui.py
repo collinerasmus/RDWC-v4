@@ -120,7 +120,7 @@ def test_calibration_ui_elements_match():
     
     # EC calibration elements expected in HTML:
     ec_elements = [
-        "ecCalMessage",         # Message display element (fixed from ec-calib-msg)
+        "ecCalMessage",         # Message display element (uses camelCase, not ec-calib-msg)
         "ecCalStatusValue",     # Calibration status
         "ecKValue",             # K factor display
         "ecCalCurrentReading",  # Current EC reading

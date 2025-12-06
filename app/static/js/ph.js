@@ -753,6 +753,9 @@
       finally { setCalibBusy(false); }
     });
 
+    // Calibration status refresh delay (ms) - brief delay to let backend commit changes
+    const CALIB_STATUS_REFRESH_DELAY = 500;
+    
     // Extracted status refresh function for reuse
     async function refreshPhCalibStatus(showLoading = true) {
       if(showLoading) setMsg('⏳ Checking calibration status...');
@@ -794,7 +797,7 @@
         if (r && r.ok){ 
           setMsg(`✓ ${r.note || 'Calibration successful'}`, true, 'success'); 
           // Auto-refresh status after successful calibration
-          setTimeout(() => refreshPhCalibStatus(false), 500);
+          setTimeout(() => refreshPhCalibStatus(false), CALIB_STATUS_REFRESH_DELAY);
         }
         else { setMsg(`✗ ${(r && r.note) || `Calibration failed (HTTP ${resp.status})`}`, false); }
       }catch(e){ setMsg(`✗ Calibration failed (network): ${e.message}`, false); }
@@ -810,7 +813,7 @@
         if (r && r.ok){ 
           setMsg(`✓ ${r.note || 'Calibration cleared'}`, true, 'warn'); 
           // Auto-refresh status after clearing
-          setTimeout(() => refreshPhCalibStatus(false), 500);
+          setTimeout(() => refreshPhCalibStatus(false), CALIB_STATUS_REFRESH_DELAY);
         }
         else { setMsg(`✗ ${(r && r.note) || 'Clear rejected'}`, false); }
       }catch(e){ setMsg(`✗ Clear failed (network): ${e.message}`, false); }
