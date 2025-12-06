@@ -350,7 +350,7 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
     """
     Apply EC high-point calibration.
     Automatically selects default based on current K value:
-    - K=0.1: 10000 µS/cm (default)
+    - K=0.1: 1413 µS/cm (standard two-point with 84 low)
     - K=1.0: 12880 µS/cm
     - K=10.0: 80000 µS/cm
     
@@ -382,7 +382,7 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
         # Auto-select calibration value based on K if not specified
         if us_cm is None:
             if k_value == 0.1:
-                us_cm = 10000
+                us_cm = 1413
             elif k_value == 1.0:
                 us_cm = 12880
             elif k_value == 10.0:
