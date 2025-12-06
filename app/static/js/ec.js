@@ -818,6 +818,7 @@
 
   // EC Calibration Wizard
   async function refreshCalStatus(){
+    showCalMessage('⏳ Refreshing calibration status...', 'info');
     try{
       const [statusRes, sensorRes] = await Promise.all([
         fetch('/api/ec/cal/status', {cache:'no-store'}),
@@ -840,13 +841,14 @@
       if(sensorRes && sensorRes.ec_ms_cm != null){
         el('ecCalCurrentReading').textContent = sensorRes.ec_ms_cm.toFixed(2);
       }
-      showCalMessage('Status refreshed', 'info');
+      showCalMessage('✓ Status refreshed', 'success');
     }catch(err){
-      showCalMessage('Error: '+err.message, 'error');
+      showCalMessage('✗ Error: '+err.message, 'error');
     }
   }
   async function ecCalClear(){
     if(!confirm('Clear EC calibration? You will need to recalibrate.')) return;
+    showCalMessage('⏳ Clearing EC calibration...', 'info');
     try{
       const r = await fetch('/api/ec/cal/clear', {method:'POST'});
       const j = await r.json();
@@ -856,6 +858,7 @@
   }
   async function ecCalDry(){
     if(!confirm('Apply dry calibration? Remove probe from all solutions and let it air dry (30s).')) return;
+    showCalMessage('⏳ Applying dry calibration (takes ~2s)...', 'info');
     try{
       const r = await fetch('/api/ec/cal/dry', {method:'POST'});
       const j = await r.json();
@@ -865,6 +868,7 @@
   }
   async function ecCalLow(){
     if(!confirm('Apply low-point calibration? Value auto-selected based on K factor. Probe must be in calibration solution and stable (30s).')) return;
+    showCalMessage('⏳ Applying low-point calibration (takes ~2s)...', 'info');
     try{
       // Don't pass us_cm to use K-based auto-selection
       const r = await fetch('/api/ec/cal/low', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({})});
@@ -875,6 +879,7 @@
   }
   async function ecCalHigh(){
     if(!confirm('Apply high-point calibration? Value auto-selected based on K factor. Requires dry and low-point first. Probe must be in calibration solution and stable (30s).')) return;
+    showCalMessage('⏳ Applying high-point calibration (takes ~2s)...', 'info');
     try{
       // Don't pass us_cm to use K-based auto-selection
       const r = await fetch('/api/ec/cal/high', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({})});
@@ -888,6 +893,7 @@
     if(!k) return;
     const kVal = parseFloat(k);
     if(isNaN(kVal) || kVal <= 0){ alert('Invalid K value'); return; }
+    showCalMessage('⏳ Setting K factor...', 'info');
     try{
       const r = await fetch('/api/ec/k', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({k:kVal})});
       const j = await r.json();
