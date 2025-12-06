@@ -753,25 +753,30 @@
       finally { setCalibBusy(false); }
     });
 
-    el('btnPhStatusInline')?.addEventListener('click', async ()=>{
-      setCalibBusy(true);
+    // Extracted status refresh function for reuse
+    async function refreshPhCalibStatus(showLoading = true) {
+      if(showLoading) setMsg('⏳ Checking calibration status...');
       try{
-        setMsg('⏳ Checking calibration status...');
         const resp = await fetch('/calib/ph/status?t='+Date.now(), {cache:'no-store'});
         const r = await resp.json();
         if (r && r.ok){ 
           const pts = r.points ? (r.points.length? r.points.join(', ') : 'none') : 'none';
           const statusEl = el('ph-current-calib');
           if(statusEl) statusEl.textContent = pts === 'none' ? 'Not calibrated' : pts;
-          setMsg(`✓ Calibration points: ${pts}`, true, 'success'); 
+          if(showLoading) setMsg(`✓ Calibration points: ${pts}`, true, 'success'); 
         } else { 
           const hint = (r && r.note && r.note.includes('NoData')) 
             ? '✗ NoData — probe not responding. Check sensor power & I²C wiring.' 
             : `✗ ${(r && r.note) || 'Status failed'}`;
           setMsg(hint, false); 
         }
-      }catch(e){ setMsg(`✗ Status failed (network): ${e.message}`, false); }
-      finally { setCalibBusy(false); }
+      }catch(e){ if(showLoading) setMsg(`✗ Status failed (network): ${e.message}`, false); }
+    }
+
+    el('btnPhStatusInline')?.addEventListener('click', async ()=>{
+      setCalibBusy(true);
+      await refreshPhCalibStatus(true);
+      setCalibBusy(false);
     });
 
     el('btnPhCalibrateInline')?.addEventListener('click', async ()=>{
@@ -789,9 +794,7 @@
         if (r && r.ok){ 
           setMsg(`✓ ${r.note || 'Calibration successful'}`, true, 'success'); 
           // Auto-refresh status after successful calibration
-          setTimeout(() => {
-            el('btnPhStatusInline')?.click();
-          }, 500);
+          setTimeout(() => refreshPhCalibStatus(false), 500);
         }
         else { setMsg(`✗ ${(r && r.note) || `Calibration failed (HTTP ${resp.status})`}`, false); }
       }catch(e){ setMsg(`✗ Calibration failed (network): ${e.message}`, false); }
@@ -807,9 +810,7 @@
         if (r && r.ok){ 
           setMsg(`✓ ${r.note || 'Calibration cleared'}`, true, 'warn'); 
           // Auto-refresh status after clearing
-          setTimeout(() => {
-            el('btnPhStatusInline')?.click();
-          }, 500);
+          setTimeout(() => refreshPhCalibStatus(false), 500);
         }
         else { setMsg(`✗ ${(r && r.note) || 'Clear rejected'}`, false); }
       }catch(e){ setMsg(`✗ Clear failed (network): ${e.message}`, false); }
