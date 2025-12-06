@@ -6,7 +6,7 @@ This document summarizes the changes made to fix EC probe calibration for K=0.1 
 ## Problem Statement
 The user reported that the EC calibration process was incorrect for their K=0.1 probe:
 - Missing dry calibration step (required for K=0.1 probes)
-- Wrong calibration values (using K=1.0 values: 1413/12880 µS/cm instead of K=0.1 values: 84/10000 µS/cm)
+- Wrong calibration values (needed 84/1413 µS/cm for their K=0.1 calibration solutions)
 - No guidance for probe-specific calibration
 - UI didn't show proper sequence or which steps were completed
 
@@ -25,7 +25,7 @@ Updated calibration functions to auto-select values based on current K factor:
 
 | K Value | Low Point (µS/cm) | High Point (µS/cm) | Use Case |
 |---------|-------------------|-------------------|----------|
-| 0.1 | 84 | 10,000 | Low conductivity (0.5-50 µS/cm) - Hydroponics |
+| 0.1 | 84 | 1,413 | Low conductivity (0.5-50 µS/cm) - Hydroponics |
 | 1.0 | 1,413 | 12,880 | Standard range (5-200,000 µS/cm) |
 | 10.0 | 12,880 | 80,000 | High conductivity (100-1M µS/cm) |
 
@@ -113,7 +113,7 @@ The calibration status endpoint now returns detailed information:
 4. Follow the step-by-step wizard:
    - **Step 1 (Dry)**: Remove probe, air dry 30s, click "Calibrate Dry"
    - **Step 2 (Low)**: Place in 84 µS/cm solution, wait 30s, click "Calibrate Low"
-   - **Step 3 (High)**: Place in 10,000 µS/cm solution, wait 30s, click "Calibrate High"
+   - **Step 3 (High)**: Place in 1,413 µS/cm solution, wait 30s, click "Calibrate High"
 5. Verify all steps show **✓** indicator
 
 ### Via Testing Tool
@@ -143,7 +143,7 @@ curl -X POST http://localhost:8080/api/ec/cal/low \
   -H "Content-Type: application/json" \
   -d '{}'
 
-# High calibration (auto-selects 10000 µS/cm for K=0.1)
+# High calibration (auto-selects 1413 µS/cm for K=0.1)
 curl -X POST http://localhost:8080/api/ec/cal/high \
   -H "Content-Type: application/json" \
   -d '{}'

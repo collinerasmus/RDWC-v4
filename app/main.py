@@ -4028,7 +4028,7 @@ async def ec_cal_high(request: Request):
     """
     Apply EC high-point calibration.
     Automatically selects default based on K value, or pass custom value via {"us_cm": value}
-    K=0.1: 10000 µS/cm, K=1.0: 12880 µS/cm, K=10.0: 80000 µS/cm
+    K=0.1: 1413 µS/cm, K=1.0: 12880 µS/cm, K=10.0: 80000 µS/cm
     """
     from app.sensor_controller import calibrate_ec_high
     try:

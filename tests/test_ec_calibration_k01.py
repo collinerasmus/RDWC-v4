@@ -71,20 +71,20 @@ def test_calibrate_ec_low_default_is_84(mock_i2c_available, mock_settings, mock_
         assert any("Cal,low,84" in str(call) for call in calls)
 
 
-def test_calibrate_ec_high_default_is_10000(mock_i2c_available, mock_settings, mock_ezo_device):
-    """Test high point calibration uses 10000 µS/cm for K=0.1 probes."""
+def test_calibrate_ec_high_default_is_1413(mock_i2c_available, mock_settings, mock_ezo_device):
+    """Test high point calibration uses 1413 µS/cm for K=0.1 probes."""
     with patch('app.sensor_controller.ezo_i2c_stabilized.EZO', return_value=mock_ezo_device), \
          patch('app.settings.get_all_settings', return_value=mock_settings), \
          patch('app.sensor_controller._acquire_calib_lock', return_value=True), \
          patch('app.sensor_controller._release_calib_lock'):
         
-        # Call without argument should use default 10000
+        # Call without argument should use default 1413
         result = sensor_controller.calibrate_ec_high()
         
         assert result["ok"] is True
-        # Verify Cal,high,10000 command was sent
+        # Verify Cal,high,1413 command was sent
         calls = [str(call) for call in mock_ezo_device.cmd.call_args_list]
-        assert any("Cal,high,10000" in str(call) for call in calls)
+        assert any("Cal,high,1413" in str(call) for call in calls)
 
 
 def test_calibrate_ec_low_custom_value(mock_i2c_available, mock_settings, mock_ezo_device):

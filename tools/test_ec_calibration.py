@@ -135,7 +135,7 @@ def main():
     
     # Step 4: Low calibration
     print("Step 4: Low point calibration")
-    print(f"- Place probe in {84 if k_value == 0.1 else 1413} µS/cm calibration solution")
+    print(f"- Place probe in 84 µS/cm calibration solution")
     print("- Stir gently and wait 30 seconds")
     print("Ready? (y/n)")
     if input().lower() == 'y':
@@ -163,9 +163,9 @@ def main():
     print()
     
     # Step 5: High calibration
-    print("Step 5: High point calibration (optional but recommended)")
+    print("Step 5: High point calibration (recommended)")
     print("- Rinse probe with clean water")
-    print(f"- Place probe in {10000 if k_value == 0.1 else 12880} µS/cm calibration solution")
+    print(f"- Place probe in 1,413 µS/cm calibration solution")
     print("- Stir gently and wait 30 seconds")
     print("Ready? (y/n)")
     if input().lower() == 'y':

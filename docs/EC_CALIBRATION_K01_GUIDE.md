@@ -10,7 +10,7 @@ This guide covers the proper calibration procedure for Atlas Scientific EZO EC c
 2. **K=0.1 conductivity probe** (physically labeled K=0.1)
 3. **Calibration solutions**:
    - 84 µS/cm calibration solution (low point)
-   - 10,000 µS/cm calibration solution (high point, optional but recommended)
+   - 1,413 µS/cm calibration solution (high point, recommended for two-point calibration)
 4. **Clean rinse water** (distilled or deionized)
 
 ### Before You Begin
@@ -53,11 +53,11 @@ This guide covers the proper calibration procedure for Atlas Scientific EZO EC c
 6. Verify the low indicator shows **✓**
 
 ### Step 4: High Point Calibration
-**Optional but recommended for best accuracy.**
+**Recommended for two-point calibration.**
 
 1. Remove probe from low solution
 2. Rinse thoroughly with clean water
-3. Place the probe in **10,000 µS/cm calibration solution**
+3. Place the probe in **1,413 µS/cm calibration solution**
 4. Gently stir and wait **30 seconds** for stabilization
 5. In the UI, click **Calibrate High** (Step 3)
 6. Wait for success confirmation
@@ -76,7 +76,7 @@ This guide covers the proper calibration procedure for Atlas Scientific EZO EC c
 |-------|-------------|-------|
 | Dry | 0 µS/cm (air) | Required baseline |
 | Low | 84 µS/cm | Required accuracy point |
-| High | 10,000 µS/cm | Optional for extended range |
+| High | 1,413 µS/cm | Recommended for two-point calibration |
 
 ### For K=1.0 Probes (Reference)
 | Point | Conductivity | Usage |
@@ -173,7 +173,7 @@ POST /api/ec/cal/high
 Content-Type: application/json
 
 {
-  "us_cm": 10000
+  "us_cm": 1413
 }
 ```
 
@@ -207,7 +207,7 @@ POST /api/ec/cal/clear
 - `K,0.1` - Set K factor to 0.1
 - `Cal,dry` - Calibrate dry (zero point)
 - `Cal,low,84` - Calibrate low point at 84 µS/cm
-- `Cal,high,10000` - Calibrate high point at 10,000 µS/cm
+- `Cal,high,1413` - Calibrate high point at 1,413 µS/cm
 - `Cal,clear` - Clear all calibration points
 - `Cal,?` - Query calibration status
 
@@ -232,7 +232,7 @@ POST /api/ec/cal/clear
 ### 2025-01-06
 - Updated default calibration values for K=0.1 probes
 - Changed low point from 1413 to 84 µS/cm
-- Changed high point from 12880 to 10000 µS/cm
+- Changed high point from 12880 to 1413 µS/cm (standard two-point set)
 - Added dry calibration step (required for K=0.1)
 - Enhanced UI with step-by-step wizard
 - Added visual indicators for completed calibration steps
