@@ -222,12 +222,10 @@ def set_ec_k_factor(k_value: float) -> Dict[str, Any]:
         return {"ok": False, "error": str(e)}
 
 
-def calibrate_ec_low(us_cm: float = 1413) -> Dict[str, Any]:
+def calibrate_ec_dry() -> Dict[str, Any]:
     """
-    Apply EC low-point calibration.
-    
-    Args:
-        us_cm: Low calibration point in µS/cm (default 1413)
+    Apply EC dry calibration (zero point in air).
+    This is the first step for K=0.1 probes according to Atlas Scientific datasheet.
     
     Returns:
         {
@@ -249,8 +247,8 @@ def calibrate_ec_low(us_cm: float = 1413) -> Dict[str, Any]:
         
         ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
         try:
-            # Apply calibration
-            response = ec.cmd(f"Cal,low,{int(us_cm)}", read_len=32, settle=0.9)
+            # Apply dry calibration
+            response = ec.cmd("Cal,dry", read_len=32, settle=0.9)
             
             # Brief settle
             time.sleep(0.5)
@@ -258,6 +256,78 @@ def calibrate_ec_low(us_cm: float = 1413) -> Dict[str, Any]:
             # Restore K from settings
             settings = get_all_settings()
             k_value = float(settings.get("ec.k_value", "0.1"))
+            k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.3)
+            
+            logger.info(f"EC dry calibration applied, K restored to {k_value}")
+            return {
+                "ok": True,
+                "response": response or "Dry calibration applied",
+                "k_value": k_value,
+                "k_response": k_response or f"K={k_value} restored"
+            }
+        finally:
+            ec.close()
+    except Exception as e:
+        logger.error(f"EC dry calibration failed: {e}")
+        return {"ok": False, "error": str(e)}
+    finally:
+        _release_calib_lock()
+
+
+def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
+    """
+    Apply EC low-point calibration.
+    Automatically selects default based on current K value:
+    - K=0.1: 84 µS/cm (default)
+    - K=1.0: 1413 µS/cm
+    - K=10.0: 12880 µS/cm
+    
+    Args:
+        us_cm: Low calibration point in µS/cm (None to use K-based default)
+    
+    Returns:
+        {
+            "ok": bool,
+            "response": str,
+            "k_value": float (restored),
+            "k_response": str
+        }
+    """
+    if not _I2C_AVAILABLE:
+        return {"ok": False, "error": "I2C not available"}
+    
+    # Acquire lock
+    if not _acquire_calib_lock():
+        return {"ok": False, "error": "Calibration lock held by sensor poller"}
+    
+    try:
+        from .settings import get_all_settings
+        
+        # Get K value to determine default calibration value
+        settings = get_all_settings()
+        k_value = float(settings.get("ec.k_value", "0.1"))
+        
+        # Auto-select calibration value based on K if not specified
+        if us_cm is None:
+            if k_value == 0.1:
+                us_cm = 84
+            elif k_value == 1.0:
+                us_cm = 1413
+            elif k_value == 10.0:
+                us_cm = 12880
+            else:
+                # Unknown K, default to K=0.1 value
+                us_cm = 84
+        
+        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+        try:
+            # Apply calibration
+            response = ec.cmd(f"Cal,low,{int(us_cm)}", read_len=32, settle=0.9)
+            
+            # Brief settle
+            time.sleep(0.5)
+            
+            # Restore K from settings (already loaded above)
             k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.3)
             
             logger.info(f"EC low calibration applied at {us_cm} µS/cm, K restored to {k_value}")
@@ -276,12 +346,16 @@ def calibrate_ec_low(us_cm: float = 1413) -> Dict[str, Any]:
         _release_calib_lock()
 
 
-def calibrate_ec_high(us_cm: float = 12880) -> Dict[str, Any]:
+def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
     """
     Apply EC high-point calibration.
+    Automatically selects default based on current K value:
+    - K=0.1: 10000 µS/cm (default)
+    - K=1.0: 12880 µS/cm
+    - K=10.0: 80000 µS/cm
     
     Args:
-        us_cm: High calibration point in µS/cm (default 12880)
+        us_cm: High calibration point in µS/cm (None to use K-based default)
     
     Returns:
         {
@@ -301,6 +375,22 @@ def calibrate_ec_high(us_cm: float = 12880) -> Dict[str, Any]:
     try:
         from .settings import get_all_settings
         
+        # Get K value to determine default calibration value
+        settings = get_all_settings()
+        k_value = float(settings.get("ec.k_value", "0.1"))
+        
+        # Auto-select calibration value based on K if not specified
+        if us_cm is None:
+            if k_value == 0.1:
+                us_cm = 10000
+            elif k_value == 1.0:
+                us_cm = 12880
+            elif k_value == 10.0:
+                us_cm = 80000
+            else:
+                # Unknown K, default to K=0.1 value
+                us_cm = 10000
+        
         ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
         try:
             # Apply calibration
@@ -309,9 +399,7 @@ def calibrate_ec_high(us_cm: float = 12880) -> Dict[str, Any]:
             # Brief settle
             time.sleep(0.5)
             
-            # Restore K from settings
-            settings = get_all_settings()
-            k_value = float(settings.get("ec.k_value", "0.1"))
+            # Restore K from settings (already loaded above)
             k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.3)
             
             logger.info(f"EC high calibration applied at {us_cm} µS/cm, K restored to {k_value}")
@@ -423,14 +511,18 @@ def clear_ec_calibration() -> Dict[str, Any]:
 def get_ec_calibration_status() -> Dict[str, Any]:
     """
     Get current EC calibration status and K factor.
+    Parses calibration response to determine which points are set.
     
     Returns:
         {
             "ok": bool,
+            "k": float,
+            "cal": str (e.g., "dry", "one-point", "two-point"),
+            "dry": bool,
             "low": bool,
             "high": bool,
-            "k": float,
-            "response": str
+            "cal_response": str,
+            "note": str
         }
     """
     if not _I2C_AVAILABLE:
@@ -444,18 +536,63 @@ def get_ec_calibration_status() -> Dict[str, Any]:
         k_value = float(settings.get("ec.k_value", "0.1"))
         
         # Try to query calibration from probe (may not respond)
+        cal_status = ""
+        dry = False
+        low = False
+        high = False
+        cal_summary = "uncalibrated"
+        
         try:
             ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
             try:
                 cal_status = ec.cmd("Cal,?", read_len=32, settle=0.5)
             finally:
                 ec.close()
-        except Exception:
+            
+            # Parse calibration status
+            # Response format: "?CAL,0" (uncalibrated), "?CAL,1" (one-point), "?CAL,2" (two-point), "?CAL,3" (dry+two-point)
+            if cal_status:
+                if "?CAL,0" in cal_status:
+                    cal_summary = "uncalibrated"
+                elif "?CAL,1" in cal_status:
+                    cal_summary = "one-point"
+                    low = True
+                elif "?CAL,2" in cal_status:
+                    cal_summary = "two-point"
+                    low = True
+                    high = True
+                elif "?CAL,3" in cal_status:
+                    cal_summary = "dry+two-point"
+                    dry = True
+                    low = True
+                    high = True
+                else:
+                    # Try alternative format
+                    cal_status_lower = cal_status.lower()
+                    if "dry" in cal_status_lower:
+                        dry = True
+                        cal_summary = "dry"
+                    if "low" in cal_status_lower:
+                        low = True
+                        if cal_summary == "dry":
+                            cal_summary = "dry+low"
+                        else:
+                            cal_summary = "one-point"
+                    if "high" in cal_status_lower:
+                        high = True
+                        if low:
+                            cal_summary = "two-point" if not dry else "dry+two-point"
+        except Exception as e:
+            logger.debug(f"Could not query EC calibration status: {e}")
             cal_status = ""
         
         return {
             "ok": True,
             "k": k_value,
+            "cal": cal_summary,
+            "dry": dry,
+            "low": low,
+            "high": high,
             "cal_response": cal_status or "Probe does not respond to Cal,? query",
             "note": "K factor is source of truth from settings (EZO doesn't persist K across power cycles)"
         }

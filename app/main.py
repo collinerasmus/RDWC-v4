@@ -3994,8 +3994,23 @@ def ec_cal_clear():
     return clear_ec_calibration()
 
 
+@app.post("/api/ec/cal/dry")
+def ec_cal_dry():
+    """
+    Apply EC dry calibration (zero point in air).
+    Required for K=0.1 probes before low/high calibration.
+    """
+    from app.sensor_controller import calibrate_ec_dry
+    return calibrate_ec_dry()
+
+
 @app.post("/api/ec/cal/low")
 async def ec_cal_low(request: Request):
+    """
+    Apply EC low-point calibration.
+    Automatically selects default based on K value, or pass custom value via {"us_cm": value}
+    K=0.1: 84 µS/cm, K=1.0: 1413 µS/cm, K=10.0: 12880 µS/cm
+    """
     from app.sensor_controller import calibrate_ec_low
     try:
         payload = await request.json()
@@ -4003,12 +4018,18 @@ async def ec_cal_low(request: Request):
         payload = {}
     if not isinstance(payload, dict):
         payload = {}
-    us_cm = payload.get("us_cm", 1413)
+    # Use None to trigger K-based auto-selection, or allow override
+    us_cm = payload.get("us_cm", None)
     return calibrate_ec_low(us_cm)
 
 
 @app.post("/api/ec/cal/high")
 async def ec_cal_high(request: Request):
+    """
+    Apply EC high-point calibration.
+    Automatically selects default based on K value, or pass custom value via {"us_cm": value}
+    K=0.1: 10000 µS/cm, K=1.0: 12880 µS/cm, K=10.0: 80000 µS/cm
+    """
     from app.sensor_controller import calibrate_ec_high
     try:
         payload = await request.json()
@@ -4016,7 +4037,8 @@ async def ec_cal_high(request: Request):
         payload = {}
     if not isinstance(payload, dict):
         payload = {}
-    us_cm = payload.get("us_cm", 12880)
+    # Use None to trigger K-based auto-selection, or allow override
+    us_cm = payload.get("us_cm", None)
     return calibrate_ec_high(us_cm)
 
 

@@ -191,17 +191,20 @@
       const kChip = el('ecKChip');
       if (kChip) {
         kChip.textContent = k != null ? `K=${k}` : 'K=—';
-        // Success if K=0.1, neutral otherwise
-        kChip.className = 'ui-status-chip ' + (k === 0.1 ? 'success' : 'neutral');
+        // Success if K=0.1 (correct for K=0.1 probes), warning for other values
+        // Use tolerance for floating point comparison
+        kChip.className = 'ui-status-chip ' + (Math.abs(k - 0.1) < 0.01 ? 'success' : (k > 0 ? 'warning' : 'neutral'));
+        kChip.title = Math.abs(k - 0.1) < 0.01 ? 'K=0.1 (correct for K=0.1 probe)' : (k > 0 ? `K=${k} (verify probe type)` : 'K factor not set');
       }
       
       // Update Cal chip
       const calChip = el('ecCalChip');
       if (calChip) {
         calChip.textContent = cal ? `Cal: ${cal}` : 'Cal: —';
-        // Success if calibrated (one-point or two-point), neutral if uncalibrated/unknown
-        const isCalibrated = cal && (cal.includes('one-point') || cal.includes('two-point'));
+        // Success if calibrated (dry, one-point, two-point, or dry+two-point)
+        const isCalibrated = cal && (cal.includes('one-point') || cal.includes('two-point') || cal.includes('dry'));
         calChip.className = 'ui-status-chip ' + (isCalibrated ? 'success' : 'neutral');
+        calChip.title = cal || 'Calibration status unknown';
       }
     } catch (e) {
       // Silently fail - chips will show default values
@@ -824,6 +827,15 @@
         const status = await statusRes.json();
         el('ecCalStatusValue').textContent = status.cal || 'unknown';
         el('ecKValue').textContent = status.k != null ? status.k.toFixed(1) : '—';
+        
+        // Update calibration step indicators
+        const dryIndicator = el('ecCalDryIndicator');
+        const lowIndicator = el('ecCalLowIndicator');
+        const highIndicator = el('ecCalHighIndicator');
+        
+        if(dryIndicator) dryIndicator.textContent = status.dry ? '✓' : '—';
+        if(lowIndicator) lowIndicator.textContent = status.low ? '✓' : '—';
+        if(highIndicator) highIndicator.textContent = status.high ? '✓' : '—';
       }
       if(sensorRes && sensorRes.ec_ms_cm != null){
         el('ecCalCurrentReading').textContent = sensorRes.ec_ms_cm.toFixed(2);
@@ -842,26 +854,37 @@
       if(j.ok) setTimeout(refreshCalStatus, 1000);
     }catch(err){ showCalMessage('✗ '+err.message, 'error'); }
   }
-  async function ecCalLow(){
-    if(!confirm('Apply low-point (1413 µS/cm)? Probe must be in solution and stable (30s).')) return;
+  async function ecCalDry(){
+    if(!confirm('Apply dry calibration? Remove probe from all solutions and let it air dry (30s).')) return;
     try{
-      const r = await fetch('/api/ec/cal/low', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({us_cm:1413})});
+      const r = await fetch('/api/ec/cal/dry', {method:'POST'});
+      const j = await r.json();
+      showCalMessage(j.ok ? ('✓ '+j.response) : ('✗ '+j.error), j.ok?'success':'error');
+      if(j.ok) setTimeout(refreshCalStatus, 1000);
+    }catch(err){ showCalMessage('✗ '+err.message, 'error'); }
+  }
+  async function ecCalLow(){
+    if(!confirm('Apply low-point calibration? Value auto-selected based on K factor. Probe must be in calibration solution and stable (30s).')) return;
+    try{
+      // Don't pass us_cm to use K-based auto-selection
+      const r = await fetch('/api/ec/cal/low', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({})});
       const j = await r.json();
       showCalMessage(j.ok ? ('✓ '+j.response) : ('✗ '+j.error), j.ok?'success':'error');
       if(j.ok) setTimeout(refreshCalStatus, 1000);
     }catch(err){ showCalMessage('✗ '+err.message, 'error'); }
   }
   async function ecCalHigh(){
-    if(!confirm('Apply high-point (12,880 µS/cm)? Requires low-point first. Probe must be in solution and stable (30s).')) return;
+    if(!confirm('Apply high-point calibration? Value auto-selected based on K factor. Requires dry and low-point first. Probe must be in calibration solution and stable (30s).')) return;
     try{
-      const r = await fetch('/api/ec/cal/high', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({us_cm:12880})});
+      // Don't pass us_cm to use K-based auto-selection
+      const r = await fetch('/api/ec/cal/high', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({})});
       const j = await r.json();
       showCalMessage(j.ok ? ('✓ '+j.response) : ('✗ '+j.error), j.ok?'success':'error');
       if(j.ok) setTimeout(refreshCalStatus, 1000);
     }catch(err){ showCalMessage('✗ '+err.message, 'error'); }
   }
   async function ecSetK(){
-    const k = prompt('Enter K factor (probe constant, typically 1.0 or 10.0):', '1.0');
+    const k = prompt('Enter K factor (0.1, 1.0, or 10.0):', '0.1');
     if(!k) return;
     const kVal = parseFloat(k);
     if(isNaN(kVal) || kVal <= 0){ alert('Invalid K value'); return; }
@@ -888,9 +911,13 @@
   }
   el('btnEcCalRefreshStatus')?.addEventListener('click', refreshCalStatus);
   el('btnEcCalClear')?.addEventListener('click', ecCalClear);
+  el('btnEcCalDry')?.addEventListener('click', ecCalDry);
   el('btnEcCalLow')?.addEventListener('click', ecCalLow);
   el('btnEcCalHigh')?.addEventListener('click', ecCalHigh);
   el('btnEcCalSetK')?.addEventListener('click', ecSetK);
+  
+  // Auto-refresh calibration status on load
+  setTimeout(refreshCalStatus, 500);
 
   // EC Debug Modal handlers
   async function openEcDebug(){
