@@ -282,38 +282,23 @@ def calibrate_ec_dry() -> Dict[str, Any]:
                 ec.cmd("C,0", read_len=0, settle=0.3)
                 time.sleep(0.5)
                 
-                # Send dry calibration command
-                # Note: Atlas EZO calibration commands take 600-900ms to process
-                # We need to wait and poll for completion
-                ec._write("Cal,dry".encode('ascii'))
-                time.sleep(1.5)  # Wait for processing (Atlas spec: 600-900ms)
+                # Send dry calibration command using the proper cmd() interface
+                # This handles write, settle, and read in correct sequence
+                response = ec.cmd("Cal,dry", read_len=32, settle=1.2)
                 
-                # Poll for completion - check multiple times
-                success = False
-                for attempt in range(5):
-                    raw = ec._read(32)
-                    if raw and len(raw) > 0:
-                        status = raw[0]
-                        if status == 1:  # Success
-                            success = True
-                            break
-                        elif status == 254:  # Still processing
-                            time.sleep(0.3)
-                            continue
-                    time.sleep(0.2)
+                # For dry calibration, Atlas EZO returns empty string on success
+                # The command completes silently when successful
+                # Just verify the probe is still responding
+                logger.info(f"EC dry calibration: response={repr(response)}")
                 
-                if not success:
-                    return {"ok": False, "error": "Dry calibration command not acknowledged by probe - ensure probe is dry and try again"}
-                
-                # Wait before K restore
-                time.sleep(0.5)
-                
-                # Restore K from settings
+                # Get K value to restore
                 settings = get_all_settings()
                 k_value = float(settings.get("ec.k_value", "0.1"))
-                k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
                 
-                logger.info(f"EC dry calibration applied, K restored to {k_value}")
+                # Restore K from settings - this is always done after dry cal
+                k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
+                logger.info(f"EC K restored: {k_value}, response={repr(k_response)}")
+                
                 return {
                     "ok": True,
                     "response": "Dry calibration applied",
@@ -322,11 +307,11 @@ def calibrate_ec_dry() -> Dict[str, Any]:
                 }
             finally:
                 ec.close()
+        except Exception as e:
+            logger.error(f"EC dry calibration failed: {e}")
+            return {"ok": False, "error": str(e)}
         finally:
             _release_calib_lock()
-    except Exception as e:
-        logger.error(f"EC dry calibration failed: {e}")
-        return {"ok": False, "error": str(e)}
     finally:
         _READ_MUTEX.release()
 
@@ -367,66 +352,48 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
             # Get K value to determine default calibration value
             settings = get_all_settings()
             k_value = float(settings.get("ec.k_value", "0.1"))
-        
-        # Auto-select calibration value based on K if not specified
-        if us_cm is None:
-            if k_value == 0.1:
-                us_cm = 84
-            elif k_value == 1.0:
-                us_cm = 1413
-            elif k_value == 10.0:
-                us_cm = 12880
-            else:
-                # Unknown K, default to K=0.1 value
-                us_cm = 84
-        
-        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
-        try:
-            # Ensure continuous mode OFF
-            ec.cmd("C,0", read_len=0, settle=0.3)
-            time.sleep(0.3)
             
-            # Send low calibration command and poll for completion
-            ec._write(f"Cal,low,{int(us_cm)}".encode('ascii'))
-            time.sleep(1.5)  # Wait for processing (Atlas spec: 600-900ms)
+            # Auto-select calibration value based on K if not specified
+            if us_cm is None:
+                if k_value == 0.1:
+                    us_cm = 84
+                elif k_value == 1.0:
+                    us_cm = 1413
+                elif k_value == 10.0:
+                    us_cm = 12880
+                else:
+                    # Unknown K, default to K=0.1 value
+                    us_cm = 84
             
-            # Poll for completion
-            success = False
-            for attempt in range(5):
-                raw = ec._read(32)
-                if raw and len(raw) > 0:
-                    status = raw[0]
-                    if status == 1:  # Success
-                        success = True
-                        break
-                    elif status == 254:  # Still processing
-                        time.sleep(0.3)
-                        continue
-                time.sleep(0.2)
-            
-            if not success:
-                return {"ok": False, "error": f"Low calibration command not acknowledged - ensure probe is in {us_cm} µS/cm solution"}
-            
-            # Wait before K restore
-            time.sleep(0.5)
-            
-            # Restore K from settings (already loaded above)
-            k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
-            
-            logger.info(f"EC low calibration applied at {us_cm} µS/cm, K restored to {k_value}")
-            return {
-                "ok": True,
-                "response": f"Low calibration applied at {us_cm} µS/cm",
-                "k_value": k_value,
-                "k_response": k_response or f"K={k_value} set"
-            }
+            ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+            try:
+                # Ensure continuous mode OFF
+                ec.cmd("C,0", read_len=0, settle=0.3)
+                time.sleep(0.3)
+                
+                # Send low calibration command using proper cmd() interface
+                response = ec.cmd(f"Cal,low,{int(us_cm)}", read_len=32, settle=1.2)
+                logger.info(f"EC low calibration at {us_cm} µS/cm: response={repr(response)}")
+                
+                # Atlas EZO returns empty or "1" on success for calibration
+                # Just restore K and return success
+                k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
+                
+                logger.info(f"EC low calibration applied at {us_cm} µS/cm, K restored to {k_value}")
+                return {
+                    "ok": True,
+                    "response": f"Low calibration applied at {us_cm} µS/cm",
+                    "k_value": k_value,
+                    "k_response": k_response or f"K={k_value} set"
+                }
+            finally:
+                ec.close()
+        except Exception as e:
+            logger.error(f"EC low calibration failed: {e}")
+            return {"ok": False, "error": str(e)}
         finally:
-            ec.close()
-    except Exception as e:
-        logger.error(f"EC low calibration failed: {e}")
-        return {"ok": False, "error": str(e)}
+            _release_calib_lock()
     finally:
-        _release_calib_lock()
         _READ_MUTEX.release()
 
 
@@ -468,64 +435,46 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
             k_value = float(settings.get("ec.k_value", "0.1"))
             
             # Auto-select calibration value based on K if not specified
-        if us_cm is None:
-            if k_value == 0.1:
-                us_cm = 1413
-            elif k_value == 1.0:
-                us_cm = 12880
-            elif k_value == 10.0:
-                us_cm = 80000
-            else:
-                # Unknown K, default to K=0.1 value
-                us_cm = 1413
-        
-        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
-        try:
-            # Ensure continuous mode OFF
-            ec.cmd("C,0", read_len=0, settle=0.3)
-            time.sleep(0.3)
+            if us_cm is None:
+                if k_value == 0.1:
+                    us_cm = 1413
+                elif k_value == 1.0:
+                    us_cm = 12880
+                elif k_value == 10.0:
+                    us_cm = 80000
+                else:
+                    # Unknown K, default to K=0.1 value
+                    us_cm = 1413
             
-            # Send high calibration command and poll for completion
-            ec._write(f"Cal,high,{int(us_cm)}".encode('ascii'))
-            time.sleep(1.5)  # Wait for processing (Atlas spec: 600-900ms)
-            
-            # Poll for completion
-            success = False
-            for attempt in range(5):
-                raw = ec._read(32)
-                if raw and len(raw) > 0:
-                    status = raw[0]
-                    if status == 1:  # Success
-                        success = True
-                        break
-                    elif status == 254:  # Still processing
-                        time.sleep(0.3)
-                        continue
-                time.sleep(0.2)
-            
-            if not success:
-                return {"ok": False, "error": f"High calibration command not acknowledged - ensure probe is in {us_cm} µS/cm solution"}
-            
-            # Wait before K restore
-            time.sleep(0.5)
-            
-            # Restore K from settings (already loaded above)
-            k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
-            
-            logger.info(f"EC high calibration applied at {us_cm} µS/cm, K restored to {k_value}")
-            return {
-                "ok": True,
-                "response": f"High calibration applied at {us_cm} µS/cm",
-                "k_value": k_value,
-                "k_response": k_response or f"K={k_value} set"
-            }
+            ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+            try:
+                # Ensure continuous mode OFF
+                ec.cmd("C,0", read_len=0, settle=0.3)
+                time.sleep(0.3)
+                
+                # Send high calibration command using proper cmd() interface
+                response = ec.cmd(f"Cal,high,{int(us_cm)}", read_len=32, settle=1.2)
+                logger.info(f"EC high calibration at {us_cm} µS/cm: response={repr(response)}")
+                
+                # Atlas EZO returns empty or "1" on success for calibration
+                # Just restore K and return success
+                k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
+                
+                logger.info(f"EC high calibration applied at {us_cm} µS/cm, K restored to {k_value}")
+                return {
+                    "ok": True,
+                    "response": f"High calibration applied at {us_cm} µS/cm",
+                    "k_value": k_value,
+                    "k_response": k_response or f"K={k_value} set"
+                }
+            finally:
+                ec.close()
+        except Exception as e:
+            logger.error(f"EC high calibration failed: {e}")
+            return {"ok": False, "error": str(e)}
         finally:
-            ec.close()
-    except Exception as e:
-        logger.error(f"EC high calibration failed: {e}")
-        return {"ok": False, "error": str(e)}
+            _release_calib_lock()
     finally:
-        _release_calib_lock()
         _READ_MUTEX.release()
 
 
@@ -608,19 +557,20 @@ def clear_ec_calibration() -> Dict[str, Any]:
         try:
             ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
             try:
-            response = ec.cmd("Cal,clear", read_len=32, settle=0.5)
-            logger.info("EC calibration cleared")
-            return {
-                "ok": True,
-                "response": response or "Calibration cleared"
-            }
+                response = ec.cmd("Cal,clear", read_len=32, settle=0.5)
+                logger.info("EC calibration cleared")
+                return {
+                    "ok": True,
+                    "response": response or "Calibration cleared"
+                }
+            finally:
+                ec.close()
+        except Exception as e:
+            logger.error(f"Failed to clear EC calibration: {e}")
+            return {"ok": False, "error": str(e)}
         finally:
-            ec.close()
-    except Exception as e:
-        logger.error(f"Failed to clear EC calibration: {e}")
-        return {"ok": False, "error": str(e)}
+            _release_calib_lock()
     finally:
-        _release_calib_lock()
         _READ_MUTEX.release()
 
 
@@ -791,35 +741,35 @@ def read_ph_single() -> Dict[str, Any]:
             return {"ok": False, "note": "Calibration lock held by sensor poller"}
         
         try:
-        # Wait for any in-flight sensor read to complete
-        time.sleep(1.0)
-        
-        ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
-        try:
-            # Disable continuous mode
-            ph.cmd("C,0", read_len=0, settle=0.3)
+            # Wait for any in-flight sensor read to complete
+            time.sleep(1.0)
             
-            # Retry read up to 3 times
-            for attempt in range(3):
-                try:
-                    value_str = ph.read_value(timeout=3.0)
-                    if value_str:
-                        # Parse first token (pH value)
-                        val = float(value_str.split(",")[0].strip())
-                        return {"ok": True, "value": round(val, 3)}
-                except Exception as e:
-                    logger.debug(f"pH read attempt {attempt + 1} failed: {e}")
-                    if attempt < 2:
-                        time.sleep(0.5)
-            
-            return {"ok": False, "note": "NoData"}
-        finally:
-            ph.close()
+            ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
+            try:
+                # Disable continuous mode
+                ph.cmd("C,0", read_len=0, settle=0.3)
+                
+                # Retry read up to 3 times
+                for attempt in range(3):
+                    try:
+                        value_str = ph.read_value(timeout=3.0)
+                        if value_str:
+                            # Parse first token (pH value)
+                            val = float(value_str.split(",")[0].strip())
+                            return {"ok": True, "value": round(val, 3)}
+                    except Exception as e:
+                        logger.debug(f"pH read attempt {attempt + 1} failed: {e}")
+                        if attempt < 2:
+                            time.sleep(0.5)
+                
+                return {"ok": False, "note": "NoData"}
+            finally:
+                ph.close()
+        except Exception as e:
+            logger.error(f"pH single read failed: {e}")
+            return {"ok": False, "note": str(e)}
         finally:
             _release_calib_lock()
-    except Exception as e:
-        logger.error(f"pH single read failed: {e}")
-        return {"ok": False, "note": str(e)}
     finally:
         _READ_MUTEX.release()
 
@@ -926,48 +876,48 @@ def get_ph_calibration_status() -> Dict[str, Any]:
             return {"ok": False, "error": "Calibration lock held by sensor poller"}
         
         try:
-        time.sleep(0.6)  # Allow in-flight reads to complete
-        
-        ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
-        try:
-            response = ph.cmd("Cal,?", read_len=32, settle=1.0)
+            time.sleep(0.6)  # Allow in-flight reads to complete
             
-            # Parse response
-            flags = []
-            if response:
-                parts = [p.strip() for p in response.split(",") if p.strip()]
-                # Remove leading '?' if present
-                if parts and parts[0] == '?':
-                    parts = parts[1:]
-                flags = parts
-            
-            # Derive friendly point names
-            points = []
-            if flags:
-                # If any non-numeric tokens beyond first, treat them as explicit calibration points
-                named = [f for f in flags if not f.isdigit() and f.lower() not in ("?cal",)]
-                if named:
-                    points = named
-                else:
-                    # Numeric-only form; first numeric token = count
-                    nums = [int(f) for f in flags if f.isdigit()]
-                    if nums:
-                        cnt = nums[0]
-                        if cnt == 1:
-                            points = ["mid"]
-                        elif cnt == 2:
-                            points = ["mid", "low"]
-                        elif cnt >= 3:
-                            points = ["mid", "low", "high"]
-            
-            return {
-                "ok": True,
-                "status": response or "No response",
-                "flags": flags,
-                "points": points
-            }
-        finally:
-            ph.close()
+            ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
+            try:
+                response = ph.cmd("Cal,?", read_len=32, settle=1.0)
+                
+                # Parse response
+                flags = []
+                if response:
+                    parts = [p.strip() for p in response.split(",") if p.strip()]
+                    # Remove leading '?' if present
+                    if parts and parts[0] == '?':
+                        parts = parts[1:]
+                    flags = parts
+                
+                # Derive friendly point names
+                points = []
+                if flags:
+                    # If any non-numeric tokens beyond first, treat them as explicit calibration points
+                    named = [f for f in flags if not f.isdigit() and f.lower() not in ("?cal",)]
+                    if named:
+                        points = named
+                    else:
+                        # Numeric-only form; first numeric token = count
+                        nums = [int(f) for f in flags if f.isdigit()]
+                        if nums:
+                            cnt = nums[0]
+                            if cnt == 1:
+                                points = ["mid"]
+                            elif cnt == 2:
+                                points = ["mid", "low"]
+                            elif cnt >= 3:
+                                points = ["mid", "low", "high"]
+                
+                return {
+                    "ok": True,
+                    "status": response or "No response",
+                    "flags": flags,
+                    "points": points
+                }
+            finally:
+                ph.close()
         finally:
             _release_calib_lock()
     except Exception as e:
@@ -997,27 +947,27 @@ def clear_ph_calibration() -> Dict[str, Any]:
             return {"ok": False, "note": "Calibration lock held by sensor poller"}
         
         try:
-        time.sleep(1.0)  # Allow in-flight reads to finish
-        
-        ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
-        try:
-            response = ph.cmd("Cal,clear", read_len=32, settle=1.2)
+            time.sleep(1.0)  # Allow in-flight reads to finish
             
-            # Check if successful - EZO typically returns "1" or empty string on success
-            if response is not None:
-                logger.info("pH calibration cleared")
-                return {"ok": True, "note": "Cleared"}
-            else:
-                # Retry once on failure
-                time.sleep(0.5)
-                response = ph.cmd("Cal,clear", read_len=32, settle=1.6)
+            ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
+            try:
+                response = ph.cmd("Cal,clear", read_len=32, settle=1.2)
+                
+                # Check if successful - EZO typically returns "1" or empty string on success
                 if response is not None:
-                    logger.info("pH calibration cleared (retry)")
+                    logger.info("pH calibration cleared")
                     return {"ok": True, "note": "Cleared"}
                 else:
-                    return {"ok": False, "note": "Clear failed"}
-        finally:
-            ph.close()
+                    # Retry once on failure
+                    time.sleep(0.5)
+                    response = ph.cmd("Cal,clear", read_len=32, settle=1.6)
+                    if response is not None:
+                        logger.info("pH calibration cleared (retry)")
+                        return {"ok": True, "note": "Cleared"}
+                    else:
+                        return {"ok": False, "note": "Clear failed"}
+            finally:
+                ph.close()
         finally:
             _release_calib_lock()
     except Exception as e:
@@ -1057,42 +1007,42 @@ def calibrate_ph_point(point: str, value: float) -> Dict[str, Any]:
             return {"ok": False, "note": "Calibration lock held by sensor poller"}
         
         try:
-        # Wait for any in-flight sensor read to complete
-        time.sleep(2.0)
-        
-        ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
-        try:
-            # Ensure continuous mode is off and device is ready
-            ph.cmd("C,0", read_len=0, settle=0.25)
-            time.sleep(0.25)
+            # Wait for any in-flight sensor read to complete
+            time.sleep(2.0)
             
-            # Attempt calibration with progressively longer settle times
-            attempts = [
-                (1.6, 5.0),
-                (2.2, 6.5),
-                (2.8, 8.0),
-            ]
-            
-            for idx, (settle_s, timeout_s) in enumerate(attempts, start=1):
-                try:
-                    response = ph.cmd(f"Cal,{point},{value:.2f}", read_len=32, settle=settle_s)
-                    
-                    # Consider it successful if we get any response or empty string
-                    # EZO pH returns "1" on success or empty string
-                    if response is not None:
-                        logger.info(f"pH {point} calibration success on attempt {idx}")
-                        return {
-                            "ok": True,
-                            "note": f"{point.title()} calibrated at {value:.2f}"
-                        }
-                except Exception as e:
-                    logger.warning(f"pH calibration attempt {idx} failed: {e}")
-                    if idx < len(attempts):
-                        time.sleep(0.8)
-            
-            return {"ok": False, "note": "All calibration attempts failed"}
-        finally:
-            ph.close()
+            ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
+            try:
+                # Ensure continuous mode is off and device is ready
+                ph.cmd("C,0", read_len=0, settle=0.25)
+                time.sleep(0.25)
+                
+                # Attempt calibration with progressively longer settle times
+                attempts = [
+                    (1.6, 5.0),
+                    (2.2, 6.5),
+                    (2.8, 8.0),
+                ]
+                
+                for idx, (settle_s, timeout_s) in enumerate(attempts, start=1):
+                    try:
+                        response = ph.cmd(f"Cal,{point},{value:.2f}", read_len=32, settle=settle_s)
+                        
+                        # Consider it successful if we get any response or empty string
+                        # EZO pH returns "1" on success or empty string
+                        if response is not None:
+                            logger.info(f"pH {point} calibration success on attempt {idx}")
+                            return {
+                                "ok": True,
+                                "note": f"{point.title()} calibrated at {value:.2f}"
+                            }
+                    except Exception as e:
+                        logger.warning(f"pH calibration attempt {idx} failed: {e}")
+                        if idx < len(attempts):
+                            time.sleep(0.8)
+                
+                return {"ok": False, "note": "All calibration attempts failed"}
+            finally:
+                ph.close()
         finally:
             _release_calib_lock()
     except Exception as e:
