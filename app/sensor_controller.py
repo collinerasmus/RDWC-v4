@@ -301,32 +301,33 @@ def calibrate_ec_dry() -> Dict[str, Any]:
                             time.sleep(0.3)
                             continue
                     time.sleep(0.2)
-            
-            if not success:
-                return {"ok": False, "error": "Dry calibration command not acknowledged by probe - ensure probe is dry and try again"}
-            
-            # Wait before K restore
-            time.sleep(0.5)
-            
-            # Restore K from settings
-            settings = get_all_settings()
-            k_value = float(settings.get("ec.k_value", "0.1"))
-            k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
-            
-            logger.info(f"EC dry calibration applied, K restored to {k_value}")
-            return {
-                "ok": True,
-                "response": "Dry calibration applied",
-                "k_value": k_value,
-                "k_response": k_response or f"K={k_value} set"
-            }
+                
+                if not success:
+                    return {"ok": False, "error": "Dry calibration command not acknowledged by probe - ensure probe is dry and try again"}
+                
+                # Wait before K restore
+                time.sleep(0.5)
+                
+                # Restore K from settings
+                settings = get_all_settings()
+                k_value = float(settings.get("ec.k_value", "0.1"))
+                k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
+                
+                logger.info(f"EC dry calibration applied, K restored to {k_value}")
+                return {
+                    "ok": True,
+                    "response": "Dry calibration applied",
+                    "k_value": k_value,
+                    "k_response": k_response or f"K={k_value} set"
+                }
+            finally:
+                ec.close()
         finally:
-            ec.close()
+            _release_calib_lock()
     except Exception as e:
         logger.error(f"EC dry calibration failed: {e}")
         return {"ok": False, "error": str(e)}
     finally:
-        _release_calib_lock()
         _READ_MUTEX.release()
 
 
