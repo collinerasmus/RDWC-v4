@@ -239,8 +239,24 @@
     pause,
     resume,
     config,  // Allow reading config
-    // Cached data getters
-    getSensors: () => getCachedOrFetch('sensors', '/api/sensors', 5000),
+    // Cached data getters with fallback to last good data
+    getSensors: () => {
+      const cached = dataCache.sensors;
+      const now = Date.now();
+      // If cache is fresh, use it
+      if (cached && cached.data && (now - cached.timestamp) < cached.ttl) {
+        return Promise.resolve(cached.data);
+      }
+      // If cache exists but stale, return it while fetching new data in background
+      const fallback = cached && cached.data ? Promise.resolve(cached.data) : null;
+      return getCachedOrFetch('sensors', '/api/sensors', 5000).catch(err => {
+        if (fallback) {
+          if (VERBOSE) console.log('[PollingManager] Using stale sensors cache due to error');
+          return fallback;
+        }
+        throw err;
+      });
+    },
     getSettings: () => getCachedOrFetch('settings', '/api/settings/export', 30000),
     getHealth: () => getCachedOrFetch('health', '/api/health', 10000),
     getTrends: (params) => {
