@@ -66,7 +66,8 @@ class TestECKValuePersistence:
         from app.settings import DEFAULTS
         
         assert "ec.k_value" in DEFAULTS
-        assert DEFAULTS["ec.k_value"] == "1.0"
+        # Default is now 0.1 based on K=0.1 probe standard
+        assert DEFAULTS["ec.k_value"] == "0.1"
     
     def test_ec_set_k_persists_to_settings(self):
         """Test that setting k value persists to settings"""

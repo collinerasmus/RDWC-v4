@@ -166,11 +166,13 @@ class EZO:
         except Exception:
             pass
         
-        # Restore EC probe K value from settings (if this is EC sensor)
+        # Restore EC probe K value and calibration from settings (if this is EC sensor)
         if self.addr == EC_ADDR:
             try:
                 from app.settings import get_all_settings
                 settings = get_all_settings()
+                
+                # Restore K value
                 k_value = float(settings.get("ec.k_value", "1.0"))
                 
                 # Validate k_value is within expected bounds
@@ -183,8 +185,38 @@ class EZO:
                 # Format with sufficient precision for common k values (0.1, 1.0, 10.0)
                 self.cmd(f"K,{k_value:.2f}", read_len=0, settle=0.3)
                 logger.info(f"EC probe K value restored to {k_value} from settings")
+                
+                # CRITICAL: Restore calibration points if they were previously set
+                # This is essential because EZO probes lose calibration on power cycle
+                dry_cal = settings.get("ec.cal_dry", "0")
+                low_cal_us = settings.get("ec.cal_low_us", "0")
+                high_cal_us = settings.get("ec.cal_high_us", "0")
+                
+                if dry_cal == "1":
+                    try:
+                        logger.info("EC: Restoring dry calibration from database")
+                        self.cmd("Cal,dry", read_len=0, settle=2.0)
+                    except Exception as e:
+                        logger.warning(f"Failed to restore EC dry calibration: {e}")
+                
+                if low_cal_us != "0":
+                    try:
+                        low_val = int(low_cal_us)
+                        logger.info(f"EC: Restoring low calibration {low_val}µS/cm from database")
+                        self.cmd(f"Cal,low,{low_val}", read_len=0, settle=2.0)
+                    except Exception as e:
+                        logger.warning(f"Failed to restore EC low calibration: {e}")
+                
+                if high_cal_us != "0":
+                    try:
+                        high_val = int(high_cal_us)
+                        logger.info(f"EC: Restoring high calibration {high_val}µS/cm from database")
+                        self.cmd(f"Cal,high,{high_val}", read_len=0, settle=2.0)
+                    except Exception as e:
+                        logger.warning(f"Failed to restore EC high calibration: {e}")
+                
             except Exception as e:
-                logger.warning(f"Failed to restore EC K value from settings: {e}")
+                logger.warning(f"Failed to restore EC settings: {e}")
 
     def read_value(self, request: str = "R", timeout: float = 1.8, poll: float = 0.15) -> str:
         """Issue a single measurement command and poll until ready or timeout.

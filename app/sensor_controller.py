@@ -274,12 +274,18 @@ def calibrate_ec_dry() -> Dict[str, Any]:
     Apply EC dry calibration (zero point in air).
     This is the first step for K=0.1 probes according to Atlas Scientific datasheet.
     
+    CRITICAL: EZO EC probes lose calibration on power cycle. This function:
+    1. Sends calibration command to probe (stored in probe RAM)
+    2. Stores calibration status in database (persists across power cycles)
+    3. On next init, calibration is re-applied to probe from database
+    
     Returns:
         {
             "ok": bool,
             "response": str,
             "k_value": float (restored),
-            "k_response": str
+            "k_response": str,
+            "persisted": bool (whether saved to database)
         }
     """
     if not _I2C_AVAILABLE:
@@ -294,7 +300,7 @@ def calibrate_ec_dry() -> Dict[str, Any]:
             return {"ok": False, "error": "Calibration lock held by sensor poller"}
         
         try:
-            from .settings import get_all_settings
+            from .settings import get_all_settings, upsert_settings
             
             ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
             try:
@@ -316,24 +322,31 @@ def calibrate_ec_dry() -> Dict[str, Any]:
                 if not success:
                     return {"ok": False, "error": "Dry calibration command not acknowledged by probe after 3 attempts - ensure probe is completely dry and in air"}
                 
-                logger.info("EC dry calibration applied")
+                logger.info("EC dry calibration applied to probe")
                 # CRITICAL: Give probe time to settle after calibration
                 time.sleep(2.0)
                 
-                # Get K value to restore
+                # Get K value - store it in probe BEFORE persisting calibration flag
                 settings = get_all_settings()
                 k_value = float(settings.get("ec.k_value", "0.1"))
                 
-                # Restore K from settings - use regular cmd since K accepts responses
+                # Set K value on probe (do this BEFORE marking as calibrated)
                 k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
+                time.sleep(0.5)
+                
+                # PERSIST: Store calibration status to database (survives power cycles)
+                upsert_settings({"ec.cal_dry": "1"})
+                logger.info("EC dry calibration persisted to database")
+                
                 # Final stabilization before releasing lock
                 time.sleep(1.0)
                 
                 return {
                     "ok": True,
-                    "response": "Dry calibration applied",
+                    "response": "Dry calibration applied and persisted",
                     "k_value": k_value,
-                    "k_response": k_response or f"K={k_value} set"
+                    "k_response": k_response or f"K={k_value} set",
+                    "persisted": True
                 }
             finally:
                 ec.close()
@@ -354,6 +367,11 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
     - K=1.0: 1413 µS/cm
     - K=10.0: 12880 µS/cm
     
+    CRITICAL: EZO EC probes lose calibration on power cycle. This function:
+    1. Sends calibration command to probe (stored in probe RAM)
+    2. Stores calibration point value in database (persists across power cycles)
+    3. On next init, calibration is re-applied to probe from database
+    
     Args:
         us_cm: Low calibration point in µS/cm (None to use K-based default)
     
@@ -362,8 +380,10 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
             "ok": bool,
             "response": str,
             "k_value": float (restored),
-            "k_response": str
+            "k_response": str,
+            "persisted": bool (whether saved to database)
         }
+    """
     if not _I2C_AVAILABLE:
         return {"ok": False, "error": "I2C not available"}
     
@@ -376,7 +396,7 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
             return {"ok": False, "error": "Calibration lock held by sensor poller"}
         
         try:
-            from .settings import get_all_settings
+            from .settings import get_all_settings, upsert_settings
             
             # Get K value to determine default calibration value
             settings = get_all_settings()
@@ -394,6 +414,8 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
                     # Unknown K, default to K=0.1 value
                     us_cm = 84
             
+            us_cm = int(us_cm)  # Ensure integer for calibration point
+            
             ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
             try:
                 # Ensure continuous mode OFF
@@ -402,29 +424,32 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
                 
                 # Send low calibration command with VERY long settle (10 seconds for probe to process)
                 # Some EC probes take time to acknowledge calibration
-                success = ec.calibration_cmd(f"Cal,low,{int(us_cm)}", settle=10.0)
+                success = ec.calibration_cmd(f"Cal,low,{us_cm}", settle=10.0)
                 
                 if not success:
                     return {"ok": False, "error": f"Low calibration command not acknowledged - ensure probe is in {us_cm} µS/cm solution and probe K value is set correctly. Also check I2C communication."}
                 
-                logger.info(f"EC low calibration applied at {us_cm} µS/cm")
+                logger.info(f"EC low calibration applied at {us_cm} µS/cm to probe")
                 # CRITICAL: Give probe time to settle after calibration
                 time.sleep(2.0)
                 
-                # Get K value to restore
-                settings = get_all_settings()
-                k_value = float(settings.get("ec.k_value", "0.1"))
-                
-                # Restore K from settings
+                # Set K value on probe (do this BEFORE persisting calibration point)
                 k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
+                time.sleep(0.5)
+                
+                # PERSIST: Store calibration point to database (survives power cycles)
+                upsert_settings({"ec.cal_low_us": str(us_cm)})
+                logger.info(f"EC low calibration point {us_cm} µS/cm persisted to database")
+                
                 # Final stabilization before releasing lock
                 time.sleep(1.0)
                 
                 return {
                     "ok": True,
-                    "response": f"Low calibration applied at {us_cm} µS/cm",
+                    "response": f"Low calibration applied at {us_cm} µS/cm and persisted",
                     "k_value": k_value,
-                    "k_response": k_response or f"K={k_value} set"
+                    "k_response": k_response or f"K={k_value} set",
+                    "persisted": True
                 }
             finally:
                 ec.close()
@@ -445,6 +470,11 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
     - K=1.0: 12880 µS/cm
     - K=10.0: 80000 µS/cm
     
+    CRITICAL: EZO EC probes lose calibration on power cycle. This function:
+    1. Sends calibration command to probe (stored in probe RAM)
+    2. Stores calibration point value in database (persists across power cycles)
+    3. On next init, calibration is re-applied to probe from database
+    
     Args:
         us_cm: High calibration point in µS/cm (None to use K-based default)
     
@@ -453,7 +483,8 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
             "ok": bool,
             "response": str,
             "k_value": float (restored),
-            "k_response": str
+            "k_response": str,
+            "persisted": bool (whether saved to database)
         }
     """
     if not _I2C_AVAILABLE:
@@ -468,7 +499,7 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
             return {"ok": False, "error": "Calibration lock held by sensor poller"}
         
         try:
-            from .settings import get_all_settings
+            from .settings import get_all_settings, upsert_settings
             
             # Get K value to determine default calibration value
             settings = get_all_settings()
@@ -486,6 +517,8 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
                     # Unknown K, default to K=0.1 value
                     us_cm = 1413
             
+            us_cm = int(us_cm)  # Ensure integer for calibration point
+            
             ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
             try:
                 # Ensure continuous mode OFF
@@ -493,29 +526,32 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
                 time.sleep(0.3)
                 
                 # Send high calibration command and verify success
-                success = ec.calibration_cmd(f"Cal,high,{int(us_cm)}", settle=1.5)
+                success = ec.calibration_cmd(f"Cal,high,{us_cm}", settle=1.5)
                 
                 if not success:
                     return {"ok": False, "error": f"High calibration command not acknowledged - ensure probe is in {us_cm} µS/cm solution"}
                 
-                logger.info(f"EC high calibration applied at {us_cm} µS/cm")
+                logger.info(f"EC high calibration applied at {us_cm} µS/cm to probe")
                 # CRITICAL: Give probe time to settle after calibration
                 time.sleep(2.0)
                 
-                # Get K value to restore
-                settings = get_all_settings()
-                k_value = float(settings.get("ec.k_value", "0.1"))
-                
-                # Restore K from settings
+                # Set K value on probe (do this BEFORE persisting calibration point)
                 k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
+                time.sleep(0.5)
+                
+                # PERSIST: Store calibration point to database (survives power cycles)
+                upsert_settings({"ec.cal_high_us": str(us_cm)})
+                logger.info(f"EC high calibration point {us_cm} µS/cm persisted to database")
+                
                 # Final stabilization before releasing lock
                 time.sleep(1.0)
                 
                 return {
                     "ok": True,
-                    "response": f"High calibration applied at {us_cm} µS/cm",
+                    "response": f"High calibration applied at {us_cm} µS/cm and persisted",
                     "k_value": k_value,
-                    "k_response": k_response or f"K={k_value} set"
+                    "k_response": k_response or f"K={k_value} set",
+                    "persisted": True
                 }
             finally:
                 ec.close()
@@ -588,7 +624,7 @@ def identify_ec_details() -> Dict[str, Any]:
 
 def clear_ec_calibration() -> Dict[str, Any]:
     """
-    Clear all EC calibration points.
+    Clear all EC calibration points from both probe and database.
     
     Returns:
         {"ok": bool, "response": str}
@@ -605,13 +641,24 @@ def clear_ec_calibration() -> Dict[str, Any]:
             return {"ok": False, "error": "Calibration lock held by sensor poller"}
         
         try:
+            from .settings import upsert_settings
+            
             ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
             try:
                 response = ec.cmd("Cal,clear", read_len=32, settle=0.5)
-                logger.info("EC calibration cleared")
+                logger.info("EC calibration cleared from probe")
+                
+                # CRITICAL: Also clear persisted calibration data from database
+                upsert_settings({
+                    "ec.cal_dry": "0",
+                    "ec.cal_low_us": "0",
+                    "ec.cal_high_us": "0"
+                })
+                logger.info("EC calibration cleared from database")
+                
                 return {
                     "ok": True,
-                    "response": response or "Calibration cleared"
+                    "response": response or "Calibration cleared from probe and database"
                 }
             finally:
                 ec.close()
@@ -627,7 +674,8 @@ def clear_ec_calibration() -> Dict[str, Any]:
 def get_ec_calibration_status() -> Dict[str, Any]:
     """
     Get current EC calibration status and K factor.
-    Parses calibration response to determine which points are set.
+    Reads calibration state from BOTH probe (RAM) and database (persistent).
+    Preferred source is database since probe loses calibration on power cycle.
     
     Returns:
         {
@@ -637,7 +685,9 @@ def get_ec_calibration_status() -> Dict[str, Any]:
             "dry": bool,
             "low": bool,
             "high": bool,
-            "cal_response": str,
+            "low_us": int (persisted low calibration point),
+            "high_us": int (persisted high calibration point),
+            "cal_response": str (from probe query),
             "note": str
         }
     """
@@ -651,11 +701,18 @@ def get_ec_calibration_status() -> Dict[str, Any]:
         settings = get_all_settings()
         k_value = float(settings.get("ec.k_value", "0.1"))
         
-        # Try to query calibration from probe (may not respond)
+        # Read calibration status from DATABASE (most reliable source)
+        dry_db = settings.get("ec.cal_dry", "0") == "1"
+        low_db = settings.get("ec.cal_low_us", "0") != "0"
+        high_db = settings.get("ec.cal_high_us", "0") != "0"
+        low_us_db = int(settings.get("ec.cal_low_us", "0")) if low_db else 0
+        high_us_db = int(settings.get("ec.cal_high_us", "0")) if high_db else 0
+        
+        # Also try to query calibration from probe (may not respond if powered down)
         cal_status = ""
-        dry = False
-        low = False
-        high = False
+        dry_probe = False
+        low_probe = False
+        high_probe = False
         cal_summary = "uncalibrated"
         
         try:
@@ -665,42 +722,70 @@ def get_ec_calibration_status() -> Dict[str, Any]:
             finally:
                 ec.close()
             
-            # Parse calibration status
+            # Parse calibration status from probe
             # Response format: "?CAL,0" (uncalibrated), "?CAL,1" (one-point), "?CAL,2" (two-point), "?CAL,3" (dry+two-point)
             if cal_status:
                 if "?CAL,0" in cal_status:
-                    cal_summary = "uncalibrated"
+                    pass  # uncalibrated
                 elif "?CAL,1" in cal_status:
-                    cal_summary = "one-point"
-                    low = True
+                    low_probe = True
                 elif "?CAL,2" in cal_status:
-                    cal_summary = "two-point"
-                    low = True
-                    high = True
+                    low_probe = True
+                    high_probe = True
                 elif "?CAL,3" in cal_status:
-                    cal_summary = "dry+two-point"
-                    dry = True
-                    low = True
-                    high = True
+                    dry_probe = True
+                    low_probe = True
+                    high_probe = True
                 else:
                     # Try alternative format
                     cal_status_lower = cal_status.lower()
                     if "dry" in cal_status_lower:
-                        dry = True
-                        cal_summary = "dry"
+                        dry_probe = True
                     if "low" in cal_status_lower:
-                        low = True
-                        if cal_summary == "dry":
-                            cal_summary = "dry+low"
-                        else:
-                            cal_summary = "one-point"
+                        low_probe = True
                     if "high" in cal_status_lower:
-                        high = True
-                        if low:
-                            cal_summary = "two-point" if not dry else "dry+two-point"
+                        high_probe = True
         except Exception as e:
-            logger.debug(f"Could not query EC calibration status: {e}")
-            cal_status = ""
+            logger.debug(f"Could not query EC probe calibration status: {e}")
+            cal_status = "Probe not responding"
+        
+        # Determine final status: prefer DATABASE over probe (since probe loses it on power cycle)
+        dry = dry_db
+        low = low_db
+        high = high_db
+        
+        # Build summary
+        if dry and low and high:
+            cal_summary = "dry+two-point (persisted)"
+        elif dry and low:
+            cal_summary = "dry+low (persisted)"
+        elif low and high:
+            cal_summary = "two-point (persisted)"
+        elif low:
+            cal_summary = "one-point/low (persisted)"
+        elif dry:
+            cal_summary = "dry only (persisted)"
+        else:
+            cal_summary = "uncalibrated"
+        
+        return {
+            "ok": True,
+            "k": k_value,
+            "cal": cal_summary,
+            "dry": dry,
+            "low": low,
+            "high": high,
+            "low_us": low_us_db,
+            "high_us": high_us_db,
+            "cal_response": cal_status or "Probe does not respond to Cal,? query",
+            "probe_dry": dry_probe,
+            "probe_low": low_probe,
+            "probe_high": high_probe,
+            "note": "Status is read from database (persists across power cycles). Probe RAM is lost on power cycle - calibration will be restored on next sensor init."
+        }
+    except Exception as e:
+        logger.error(f"Failed to get EC calibration status: {e}")
+        return {"ok": False, "error": str(e)}
         
         return {
             "ok": True,
@@ -710,7 +795,10 @@ def get_ec_calibration_status() -> Dict[str, Any]:
             "low": low,
             "high": high,
             "cal_response": cal_status or "Probe does not respond to Cal,? query",
-            "note": "K factor is source of truth from settings (EZO doesn't persist K across power cycles)"
+            "probe_dry": dry_probe,
+            "probe_low": low_probe,
+            "probe_high": high_probe,
+            "note": "Status is read from database (persists across power cycles). Probe RAM is lost on power cycle - calibration will be restored on next sensor init."
         }
     except Exception as e:
         logger.error(f"Failed to get EC calibration status: {e}")
