@@ -33,6 +33,11 @@ EC_ADDR = 0x64   # EC sensor
 # Mutex for read-to-read mutual exclusion (prevents concurrent I2C access)
 _READ_MUTEX = threading.Lock()
 
+# Sensor object cache (initialized once, reused across reads)
+# This prevents re-initialization on every read cycle
+_SENSOR_CACHE = {}
+_SENSOR_INIT_LOCK = threading.Lock()
+
 # Calibration lock file
 CALIB_LOCK_PATH = Path("/tmp/rdwc_calib.lock")
 CALIB_LOCK_TIMEOUT_S = 3.0  # 3 second timeout to acquire lock
@@ -82,6 +87,50 @@ def _release_calib_lock() -> None:
             logger.error(f"Failed to release calibration lock: {e}")
 
 
+def _get_cached_sensors() -> Tuple:
+    """
+    Get or create cached EZO sensor objects.
+    
+    Sensors are initialized ONCE and reused across read cycles.
+    This prevents the continuous re-initialization that was causing
+    calibration restoration to run on every 5-second poll.
+    
+    Returns:
+        (rtd, ph, ec) tuple of EZO objects
+    """
+    global _SENSOR_CACHE
+    
+    # Quick check without lock
+    if "rtd" in _SENSOR_CACHE and "ph" in _SENSOR_CACHE and "ec" in _SENSOR_CACHE:
+        return (_SENSOR_CACHE["rtd"], _SENSOR_CACHE["ph"], _SENSOR_CACHE["ec"])
+    
+    # Need to initialize - acquire lock
+    with _SENSOR_INIT_LOCK:
+        # Double-check after acquiring lock
+        if "rtd" in _SENSOR_CACHE and "ph" in _SENSOR_CACHE and "ec" in _SENSOR_CACHE:
+            return (_SENSOR_CACHE["rtd"], _SENSOR_CACHE["ph"], _SENSOR_CACHE["ec"])
+        
+        # Initialize sensors
+        logger.info("Initializing sensor objects (will be reused)")
+        rtd = ezo_i2c_stabilized.EZO(1, RTD_ADDR, "RTD")
+        ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
+        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+        
+        # Call init_once() to restore calibration and K factors
+        # This only happens ONCE per session
+        for dev in (rtd, ph, ec):
+            dev.init_once()
+        
+        logger.info("Sensor initialization complete - sensors will be reused for all subsequent reads")
+        
+        # Cache them
+        _SENSOR_CACHE["rtd"] = rtd
+        _SENSOR_CACHE["ph"] = ph
+        _SENSOR_CACHE["ec"] = ec
+        
+        return (rtd, ph, ec)
+
+
 def read_sensors() -> Dict[str, Any]:
     """
     Read all sensors (RTD, pH, EC) with proper K factor handling.
@@ -107,6 +156,8 @@ def read_sensors() -> Dict[str, Any]:
 def _read_sensors_locked() -> Dict[str, Any]:
     """
     Internal sensor read implementation (called while holding _READ_MUTEX).
+    
+    Uses cached sensor objects (initialized once) to avoid constant re-initialization.
     
     Returns:
         {
@@ -134,14 +185,12 @@ def _read_sensors_locked() -> Dict[str, Any]:
         from .settings import get_all_settings
         import datetime as dt
         
-        rtd = ezo_i2c_stabilized.EZO(1, RTD_ADDR, "RTD")
-        ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
-        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+        # Get cached sensors (initialized once on first call)
+        rtd, ph, ec = _get_cached_sensors()
         
         try:
-            # Initialize all sensors (disables continuous mode, restores K for EC)
-            for dev in (rtd, ph, ec):
-                dev.init_once()
+            # Don't call init_once() here - sensors are already initialized
+            # Just read from the cached, already-calibrated sensors
             time.sleep(0.25)
             
             # Read temperature first (for compensation)
@@ -190,9 +239,9 @@ def _read_sensors_locked() -> Dict[str, Any]:
                 "ts": dt.datetime.utcnow().isoformat() + "Z",
                 "errors": {}
             }
-        finally:
-            for dev in (rtd, ph, ec):
-                dev.close()
+        except Exception as e:
+            # Don't close sensors - they're cached for reuse
+            raise
     
     except Exception as e:
         logger.error(f"Sensor read failed: {e}", exc_info=True)
