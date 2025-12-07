@@ -35,6 +35,7 @@
   let lastSuccessfulFetch = Date.now();
   let consecutiveFailures = 0;
   let dynamicBackoffMs = 0; // increases on failures, reset on success
+  const REQUEST_TIMEOUT = 15000; // raised to 15s from 10s (Pi can be slow)
 
   function showConnectionBanner(on){
     let el = document.getElementById('conn-status-banner');
@@ -66,7 +67,7 @@
 
     // Make new request with timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
     const promise = fetch(url, { 
         cache: 'no-store', 
@@ -94,13 +95,13 @@
         clearTimeout(timeoutId);
         requestCache.delete(cacheKey);
         consecutiveFailures += 1;
-        // Escalate to connectionLost after 30s since last success or 5 consecutive failures
-        if (!connectionLost && (Date.now() - lastSuccessfulFetch > 30000 || consecutiveFailures >= 5)) {
+        // Escalate to connectionLost after 60s since last success or 8 consecutive failures
+        if (!connectionLost && (Date.now() - lastSuccessfulFetch > 60000 || consecutiveFailures >= 8)) {
           console.warn('[PollingManager] Connection appears lost');
           connectionLost = true; showConnectionBanner(true);
         }
         // Dynamic backoff: increase delay for priority loops (capped)
-        dynamicBackoffMs = Math.min(20000, (dynamicBackoffMs || 1000) * 2);
+        dynamicBackoffMs = Math.min(20000, (dynamicBackoffMs || 1000) * 1.5);
         throw err;
       });
 
