@@ -61,6 +61,26 @@ class SensorReadError(Exception):
     pass
 
 
+def _invalidate_sensor_cache() -> None:
+    """
+    Clear sensor cache so next read will reinitialize sensors.
+    CRITICAL: Call this after any calibration operation to ensure
+    the cached sensor objects are re-initialized with new calibration.
+    """
+    global _SENSOR_CACHE
+    
+    # Close shared bus if it exists
+    if "shared_bus" in _SENSOR_CACHE:
+        try:
+            _SENSOR_CACHE["shared_bus"].close()
+        except Exception as e:
+            logger.warning(f"Error closing shared bus: {e}")
+    
+    # Clear the cache
+    _SENSOR_CACHE.clear()
+    logger.info("Sensor cache invalidated - sensors will be re-initialized on next read")
+
+
 def _acquire_calib_lock() -> bool:
     """
     Acquire calibration lock with timeout.
@@ -404,6 +424,9 @@ def calibrate_ec_dry() -> Dict[str, Any]:
                 # Final stabilization before releasing lock
                 time.sleep(1.0)
                 
+                # CRITICAL: Invalidate sensor cache so next read reinitializes with new calibration
+                _invalidate_sensor_cache()
+                
                 return {
                     "ok": True,
                     "response": "Dry calibration applied and persisted",
@@ -507,6 +530,9 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
                 # Final stabilization before releasing lock
                 time.sleep(1.0)
                 
+                # CRITICAL: Invalidate sensor cache so next read reinitializes with new calibration
+                _invalidate_sensor_cache()
+                
                 return {
                     "ok": True,
                     "response": f"Low calibration applied at {us_cm} µS/cm and persisted",
@@ -608,6 +634,9 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
                 
                 # Final stabilization before releasing lock
                 time.sleep(1.0)
+                
+                # CRITICAL: Invalidate sensor cache so next read reinitializes with new calibration
+                _invalidate_sensor_cache()
                 
                 return {
                     "ok": True,
@@ -718,6 +747,9 @@ def clear_ec_calibration() -> Dict[str, Any]:
                     "ec.cal_high_us": "0"
                 })
                 logger.info("EC calibration cleared from database")
+                
+                # CRITICAL: Invalidate sensor cache so next read reinitializes
+                _invalidate_sensor_cache()
                 
                 return {
                     "ok": True,
