@@ -817,23 +817,27 @@ def get_system_info():
     
     # ===== ENVIRONMENT INFO =====
     try:
-        # I²C devices
+        # I²C devices - DO NOT SCAN DIRECTLY; use sensor_controller status
         i2c_devices = []
         try:
-            from app.infra.i2c_bus import get_bus
-            bus = get_bus()
-            if bus:
-                # Scan common EZO addresses
-                for addr in [0x63, 0x64, 0x66]:  # pH, EC, RTD
-                    try:
-                        bus.read_byte(addr)
-                        device_name = {0x63: "pH", 0x64: "EC", 0x66: "RTD"}.get(addr, "unknown")
-                        i2c_devices.append({"address": hex(addr), "name": device_name, "online": True})
-                    except Exception:
-                        device_name = {0x63: "pH", 0x64: "EC", 0x66: "RTD"}.get(addr, "unknown")
-                        i2c_devices.append({"address": hex(addr), "name": device_name, "online": False})
+            # Get device status from sensor_controller instead of direct I2C access
+            # This respects the locks and doesn't interfere with calibration
+            from app.sensor_controller import get_sensor_status
+            status = get_sensor_status()
+            if status and status.get("online"):
+                i2c_devices = [
+                    {"address": "0x66", "name": "RTD", "online": True},
+                    {"address": "0x63", "name": "pH", "online": True},
+                    {"address": "0x64", "name": "EC", "online": True}
+                ]
+            else:
+                i2c_devices = [
+                    {"address": "0x66", "name": "RTD", "online": False},
+                    {"address": "0x63", "name": "pH", "online": False},
+                    {"address": "0x64", "name": "EC", "online": False}
+                ]
         except Exception as e:
-            i2c_devices = [{"error": str(e)}]
+            i2c_devices = [{"error": f"Could not get sensor status: {str(e)}"}]
         
         # Relay GPIO pins
         relay_pins = {}

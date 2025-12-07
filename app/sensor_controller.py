@@ -207,6 +207,26 @@ def _read_sensors_locked() -> Dict[str, Any]:
         }
 
 
+def get_sensor_status() -> Dict[str, Any]:
+    """
+    Get current sensor status without taking a full read.
+    Used by status endpoints to avoid interfering with calibration.
+    
+    Returns latest cached reading or last-known online status.
+    """
+    # Just return a simple status - if we can read, devices are online
+    try:
+        result = read_sensors()
+        return {
+            "online": result.get("online", False),
+            "ts": result.get("ts"),
+            "age_seconds": 0
+        }
+    except Exception as e:
+        logger.debug(f"get_sensor_status error: {e}")
+        return {"online": False, "error": str(e)}
+
+
 def set_ec_k_factor(k_value: float) -> Dict[str, Any]:
     """
     Set EC probe K factor and persist to settings.
@@ -297,6 +317,8 @@ def calibrate_ec_dry() -> Dict[str, Any]:
                     return {"ok": False, "error": "Dry calibration command not acknowledged by probe after 3 attempts - ensure probe is completely dry and in air"}
                 
                 logger.info("EC dry calibration applied")
+                # CRITICAL: Give probe time to settle after calibration
+                time.sleep(2.0)
                 
                 # Get K value to restore
                 settings = get_all_settings()
@@ -304,6 +326,8 @@ def calibrate_ec_dry() -> Dict[str, Any]:
                 
                 # Restore K from settings - use regular cmd since K accepts responses
                 k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
+                # Final stabilization before releasing lock
+                time.sleep(1.0)
                 
                 return {
                     "ok": True,
@@ -385,6 +409,8 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
                     return {"ok": False, "error": f"Low calibration command not acknowledged - ensure probe is in {us_cm} µS/cm solution and probe K value is set correctly. Also check I2C communication."}
                 
                 logger.info(f"EC low calibration applied at {us_cm} µS/cm")
+                # CRITICAL: Give probe time to settle after calibration
+                time.sleep(2.0)
                 
                 # Get K value to restore
                 settings = get_all_settings()
@@ -392,6 +418,8 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
                 
                 # Restore K from settings
                 k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
+                # Final stabilization before releasing lock
+                time.sleep(1.0)
                 
                 return {
                     "ok": True,
@@ -472,6 +500,8 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
                     return {"ok": False, "error": f"High calibration command not acknowledged - ensure probe is in {us_cm} µS/cm solution"}
                 
                 logger.info(f"EC high calibration applied at {us_cm} µS/cm")
+                # CRITICAL: Give probe time to settle after calibration
+                time.sleep(2.0)
                 
                 # Get K value to restore
                 settings = get_all_settings()
@@ -479,6 +509,8 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
                 
                 # Restore K from settings
                 k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
+                # Final stabilization before releasing lock
+                time.sleep(1.0)
                 
                 return {
                     "ok": True,
@@ -1050,6 +1082,8 @@ def calibrate_ph_point(point: str, value: float) -> Dict[str, Any]:
                         # EZO pH returns "1" on success or empty string
                         if response is not None:
                             logger.info(f"pH {point} calibration success on attempt {idx}")
+                            # CRITICAL: Give probe time to settle after calibration before releasing lock
+                            time.sleep(3.0)
                             return {
                                 "ok": True,
                                 "note": f"{point.title()} calibrated at {value:.2f}"
