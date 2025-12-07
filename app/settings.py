@@ -62,7 +62,7 @@ DEFAULTS: Dict[str, str] = {
     "targets.temp_target_c": "20",
     
     # EC sensor calibration (persisted to survive power cycles)
-    "ec.k_value": "0.1",  # EC probe K factor (probe constant) - must match physical probe label
+    "ec.k_value": "1.0",  # EC probe K factor (probe constant) - must match physical probe label
     "ec.cal_dry": "0",  # Dry calibration point (0 = not calibrated, 1 = calibrated)
     "ec.cal_low_us": "0",  # Low calibration point in µS/cm (0 = not calibrated)
     "ec.cal_high_us": "0",  # High calibration point in µS/cm (0 = not calibrated)
