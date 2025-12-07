@@ -61,9 +61,6 @@ class EZO:
             self.bus = None
 
     def _write(self, payload: bytes):
-        # Ensure payload ends with carriage return (required by Atlas EZO probes)
-        if not payload.endswith(b'\r'):
-            payload = payload + b'\r'
         # Prefer i2c_rdwr transaction; else block write; else byte-by-byte
         if self.has_i2c_rdwr and i2c_msg is not None:
             msg = i2c_msg.write(self.addr, payload)
