@@ -364,7 +364,6 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
             "k_value": float (restored),
             "k_response": str
         }
-    """
     if not _I2C_AVAILABLE:
         return {"ok": False, "error": "I2C not available"}
     
