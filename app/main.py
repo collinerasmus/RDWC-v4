@@ -1214,35 +1214,11 @@ def api_sensors_power_cycle(off_ms: int = 2000, post_wait_ms: int = 4000, valida
         _time.sleep(post_wait_ms / 1000.0)
         out = {"ok": True, "off_ms": off_ms, "post_wait_ms": post_wait_ms}
         if int(validate):
-            v_attempts = []
             try:
-                from app import ezo_i2c as _ezo
-                from app.infra.i2c_bus import get_bus as _get_bus
-                bus = _get_bus()
-                # Attempt identify each board (RTD/EC/pH)
-                for addr, name in ((_ezo.ADDR_RTD, "rtd"), (_ezo.ADDR_EC, "ec"), (_ezo.ADDR_PH, "ph")):
-                    try:
-                        _ezo._send_cmd(bus, addr, "i")
-                        _time.sleep(0.35)
-                        st, payload = _ezo._poll_until_ready(bus, addr, timeout_s=4.0)
-                        v_attempts.append({"board": name, "status": st, "id": payload})
-                    except Exception as ex:
-                        v_attempts.append({"board": name, "error": str(ex)})
-                # Try one pH read single 'R'
-                sample = None
-                try:
-                    _ezo._send_cmd(bus, _ezo.ADDR_PH, "R")
-                    _time.sleep(1.2)
-                    st, payload = _ezo._poll_until_ready(bus, _ezo.ADDR_PH, timeout_s=5.0)
-                    if st == _ezo.EZO_STATUS_SUCCESS and payload:
-                        try:
-                            sample = float(payload.split(',')[0])
-                        except Exception:
-                            sample = None
-                except Exception:
-                    pass
-                out["validate_attempts"] = v_attempts
-                out["ph_sample"] = sample
+                # Route validation through sensor_controller (single I2C manager)
+                from app.sensor_controller import validate_sensor_presence
+                validation_result = validate_sensor_presence()
+                out.update(validation_result)
             except Exception as ex:
                 out["validate_error"] = str(ex)
         return out

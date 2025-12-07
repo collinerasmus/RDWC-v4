@@ -6,18 +6,20 @@ This module provides:
 2. Proper K factor handling (persisted in settings, restored on each read)
 3. Calibration endpoints (low/high point, K setting, clear)
 4. Temperature compensation (throttled)
-5. Lock-based mutual exclusion (reading vs calibration)
+5. Lock-based mutual exclusion (reading vs calibration AND read vs read)
 
 Philosophy:
-- All sensor operations go through this module
+- All sensor operations go through this module - NO OTHER MODULE ACCESSES I2C DIRECTLY
 - K factor is managed per settings, not probe memory (since EZO doesn't persist K)
 - Calibration and readings are mutually exclusive via /tmp/rdwc_calib.lock
+- All reads are serialized via threading.Lock to prevent concurrent I2C access
 - Each read restores K from settings to ensure consistency
 """
 
 import os
 import time
 import logging
+import threading
 from typing import Dict, Any, Optional, Tuple
 from pathlib import Path
 
@@ -27,6 +29,9 @@ logger = logging.getLogger(__name__)
 RTD_ADDR = 0x66  # Temperature sensor
 PH_ADDR = 0x63   # pH sensor  
 EC_ADDR = 0x64   # EC sensor
+
+# Mutex for read-to-read mutual exclusion (prevents concurrent I2C access)
+_READ_MUTEX = threading.Lock()
 
 # Calibration lock file
 CALIB_LOCK_PATH = Path("/tmp/rdwc_calib.lock")
@@ -80,6 +85,28 @@ def _release_calib_lock() -> None:
 def read_sensors() -> Dict[str, Any]:
     """
     Read all sensors (RTD, pH, EC) with proper K factor handling.
+    
+    CRITICAL: Acquires _READ_MUTEX to serialize I2C access.
+    All sensor reads go through this function to prevent race conditions.
+    
+    Returns:
+        {
+            "temperature_c": float or None,
+            "ph": float or None,
+            "ec_mscm": float or None,
+            "online": bool,
+            "ts": str (ISO 8601 UTC),
+            "errors": dict
+        }
+    """
+    # Acquire read mutex to prevent concurrent I2C access
+    with _READ_MUTEX:
+        return _read_sensors_locked()
+
+
+def _read_sensors_locked() -> Dict[str, Any]:
+    """
+    Internal sensor read implementation (called while holding _READ_MUTEX).
     
     Returns:
         {
@@ -238,11 +265,15 @@ def calibrate_ec_dry() -> Dict[str, Any]:
     if not _I2C_AVAILABLE:
         return {"ok": False, "error": "I2C not available"}
     
-    # Acquire lock
-    if not _acquire_calib_lock():
-        return {"ok": False, "error": "Calibration lock held by sensor poller"}
+    # Acquire BOTH read mutex AND calibration lock for exclusive I2C access
+    if not _READ_MUTEX.acquire(timeout=3.0):
+        return {"ok": False, "error": "Could not acquire I2C access (another operation in progress)"}
     
     try:
+        if not _acquire_calib_lock():
+            return {"ok": False, "error": "Calibration lock held by sensor poller"}
+        
+        try:
         from .settings import get_all_settings
         
         ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
@@ -296,6 +327,7 @@ def calibrate_ec_dry() -> Dict[str, Any]:
         return {"ok": False, "error": str(e)}
     finally:
         _release_calib_lock()
+        _READ_MUTEX.release()
 
 
 def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
@@ -320,16 +352,20 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
     if not _I2C_AVAILABLE:
         return {"ok": False, "error": "I2C not available"}
     
-    # Acquire lock
-    if not _acquire_calib_lock():
-        return {"ok": False, "error": "Calibration lock held by sensor poller"}
+    # Acquire BOTH read mutex AND calibration lock for exclusive I2C access
+    if not _READ_MUTEX.acquire(timeout=3.0):
+        return {"ok": False, "error": "Could not acquire I2C access (another operation in progress)"}
     
     try:
-        from .settings import get_all_settings
+        if not _acquire_calib_lock():
+            return {"ok": False, "error": "Calibration lock held by sensor poller"}
         
-        # Get K value to determine default calibration value
-        settings = get_all_settings()
-        k_value = float(settings.get("ec.k_value", "0.1"))
+        try:
+            from .settings import get_all_settings
+            
+            # Get K value to determine default calibration value
+            settings = get_all_settings()
+            k_value = float(settings.get("ec.k_value", "0.1"))
         
         # Auto-select calibration value based on K if not specified
         if us_cm is None:
@@ -390,6 +426,7 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
         return {"ok": False, "error": str(e)}
     finally:
         _release_calib_lock()
+        _READ_MUTEX.release()
 
 
 def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
@@ -414,18 +451,22 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
     if not _I2C_AVAILABLE:
         return {"ok": False, "error": "I2C not available"}
     
-    # Acquire lock
-    if not _acquire_calib_lock():
-        return {"ok": False, "error": "Calibration lock held by sensor poller"}
+    # Acquire BOTH read mutex AND calibration lock for exclusive I2C access
+    if not _READ_MUTEX.acquire(timeout=3.0):
+        return {"ok": False, "error": "Could not acquire I2C access (another operation in progress)"}
     
     try:
-        from .settings import get_all_settings
+        if not _acquire_calib_lock():
+            return {"ok": False, "error": "Calibration lock held by sensor poller"}
         
-        # Get K value to determine default calibration value
-        settings = get_all_settings()
-        k_value = float(settings.get("ec.k_value", "0.1"))
-        
-        # Auto-select calibration value based on K if not specified
+        try:
+            from .settings import get_all_settings
+            
+            # Get K value to determine default calibration value
+            settings = get_all_settings()
+            k_value = float(settings.get("ec.k_value", "0.1"))
+            
+            # Auto-select calibration value based on K if not specified
         if us_cm is None:
             if k_value == 0.1:
                 us_cm = 1413
@@ -484,6 +525,7 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
         return {"ok": False, "error": str(e)}
     finally:
         _release_calib_lock()
+        _READ_MUTEX.release()
 
 
 def get_ec_raw() -> Dict[str, Any]:
@@ -554,13 +596,17 @@ def clear_ec_calibration() -> Dict[str, Any]:
     if not _I2C_AVAILABLE:
         return {"ok": False, "error": "I2C not available"}
     
-    # Acquire lock
-    if not _acquire_calib_lock():
-        return {"ok": False, "error": "Calibration lock held by sensor poller"}
+    # Acquire BOTH read mutex AND calibration lock for exclusive I2C access
+    if not _READ_MUTEX.acquire(timeout=3.0):
+        return {"ok": False, "error": "Could not acquire I2C access (another operation in progress)"}
     
     try:
-        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+        if not _acquire_calib_lock():
+            return {"ok": False, "error": "Calibration lock held by sensor poller"}
+        
         try:
+            ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+            try:
             response = ec.cmd("Cal,clear", read_len=32, settle=0.5)
             logger.info("EC calibration cleared")
             return {
@@ -574,6 +620,7 @@ def clear_ec_calibration() -> Dict[str, Any]:
         return {"ok": False, "error": str(e)}
     finally:
         _release_calib_lock()
+        _READ_MUTEX.release()
 
 
 def get_ec_calibration_status() -> Dict[str, Any]:
@@ -726,7 +773,7 @@ def flash_sensor_leds(count: int = 8, period_s: float = 0.25) -> Dict[str, Any]:
 def read_ph_single() -> Dict[str, Any]:
     """
     Perform a single locked pH reading for calibration UI.
-    Uses calibration lock to avoid contention with sensor poller.
+    Uses dual locks: _READ_MUTEX (I2C serialization) + _acquire_calib_lock (poller coordination).
     
     Returns:
         {"ok": bool, "value": float, "note": str}
@@ -734,11 +781,15 @@ def read_ph_single() -> Dict[str, Any]:
     if not _I2C_AVAILABLE:
         return {"ok": False, "note": "HardwareUnavailable"}
     
-    # Acquire lock
-    if not _acquire_calib_lock():
-        return {"ok": False, "note": "Calibration lock held by sensor poller"}
-    
+    # Acquire I2C mutex first
+    if not _READ_MUTEX.acquire(timeout=3.0):
+        return {"ok": False, "note": "Could not acquire I2C access; sensor read in progress"}
     try:
+        # Then acquire calibration lock
+        if not _acquire_calib_lock():
+            return {"ok": False, "note": "Calibration lock held by sensor poller"}
+        
+        try:
         # Wait for any in-flight sensor read to complete
         time.sleep(1.0)
         
@@ -763,11 +814,13 @@ def read_ph_single() -> Dict[str, Any]:
             return {"ok": False, "note": "NoData"}
         finally:
             ph.close()
+        finally:
+            _release_calib_lock()
     except Exception as e:
         logger.error(f"pH single read failed: {e}")
         return {"ok": False, "note": str(e)}
     finally:
-        _release_calib_lock()
+        _READ_MUTEX.release()
 
 
 def read_ph_stable(timeout_s: float = 25.0, delta: float = 0.03, 
@@ -850,6 +903,7 @@ def read_ph_stable(timeout_s: float = 25.0, delta: float = 0.03,
 def get_ph_calibration_status() -> Dict[str, Any]:
     """
     Get current pH calibration status.
+    Uses dual locks: _READ_MUTEX (I2C serialization) + _acquire_calib_lock (poller coordination).
     
     Returns:
         {
@@ -862,11 +916,15 @@ def get_ph_calibration_status() -> Dict[str, Any]:
     if not _I2C_AVAILABLE:
         return {"ok": False, "error": "I2C not available"}
     
-    # Acquire lock for status query
-    if not _acquire_calib_lock():
-        return {"ok": False, "error": "Calibration lock held by sensor poller"}
-    
+    # Acquire I2C mutex first
+    if not _READ_MUTEX.acquire(timeout=3.0):
+        return {"ok": False, "error": "Could not acquire I2C access; sensor read in progress"}
     try:
+        # Then acquire calibration lock
+        if not _acquire_calib_lock():
+            return {"ok": False, "error": "Calibration lock held by sensor poller"}
+        
+        try:
         time.sleep(0.6)  # Allow in-flight reads to complete
         
         ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
@@ -909,16 +967,19 @@ def get_ph_calibration_status() -> Dict[str, Any]:
             }
         finally:
             ph.close()
+        finally:
+            _release_calib_lock()
     except Exception as e:
         logger.error(f"Failed to get pH calibration status: {e}")
         return {"ok": False, "error": str(e)}
     finally:
-        _release_calib_lock()
+        _READ_MUTEX.release()
 
 
 def clear_ph_calibration() -> Dict[str, Any]:
     """
     Clear all pH calibration points.
+    Uses dual locks: _READ_MUTEX (I2C serialization) + _acquire_calib_lock (poller coordination).
     
     Returns:
         {"ok": bool, "note": str}
@@ -926,11 +987,15 @@ def clear_ph_calibration() -> Dict[str, Any]:
     if not _I2C_AVAILABLE:
         return {"ok": False, "note": "I2C not available"}
     
-    # Acquire lock
-    if not _acquire_calib_lock():
-        return {"ok": False, "note": "Calibration lock held by sensor poller"}
-    
+    # Acquire I2C mutex first
+    if not _READ_MUTEX.acquire(timeout=3.0):
+        return {"ok": False, "note": "Could not acquire I2C access; sensor read in progress"}
     try:
+        # Then acquire calibration lock
+        if not _acquire_calib_lock():
+            return {"ok": False, "note": "Calibration lock held by sensor poller"}
+        
+        try:
         time.sleep(1.0)  # Allow in-flight reads to finish
         
         ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
@@ -952,16 +1017,19 @@ def clear_ph_calibration() -> Dict[str, Any]:
                     return {"ok": False, "note": "Clear failed"}
         finally:
             ph.close()
+        finally:
+            _release_calib_lock()
     except Exception as e:
         logger.error(f"Failed to clear pH calibration: {e}")
         return {"ok": False, "note": str(e)}
     finally:
-        _release_calib_lock()
+        _READ_MUTEX.release()
 
 
 def calibrate_ph_point(point: str, value: float) -> Dict[str, Any]:
     """
     Apply pH calibration at a specific point (mid, low, or high).
+    Uses dual locks: _READ_MUTEX (I2C serialization) + _acquire_calib_lock (poller coordination).
     
     Args:
         point: Calibration point name ("mid", "low", or "high")
@@ -979,11 +1047,15 @@ def calibrate_ph_point(point: str, value: float) -> Dict[str, Any]:
     
     value = max(0.0, min(14.0, float(value)))
     
-    # Acquire lock
-    if not _acquire_calib_lock():
-        return {"ok": False, "note": "Calibration lock held by sensor poller"}
-    
+    # Acquire I2C mutex first
+    if not _READ_MUTEX.acquire(timeout=3.0):
+        return {"ok": False, "note": "Could not acquire I2C access; sensor read in progress"}
     try:
+        # Then acquire calibration lock
+        if not _acquire_calib_lock():
+            return {"ok": False, "note": "Calibration lock held by sensor poller"}
+        
+        try:
         # Wait for any in-flight sensor read to complete
         time.sleep(2.0)
         
@@ -1020,8 +1092,10 @@ def calibrate_ph_point(point: str, value: float) -> Dict[str, Any]:
             return {"ok": False, "note": "All calibration attempts failed"}
         finally:
             ph.close()
+        finally:
+            _release_calib_lock()
     except Exception as e:
         logger.error(f"pH calibration failed: {e}")
         return {"ok": False, "note": str(e)}
     finally:
-        _release_calib_lock()
+        _READ_MUTEX.release()

@@ -2,6 +2,10 @@
 Sensors Provider for RDWC v4
 Reads temperature, EC, and pH from Atlas EZO sensors via I2C
 Supports mock mode for development/testing
+
+NOTE: This provider does NOT access I2C directly. All I2C operations are routed
+through app.sensor_controller, which is the single source of truth for sensor I/O.
+This ensures no race conditions from concurrent reads.
 """
 import logging
 from datetime import datetime
@@ -9,31 +13,25 @@ from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
-# Atlas EZO I2C default addresses (from app.ezo_i2c)
+# Atlas EZO I2C default addresses (for reference only - actual I/O is in sensor_controller)
 ADDR_RTD = 0x66  # Temperature (RTD)
 ADDR_EC = 0x64   # Electrical Conductivity
 ADDR_PH = 0x63   # pH
 
 class SensorsProvider:
     """
-    Provides sensor readings from Atlas EZO devices over I2C
+    Provides sensor readings from Atlas EZO devices via sensor_controller
     Falls back to mock data if hardware unavailable
+    
+    Architecture:
+    - Never accesses I2C directly
+    - Routes all reads through app.sensor_controller
+    - Provides cached/DB fallback for resilience
     """
     
     def __init__(self, use_mock: bool = False):
         self.use_mock = use_mock
-        self.ezo_available = False
-        
-        if not use_mock:
-            try:
-                # Try to import existing ezo_i2c module
-                from app import ezo_i2c
-                self.ezo = ezo_i2c
-                self.ezo_available = True
-                logger.info("[SensorsProvider] Initialized with real hardware (ezo_i2c)")
-            except (ImportError, Exception) as e:
-                logger.warning(f"[SensorsProvider] Could not init hardware, using mock: {e}")
-                self.use_mock = True
+        # No longer storing ezo reference - all access goes through sensor_controller
     
     def read_all(self) -> Dict[str, Any]:
         """
