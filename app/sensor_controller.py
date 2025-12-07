@@ -274,33 +274,33 @@ def calibrate_ec_dry() -> Dict[str, Any]:
             return {"ok": False, "error": "Calibration lock held by sensor poller"}
         
         try:
-        from .settings import get_all_settings
-        
-        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
-        try:
-            # Ensure continuous mode is OFF before calibration
-            ec.cmd("C,0", read_len=0, settle=0.3)
-            time.sleep(0.5)
+            from .settings import get_all_settings
             
-            # Send dry calibration command
-            # Note: Atlas EZO calibration commands take 600-900ms to process
-            # We need to wait and poll for completion
-            ec._write("Cal,dry".encode('ascii'))
-            time.sleep(1.5)  # Wait for processing (Atlas spec: 600-900ms)
-            
-            # Poll for completion - check multiple times
-            success = False
-            for attempt in range(5):
-                raw = ec._read(32)
-                if raw and len(raw) > 0:
-                    status = raw[0]
-                    if status == 1:  # Success
-                        success = True
-                        break
-                    elif status == 254:  # Still processing
-                        time.sleep(0.3)
-                        continue
-                time.sleep(0.2)
+            ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+            try:
+                # Ensure continuous mode is OFF before calibration
+                ec.cmd("C,0", read_len=0, settle=0.3)
+                time.sleep(0.5)
+                
+                # Send dry calibration command
+                # Note: Atlas EZO calibration commands take 600-900ms to process
+                # We need to wait and poll for completion
+                ec._write("Cal,dry".encode('ascii'))
+                time.sleep(1.5)  # Wait for processing (Atlas spec: 600-900ms)
+                
+                # Poll for completion - check multiple times
+                success = False
+                for attempt in range(5):
+                    raw = ec._read(32)
+                    if raw and len(raw) > 0:
+                        status = raw[0]
+                        if status == 1:  # Success
+                            success = True
+                            break
+                        elif status == 254:  # Still processing
+                            time.sleep(0.3)
+                            continue
+                    time.sleep(0.2)
             
             if not success:
                 return {"ok": False, "error": "Dry calibration command not acknowledged by probe - ensure probe is dry and try again"}
