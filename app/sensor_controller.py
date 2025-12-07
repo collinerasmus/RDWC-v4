@@ -212,7 +212,9 @@ def _read_sensors_locked() -> Dict[str, Any]:
                 pass
             
             # Read EC raw value (in µS/cm)
-            ec_raw = float(ec.read_value(timeout=1.5))
+            ec_raw_str = ec.read_value(timeout=1.5)
+            logger.debug(f"EC raw response: '{ec_raw_str}' (type={type(ec_raw_str).__name__})")
+            ec_raw = float(ec_raw_str) if ec_raw_str else 0.0
             
             # Get K factor from settings and ensure it's applied to probe
             settings = get_all_settings()
