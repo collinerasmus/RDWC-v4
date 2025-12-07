@@ -140,6 +140,24 @@ class EZO:
         logger.warning(f"EZO {self.name} cmd_with_polling('{cmd}') timeout after {timeout}s")
         return ""
 
+    def calibration_cmd(self, cmd: str, settle: float = 1.5) -> bool:
+        """
+        Send calibration command and verify success.
+        Calibration commands (Cal,dry/low/high/clear) return status-only, no data.
+        Returns True if status == 1 (success), False otherwise.
+        """
+        self._write(cmd.encode('ascii'))
+        sleep(settle)
+        raw = self._read(32)
+        if not raw or len(raw) == 0:
+            logger.error(f"EZO {self.name} calibration_cmd('{cmd}') got empty response")
+            return False
+        status = raw[0]
+        success = (status == 1)
+        logger.info(f"EZO {self.name} calibration_cmd('{cmd}') status={status} success={success}")
+        return success
+
+
 
     def init_once(self):
         # Disable continuous mode only (keep LED for diagnostics)

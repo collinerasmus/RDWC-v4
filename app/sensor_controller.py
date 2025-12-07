@@ -282,22 +282,20 @@ def calibrate_ec_dry() -> Dict[str, Any]:
                 ec.cmd("C,0", read_len=0, settle=0.3)
                 time.sleep(0.5)
                 
-                # Send dry calibration command using the proper cmd() interface
-                # This handles write, settle, and read in correct sequence
-                response = ec.cmd("Cal,dry", read_len=32, settle=1.2)
+                # Send dry calibration command and verify success
+                success = ec.calibration_cmd("Cal,dry", settle=1.5)
                 
-                # For dry calibration, Atlas EZO returns empty string on success
-                # The command completes silently when successful
-                # Just verify the probe is still responding
-                logger.info(f"EC dry calibration: response={repr(response)}")
+                if not success:
+                    return {"ok": False, "error": "Dry calibration command not acknowledged by probe - ensure probe is dry and try again"}
+                
+                logger.info("EC dry calibration applied")
                 
                 # Get K value to restore
                 settings = get_all_settings()
                 k_value = float(settings.get("ec.k_value", "0.1"))
                 
-                # Restore K from settings - this is always done after dry cal
+                # Restore K from settings - use regular cmd since K accepts responses
                 k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
-                logger.info(f"EC K restored: {k_value}, response={repr(k_response)}")
                 
                 return {
                     "ok": True,
@@ -371,15 +369,21 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
                 ec.cmd("C,0", read_len=0, settle=0.3)
                 time.sleep(0.3)
                 
-                # Send low calibration command using proper cmd() interface
-                response = ec.cmd(f"Cal,low,{int(us_cm)}", read_len=32, settle=1.2)
-                logger.info(f"EC low calibration at {us_cm} µS/cm: response={repr(response)}")
+                # Send low calibration command and verify success
+                success = ec.calibration_cmd(f"Cal,low,{int(us_cm)}", settle=1.5)
                 
-                # Atlas EZO returns empty or "1" on success for calibration
-                # Just restore K and return success
+                if not success:
+                    return {"ok": False, "error": f"Low calibration command not acknowledged - ensure probe is in {us_cm} µS/cm solution"}
+                
+                logger.info(f"EC low calibration applied at {us_cm} µS/cm")
+                
+                # Get K value to restore
+                settings = get_all_settings()
+                k_value = float(settings.get("ec.k_value", "0.1"))
+                
+                # Restore K from settings
                 k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
                 
-                logger.info(f"EC low calibration applied at {us_cm} µS/cm, K restored to {k_value}")
                 return {
                     "ok": True,
                     "response": f"Low calibration applied at {us_cm} µS/cm",
@@ -452,15 +456,21 @@ def calibrate_ec_high(us_cm: float = None) -> Dict[str, Any]:
                 ec.cmd("C,0", read_len=0, settle=0.3)
                 time.sleep(0.3)
                 
-                # Send high calibration command using proper cmd() interface
-                response = ec.cmd(f"Cal,high,{int(us_cm)}", read_len=32, settle=1.2)
-                logger.info(f"EC high calibration at {us_cm} µS/cm: response={repr(response)}")
+                # Send high calibration command and verify success
+                success = ec.calibration_cmd(f"Cal,high,{int(us_cm)}", settle=1.5)
                 
-                # Atlas EZO returns empty or "1" on success for calibration
-                # Just restore K and return success
+                if not success:
+                    return {"ok": False, "error": f"High calibration command not acknowledged - ensure probe is in {us_cm} µS/cm solution"}
+                
+                logger.info(f"EC high calibration applied at {us_cm} µS/cm")
+                
+                # Get K value to restore
+                settings = get_all_settings()
+                k_value = float(settings.get("ec.k_value", "0.1"))
+                
+                # Restore K from settings
                 k_response = ec.cmd(f"K,{k_value:.2f}", read_len=32, settle=0.5)
                 
-                logger.info(f"EC high calibration applied at {us_cm} µS/cm, K restored to {k_value}")
                 return {
                     "ok": True,
                     "response": f"High calibration applied at {us_cm} µS/cm",
