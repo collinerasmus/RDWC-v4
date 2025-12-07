@@ -282,11 +282,19 @@ def calibrate_ec_dry() -> Dict[str, Any]:
                 ec.cmd("C,0", read_len=0, settle=0.3)
                 time.sleep(0.5)
                 
-                # Send dry calibration command and verify success
-                success = ec.calibration_cmd("Cal,dry", settle=1.5)
+                # Retry dry calibration up to 3 times with much longer settle
+                # EC probes can take 3-5 seconds to process calibration commands
+                success = False
+                last_error = None
+                for attempt in range(3):
+                    logger.info(f"EC dry calibration attempt {attempt + 1}/3")
+                    success = ec.calibration_cmd("Cal,dry", settle=5.0)  # Increased to 5 seconds
+                    if success:
+                        break
+                    time.sleep(2.0)  # Wait between retries
                 
                 if not success:
-                    return {"ok": False, "error": "Dry calibration command not acknowledged by probe - ensure probe is dry and try again"}
+                    return {"ok": False, "error": "Dry calibration command not acknowledged by probe after 3 attempts - ensure probe is completely dry and in air"}
                 
                 logger.info("EC dry calibration applied")
                 
@@ -367,13 +375,14 @@ def calibrate_ec_low(us_cm: float = None) -> Dict[str, Any]:
             try:
                 # Ensure continuous mode OFF
                 ec.cmd("C,0", read_len=0, settle=0.3)
-                time.sleep(0.3)
+                time.sleep(0.5)
                 
-                # Send low calibration command and verify success
-                success = ec.calibration_cmd(f"Cal,low,{int(us_cm)}", settle=1.5)
+                # Send low calibration command with VERY long settle (10 seconds for probe to process)
+                # Some EC probes take time to acknowledge calibration
+                success = ec.calibration_cmd(f"Cal,low,{int(us_cm)}", settle=10.0)
                 
                 if not success:
-                    return {"ok": False, "error": f"Low calibration command not acknowledged - ensure probe is in {us_cm} µS/cm solution"}
+                    return {"ok": False, "error": f"Low calibration command not acknowledged - ensure probe is in {us_cm} µS/cm solution and probe K value is set correctly. Also check I2C communication."}
                 
                 logger.info(f"EC low calibration applied at {us_cm} µS/cm")
                 
