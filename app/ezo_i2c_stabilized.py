@@ -37,13 +37,23 @@ logger = logging.getLogger(__name__)
 
 
 class EZO:
-    def __init__(self, bus_num: int, addr: int, name: str):
+    def __init__(self, bus_num: int, addr: int, name: str, bus_instance=None):
         self.bus_num = bus_num
         self.addr = addr
         self.name = name
+        self.owns_bus = False
         if SMBus is None:
             raise RuntimeError("SMBus not available (Windows/dev environment)")
-        self.bus = SMBus(bus_num)
+        
+        # Use provided bus instance or create new one
+        if bus_instance is not None:
+            self.bus = bus_instance
+            logger.debug(f"EZO {name} (0x{addr:02x}): using shared SMBus instance")
+        else:
+            self.bus = SMBus(bus_num)
+            self.owns_bus = True
+            logger.debug(f"EZO {name} (0x{addr:02x}): created new SMBus instance")
+        
         # Capability flags
         self.has_i2c_rdwr = hasattr(self.bus, 'i2c_rdwr') and (i2c_msg is not None)
         self.has_block_io = hasattr(self.bus, 'write_i2c_block_data') and hasattr(self.bus, 'read_i2c_block_data')
@@ -52,8 +62,8 @@ class EZO:
             f"has_block_io={self.has_block_io}")
 
     def close(self):
-        """Close the I2C bus connection to release file descriptor."""
-        if self.bus is not None:
+        """Close the I2C bus connection to release file descriptor (only if we own it)."""
+        if self.bus is not None and self.owns_bus:
             try:
                 self.bus.close()
             except Exception:

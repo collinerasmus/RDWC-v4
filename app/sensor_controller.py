@@ -95,6 +95,9 @@ def _get_cached_sensors() -> Tuple:
     This prevents the continuous re-initialization that was causing
     calibration restoration to run on every 5-second poll.
     
+    CRITICAL: All three sensors share a single SMBus instance to prevent
+    I2C bus contention from multiple SMBus handles.
+    
     Returns:
         (rtd, ph, ec) tuple of EZO objects
     """
@@ -110,11 +113,17 @@ def _get_cached_sensors() -> Tuple:
         if "rtd" in _SENSOR_CACHE and "ph" in _SENSOR_CACHE and "ec" in _SENSOR_CACHE:
             return (_SENSOR_CACHE["rtd"], _SENSOR_CACHE["ph"], _SENSOR_CACHE["ec"])
         
-        # Initialize sensors
+        # Initialize sensors with SHARED SMBus instance to prevent I2C contention
         logger.info("Initializing sensor objects (will be reused)")
-        rtd = ezo_i2c_stabilized.EZO(1, RTD_ADDR, "RTD")
-        ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH")
-        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC")
+        
+        # Create a single shared SMBus instance for all three sensors
+        shared_bus = ezo_i2c_stabilized.SMBus(1)
+        logger.info("Created shared SMBus(1) instance for all sensors")
+        
+        # Create all three sensors with the shared bus
+        rtd = ezo_i2c_stabilized.EZO(1, RTD_ADDR, "RTD", bus_instance=shared_bus)
+        ph = ezo_i2c_stabilized.EZO(1, PH_ADDR, "pH", bus_instance=shared_bus)
+        ec = ezo_i2c_stabilized.EZO(1, EC_ADDR, "EC", bus_instance=shared_bus)
         
         # Call init_once() to restore calibration and K factors
         # This only happens ONCE per session
@@ -127,6 +136,9 @@ def _get_cached_sensors() -> Tuple:
         _SENSOR_CACHE["rtd"] = rtd
         _SENSOR_CACHE["ph"] = ph
         _SENSOR_CACHE["ec"] = ec
+        
+        # Also cache the shared bus so we can close it if needed
+        _SENSOR_CACHE["shared_bus"] = shared_bus
         
         return (rtd, ph, ec)
 
