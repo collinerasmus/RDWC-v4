@@ -61,6 +61,9 @@ class EZO:
             self.bus = None
 
     def _write(self, payload: bytes):
+        # Ensure payload ends with carriage return (required by Atlas EZO probes)
+        if not payload.endswith(b'\r'):
+            payload = payload + b'\r'
         # Prefer i2c_rdwr transaction; else block write; else byte-by-byte
         if self.has_i2c_rdwr and i2c_msg is not None:
             msg = i2c_msg.write(self.addr, payload)
@@ -144,7 +147,7 @@ class EZO:
         """
         Send calibration command and verify success.
         Calibration commands (Cal,dry/low/high/clear) return status-only, no data.
-        Returns True if status == 1 (success), False otherwise.
+        Returns True if status == 0 or 1 (success/immediate), False otherwise (2=error).
         """
         self._write(cmd.encode('ascii'))
         sleep(settle)
@@ -153,7 +156,7 @@ class EZO:
             logger.error(f"EZO {self.name} calibration_cmd('{cmd}') got empty response")
             return False
         status = raw[0]
-        success = (status == 1)
+        success = (status in (0, 1))
         logger.info(f"EZO {self.name} calibration_cmd('{cmd}') status={status} success={success}")
         return success
 
