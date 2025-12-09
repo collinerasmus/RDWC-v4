@@ -431,11 +431,16 @@ body{
     max-height: var(--h-trends);
     overflow: hidden;
     contain: layout size;
+    padding: 0;
+    margin: 0;
+    background: transparent;
   }
   #trendChart, #phDoseChart, #ecDoseChart, #chillerChart {
-    display: block;
-    width: 100%;
-    height: var(--h-trends);
+    display: block !important;
+    width: 100% !important;
+    height: var(--h-trends) !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   /* BOP (Balance of Plant) styling */
