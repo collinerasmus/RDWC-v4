@@ -423,8 +423,8 @@ body{
   /* Subtle click feedback */
   .relay-btn.loading{ opacity:.7; }
 
-  /* Dose History chart wrappers: match sensors graph height with strict containment */
-  #ph-dose-chart-wrap, #ec-dose-chart-wrap {
+  /* Chart wrappers: standardized 420px height with strict containment */
+  .chart-card {
     position: relative;
     height: var(--h-trends);
     min-height: var(--h-trends);
@@ -432,7 +432,7 @@ body{
     overflow: hidden;
     contain: layout size;
   }
-  #phDoseChart, #ecDoseChart {
+  #trendChart, #phDoseChart, #ecDoseChart, #chillerChart {
     display: block;
     width: 100%;
     height: var(--h-trends);
