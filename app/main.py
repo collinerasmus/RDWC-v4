@@ -1333,19 +1333,49 @@ def api_relays_guard_recent(limit: int = 50):
 @app.get("/api/temperature/status")
 def api_chiller_status():
     """Get current chiller state, temperature, and automation status."""
+    import logging
+    log = logging.getLogger(__name__)
+    
     try:
-        from app.temperature_control import get_temperature_state, get_current_water_temp
-        state = get_temperature_state()
-        state['current_temp'] = get_current_water_temp()
+        log.debug("api_chiller_status: Starting")
+        
+        try:
+            log.debug("api_chiller_status: Importing temperature_control")
+            from app.temperature_control import get_temperature_state, get_current_water_temp
+        except Exception as e:
+            log.error(f"api_chiller_status: Import failed: {e}", exc_info=True)
+            raise
+        
+        try:
+            log.debug("api_chiller_status: Calling get_temperature_state()")
+            state = get_temperature_state()
+            log.debug(f"api_chiller_status: get_temperature_state returned: {type(state)}")
+        except Exception as e:
+            log.error(f"api_chiller_status: get_temperature_state failed: {e}", exc_info=True)
+            raise
+        
+        try:
+            log.debug("api_chiller_status: Calling get_current_water_temp()")
+            state['current_temp'] = get_current_water_temp()
+            log.debug(f"api_chiller_status: get_current_water_temp returned: {state['current_temp']}")
+        except Exception as e:
+            log.error(f"api_chiller_status: get_current_water_temp failed: {e}", exc_info=True)
+            raise
+        
+        log.debug("api_chiller_status: Success")
         return state
+        
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).exception("/api/temperature/status failed")
-        return JSONResponse(status_code=200, content={
+        log.exception("/api/temperature/status failed")
+        error_response = {
             "ok": False,
             "error": str(e),
-            "current_temp": None
-        })
+            "current_temp": None,
+            "is_running": False,
+            "auto_enabled": False
+        }
+        log.debug(f"api_chiller_status: Returning error response: {error_response}")
+        return JSONResponse(status_code=200, content=error_response)
 
 @app.post("/api/temperature/auto/enable")
 def api_chiller_auto_enable():
