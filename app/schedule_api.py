@@ -19,16 +19,16 @@ router = APIRouter()
 DB_PATH = Path(__file__).parent.parent / "data" / "rdwc.db"
 
 # EHG 3-Part default schedule (ml per 10L)
-# AUTO-CANNABIS 3-Part Schedule (ml per 10L) - Optimized for RDWC Autoflowers
-# Based on industry best practices for 12-week auto cycle
+# EHG Base Level 3-Part Schedule - matches official EHG nutrient chart
+# Based on EHG Nutrients Guide Per 10 Litres of Water
 AUTO_DEFAULTS = [
-    # Seedling (Weeks 1-2) - Gentle introduction, establishing roots
-    {"week": 1, "phase": "seedling", "grow_ml10": 2.5, "micro_ml10": 2.5, "bloom_ml10": 1.0, "ec_target": 0.6, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "Seedling - gentle start, focus on root development"},
-    {"week": 2, "phase": "seedling", "grow_ml10": 5.0, "micro_ml10": 5.0, "bloom_ml10": 2.0, "ec_target": 0.8, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "Early seedling - building root mass"},
+    # Base Level Weeks 1-4 (per EHG chart)
+    {"week": 1, "phase": "seedling", "grow_ml10": 2.5, "micro_ml10": 2.5, "bloom_ml10": 2.5, "ec_target": 0.6, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "Week 1 Base Level - balanced introduction"},
+    {"week": 2, "phase": "seedling", "grow_ml10": 5.0, "micro_ml10": 5.0, "bloom_ml10": 5.0, "ec_target": 0.8, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "Week 2 Base Level - establishing growth"},
     
-    # Early Veg (Weeks 3-4) - Rapid vegetative growth
-    {"week": 3, "phase": "veg", "grow_ml10": 7.5, "micro_ml10": 7.5, "bloom_ml10": 3.0, "ec_target": 1.0, "ph_low": 5.5, "ph_high": 6.0, "temp_target": 20.0, "lights": "20/4", "notes": "Early veg - rapid leaf development"},
-    {"week": 4, "phase": "veg", "grow_ml10": 10.0, "micro_ml10": 10.0, "bloom_ml10": 4.0, "ec_target": 1.2, "ph_low": 5.5, "ph_high": 6.0, "temp_target": 20.0, "lights": "20/4", "notes": "Mid veg - explosive growth phase"},
+    # Early Veg (Weeks 3-4)
+    {"week": 3, "phase": "veg", "grow_ml10": 7.5, "micro_ml10": 7.5, "bloom_ml10": 7.5, "ec_target": 1.0, "ph_low": 5.5, "ph_high": 6.0, "temp_target": 20.0, "lights": "20/4", "notes": "Week 3 Base Level - balanced veg growth"},
+    {"week": 4, "phase": "veg", "grow_ml10": 10.0, "micro_ml10": 10.0, "bloom_ml10": 10.0, "ec_target": 1.2, "ph_low": 5.5, "ph_high": 6.0, "temp_target": 20.0, "lights": "20/4", "notes": "Week 4 Mixed Crops - peak balanced feed"},
     
     # Late Veg (Weeks 5-6) - Preparing for flower
     {"week": 5, "phase": "veg", "grow_ml10": 12.0, "micro_ml10": 12.0, "bloom_ml10": 5.0, "ec_target": 1.3, "ph_low": 5.5, "ph_high": 6.0, "temp_target": 20.0, "lights": "20/4", "notes": "Late veg - maximum vegetative growth"},

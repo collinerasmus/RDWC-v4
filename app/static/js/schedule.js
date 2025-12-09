@@ -230,6 +230,26 @@
       // Phase name
       html += `<div style="font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">${phase}</div>`;
       
+      // Nutrient proportion bars
+      const total = w.grow_ml10 + w.micro_ml10 + w.bloom_ml10;
+      const growPct = total > 0 ? (w.grow_ml10 / total * 100).toFixed(0) : 0;
+      const microPct = total > 0 ? (w.micro_ml10 / total * 100).toFixed(0) : 0;
+      const bloomPct = total > 0 ? (w.bloom_ml10 / total * 100).toFixed(0) : 0;
+      
+      html += `<div style="margin-bottom:6px;">`;
+      html += `<div style="display:flex;height:18px;border-radius:4px;overflow:hidden;border:1px solid rgba(148,163,184,0.25);">`;
+      if(total > 0){
+        html += `<div style="width:${growPct}%;background:#22c55e;" title="Grow ${w.grow_ml10}ml"></div>`;
+        html += `<div style="width:${microPct}%;background:#3b82f6;" title="Micro ${w.micro_ml10}ml"></div>`;
+        html += `<div style="width:${bloomPct}%;background:#fbbf24;" title="Bloom ${w.bloom_ml10}ml"></div>`;
+      } else {
+        html += `<div style="width:100%;background:rgba(148,163,184,0.15);display:flex;align-items:center;justify-content:center;font-size:0.65rem;color:#94a3b8;">Flush</div>`;
+      }
+      html += `</div>`;
+      html += `<div style="display:flex;justify-content:space-between;font-size:0.65rem;color:#94a3b8;margin-top:2px;">`;
+      html += `<span>G:${w.grow_ml10}</span><span>M:${w.micro_ml10}</span><span>B:${w.bloom_ml10}</span>`;
+      html += `</div></div>`;
+      
       // Target values
       html += `<div style="flex:1;display:flex;flex-direction:column;gap:3px;font-size:0.75rem;color:#cbd5e1;">`;
       html += `<div><span style="color:#94a3b8;">EC:</span> <strong>${w.ec_target}</strong></div>`;
@@ -507,12 +527,35 @@
     const dayEl = el('schedule-grow-day-kpi');
     const week = sched.current_week || 1;
     const currentWeekRow = sched.weeks?.find(w=>w.week===week);
-    if(cwEl) cwEl.textContent = week;
-    if(phaseEl) phaseEl.textContent = currentWeekRow? (currentWeekRow.phase || '—') : '—';
-    if(startEl) startEl.textContent = sched.grow_start_date ? new Date(sched.grow_start_date).toLocaleDateString() : '—';
+    
+    // Add visual emphasis to active values
+    if(cwEl){
+      cwEl.textContent = week;
+      cwEl.style.color = '#10b981';
+      cwEl.style.textShadow = '0 0 8px rgba(16,185,129,0.4)';
+    }
+    if(phaseEl){
+      const phase = currentWeekRow?.phase || '—';
+      phaseEl.textContent = phase;
+      phaseEl.style.textTransform = 'capitalize';
+      if(phase !== '—'){
+        const phaseColors = {seedling:'#93c5fd',veg:'#22c55e',preflower:'#fbbf24',flower:'#db70ef',flush:'#3b82f6'};
+        phaseEl.style.color = phaseColors[phase] || '#e0e0e0';
+      }
+    }
+    if(startEl){
+      const dateStr = sched.grow_start_date ? new Date(sched.grow_start_date).toLocaleDateString() : '—';
+      startEl.textContent = dateStr;
+      startEl.style.fontWeight = dateStr !== '—' ? '600' : '400';
+    }
     if(dayEl){
       const day = getDayN(sched.grow_start_date);
       dayEl.textContent = day ? day : '—';
+      if(day){
+        dayEl.style.color = '#10b981';
+        dayEl.style.fontSize = '1.3rem';
+        dayEl.style.fontWeight = '700';
+      }
     }
   }
 
