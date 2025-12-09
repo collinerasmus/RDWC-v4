@@ -75,24 +75,21 @@
       if (relayRes.ok) {
         const relayData = await relayRes.json();
         const relays = relayData?.relays || {};
-        const pumpGrow = el('ec-pump-grow');
-        const pumpMicro = el('ec-pump-micro');
-        const pumpBloom = el('ec-pump-bloom');
+        const pumpGrowStatus = el('ec-pump-grow-status');
+        const pumpMicroStatus = el('ec-pump-micro-status');
+        const pumpBloomStatus = el('ec-pump-bloom-status');
         
-        if (pumpGrow) {
+        if (pumpGrowStatus) {
           const running = relays.dosing_grow?.is_on === true;
-          pumpGrow.textContent = running ? 'Grow: Running' : 'Grow: Idle';
-          pumpGrow.className = running ? 'ui-status-chip success' : 'ui-status-chip neutral';
+          pumpGrowStatus.textContent = running ? 'Running' : 'Idle';
         }
-        if (pumpMicro) {
+        if (pumpMicroStatus) {
           const running = relays.dosing_micro?.is_on === true;
-          pumpMicro.textContent = running ? 'Micro: Running' : 'Micro: Idle';
-          pumpMicro.className = running ? 'ui-status-chip success' : 'ui-status-chip neutral';
+          pumpMicroStatus.textContent = running ? 'Running' : 'Idle';
         }
-        if (pumpBloom) {
+        if (pumpBloomStatus) {
           const running = relays.dosing_bloom?.is_on === true;
-          pumpBloom.textContent = running ? 'Bloom: Running' : 'Bloom: Idle';
-          pumpBloom.className = running ? 'ui-status-chip success' : 'ui-status-chip neutral';
+          pumpBloomStatus.textContent = running ? 'Running' : 'Idle';
         }
       }
     } catch (e) {
