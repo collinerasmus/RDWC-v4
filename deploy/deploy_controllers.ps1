@@ -6,7 +6,7 @@
 #
 
 param(
-    [string]$PiHost = "192.168.88.49",
+    [string]$PiHost = "192.168.88.55",
     [string]$User = "pi",
     [string]$Branch = "feat/manual-dosing-safe-caps"
 )

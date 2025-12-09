@@ -1,5 +1,5 @@
 {
-  "pi_host": "192.168.88.49",
+  "pi_host": "192.168.88.55",
   "pi_user": "pi",
   "api_port": 8080,
   "notes": "Default Pi configuration for deployment scripts"
