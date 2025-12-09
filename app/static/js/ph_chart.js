@@ -710,11 +710,26 @@
         data: dosePoints,
         order: 1,
         yAxisID: 'yDose',
-        pointRadius: 5,
+        pointRadius: 8,          // Larger markers
         pointStyle: 'triangle',
-        backgroundColor: 'rgba(34, 197, 94, 0.9)',
-        borderColor: 'rgba(34, 197, 94, 1)',
-        borderWidth: 1
+        pointHoverRadius: 10,
+        backgroundColor: 'rgba(34, 197, 94, 1)',    // Solid green
+        borderColor: 'rgba(255, 255, 255, 0.8)',    // White border for visibility
+        borderWidth: 2,
+        // Custom tooltip to show dose details
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              var pt = context.raw;
+              var lines = [];
+              if (pt.ml != null) lines.push('Volume: ' + pt.ml.toFixed(2) + ' ml');
+              if (pt.sec != null) lines.push('Duration: ' + pt.sec.toFixed(1) + ' s');
+              if (pt.phb != null) lines.push('pH Before: ' + pt.phb.toFixed(2));
+              if (pt.pha != null) lines.push('pH After: ' + pt.pha.toFixed(2));
+              return lines;
+            }
+          }
+        }
       });
     }
 
