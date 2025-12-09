@@ -8,8 +8,7 @@
       fields: {
         'general.grow_name': {label:'Grow name', type:'text'},
         'general.timezone': {label:'Timezone', type:'text', placeholder:'Africa/Johannesburg'},
-        'general.reservoir_liters': {label:'Reservoir (L)', type:'number', min:1, max:1000, step:0.1},
-        'general.grow_start_date': {label:'Grow start date', type:'date', tooltip:'Used for \'Grow\' quick range and Day N'}
+        'general.reservoir_liters': {label:'Reservoir (L)', type:'number', min:1, max:1000, step:0.1}
       }
     },
     safety: {
@@ -300,6 +299,9 @@
   // Expose helper for other modules
   window.rdwcSettings = {
     get: (key) => current[key] || '',
+    getAll: () => ({...current}),
+    reload: async () => { await fetchSettings(); markDirty(); return {...current}; },
+    set: (key, value) => { current[key] = value; },
     calculateDayN
   };
 

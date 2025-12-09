@@ -3203,12 +3203,24 @@ def api_controller_mode_set(name: str, body: dict = Body(...)):
 @app.get("/api/auto/status")
 def api_auto_status():
     """Get global and per-controller auto-enable status"""
+    import logging
+    log = logging.getLogger(__name__)
     try:
-        from app.auto_control import get_auto_status
-        return get_auto_status()
+        log.debug("/api/auto/status: start")
+        try:
+            from app.auto_control import get_auto_status
+        except Exception as e:
+            log.error("/api/auto/status: import auto_control failed", exc_info=True)
+            raise
+        try:
+            status = get_auto_status()
+            log.debug("/api/auto/status: success %s", status)
+            return status
+        except Exception:
+            log.error("/api/auto/status: get_auto_status failed", exc_info=True)
+            raise
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).exception("/api/auto/status failed")
+        log.exception("/api/auto/status failed")
         return JSONResponse(status_code=200, content={
             "ok": False,
             "error": str(e),
