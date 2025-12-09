@@ -1298,6 +1298,36 @@ body{
     <div class="muted" style="font-size:var(--font-sm);margin-top:12px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
       <strong>Hailea HS-52A:</strong> Compressor-protected (5min min ON, 10min min OFF) • Cannabis-optimized temps (16-24°C safe, 18-20°C optimal) • RDWC circulation required
     </div>
+
+    <!-- Chiller Activity Chart -->
+    <hr class="separator" style="margin:20px 0;" />
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-sm);">
+      <div class="muted">Temperature & Chiller History</div>
+      <span id="chiller-total-runtime" class="kpi-pill" style="font-size:var(--font-sm);padding:2px 8px;border-radius:12px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Runtime: —</span>
+    </div>
+    <div id="chiller-chart-wrap" class="chart-card">
+      <canvas id="chillerChart"></canvas>
+      <div id="chiller-chart-empty" class="muted small" style="display:none;padding:8px 0;">
+        No temperature data available for this period.
+      </div>
+    </div>
+    <!-- Chart Controls -->
+    <div class="trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
+      <select id="chillerRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
+        <option value="1h">Last Hour</option>
+        <option value="24h" selected>Last 24 Hours</option>
+        <option value="1w">Last Week</option>
+        <option value="1m">Last Month</option>
+        <option value="grow">Entire Grow</option>
+        <option value="custom">Custom Range...</option>
+      </select>
+      <div id="chillerCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
+        <input type="datetime-local" id="chillerFrom" class="dt-input" />
+        <span style="opacity:0.5;font-size:var(--font-sm);">to</span>
+        <input type="datetime-local" id="chillerTo" class="dt-input" />
+        <button class="btn btn-secondary btn-compact" id="chillerApply">Apply</button>
+      </div>
+    </div>
   </section>
 
   <!-- Light Control Tab (standardized header + mode + health) -->
@@ -3101,11 +3131,11 @@ window.CircControl = (function(){
             // Reordered: range.js immediately after core to satisfy rdwcRange dependency for pH & EC charts before sensors/ph/ec modules run.
           // Instrumented loader: log each script as it begins loading (sequence is synchronous via promises)
           window.BUILD_COMMIT = '1764522441';
-          return seq(['polling_manager.js','range.js','ph_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','trends.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
+          return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','chiller_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .catch(function(){
         window.__app_version = (new Date()).toISOString().slice(0,10);
-  return seq(['polling_manager.js','range.js','ph_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','trends.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
+  return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','chiller_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','chiller.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
       })
       .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();

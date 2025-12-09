@@ -1,0 +1,261 @@
+/**
+ * EC Detailed Chart
+ * Shows EC history with setpoint band, nutrient dose events, and total dosed
+ * Replaces old ec_chart.js
+ */
+(function() {
+  'use strict';
+
+  console.log('[EC Chart] Initializing');
+
+  let totalGrow = 0, totalMicro = 0, totalBloom = 0;
+
+  function init() {
+    if (typeof RDWCChart === 'undefined') {
+      console.error('[EC Chart] RDWCChart base not loaded');
+      return;
+    }
+
+    const chart = new RDWCChart({
+      canvasId: 'ecDoseChart',
+      emptyMessageId: 'ec-dose-empty',
+      type: 'ec',
+      title: 'EC History & Dosing',
+      
+      onDataFetch: async (startISO, endISO) => {
+        const span = new Date(endISO) - new Date(startISO);
+        const hours = span / (3600 * 1000);
+        let gran, max;
+
+        if (hours <= 1) { gran = 30; max = 150; }
+        else if (hours <= 24) { gran = 60; max = 1500; }
+        else if (hours <= 168) { gran = 300; max = 2100; }
+        else if (hours <= 720) { gran = 900; max = 3000; }
+        else { gran = 3600; max = 3000; }
+
+        const q = new URLSearchParams();
+        q.set('from', startISO);
+        q.set('to', endISO);
+        q.set('gran', String(gran));
+        q.set('max', String(max));
+
+        const trendsUrl = '/api/trends?' + q.toString();
+        
+        const doseHours = Math.min(Math.ceil(hours), 168);
+        const doseUrl = `/api/dose/recent?hours=${doseHours}`;
+
+        const targetsUrl = '/api/ec/targets';
+
+        try {
+          const [trendsRes, doseRes, targetsRes] = await Promise.all([
+            fetch(trendsUrl, { cache: 'no-store' }),
+            fetch(doseUrl, { cache: 'no-store' }),
+            fetch(targetsUrl, { cache: 'no-store' })
+          ]);
+
+          const trendsData = trendsRes.ok ? await trendsRes.json() : { series: { ec: [] } };
+          const doseData = doseRes.ok ? await doseRes.json() : { events: [] };
+          const targetsData = targetsRes.ok ? await targetsRes.json() : {};
+
+          console.log('[EC Chart] Fetched:', {
+            ec: trendsData?.series?.ec?.length || 0,
+            doses: doseData?.events?.length || 0,
+            targets: targetsData
+          });
+
+          return { trendsData, doseData, targetsData };
+        } catch (e) {
+          console.error('[EC Chart] Fetch failed:', e);
+          return { trendsData: { series: { ec: [] } }, doseData: { events: [] }, targetsData: {} };
+        }
+      },
+
+      onRender: (chart, data, window) => {
+        const { trendsData, doseData, targetsData } = data;
+
+        // Parse EC readings
+        const ec = (trendsData?.series?.ec || []).map(p => ({
+          x: p.ts * 1000,
+          y: Number(p.value)
+        }));
+
+        // Parse dose events (grow, micro, bloom)
+        const allEvents = (doseData?.events || [])
+          .filter(e => !e.blocked_by)
+          .filter(e => {
+            const ts = e.ts * 1000;
+            return ts >= window.start && ts <= window.end;
+          });
+
+        const growEvents = allEvents.filter(e => e.pump === 'grow');
+        const microEvents = allEvents.filter(e => e.pump === 'micro');
+        const bloomEvents = allEvents.filter(e => e.pump === 'bloom');
+
+        // Calculate totals
+        totalGrow = growEvents.reduce((sum, e) => sum + (e.ml || 0), 0);
+        totalMicro = microEvents.reduce((sum, e) => sum + (e.ml || 0), 0);
+        totalBloom = bloomEvents.reduce((sum, e) => sum + (e.ml || 0), 0);
+
+        // Update total dosed displays
+        const totalEl = document.getElementById('ec-total-dosed');
+        if (totalEl) {
+          totalEl.innerHTML = `Grow: ${totalGrow.toFixed(1)} ml<br>Micro: ${totalMicro.toFixed(1)} ml<br>Bloom: ${totalBloom.toFixed(1)} ml`;
+        }
+
+        // Get targets
+        const ecLow = targetsData?.ec_low ?? 1.0;
+        const ecHigh = targetsData?.ec_high ?? 1.8;
+
+        // Get current EC
+        const currentEC = ec.length > 0 ? ec[ec.length - 1].y : null;
+
+        // Build datasets
+        const datasets = [];
+
+        // 1. EC setpoint band
+        if (ecLow && ecHigh) {
+          datasets.push({
+            type: 'line',
+            label: 'EC Target Band',
+            data: [
+              { x: window.start, y: ecLow },
+              { x: window.end, y: ecLow }
+            ],
+            borderColor: 'rgba(16, 185, 129, 0.3)',
+            borderWidth: 1,
+            borderDash: [5, 5],
+            fill: '+1',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            pointRadius: 0
+          });
+          datasets.push({
+            type: 'line',
+            label: '',
+            data: [
+              { x: window.start, y: ecHigh },
+              { x: window.end, y: ecHigh }
+            ],
+            borderColor: 'rgba(16, 185, 129, 0.3)',
+            borderWidth: 1,
+            borderDash: [5, 5],
+            pointRadius: 0
+          });
+        }
+
+        // 2. EC history line
+        if (ec.length) {
+          datasets.push({
+            id: 'ec',
+            label: 'EC',
+            data: ec,
+            borderWidth: 2,
+            borderColor: window.CHART_COLORS?.ec || '#10b981',
+            backgroundColor: window.CHART_COLORS?.ec || '#10b981',
+            pointRadius: 0,
+            spanGaps: true,
+            order: 1
+          });
+        }
+
+        // 3. Current EC marker
+        if (currentEC != null) {
+          datasets.push({
+            type: 'scatter',
+            label: `Current: ${currentEC.toFixed(2)} mS/cm`,
+            data: [{ x: window.end, y: currentEC }],
+            pointRadius: 6,
+            pointStyle: 'circle',
+            pointBackgroundColor: window.CHART_COLORS?.ec || '#10b981',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            showLine: false,
+            order: 0
+          });
+        }
+
+        // 4. Dose events (stacked vertically)
+        const doseY = [
+          ecHigh + 0.3,  // grow (top)
+          ecHigh + 0.2,  // micro
+          ecHigh + 0.1   // bloom (bottom)
+        ];
+
+        if (growEvents.length) {
+          datasets.push({
+            type: 'scatter',
+            label: `Grow (${growEvents.length})`,
+            data: growEvents.map(e => ({ x: e.ts * 1000, y: doseY[0] })),
+            pointRadius: 5,
+            pointStyle: 'circle',
+            pointBackgroundColor: window.CHART_COLORS?.grow || '#6ee7b7',
+            pointBorderColor: window.CHART_COLORS?.grow || '#6ee7b7',
+            pointBorderWidth: 1,
+            showLine: false,
+            order: 2
+          });
+        }
+
+        if (microEvents.length) {
+          datasets.push({
+            type: 'scatter',
+            label: `Micro (${microEvents.length})`,
+            data: microEvents.map(e => ({ x: e.ts * 1000, y: doseY[1] })),
+            pointRadius: 5,
+            pointStyle: 'circle',
+            pointBackgroundColor: window.CHART_COLORS?.micro || '#67e8f9',
+            pointBorderColor: window.CHART_COLORS?.micro || '#67e8f9',
+            pointBorderWidth: 1,
+            showLine: false,
+            order: 2
+          });
+        }
+
+        if (bloomEvents.length) {
+          datasets.push({
+            type: 'scatter',
+            label: `Bloom (${bloomEvents.length})`,
+            data: bloomEvents.map(e => ({ x: e.ts * 1000, y: doseY[2] })),
+            pointRadius: 5,
+            pointStyle: 'circle',
+            pointBackgroundColor: window.CHART_COLORS?.bloom || '#c084fc',
+            pointBorderColor: window.CHART_COLORS?.bloom || '#c084fc',
+            pointBorderWidth: 1,
+            showLine: false,
+            order: 2
+          });
+        }
+
+        // Set fixed y-axis (EC range)
+        const ecMin = Math.min(ecLow - 0.2, 0.0);
+        const ecMax = Math.max(ecHigh + 0.5, 3.0);
+
+        if (!chart.options.scales.y) {
+          chart.options.scales.y = {
+            type: 'linear',
+            title: { display: true, text: 'EC (mS/cm)' },
+            grid: { color: 'rgba(148,163,184,0.12)' }
+          };
+        }
+        chart.options.scales.y.min = ecMin;
+        chart.options.scales.y.max = ecMax;
+
+        return datasets;
+      }
+    });
+
+    // Hook up controls
+    window.createTimeRangeSelector('ecDoseRangeSelect', chart);
+    window.createCustomRangeInputs('ecDoseFrom', 'ecDoseTo', 'ecDoseApply', chart);
+
+    // Expose for external access
+    window.ecChart = chart;
+
+    console.log('[EC Chart] Initialized');
+  }
+
+  if (document.readyState !== 'loading') {
+    init();
+  } else {
+    document.addEventListener('DOMContentLoaded', init);
+  }
+})();
