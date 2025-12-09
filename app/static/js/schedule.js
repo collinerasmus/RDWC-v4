@@ -471,43 +471,7 @@
       
       html += '</div>';
 
-      // Rapid Test Helper (hidden by default)
-      html += `
-        <div id="rapid-test-helper" style="display:none;margin-top:12px;padding:12px;border:1px solid rgba(251,191,36,0.3);border-radius:8px;background:rgba(251,191,36,0.05);">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div style="font-size:0.85rem;font-weight:600;">⚡ Rapid Test Mode</div>
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-              <span style="font-size:0.75rem;color:#94a3b8;">Interval:</span>
-              <select id="rapidIntervalSelect" style="padding:4px 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:0.8rem;">
-                <option value="300" ${minInterval===300?'selected':''}>300s (Safe)</option>
-                <option value="10" ${minInterval===10?'selected':''}>10s (Rapid Test)</option>
-              </select>
-            </label>
-          </div>
-          <div style="font-size:0.7rem;color:#94a3b8;margin-top:6px;">Use 10s interval for quick UI testing; restore to 300s after tests.</div>
-        </div>
-      `;
-
       statusCard.innerHTML = html;
-
-      // Rapid Test toggle logic
-      const rapidSelect = el('rapidIntervalSelect');
-      rapidSelect?.addEventListener('change', async ()=>{
-        const val = parseInt(rapidSelect.value);
-        try{
-          const r = await fetch('/api/settings', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({'ec.min_interval_sec': val})});
-          if(r.ok){
-            showToast(`Interval set to ${val}s`, 'success');
-            // Re-read settings
-            if(window.rdwcSettings?.reload) await window.rdwcSettings.reload();
-            await renderStatus();
-          } else {
-            showToast('Failed to update interval', 'error');
-          }
-        }catch(e){
-          showToast('Interval error: '+e.message, 'error');
-        }
-      });
     }catch(e){
       statusCard.innerHTML = '<div class="muted">Status unavailable</div>';
     }
@@ -593,9 +557,7 @@
   // Backwards-compatible global hooks used by tabs.js
   window.scheduleModule = {
     init,
-    refresh: async ()=>{ await fetchSchedule(); await renderTimeline(); await renderPlan(); await renderStatus(); },
-    showRapidHelper: ()=>{ const h = el('rapid-test-helper'); if(h) h.style.display = 'block'; },
-    hideRapidHelper: ()=>{ const h = el('rapid-test-helper'); if(h) h.style.display = 'none'; }
+    refresh: async ()=>{ await fetchSchedule(); await renderTimeline(); await renderPlan(); await renderStatus(); }
   };
   window.scheduleInit = window.scheduleModule.init;
   window.scheduleRefresh = window.scheduleModule.refresh;
