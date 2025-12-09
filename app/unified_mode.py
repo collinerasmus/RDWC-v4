@@ -7,7 +7,7 @@ The new auto-enable system replaces the mode concept with simple boolean flags:
 - controls.global_auto: Master switch for all automation
 - controls.ph_auto: pH controller automation enable
 - controls.ec_auto: EC controller automation enable  
-- controls.chiller_auto: Chiller controller automation enable
+- controls.temperature_auto: temperature controller automation enable
 
 To check if automation should run:
     from app.auto_control import should_automate
@@ -49,7 +49,7 @@ VALID_MODES = {MODE_AUTO, MODE_MANUAL, MODE_MAINTENANCE}
 MODE_HOLD = "hold"  # Maps to MANUAL
 
 # Controllers that respect mode
-CONTROLLERS = ["ph", "ec", "lights", "chiller", "circulation", "sensors"]
+CONTROLLERS = ["ph", "ec", "lights", "temperature", "circulation", "sensors"]
 
 def _ensure_db():
     """Initialize database tables"""
@@ -269,7 +269,7 @@ def set_hold(controller: str, held: bool) -> bool:
     - held=False → set_controller_auto_enabled(controller, True)
     
     Args:
-        controller: Controller name (ph, ec, chiller)
+        controller: Controller name (ph, ec, temperature)
         held: True to pause controller, False to resume
     
     Returns:
@@ -304,7 +304,7 @@ def is_held(controller: str) -> bool:
     - Returns False if should_automate() returns True
     
     Args:
-        controller: Controller name (ph, ec, chiller)
+        controller: Controller name (ph, ec, temperature)
     
     Returns:
         True if controller is held/paused (automation disabled)
@@ -331,3 +331,4 @@ def is_held(controller: str) -> bool:
 def _init_tables():
     """Legacy compatibility - initialize all tables"""
     _ensure_db()
+

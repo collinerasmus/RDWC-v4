@@ -129,8 +129,8 @@ def _progress_components() -> dict:
         comps['schedule'] = False
     # environment (chiller control running)
     try:
-        from app.chiller_control import get_chiller_state
-        ch = get_chiller_state()
+        from app.temperature_control import get_temperature_state
+        ch = get_temperature_state()
         comps['env'] = bool(ch)
     except Exception:
         comps['env'] = False
@@ -525,8 +525,8 @@ async def _start_tasks():
             'chiller.control_interval_s': '30',
             'chiller.auto_enabled': '1'
         })
-        from app.chiller_control import start_auto_control
-        start_auto_control()
+        from app.temperature_control import start_auto_temperature_control
+        start_auto_temperature_control()
     except Exception:
         # Non-fatal: UI can still enable manually
         pass
@@ -1330,41 +1330,41 @@ def api_relays_guard_recent(limit: int = 50):
 
 # === Intelligent Chiller Control (Hailea HS-52A) ===
 
-@app.get("/api/chiller/status")
+@app.get("/api/temperature/status")
 def api_chiller_status():
     """Get current chiller state, temperature, and automation status."""
-    from app.chiller_control import get_chiller_state, get_current_water_temp
-    state = get_chiller_state()
+    from app.temperature_control import get_temperature_state, get_current_water_temp
+    state = get_temperature_state()
     state['current_temp'] = get_current_water_temp()
     return state
 
-@app.post("/api/chiller/auto/enable")
+@app.post("/api/temperature/auto/enable")
 def api_chiller_auto_enable():
     """Enable automatic chiller control based on temperature."""
-    from app.chiller_control import start_auto_control
-    start_auto_control()
+    from app.temperature_control import start_auto_temperature_control
+    start_auto_temperature_control()
     return {"ok": True, "auto_enabled": True}
 
-@app.post("/api/chiller/auto/disable")
+@app.post("/api/temperature/auto/disable")
 def api_chiller_auto_disable():
     """Disable automatic chiller control."""
-    from app.chiller_control import stop_auto_control
-    stop_auto_control()
+    from app.temperature_control import stop_auto_temperature_control
+    stop_auto_temperature_control()
     return {"ok": True, "auto_enabled": False}
 
-@app.post("/api/chiller/force")
+@app.post("/api/temperature/force")
 def api_chiller_force(req: dict):
     """
     Force chiller ON or OFF for specified duration (emergency/maintenance override).
     Body: {"on": true/false, "duration_minutes": 60} (duration optional)
     """
-    from app.chiller_control import force_chiller_state
+    from app.temperature_control import force_temperature_state
     desired_on = bool(req.get("on", False))
     duration = req.get("duration_minutes")  # None = indefinite
-    result = force_chiller_state(desired_on, duration)
+    result = force_temperature_state(desired_on, duration)
     return result
 
-@app.post("/api/chiller/settings")
+@app.post("/api/temperature/settings")
 def api_chiller_settings_update(req: dict):
     """
     Update chiller settings (target temp, hysteresis, stage, etc.).
@@ -1483,8 +1483,8 @@ def api_controllers_status():
     
     # Chiller Controller
     try:
-        from app.chiller_control import get_chiller_state, get_current_water_temp
-        chiller_state = get_chiller_state()
+        from app.temperature_control import get_temperature_state, get_current_water_temp
+        chiller_state = get_temperature_state()
         will_automate = should_automate("chiller")
         controllers["chiller"] = {
             "mode": "auto" if will_automate else "manual",  # For backward compatibility
@@ -1544,17 +1544,17 @@ def api_controllers_status():
         "timestamp": int(time.time()),
     }
 
-@app.get("/api/chiller/events")
+@app.get("/api/temperature/events")
 def api_chiller_events(limit: int = Query(200, ge=1, le=1000)):
     """Return recent chiller state transition events (newest first).
     Each event: {ts_utc:int, prev_state:str, new_state:str, reason:str|null}
     """
     try:
-        from app.chiller_control import get_chiller_events
-        events = get_chiller_events(limit)
+        from app.temperature_control import get_temperature_events
+        events = get_temperature_events(limit)
         return {"events": events, "count": len(events)}
     except Exception as e:
-        logger.error(f"/api/chiller/events failed: {e}")
+        logger.error(f"/api/temperature/events failed: {e}")
         return JSONResponse(status_code=500, content={"error": "events_failed"})
 
 # --- Unified dosing endpoints ------------------------------------------------
@@ -3709,4 +3709,5 @@ def ec_set_k(body: dict = Body(...)):
 def ec_cal_status():
     from app.sensor_controller import get_ec_calibration_status
     return get_ec_calibration_status()
+
 

@@ -1,5 +1,5 @@
 /**
- * Intelligent Chiller Control UI
+ * Intelligent Temperature Control UI
  * Hailea HS-52A - Cannabis-optimized temperature automation
  */
 (() => {
@@ -12,19 +12,19 @@
     const chip = document.getElementById('env-health-indicator');
     if (!chip) return;
 
-    if (chillerState.estop) {
+    if (temperatureState.estop) {
       chip.textContent = 'BLOCKED';
       chip.className = 'ui-status-chip error';
       return;
     }
 
-    if (chillerState.in_cooldown || chillerState.min_runtime_active) {
+    if (temperatureState.in_cooldown || temperatureState.min_runtime_active) {
       chip.textContent = 'WAITING';
       chip.className = 'ui-status-chip warning';
       return;
     }
 
-    if (chillerState.is_running) {
+    if (temperatureState.is_running) {
       chip.textContent = 'COOLING';
       chip.className = 'ui-status-chip success';
       return;
@@ -34,10 +34,10 @@
     chip.className = 'ui-status-chip success';
   }
 
-  // ===== CHILLER CONTROL LOGIC =====
+  // ===== TEMPERATURE CONTROL LOGIC =====
   const q = (s) => document.querySelector(s);
 
-  let chillerState = {
+  let temperatureState = {
     auto_enabled: false,
     is_running: false,
     current_temp: null,
@@ -104,32 +104,32 @@
     }, 3000);
   }
 
-  // Refresh chiller status
-  async function refreshChillerStatus() {
+  // Refresh temperature status
+  async function refreshTemperatureStatus() {
     try {
       const [status, relays] = await Promise.all([
-        getJSON('/api/chiller/status'),
+        getJSON('/api/temperature/status'),
         getJSON('/api/relays/status').catch(()=>null)
       ]);
       
       // Update state
-      chillerState = { ...chillerState, ...status, estop: !!(relays && relays.estop) };
+      temperatureState = { ...temperatureState, ...status, estop: !!(relays && relays.estop) };
       
       // Update UI
-      updateChillerUI();
+      updateTemperatureUI();
       updateEnvHealth();
 
     } catch (e) {
-      if (UI_VERBOSE) console.error('Failed to refresh chiller status:', e);
+      if (UI_VERBOSE) console.error('Failed to refresh temperature status:', e);
     }
   }
 
   // Update UI elements
-  function updateChillerUI() {
-    const state = chillerState;
+  function updateTemperatureUI() {
+    const state = temperatureState;
     
     // Auto badge
-    const badge = q('#chiller-auto-badge');
+    const badge = q('#temperature-auto-badge');
     if (badge) {
       if (state.auto_enabled) {
         badge.textContent = 'Auto Control ON';
@@ -145,7 +145,7 @@
     }
     
     // Current temp
-    const currentTempEl = q('#chiller-current-temp');
+    const currentTempEl = q('#temperature-current-temp');
     if (currentTempEl) {
       if (state.current_temp !== null && state.current_temp !== undefined) {
         currentTempEl.textContent = `${state.current_temp.toFixed(1)}°C`;
@@ -155,13 +155,13 @@
     }
     
     // Target temp
-    const targetTempEl = q('#chiller-target-temp');
+    const targetTempEl = q('#temperature-target-temp');
     if (targetTempEl) {
       targetTempEl.textContent = `${state.target_temp.toFixed(1)}°C`;
     }
     
     // Stage
-    const stageEl = q('#chiller-stage');
+    const stageEl = q('#temperature-stage');
     if (stageEl) {
       const stageNames = {
         'default': 'Default',
@@ -172,8 +172,8 @@
     }
     
     // Enable/Disable buttons
-    const btnEnable = q('#btnChillerAutoEnable');
-    const btnDisable = q('#btnChillerAutoDisable');
+    const btnEnable = q('#btnTemperatureAutoEnable');
+    const btnDisable = q('#btnTemperatureAutoDisable');
     if (btnEnable && btnDisable) {
       if (state.auto_enabled) {
         btnEnable.style.display = 'none';
@@ -185,7 +185,7 @@
     }
     
     // Status message
-    const statusMsg = q('#chiller-status-message');
+    const statusMsg = q('#temperature-status-message');
     if (statusMsg) {
       if (state.auto_enabled) {
         let msg = '';
@@ -206,7 +206,7 @@
     }
 
     // Explicit state label
-    const stateLabel = q('#chiller-state-label');
+    const stateLabel = q('#temperature-state-label');
     if (stateLabel) {
       let label = 'IDLE';
       if (state.estop) label = 'BLOCKED';
@@ -218,8 +218,8 @@
     
     // Update settings inputs (but not if user is actively editing them)
     const targetInput = q('#tempTarget');
-    const hysteresisInput = q('#chillerHysteresis');
-    const stageSelect = q('#chillerStage');
+    const hysteresisInput = q('#temperatureHysteresis');
+    const stageSelect = q('#temperatureStage');
     
     if (targetInput && document.activeElement !== targetInput) {
       targetInput.value = state.target_temp.toFixed(1);
@@ -235,9 +235,9 @@
   // Enable auto control
   async function enableAutoControl() {
     try {
-      await postJSON('/api/chiller/auto/enable');
-      showToast('Chiller automation enabled', 'success');
-      setTimeout(refreshChillerStatus, 200);
+      await postJSON('/api/temperature/auto/enable');
+      showToast('Temperature automation enabled', 'success');
+      setTimeout(refreshTemperatureStatus, 200);
     } catch (e) {
       console.error('Failed to enable auto control:', e);
       showToast('Failed to enable automation', 'error');
@@ -247,9 +247,9 @@
   // Disable auto control
   async function disableAutoControl() {
     try {
-      await postJSON('/api/chiller/auto/disable');
-      showToast('Chiller automation disabled', 'info');
-      setTimeout(refreshChillerStatus, 200);
+      await postJSON('/api/temperature/auto/disable');
+      showToast('Temperature automation disabled', 'info');
+      setTimeout(refreshTemperatureStatus, 200);
     } catch (e) {
       console.error('Failed to disable auto control:', e);
       showToast('Failed to disable automation', 'error');
@@ -260,8 +260,8 @@
   async function saveSettings() {
     try {
       const targetTemp = parseFloat(q('#tempTarget').value);
-      const hysteresis = parseFloat(q('#chillerHysteresis').value);
-      const stage = q('#chillerStage').value;
+      const hysteresis = parseFloat(q('#temperatureHysteresis').value);
+      const stage = q('#temperatureStage').value;
       
       // Validate
       if (targetTemp < 14 || targetTemp > 26) {
@@ -274,14 +274,14 @@
         return;
       }
       
-      await postJSON('/api/chiller/settings', {
+      await postJSON('/api/temperature/settings', {
         target_temp: targetTemp,
         hysteresis: hysteresis,
         stage: stage
       });
       
       showToast('Settings saved successfully', 'success');
-      setTimeout(refreshChillerStatus, 200);
+      setTimeout(refreshTemperatureStatus, 200);
       
     } catch (e) {
       console.error('Failed to save settings:', e);
@@ -289,82 +289,82 @@
     }
   }
 
-  // Force chiller ON/OFF
-  async function forceChiller(desiredOn) {
+  // Force temperature ON/OFF
+  async function forceTemperature(desiredOn) {
     try {
-      const durationSelect = q('#chillerForceDuration');
+      const durationSelect = q('#temperatureForceDuration');
       const duration = durationSelect.value ? parseInt(durationSelect.value) : null;
       
       const action = desiredOn ? 'ON' : 'OFF';
       const durationText = duration ? `for ${duration} minutes` : 'indefinitely';
       
-      const ok = confirm(`Force chiller ${action} ${durationText}?\n\nThis will override automation until the duration expires or you manually disable it.`);
+      const ok = confirm(`Force cooling ${action} ${durationText}?\n\nThis will override automation until the duration expires or you manually disable it.`);
       if (!ok) return;
       
-      await postJSON('/api/chiller/force', {
+      await postJSON('/api/temperature/force', {
         on: desiredOn,
         duration_minutes: duration
       });
       
-      showToast(`Chiller forced ${action} ${durationText}`, 'warning');
-      setTimeout(refreshChillerStatus, 200);
+      showToast(`Cooling forced ${action} ${durationText}`, 'warning');
+      setTimeout(refreshTemperatureStatus, 200);
       
     } catch (e) {
-      console.error('Failed to force chiller:', e);
+      console.error('Failed to force temperature:', e);
       showToast('Failed to apply override', 'error');
     }
   }
 
   // Wire event handlers
-  function wireChillerControls() {
-    const btnEnable = q('#btnChillerAutoEnable');
-    const btnDisable = q('#btnChillerAutoDisable');
-    // Only bind to #btnChillerSaveSettings, not #btnSaveTempSettings
+  function wireTemperatureControls() {
+    const btnEnable = q('#btnTemperatureAutoEnable');
+    const btnDisable = q('#btnTemperatureAutoDisable');
+    // Only bind to #btnTemperatureSaveSettings, not #btnSaveTempSettings
     // (controller_settings.js handles #btnSaveTempSettings with complete field set)
-    const btnSaveSettings = q('#btnChillerSaveSettings');
-    const btnForceOn = q('#btnChillerForceOn');
-    const btnForceOff = q('#btnChillerForceOff');
+    const btnSaveSettings = q('#btnTemperatureSaveSettings');
+    const btnForceOn = q('#btnTemperatureForceOn');
+    const btnForceOff = q('#btnTemperatureForceOff');
     
     if (btnEnable) btnEnable.addEventListener('click', enableAutoControl);
     if (btnDisable) btnDisable.addEventListener('click', disableAutoControl);
     if (btnSaveSettings) btnSaveSettings.addEventListener('click', saveSettings);
-    if (btnForceOn) btnForceOn.addEventListener('click', () => forceChiller(true));
-    if (btnForceOff) btnForceOff.addEventListener('click', () => forceChiller(false));
+    if (btnForceOn) btnForceOn.addEventListener('click', () => forceTemperature(true));
+    if (btnForceOff) btnForceOff.addEventListener('click', () => forceTemperature(false));
   }
 
   // Initialize
-  function initChillerControl() {
-    // Initialize only if chiller elements exist (works in Temperature tab)
-    const currentTempEl = q('#chiller-current-temp');
+  function initTemperatureControl() {
+    // Initialize only if temperature elements exist (works in Temperature tab)
+    const currentTempEl = q('#temperature-current-temp');
     if (!currentTempEl) return;
     
     // Prevent multiple initializations
     if (_refreshInterval) {
-      console.log('Chiller control already initialized, skipping');
+      console.log('Temperature control already initialized, skipping');
       return;
     }
     
     // Wire controls
-    wireChillerControls();
+    wireTemperatureControls();
     
     // Initial refresh
-    refreshChillerStatus();
+    refreshTemperatureStatus();
     
     // Register with centralized polling manager (main loop ~6s)
-    if(window.pollingManager && !window.__chillerPollingRegistered){
-      window.__chillerPollingRegistered = true;
-      window.pollingManager.register('chiller-status', async ()=>{ await refreshChillerStatus(); await syncChillerHoldState(); }, 'main');
+    if(window.pollingManager && !window.__temperaturePollingRegistered){
+      window.__temperaturePollingRegistered = true;
+      window.pollingManager.register('temperature-status', async ()=>{ await refreshTemperatureStatus(); await syncTemperatureHoldState(); }, 'main');
     } else {
       // Fallback: very slow local polling if manager missing
-      _refreshInterval = setInterval(refreshChillerStatus, 12000);
+      _refreshInterval = setInterval(refreshTemperatureStatus, 12000);
     }
-    console.log('Intelligent chiller control initialized (event-driven)');
+    console.log('Intelligent temperature control initialized (event-driven)');
   }
 
   // Initialize when DOM is ready
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initChillerControl);
+    document.addEventListener('DOMContentLoaded', initTemperatureControl);
   } else {
-    initChillerControl();
+    initTemperatureControl();
   }
 })();

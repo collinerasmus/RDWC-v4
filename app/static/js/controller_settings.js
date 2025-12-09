@@ -237,17 +237,17 @@
         if (settings.targets && settings.targets.temp_target_c !== undefined) {
           document.getElementById('tempTarget').value = parseFloat(settings.targets.temp_target_c);
         }
-        if (settings.chiller) {
-          if (settings.chiller.hysteresis !== undefined) document.getElementById('chillerHysteresis').value = parseFloat(settings.chiller.hysteresis);
-          if (settings.chiller.stage !== undefined) document.getElementById('chillerStage').value = settings.chiller.stage;
+        if (settings.temperature) {
+          if (settings.temperature.hysteresis !== undefined) document.getElementById('temperatureHysteresis').value = parseFloat(settings.temperature.hysteresis);
+          if (settings.temperature.stage !== undefined) document.getElementById('temperatureStage').value = settings.temperature.stage;
         }
         if (settings.alerts) {
           if (settings.alerts.temp_lo_alert !== undefined) document.getElementById('tempAlertLow').value = parseFloat(settings.alerts.temp_lo_alert);
           if (settings.alerts.temp_hi_alert !== undefined) document.getElementById('tempAlertHigh').value = parseFloat(settings.alerts.temp_hi_alert);
         }
         if (settings.safety) {
-          if (settings.safety.chiller_min_off_s !== undefined) document.getElementById('chillerMinOff').value = parseInt(settings.safety.chiller_min_off_s);
-          if (settings.safety.chiller_min_on_s !== undefined) document.getElementById('chillerMinOn').value = parseInt(settings.safety.chiller_min_on_s);
+          if (settings.safety.chiller_min_off_s !== undefined) document.getElementById('temperatureMinOff').value = parseInt(settings.safety.chiller_min_off_s);
+          if (settings.safety.chiller_min_on_s !== undefined) document.getElementById('temperatureMinOn').value = parseInt(settings.safety.chiller_min_on_s);
         }
       } catch(e) {
         console.error('Failed to load temperature settings:', e);
@@ -259,18 +259,18 @@
       if (!btn) return;
       
       const tempTarget = parseFloat(document.getElementById('tempTarget').value) || 19;
-      const hysteresis = parseFloat(document.getElementById('chillerHysteresis').value) || 0.5;
-      const stage = document.getElementById('chillerStage').value || 'default';
+      const hysteresis = parseFloat(document.getElementById('temperatureHysteresis').value) || 0.5;
+      const stage = document.getElementById('temperatureStage').value || 'default';
       
       const updates = {
         'targets.temp_target_c': tempTarget,
-        'chiller.target_temp': tempTarget,  // Keep both target fields consistent for legacy compatibility
-        'chiller.hysteresis': hysteresis,
-        'chiller.stage': stage,
+        'temperature.target_temp': tempTarget,  // Keep both target fields consistent for legacy compatibility
+        'temperature.hysteresis': hysteresis,
+        'temperature.stage': stage,
         'alerts.temp_lo_alert': parseFloat(document.getElementById('tempAlertLow').value) || 0,
         'alerts.temp_hi_alert': parseFloat(document.getElementById('tempAlertHigh').value) || 0,
-        'safety.chiller_min_off_s': parseInt(document.getElementById('chillerMinOff').value) || 300,
-        'safety.chiller_min_on_s': parseInt(document.getElementById('chillerMinOn').value) || 60
+        'safety.chiller_min_off_s': parseInt(document.getElementById('temperatureMinOff').value) || 300,
+        'safety.chiller_min_on_s': parseInt(document.getElementById('temperatureMinOn').value) || 60
       };
       
       btn.classList.add('btn-loading');
@@ -336,7 +336,7 @@
         
         if (settings.safety) {
           if (settings.safety.main_pump_min_off_s !== undefined) document.getElementById('mainPumpMinOff').value = parseInt(settings.safety.main_pump_min_off_s);
-          if (settings.safety.chiller_pump_min_off_s !== undefined) document.getElementById('chillerPumpMinOff').value = parseInt(settings.safety.chiller_pump_min_off_s);
+          if (settings.safety.chiller_pump_min_off_s !== undefined) document.getElementById('temperaturePumpMinOff').value = parseInt(settings.safety.chiller_pump_min_off_s);
         }
       } catch(e) {
         console.error('Failed to load circulation settings:', e);
@@ -349,7 +349,7 @@
       
       const updates = {
         'safety.main_pump_min_off_s': parseInt(document.getElementById('mainPumpMinOff').value) || 5,
-        'safety.chiller_pump_min_off_s': parseInt(document.getElementById('chillerPumpMinOff').value) || 5
+        'safety.chiller_pump_min_off_s': parseInt(document.getElementById('temperaturePumpMinOff').value) || 5
       };
       
       btn.classList.add('btn-loading');
@@ -410,3 +410,4 @@
     initCircSettings();
   }
 })();
+

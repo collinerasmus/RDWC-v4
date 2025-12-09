@@ -435,7 +435,7 @@ body{
     margin: 0;
     background: transparent;
   }
-  #trendChart, #phDoseChart, #ecDoseChart, #chillerChart {
+  #trendChart, #phDoseChart, #ecDoseChart, #temperatureChart {
     display: block !important;
     width: 100% !important;
     height: var(--h-trends) !important;
@@ -687,7 +687,7 @@ body{
         <!-- Per-controller status chips (read-only indicators) - all 5 controllers -->
         <span id="ctrl-ph-chip" class="btn-chip" title="pH Controller Status" style="cursor:default;opacity:0.8;">🧪 pH: <span>—</span></span>
         <span id="ctrl-ec-chip" class="btn-chip" title="EC Controller Status" style="cursor:default;opacity:0.8;">⚡ EC: <span>—</span></span>
-        <span id="ctrl-chiller-chip" class="btn-chip" title="Chiller Controller Status" style="cursor:default;opacity:0.8;">❄️ Chiller: <span>—</span></span>
+        <span id="ctrl-temperature-chip" class="btn-chip" title="Temperature Controller Status" style="cursor:default;opacity:0.8;">🌡️ Temperature: <span>—</span></span>
         <span id="ctrl-circulation-chip" class="btn-chip" title="Circulation Pump Status" style="cursor:default;opacity:0.8;">💧 Circ: <span>—</span></span>
         <span id="ctrl-lights-chip" class="btn-chip" title="Lights Controller Status" style="cursor:default;opacity:0.8;">💡 Lights: <span>—</span></span>
       </div>
@@ -718,7 +718,7 @@ body{
           
           // Update per-controller status chips - all 5 controllers
           var controllers = data.controllers || {};
-          ['ph', 'ec', 'chiller', 'circulation', 'lights'].forEach(function(ctrl){
+          ['ph', 'ec', 'temperature', 'circulation', 'lights'].forEach(function(ctrl){
             var chip = document.getElementById('ctrl-' + ctrl + '-chip');
             if (chip) {
               var info = controllers[ctrl] || {};
@@ -792,9 +792,9 @@ body{
     <span class="ctrl-label">⚡ EC</span>
     <span class="ctrl-health-dot" data-controller="ec" aria-label="EC status"></span>
   </button>
-  <button class="btn-chip ctrl-with-dot" data-tab="temp" aria-label="Chiller">
-    <span class="ctrl-label">🧊 Chiller</span>
-    <span class="ctrl-health-dot" data-controller="temp" aria-label="Chiller status"></span>
+  <button class="btn-chip ctrl-with-dot" data-tab="temp" aria-label="Temperature">
+    <span class="ctrl-label">🌡️ Temperature</span>
+    <span class="ctrl-health-dot" data-controller="temp" aria-label="Temperature status"></span>
   </button>
   <button class="btn-chip ctrl-with-dot" data-tab="circulation" aria-label="Circulation">
     <span class="ctrl-label">🔄 Circulation</span>
@@ -998,22 +998,22 @@ body{
           mainPumpChip.className = 'ui-status-chip ' + (willAuto ? 'success':'neutral'); 
         }
         
-        // Chiller status
+        // Temperature status
         try {
-          const ch = await fetch('/api/chiller/status',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(r.status));
-          var chChip = document.getElementById('ov-chiller-status');
+          const ch = await fetch('/api/temperature/status',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(r.status));
+          var chChip = document.getElementById('ov-temperature-status');
           if (chChip) {
-            var willAuto = controllers.chiller && controllers.chiller.will_automate;
+            var willAuto = controllers.temperature && controllers.temperature.will_automate;
             chChip.textContent = willAuto ? 'AUTO' : 'MANUAL';
             chChip.className = 'ui-status-chip ' + (willAuto ? 'success':'neutral');
           }
-          var chHealthChip = document.getElementById('ov-chiller-health');
+          var chHealthChip = document.getElementById('ov-temperature-health');
           if (chHealthChip && ch) {
             chHealthChip.textContent = ch.is_on ? 'RUNNING' : 'IDLE';
             chHealthChip.className = 'ui-status-chip ' + (ch.is_on ? 'success':'neutral');
           }
         } catch(e){
-          var chChip2 = document.getElementById('ov-chiller-status');
+          var chChip2 = document.getElementById('ov-temperature-status');
           if (chChip2) { chChip2.textContent = 'MANUAL'; chChip2.className = 'ui-status-chip neutral'; }
         }
         
@@ -1146,14 +1146,14 @@ body{
             <span class="ui-status-chip neutral" id="ov-ec-status" title="Controller status">Status</span>
           </div>
         </div>
-  <!-- 4. Chiller (Water Temperature + Pumps) -->
+  <!-- 4. Temperature (Water Temperature + Pumps) -->
         <div class="controller-status-row">
-          <div class="controller-status-label">🧊 Chiller</div>
+          <div class="controller-status-label">🌡️ Temperature</div>
           <div class="controller-status-chips">
-            <span class="bop-status-badge" id="ov-chiller" title="Chiller" aria-label="Chiller">Chiller</span>
-            <span class="bop-status-badge" id="ov-chiller-pump" title="Chiller Pump" aria-label="Chiller Pump">Pump</span>
-            <span class="ui-status-chip neutral" id="ov-chiller-health" title="Chiller health">Health</span>
-            <span class="ui-status-chip neutral" id="ov-chiller-status" title="Chiller status">Status</span>
+            <span class="bop-status-badge" id="ov-temperature" title="Chiller" aria-label="Chiller">Chiller</span>
+            <span class="bop-status-badge" id="ov-temperature-pump" title="Chiller Pump" aria-label="Chiller Pump">Pump</span>
+            <span class="ui-status-chip neutral" id="ov-temperature-health" title="Temperature health">Health</span>
+            <span class="ui-status-chip neutral" id="ov-temperature-status" title="Chiller status">Status</span>
           </div>
         </div>
         <!-- 5. Circulation -->
@@ -1208,49 +1208,49 @@ body{
     </div>
   </section>
 
-  <!-- Chiller (Water Temperature) Tab -->
+  <!-- Temperature (Water Temperature) Tab -->
   <section id="temp-card" class="card card-wide tab-section" data-tab="temp" style="display:none;">
     <div class="card-header">
       <div style="display:flex;align-items:center;gap:8px;">
-        <h3 class="card-title" style="margin:0;">Chiller Controller</h3>
-        <span id="env-health-indicator" class="ui-status-chip success" title="Chiller health">OK</span>
+        <h3 class="card-title" style="margin:0;">Temperature Controller</h3>
+        <span id="env-health-indicator" class="ui-status-chip success" title="Temperature health">OK</span>
       </div>
     </div>
 
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
       <div class="kpi kpi-temp">
         <div class="kpi-label">Water Temp</div>
-        <div class="kpi-value" id="chiller-current-temp">23.2°C</div>
+        <div class="kpi-value" id="temperature-current-temp">23.2°C</div>
       </div>
       <div class="kpi kpi-temp">
         <div class="kpi-label">Target Temp</div>
-        <div class="kpi-value" id="chiller-target-temp">19.0°C</div>
+        <div class="kpi-value" id="temperature-target-temp">19.0°C</div>
       </div>
       <div class="kpi kpi-temp">
         <div class="kpi-label">Stage</div>
-        <div class="kpi-value" id="chiller-stage">Default</div>
+        <div class="kpi-value" id="temperature-stage">Default</div>
       </div>
       <div class="kpi kpi-temp">
         <div class="kpi-label">Chiller State</div>
-        <div class="kpi-value" id="chiller-state-label">IDLE</div>
+        <div class="kpi-value" id="temperature-state-label">IDLE</div>
       </div>
     </div>
 
     <!-- Chiller Activity Chart -->
     <hr class="separator" style="margin:20px 0;" />
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-sm);">
-      <div class="muted">Temperature & Chiller History</div>
-      <span id="chiller-total-runtime" class="kpi-pill" style="font-size:var(--font-sm);padding:2px 8px;border-radius:12px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Runtime: —</span>
+      <div class="muted">Temperature & Cooling History</div>
+      <span id="temperature-total-runtime" class="kpi-pill" style="font-size:var(--font-sm);padding:2px 8px;border-radius:12px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Runtime: —</span>
     </div>
-    <div id="chiller-chart-wrap" class="chart-card">
-      <canvas id="chillerChart"></canvas>
-      <div id="chiller-chart-empty" class="muted small" style="display:none;padding:8px 0;">
+    <div id="temperature-chart-wrap" class="chart-card">
+      <canvas id="temperatureChart"></canvas>
+      <div id="temperature-chart-empty" class="muted small" style="display:none;padding:8px 0;">
         No temperature data available for this period.
       </div>
     </div>
     <!-- Chart Controls -->
     <div class="trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
-      <select id="chillerRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
+      <select id="temperatureRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
         <option value="1h">Last Hour</option>
         <option value="24h" selected>Last 24 Hours</option>
         <option value="1w">Last Week</option>
@@ -1258,19 +1258,19 @@ body{
         <option value="grow">Entire Grow</option>
         <option value="custom">Custom Range...</option>
       </select>
-      <div id="chillerCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
-        <input type="datetime-local" id="chillerFrom" class="dt-input" />
+      <div id="temperatureCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
+        <input type="datetime-local" id="temperatureFrom" class="dt-input" />
         <span style="opacity:0.5;font-size:var(--font-sm);">to</span>
-        <input type="datetime-local" id="chillerTo" class="dt-input" />
-        <button class="btn btn-secondary btn-compact" id="chillerApply">Apply</button>
+        <input type="datetime-local" id="temperatureTo" class="dt-input" />
+        <button class="btn btn-secondary btn-compact" id="temperatureApply">Apply</button>
       </div>
-      <button id="btnChillerExport" class="btn-secondary btn-small" title="Export displayed temperature/chiller data to CSV" style="margin-left:auto;">Export CSV</button>
+      <button id="btnTemperatureExport" class="btn-secondary btn-small" title="Export displayed temperature/chiller data to CSV" style="margin-left:auto;">Export CSV</button>
     </div>
 
     <!-- Chiller automation controlled via header chips only - redundant buttons removed -->
 
     <div style="margin-top:20px;">
-      <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">⚙️ Temperature & Chiller Settings</div>
+      <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">⚙️ Temperature & Cooling Settings</div>
       <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
         <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure temperature targets, alert thresholds, and chiller compressor protection timings.</div>
         <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
@@ -1280,12 +1280,12 @@ body{
           </div>
           <div>
             <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Hysteresis (°C)</label>
-            <input type="number" id="chillerHysteresis" step="0.1" min="0.1" max="3.0" value="0.5" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+            <input type="number" id="temperatureHysteresis" step="0.1" min="0.1" max="3.0" value="0.5" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
           </div>
         </div>
         <div style="margin-bottom:var(--space-md);">
           <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Growth Stage</label>
-          <select id="chillerStage" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid#374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
+          <select id="temperatureStage" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid#374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
             <option value="default">Default (18-20°C optimal)</option>
             <option value="veg">Vegetative (18-20°C)</option>
             <option value="flower">Flowering (18-20°C)</option>
@@ -1304,20 +1304,20 @@ body{
         <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
           <div>
             <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min OFF time (s)</label>
-            <input type="number" id="chillerMinOff" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+            <input type="number" id="temperatureMinOff" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
           </div>
           <div>
             <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min ON time (s)</label>
-            <input type="number" id="chillerMinOn" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+            <input type="number" id="temperatureMinOn" step="1" min="60" max="1800" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
           </div>
         </div>
         <button id="btnSaveTempSettings" class="btn-secondary btn-full" style="margin-bottom:12px;">Save Temperature Settings</button>
         <div style="border-top:1px solid rgba(148,163,184,0.2);padding-top:12px;">
           <div class="muted" style="font-size:var(--font-xs);margin-bottom:8px;">Force chiller ON/OFF for specified duration (bypasses automation)</div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <button id="btnChillerForceOn" class="btn-secondary">Force ON</button>
-            <button id="btnChillerForceOff" class="btn-secondary">Force OFF</button>
-            <select id="chillerForceDuration" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
+            <button id="btnTemperatureForceOn" class="btn-secondary">Force ON</button>
+            <button id="btnTemperatureForceOff" class="btn-secondary">Force OFF</button>
+            <select id="temperatureForceDuration" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
               <option value="30">30 minutes</option>
               <option value="60">1 hour</option>
               <option value="240">4 hours</option>
@@ -1420,7 +1420,7 @@ body{
         </div>
         <div class="kpi">
           <div class="kpi-label">🌊 Chiller Pump</div>
-          <div class="kpi-value"><span class="bop-status-badge" id="circ-chiller-pump">—</span></div>
+          <div class="kpi-value"><span class="bop-status-badge" id="circ-temperature-pump">—</span></div>
         </div>
       </div>
 
@@ -1431,7 +1431,7 @@ body{
           <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Manual relay control. Honors Auto/Manual mode and E‑STOP protections. Cooldowns enforced.</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <button class="btn-secondary btn-full" id="btnMainPump">Toggle Main Pump</button>
-            <button class="btn-secondary btn-full" id="btnChillerPump">Toggle Chiller Pump</button>
+            <button class="btn-secondary btn-full" id="btnTemperaturePump">Toggle Chiller Pump</button>
           </div>
         </div>
       </div>
@@ -1448,7 +1448,7 @@ body{
             </div>
             <div>
               <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Chiller Pump Min OFF (s)</label>
-                <input type="number" id="chillerPumpMinOff" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+                <input type="number" id="temperaturePumpMinOff" step="1" min="0" max="3600" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
               </div>
             </div>
           </div>
@@ -3064,7 +3064,7 @@ function toggleRecentReadings(){
 // Simple circulation controller wiring, uses /api/relays endpoints
 window.CircControl = (function(){
   const btnMain = ()=>document.getElementById('btnMainPump');
-  const btnChil = ()=>document.getElementById('btnChillerPump');
+  const btnChil = ()=>document.getElementById('btnTemperaturePump');
   async function status(){
     const res = await fetch('/api/relays/status?'+Date.now(), {cache:'no-store'});
     return await res.json();
@@ -3082,7 +3082,7 @@ window.CircControl = (function(){
       const mp = s.relays && s.relays.main_pump ? !!s.relays.main_pump.is_on : false;
       const cp = s.relays && s.relays.chiller_pump ? !!s.relays.chiller_pump.is_on : false;
       badge(document.getElementById('circ-main-pump'), mp);
-      badge(document.getElementById('circ-chiller-pump'), cp);
+      badge(document.getElementById('circ-temperature-pump'), cp);
     }catch(e){ /* ignore */ }
   }
   async function toggle(key){
@@ -3182,6 +3182,7 @@ window.CircControl = (function(){
 
 </body>
 </html>
+
 
 
 

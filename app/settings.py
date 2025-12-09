@@ -118,9 +118,9 @@ DEFAULTS: Dict[str, str] = {
 
     # safety
     "safety.main_pump_min_off_s": "5",
-    "safety.chiller_pump_min_off_s": "5",
-    "safety.chiller_min_off_s": "300",
-    "safety.chiller_min_on_s": "60",
+    "safety.temperature_pump_min_off_s": "5",
+    "safety.temperature_min_off_s": "300",
+    "safety.temperature_min_on_s": "60",
     "safety.estop_persist": "false",
     # allow force-bypass of cooldown/daily cap for testing only
     "safety.allow_force": "false",
@@ -135,16 +135,16 @@ DEFAULTS: Dict[str, str] = {
     # Defaults to OFF for production safety
     "safety.allow_stale_on_override": "false",
 
-    # chiller (Hailea HS-52A intelligent control)
-    "chiller.target_temp": "19.0",           # °C - optimal for cannabis DWC/RDWC
-    "chiller.hysteresis": "0.5",             # °C - deadband (turn on at 19.5, off at 18.5)
-    "chiller.min_on_seconds": "300",         # 5 min minimum runtime (compressor protection)
-    "chiller.min_off_seconds": "600",        # 10 min minimum off time (cooldown)
-    # NOTE: chiller.auto_enabled is DEPRECATED - use controls.chiller_auto via auto_control.py
-    "chiller.control_interval_s": "30",      # Check temperature every 30s
-    "chiller.max_temp_alarm": "24.0",        # Alert if water exceeds this (°C)
-    "chiller.min_temp_alarm": "16.0",        # Alert if water below this (°C)
-    "chiller.stage": "default",              # veg, flower, or default
+    # temperature (Hailea HS-52A intelligent control)
+    "temperature.target_temp": "19.0",           # °C - optimal for cannabis DWC/RDWC
+    "temperature.hysteresis": "0.5",             # °C - deadband (turn on at 19.5, off at 18.5)
+    "temperature.min_on_seconds": "300",         # 5 min minimum runtime (compressor protection)
+    "temperature.min_off_seconds": "600",        # 10 min minimum off time (cooldown)
+    # NOTE: temperature.auto_enabled is DEPRECATED - use controls.temperature_auto via auto_control.py
+    "temperature.control_interval_s": "30",      # Check temperature every 30s
+    "temperature.max_temp_alarm": "24.0",        # Alert if water exceeds this (°C)
+    "temperature.min_temp_alarm": "16.0",        # Alert if water below this (°C)
+    "temperature.stage": "default",              # veg, flower, or default
 
     # alerts
     "alerts.email_to": "",
@@ -308,8 +308,8 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
                 return False, {"field": "general.grow_start_date", "message": "Invalid date"}
 
     # Min on/off 0–3600 s
-    for k in ("safety.main_pump_min_off_s", "safety.chiller_pump_min_off_s",
-              "safety.chiller_min_off_s", "safety.chiller_min_on_s"):
+    for k in ("safety.main_pump_min_off_s", "safety.temperature_pump_min_off_s",
+              "safety.temperature_min_off_s", "safety.temperature_min_on_s"):
         if k in final:
             v = i(final[k])
             if v is None or not (0 <= v <= 3600):

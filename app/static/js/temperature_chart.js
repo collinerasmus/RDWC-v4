@@ -1,26 +1,26 @@
 /**
- * Temperature/Chiller Chart
- * Shows temperature history with setpoint band, chiller on/off events, and total runtime
- * NEW - for chiller tab
+ * Temperature Chart
+ * Shows temperature history with setpoint band, cooler on/off events, and total runtime
+ * NEW - for temperature tab
  */
 (function() {
   'use strict';
 
-  console.log('[Chiller Chart] Initializing');
+  console.log('[Temperature Chart] Initializing');
 
-  let totalChillerTime = 0; // Total chiller ON time in minutes
+  let totalCoolerTime = 0; // Total cooler ON time in minutes
 
   function init() {
     if (typeof RDWCChart === 'undefined') {
-      console.error('[Chiller Chart] RDWCChart base not loaded');
+      console.error('[Temperature Chart] RDWCChart base not loaded');
       return;
     }
 
     const chart = new RDWCChart({
-      canvasId: 'chillerChart',
-      emptyMessageId: 'chiller-chart-empty',
-      type: 'chiller',
-      title: 'Temperature & Chiller Activity',
+      canvasId: 'temperatureChart',
+      emptyMessageId: 'temperature-chart-empty',
+      type: 'temperature',
+      title: 'Temperature & Cooling Activity',
       
       onDataFetch: async (startISO, endISO) => {
         const span = new Date(endISO) - new Date(startISO);
@@ -41,38 +41,38 @@
 
         const trendsUrl = '/api/trends?' + q.toString();
         
-        // Fetch chiller events
-        const chillerHours = Math.min(Math.ceil(hours), 168);
-        const chillerUrl = `/api/chiller/events?hours=${chillerHours}`;
+        // Fetch cooler events
+        const coolerHours = Math.min(Math.ceil(hours), 168);
+        const coolerUrl = `/api/temperature/events?hours=${coolerHours}`;
 
         // Fetch temperature target
         const settingsUrl = '/api/settings';
 
         try {
-          const [trendsRes, chillerRes, settingsRes] = await Promise.all([
+          const [trendsRes, coolerRes, settingsRes] = await Promise.all([
             fetch(trendsUrl, { cache: 'no-store' }),
-            fetch(chillerUrl, { cache: 'no-store' }).catch(() => null),
+            fetch(coolerUrl, { cache: 'no-store' }).catch(() => null),
             fetch(settingsUrl, { cache: 'no-store' })
           ]);
 
           const trendsData = trendsRes.ok ? await trendsRes.json() : { series: { temp: [] } };
-          const chillerData = chillerRes && chillerRes.ok ? await chillerRes.json() : { events: [] };
+          const coolerData = coolerRes && coolerRes.ok ? await coolerRes.json() : { events: [] };
           const settingsData = settingsRes.ok ? await settingsRes.json() : {};
 
-          console.log('[Chiller Chart] Fetched:', {
+          console.log('[Temperature Chart] Fetched:', {
             temp: trendsData?.series?.temp?.length || 0,
-            chillerEvents: chillerData?.events?.length || 0
+            coolerEvents: coolerData?.events?.length || 0
           });
 
-          return { trendsData, chillerData, settingsData };
+          return { trendsData, coolerData, settingsData };
         } catch (e) {
-          console.error('[Chiller Chart] Fetch failed:', e);
-          return { trendsData: { series: { temp: [] } }, chillerData: { events: [] }, settingsData: {} };
+          console.error('[Temperature Chart] Fetch failed:', e);
+          return { trendsData: { series: { temp: [] } }, coolerData: { events: [] }, settingsData: {} };
         }
       },
 
       onRender: (chart, data, window) => {
-        const { trendsData, chillerData, settingsData } = data;
+        const { trendsData, coolerData, settingsData } = data;
 
         // Parse temperature readings
         const temp = (trendsData?.series?.temp || []).map(p => ({
@@ -80,29 +80,29 @@
           y: Number(p.value)
         }));
 
-        // Parse chiller events
-        const chillerEvents = (chillerData?.events || [])
+        // Parse cooler events
+        const coolerEvents = (coolerData?.events || [])
           .filter(e => {
             const ts = e.ts * 1000;
             return ts >= window.start && ts <= window.end;
           });
 
-        // Calculate total chiller ON time
-        totalChillerTime = 0;
-        for (let i = 0; i < chillerEvents.length - 1; i++) {
-          const current = chillerEvents[i];
-          const next = chillerEvents[i + 1];
+        // Calculate total cooler ON time
+        totalCoolerTime = 0;
+        for (let i = 0; i < coolerEvents.length - 1; i++) {
+          const current = coolerEvents[i];
+          const next = coolerEvents[i + 1];
           if (current.state === 'ON') {
             const onDuration = (next.ts - current.ts) / 60; // minutes
-            totalChillerTime += onDuration;
+            totalCoolerTime += onDuration;
           }
         }
 
         // Update total runtime display
-        const totalEl = document.getElementById('chiller-total-runtime');
+        const totalEl = document.getElementById('temperature-total-runtime');
         if (totalEl) {
-          const hours = Math.floor(totalChillerTime / 60);
-          const mins = Math.floor(totalChillerTime % 60);
+          const hours = Math.floor(totalCoolerTime / 60);
+          const mins = Math.floor(totalCoolerTime % 60);
           totalEl.textContent = `${hours}h ${mins}m`;
         }
 
@@ -178,18 +178,18 @@
           });
         }
 
-        // 4. Chiller ON events as markers
-        const chillerOnEvents = chillerEvents.filter(e => e.state === 'ON');
-        if (chillerOnEvents.length) {
+        // 4. Cooler ON events as markers
+        const coolerOnEvents = coolerEvents.filter(e => e.state === 'ON');
+        if (coolerOnEvents.length) {
           const markerY = tempLow - 1.0; // Below target band
           datasets.push({
             type: 'scatter',
-            label: `Chiller ON (${chillerOnEvents.length})`,
-            data: chillerOnEvents.map(e => ({ x: e.ts * 1000, y: markerY })),
+            label: `Cooler ON (${coolerOnEvents.length})`,
+            data: coolerOnEvents.map(e => ({ x: e.ts * 1000, y: markerY })),
             pointRadius: 5,
             pointStyle: 'rectRot',
-            pointBackgroundColor: window.CHART_COLORS?.chillerOn || '#60a5fa',
-            pointBorderColor: window.CHART_COLORS?.chillerOn || '#60a5fa',
+            pointBackgroundColor: window.CHART_COLORS?.coolerOn || '#60a5fa',
+            pointBorderColor: window.CHART_COLORS?.coolerOn || '#60a5fa',
             pointBorderWidth: 1,
             showLine: false,
             order: 2
@@ -215,13 +215,13 @@
     });
 
     // Hook up controls
-    window.createTimeRangeSelector('chillerRangeSelect', chart);
-    window.createCustomRangeInputs('chillerFrom', 'chillerTo', 'chillerApply', chart);
+    window.createTimeRangeSelector('temperatureRangeSelect', chart);
+    window.createCustomRangeInputs('temperatureFrom', 'temperatureTo', 'temperatureApply', chart);
 
     // Expose for external access
-    window.chillerChart = chart;
+    window.temperatureChart = chart;
 
-    console.log('[Chiller Chart] Initialized');
+    console.log('[Temperature Chart] Initialized');
   }
 
   if (document.readyState !== 'loading') {

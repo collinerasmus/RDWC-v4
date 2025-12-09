@@ -1,11 +1,11 @@
 """
-Intelligent Chiller Control for RDWC System
+Intelligent temperature Control for RDWC System
 Hailea HS-52A (1/10 HP) - Optimized for Cannabis Cultivation
 
 Features:
 - Temperature-based automation with hysteresis
 - Compressor protection (min ON/OFF times)
-- RDWC coordination (requires main pump + chiller pump)
+- RDWC coordination (requires main pump + temperature pump)
 - Energy-efficient scheduling
 - Strain-specific temperature targets
 """
@@ -24,7 +24,7 @@ def get_relay_status():
     from app.relays_core import get_relay_status as _get_relay_status
     return _get_relay_status()
 
-def relay_set(name: str, on: bool, reason: str = '', actor: str = 'chiller-ctl'):
+def relay_set(name: str, on: bool, reason: str = '', actor: str = 'temperature-ctl'):
     from app.relays_core import set_relay as _set_relay
     return _set_relay(name, on, reason=reason, actor=actor)
 
@@ -38,15 +38,15 @@ def set_setting(key: str, value: str):
     from app.settings import upsert_settings
     upsert_settings({key: value})
 
-def should_automate_chiller():
-    """Check if chiller automation should run using the CLEAN auto-enable system.
+def should_automate_temperature():
+    """Check if temperature automation should run using the CLEAN auto-enable system.
     
     Returns True ONLY if:
     - Global auto is enabled AND
-    - Chiller-specific auto is enabled
+    - temperature-specific auto is enabled
     """
     from app.auto_control import should_automate
-    return should_automate("chiller")
+    return should_automate("temperature")
 
 def get_latest_reading():
     """Get cached sensor reading from main app's background loop."""
@@ -69,10 +69,10 @@ def get_latest_reading():
     except ImportError:
         return None
 
-# Chiller state tracking
-_chiller_state = {
-    'last_on_time': None,      # timestamp when chiller turned ON
-    'last_off_time': None,     # timestamp when chiller turned OFF
+# temperature state tracking
+_temperature_state = {
+    'last_on_time': None,      # timestamp when temperature turned ON
+    'last_off_time': None,     # timestamp when temperature turned OFF
     'is_running': False,       # current state
     'in_cooldown': False,      # true if in minimum OFF period
     'min_runtime_active': False,  # true if in minimum ON period
@@ -108,7 +108,7 @@ CANNABIS_TEMP_RANGES = {
 # Cooling Capacity: 160W (for water volume ~50-150L)
 # Compressor: Rotary type (requires proper cycling)
 # Typical cycle: 5-15 minutes ON per cycle
-CHILLER_SPECS = {
+temperature_SPECS = {
     'model': 'Hailea HS-52A',
     'cooling_capacity_watts': 160,
     'recommended_volume_liters': (50, 150),
@@ -121,7 +121,7 @@ CHILLER_SPECS = {
 
 
 # --- Events logging (SQLite) -------------------------------------------------
-_EVENTS_TABLE = "chiller_events"
+_EVENTS_TABLE = "temperature_events"
 
 def _db_conn():
     path = os.environ.get("RDWC_DB", "data/rdwc.db")
@@ -145,10 +145,10 @@ def _ensure_events_table():
             )
             conn.commit()
     except Exception as e:
-        log.error(f"[CHILLER] Failed to ensure events table: {e}")
+        log.error(f"[temperature] Failed to ensure events table: {e}")
 
 def _log_event(prev_state: str, new_state: str, reason: str = ""):
-    """Persist a chiller state transition event."""
+    """Persist a temperature state transition event."""
     try:
         with _db_conn() as conn:
             conn.execute(
@@ -157,10 +157,10 @@ def _log_event(prev_state: str, new_state: str, reason: str = ""):
             )
             conn.commit()
     except Exception as e:
-        log.error(f"[CHILLER] Failed to log event: {e}")
+        log.error(f"[temperature] Failed to log event: {e}")
 
-def get_chiller_events(limit: int = 200) -> list[dict]:
-    """Return most recent chiller state transition events (newest first)."""
+def get_temperature_events(limit: int = 200) -> list[dict]:
+    """Return most recent temperature state transition events (newest first)."""
     try:
         with _db_conn() as conn:
             cur = conn.execute(
@@ -170,13 +170,13 @@ def get_chiller_events(limit: int = 200) -> list[dict]:
             rows = cur.fetchall()
             return [dict(r) for r in rows]
     except Exception as e:
-        log.error(f"[CHILLER] Failed to fetch events: {e}")
+        log.error(f"[temperature] Failed to fetch events: {e}")
         return []
 
 
 def get_interlock_status() -> Dict[str, Any]:
     """
-    Check current interlock conditions for chiller operation.
+    Check current interlock conditions for temperature operation.
     
     Returns:
         Dict with interlock_ok (bool) and interlock_details (dict)
@@ -184,18 +184,18 @@ def get_interlock_status() -> Dict[str, Any]:
     try:
         relays = get_relay_status()
         main_pump_on = relays.get('main_pump', {}).get('state', False)
-        chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
-        chiller_running = relays.get('chiller_power', {}).get('state', False)
+        temperature_pump_on = relays.get('temperature_pump', {}).get('state', False)
+        temperature_running = relays.get('temperature_power', {}).get('state', False)
         
         # NEW: Use unified auto-enable system
-        auto_enabled = should_automate_chiller()
+        auto_enabled = should_automate_temperature()
         
         # Determine violations
         violations = []
-        if chiller_running and not main_pump_on:
+        if temperature_running and not main_pump_on:
             violations.append('main_pump_off')
-        if chiller_running and not chiller_pump_on:
-            violations.append('chiller_pump_off')
+        if temperature_running and not temperature_pump_on:
+            violations.append('temperature_pump_off')
         
         interlock_ok = len(violations) == 0
         
@@ -203,53 +203,53 @@ def get_interlock_status() -> Dict[str, Any]:
             'interlock_ok': interlock_ok,
             'interlock_details': {
                 'main_pump_on': main_pump_on,
-                'chiller_pump_on': chiller_pump_on,
-                'chiller_running': chiller_running,
+                'temperature_pump_on': temperature_pump_on,
+                'temperature_running': temperature_running,
                 'auto_enabled': auto_enabled,
                 'violations': violations if violations else None
             }
         }
     except Exception as e:
-        log.error(f'[CHILLER] Failed to get interlock status: {e}')
+        log.error(f'[temperature] Failed to get interlock status: {e}')
         return {
             'interlock_ok': False,
             'interlock_details': {
                 'main_pump_on': False,
-                'chiller_pump_on': False,
-                'chiller_running': False,
+                'temperature_pump_on': False,
+                'temperature_running': False,
                 'auto_enabled': False,
                 'violations': ['error_reading_status']
             }
         }
 
 
-def get_chiller_state() -> Dict[str, Any]:
-    """Get current chiller state for API/UI."""
+def get_temperature_state() -> Dict[str, Any]:
+    """Get current temperature state for API/UI."""
     with _control_lock:
-        state = _chiller_state.copy()
+        state = _temperature_state.copy()
         # Reconcile with actual relay state to avoid stale/is_running mismatches
         try:
-            rel = get_relay_status().get('chiller_power', {})
+            rel = get_relay_status().get('temperature_power', {})
             relay_on = bool(rel.get('state')) or bool(rel.get('is_on'))  # support both key styles
         except Exception:
             relay_on = state.get('is_running', False)
         now_reconcile = time.time()
         # If relay physically ON but internal state says OFF, treat as ON transition
         if relay_on and not state.get('is_running'):
-            _chiller_state['is_running'] = True
+            _temperature_state['is_running'] = True
             # If we have no last_on_time this is a fresh ON transition not yet counted
-            if not _chiller_state.get('last_on_time'):
-                _chiller_state['last_on_time'] = now_reconcile
-                _chiller_state['cycles_today'] += 1  # count cycle only once
-            _chiller_state['last_off_time'] = None
-            _chiller_state['in_cooldown'] = False
-            state = _chiller_state.copy()
+            if not _temperature_state.get('last_on_time'):
+                _temperature_state['last_on_time'] = now_reconcile
+                _temperature_state['cycles_today'] += 1  # count cycle only once
+            _temperature_state['last_off_time'] = None
+            _temperature_state['in_cooldown'] = False
+            state = _temperature_state.copy()
         # If relay physically OFF but internal state says ON, treat as OFF transition
         elif (not relay_on) and state.get('is_running'):
-            _chiller_state['is_running'] = False
-            _chiller_state['last_off_time'] = now_reconcile
-            _chiller_state['min_runtime_active'] = False
-            state = _chiller_state.copy()
+            _temperature_state['is_running'] = False
+            _temperature_state['last_off_time'] = now_reconcile
+            _temperature_state['min_runtime_active'] = False
+            state = _temperature_state.copy()
         
         # Add computed fields
         now = time.time()
@@ -259,15 +259,15 @@ def get_chiller_state() -> Dict[str, Any]:
             state['current_runtime'] = int(now - state['last_on_time'])
         
         # Add settings
-        # Unified target temp: prefer chiller.target_temp, fallback to legacy targets.temp_target_c
-        _t = get_setting('chiller.target_temp', None)
+        # Unified target temp: prefer temperature.target_temp, fallback to legacy targets.temp_target_c
+        _t = get_setting('temperature.target_temp', None)
         if _t is None:
             _t = get_setting('targets.temp_target_c', '19.0')
         state['target_temp'] = float(_t)
-        state['hysteresis'] = float(get_setting('chiller.hysteresis', '0.5'))
-        state['stage'] = get_setting('chiller.stage', 'default')
+        state['hysteresis'] = float(get_setting('temperature.hysteresis', '0.5'))
+        state['stage'] = get_setting('temperature.stage', 'default')
         # NEW: Use unified auto-enable system
-        state['auto_enabled'] = should_automate_chiller()
+        state['auto_enabled'] = should_automate_temperature()
         
         # Add interlock status
         interlock_status = get_interlock_status()
@@ -276,9 +276,9 @@ def get_chiller_state() -> Dict[str, Any]:
         return state
 
 
-def set_chiller_relay(desired_on: bool, reason: str = '') -> bool:
+def set_temperature_relay(desired_on: bool, reason: str = '') -> bool:
     """
-    Control chiller relay with safety checks.
+    Control temperature relay with safety checks.
     
     Args:
         desired_on: True to turn ON, False to turn OFF
@@ -288,74 +288,74 @@ def set_chiller_relay(desired_on: bool, reason: str = '') -> bool:
         True if relay was set, False if blocked
     """
     with _control_lock:
-        # Check RDWC coordination: require main_pump + chiller_pump
+        # Check RDWC coordination: require main_pump + temperature_pump
         if desired_on:
             relays = get_relay_status()
             main_pump_on = relays.get('main_pump', {}).get('state', False)
-            chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
+            temperature_pump_on = relays.get('temperature_pump', {}).get('state', False)
             
             if not main_pump_on:
-                log.warning('[CHILLER] Blocked: Main pump is OFF (RDWC circulation required)')
+                log.warning('[temperature] Blocked: Main pump is OFF (RDWC circulation required)')
                 return False
             
-            if not chiller_pump_on:
-                log.warning('[CHILLER] Blocked: Chiller pump is OFF (water circulation required)')
+            if not temperature_pump_on:
+                log.warning('[temperature] Blocked: temperature pump is OFF (water circulation required)')
                 return False
         
         # Check minimum OFF time (compressor protection)
-        if desired_on and _chiller_state['last_off_time']:
+        if desired_on and _temperature_state['last_off_time']:
             now = time.time()
-            min_off = int(get_setting('chiller.min_off_seconds', str(CHILLER_SPECS['min_off_seconds'])))
-            time_since_off = now - _chiller_state['last_off_time']
+            min_off = int(get_setting('temperature.min_off_seconds', str(temperature_SPECS['min_off_seconds'])))
+            time_since_off = now - _temperature_state['last_off_time']
             
             if time_since_off < min_off:
                 remaining = int(min_off - time_since_off)
-                log.info(f'[CHILLER] Blocked: In cooldown period ({remaining}s remaining)')
-                _chiller_state['in_cooldown'] = True
+                log.info(f'[temperature] Blocked: In cooldown period ({remaining}s remaining)')
+                _temperature_state['in_cooldown'] = True
                 return False
             else:
-                _chiller_state['in_cooldown'] = False
+                _temperature_state['in_cooldown'] = False
         
         # Check minimum ON time (don't short-cycle)
-        if not desired_on and _chiller_state['is_running'] and _chiller_state['last_on_time']:
+        if not desired_on and _temperature_state['is_running'] and _temperature_state['last_on_time']:
             now = time.time()
-            min_on = int(get_setting('chiller.min_on_seconds', str(CHILLER_SPECS['min_on_seconds'])))
-            runtime = now - _chiller_state['last_on_time']
+            min_on = int(get_setting('temperature.min_on_seconds', str(temperature_SPECS['min_on_seconds'])))
+            runtime = now - _temperature_state['last_on_time']
             
             if runtime < min_on:
                 remaining = int(min_on - runtime)
-                log.info(f'[CHILLER] Blocked OFF: Minimum runtime active ({remaining}s remaining)')
-                _chiller_state['min_runtime_active'] = True
+                log.info(f'[temperature] Blocked OFF: Minimum runtime active ({remaining}s remaining)')
+                _temperature_state['min_runtime_active'] = True
                 return False
             else:
-                _chiller_state['min_runtime_active'] = False
+                _temperature_state['min_runtime_active'] = False
         
         # Set relay
         try:
-            relay_set('chiller_power', desired_on, reason=reason, actor='chiller-ctl')
+            relay_set('temperature_power', desired_on, reason=reason, actor='temperature-ctl')
             
             # Update state
             now = time.time()
-            prev = 'ON' if _chiller_state['is_running'] else 'OFF'
+            prev = 'ON' if _temperature_state['is_running'] else 'OFF'
             if desired_on:
-                _chiller_state['last_on_time'] = now
-                _chiller_state['is_running'] = True
-                _chiller_state['cycles_today'] += 1
-                log.info(f'[CHILLER] ON: {reason}')
+                _temperature_state['last_on_time'] = now
+                _temperature_state['is_running'] = True
+                _temperature_state['cycles_today'] += 1
+                log.info(f'[temperature] ON: {reason}')
                 _log_event(prev, 'ON', reason)
             else:
-                if _chiller_state['last_on_time']:
-                    runtime = now - _chiller_state['last_on_time']
-                    _chiller_state['total_runtime_today'] += runtime
-                _chiller_state['last_off_time'] = now
-                _chiller_state['is_running'] = False
-                log.info(f'[CHILLER] OFF: {reason}')
+                if _temperature_state['last_on_time']:
+                    runtime = now - _temperature_state['last_on_time']
+                    _temperature_state['total_runtime_today'] += runtime
+                _temperature_state['last_off_time'] = now
+                _temperature_state['is_running'] = False
+                log.info(f'[temperature] OFF: {reason}')
                 _log_event(prev, 'OFF', reason)
             
             return True
             
         except Exception as e:
-            log.error(f'[CHILLER] Relay set failed: {e}')
+            log.error(f'[temperature] Relay set failed: {e}')
             return False
 
 
@@ -367,7 +367,7 @@ def get_current_water_temp() -> Optional[float]:
         if reading and reading.get('temperature_c') is not None:
             return float(reading['temperature_c'])
     except Exception as e:
-        log.warning(f'[CHILLER] Live sensor read failed: {e}')
+        log.warning(f'[temperature] Live sensor read failed: {e}')
     
     # Fallback to last database reading (within 5 minutes)
     try:
@@ -376,25 +376,25 @@ def get_current_water_temp() -> Optional[float]:
         if db_reading and db_reading.get('temperature_c') is not None:
             stale_seconds = db_reading.get('stale_seconds', 999999)
             if stale_seconds is not None and stale_seconds < 300:  # Max 5 minutes old
-                log.info(f'[CHILLER] Using database temp (age: {stale_seconds}s)')
+                log.info(f'[temperature] Using database temp (age: {stale_seconds}s)')
                 return float(db_reading['temperature_c'])
             else:
-                log.warning(f'[CHILLER] Database temp too stale ({stale_seconds}s)')
+                log.warning(f'[temperature] Database temp too stale ({stale_seconds}s)')
     except Exception as e:
-        log.error(f'[CHILLER] Database fallback failed: {e}')
+        log.error(f'[temperature] Database fallback failed: {e}')
     
     return None
 
 
-def should_chiller_run() -> tuple[bool, str]:
+def should_temperature_run() -> tuple[bool, str]:
     """
-    Determine if chiller should be running based on temperature and settings.
+    Determine if temperature should be running based on temperature and settings.
     
     Returns:
         (should_run, reason) tuple
     """
     # NEW: Use unified auto-enable system
-    auto_enabled = should_automate_chiller()
+    auto_enabled = should_automate_temperature()
     if not auto_enabled:
         return False, 'Auto control disabled'
     
@@ -404,15 +404,15 @@ def should_chiller_run() -> tuple[bool, str]:
         return False, 'Temperature sensor unavailable'
     
     # Get target and hysteresis
-    target_temp = float(get_setting('chiller.target_temp', '19.0'))
-    hysteresis = float(get_setting('chiller.hysteresis', '0.5'))
+    target_temp = float(get_setting('temperature.target_temp', '19.0'))
+    hysteresis = float(get_setting('temperature.hysteresis', '0.5'))
     
     # Calculate thresholds
     turn_on_temp = target_temp + hysteresis   # e.g., 19.5°C
     turn_off_temp = target_temp - hysteresis  # e.g., 18.5°C
     
     # Hysteresis logic
-    if _chiller_state['is_running']:
+    if _temperature_state['is_running']:
         # Currently running: turn off when below turn_off_temp
         if current_temp <= turn_off_temp:
             return False, f'Temp {current_temp:.1f}°C below turn-off threshold {turn_off_temp:.1f}°C'
@@ -427,79 +427,79 @@ def should_chiller_run() -> tuple[bool, str]:
 
 
 def control_loop():
-    """Background thread: periodically check temperature and control chiller."""
+    """Background thread: periodically check temperature and control temperature."""
     global _stop_control
-    log.info('[CHILLER] Control loop started')
+    log.info('[temperature] Control loop started')
     
     while not _stop_control:
         try:
             # Check if we should run
-            should_run, reason = should_chiller_run()
+            should_run, reason = should_temperature_run()
             
             # Apply decision
-            if should_run != _chiller_state['is_running']:
-                set_chiller_relay(should_run, reason)
+            if should_run != _temperature_state['is_running']:
+                set_temperature_relay(should_run, reason)
             
             # Check for midnight reset (daily stats)
             now = datetime.now()
             if now.hour == 0 and now.minute < 1:
                 with _control_lock:
-                    _chiller_state['total_runtime_today'] = 0
-                    _chiller_state['cycles_today'] = 0
+                    _temperature_state['total_runtime_today'] = 0
+                    _temperature_state['cycles_today'] = 0
             
         except Exception as e:
-            log.error(f'[CHILLER] Control loop error: {e}')
+            log.error(f'[temperature] Control loop error: {e}')
         
         # Sleep for control interval (default 30 seconds)
-        time.sleep(int(get_setting('chiller.control_interval_s', '30')))
+        time.sleep(int(get_setting('temperature.control_interval_s', '30')))
     
-    log.info('[CHILLER] Control loop stopped')
+    log.info('[temperature] Control loop stopped')
 
 
 def start_auto_control():
-    """Start automated chiller control.
+    """Start automated temperature control.
     
     NOTE: This starts the background control thread. The actual automation
-    will only run if should_automate("chiller") returns True (requires both
-    global_auto and chiller_auto to be enabled in the new auto-control system).
+    will only run if should_automate("temperature") returns True (requires both
+    global_auto and temperature_auto to be enabled in the new auto-control system).
     """
     global _control_thread, _stop_control
     
     if _control_thread and _control_thread.is_alive():
-        log.warning('[CHILLER] Control thread already running')
+        log.warning('[temperature] Control thread already running')
         return
     
     _stop_control = False
-    _control_thread = threading.Thread(target=control_loop, daemon=True, name='ChillerControl')
+    _control_thread = threading.Thread(target=control_loop, daemon=True, name='temperatureControl')
     _control_thread.start()
     
     with _control_lock:
-        _chiller_state['auto_enabled'] = True
+        _temperature_state['auto_enabled'] = True
     
-    # NEW: Enable chiller auto in the unified system
+    # NEW: Enable temperature auto in the unified system
     from app.auto_control import set_controller_auto_enabled
-    set_controller_auto_enabled("chiller", True)
-    log.info('[CHILLER] Automatic control started')
+    set_controller_auto_enabled("temperature", True)
+    log.info('[temperature] Automatic control started')
 
 
 def stop_auto_control():
-    """Stop automated chiller control."""
+    """Stop automated temperature control."""
     global _stop_control
     
     _stop_control = True
     
     with _control_lock:
-        _chiller_state['auto_enabled'] = False
+        _temperature_state['auto_enabled'] = False
     
-    # NEW: Disable chiller auto in the unified system
+    # NEW: Disable temperature auto in the unified system
     from app.auto_control import set_controller_auto_enabled
-    set_controller_auto_enabled("chiller", False)
-    log.info('[CHILLER] Automatic control stopped')
+    set_controller_auto_enabled("temperature", False)
+    log.info('[temperature] Automatic control stopped')
 
 
-def force_chiller_state(desired_on: bool, duration_minutes: Optional[int] = None) -> Dict[str, Any]:
+def force_temperature_state(desired_on: bool, duration_minutes: Optional[int] = None) -> Dict[str, Any]:
     """
-    Manually override chiller state (emergency/maintenance).
+    Manually override temperature state (emergency/maintenance).
     
     Args:
         desired_on: True to force ON, False to force OFF
@@ -511,36 +511,36 @@ def force_chiller_state(desired_on: bool, duration_minutes: Optional[int] = None
     with _control_lock:
         # Set override expiry
         if duration_minutes:
-            _chiller_state['override_until'] = time.time() + (duration_minutes * 60)
+            _temperature_state['override_until'] = time.time() + (duration_minutes * 60)
         else:
-            _chiller_state['override_until'] = None
+            _temperature_state['override_until'] = None
         
         # Apply override
-        success = set_chiller_relay(desired_on, f'Manual override (duration: {duration_minutes or "indefinite"} min)')
+        success = set_temperature_relay(desired_on, f'Manual override (duration: {duration_minutes or "indefinite"} min)')
         
         return {
             'success': success,
             'state': 'ON' if desired_on else 'OFF',
-            'override_until': _chiller_state['override_until'],
+            'override_until': _temperature_state['override_until'],
             'reason': 'Manual override'
         }
 
 
 # Initialize defaults in settings if not present
 def _ensure_defaults():
-    """Ensure all chiller settings exist with proper defaults (aligned with brief).
+    """Ensure all temperature settings exist with proper defaults (aligned with brief).
     
-    NOTE: chiller.auto_enabled is no longer used - automation is controlled
+    NOTE: temperature.auto_enabled is no longer used - automation is controlled
     via the unified auto-enable system in app/auto_control.py
     """
     defaults = {
-        'chiller.target_temp': '19.0',            # °C - optimal for cannabis
-        'chiller.hysteresis': '0.7',              # °C - deadband per brief
-        'chiller.min_on_seconds': str(CHILLER_SPECS['min_on_seconds']),
-        'chiller.min_off_seconds': str(CHILLER_SPECS['min_off_seconds']),
-        'chiller.control_interval_s': '30',       # Check temp every 30s
-        'chiller.max_temp_alarm': '24.0',         # Alert if water exceeds this
-        'chiller.min_temp_alarm': '16.0',         # Alert if water below this
+        'temperature.target_temp': '19.0',            # °C - optimal for cannabis
+        'temperature.hysteresis': '0.7',              # °C - deadband per brief
+        'temperature.min_on_seconds': str(temperature_SPECS['min_on_seconds']),
+        'temperature.min_off_seconds': str(temperature_SPECS['min_off_seconds']),
+        'temperature.control_interval_s': '30',       # Check temp every 30s
+        'temperature.max_temp_alarm': '24.0',         # Alert if water exceeds this
+        'temperature.min_temp_alarm': '16.0',         # Alert if water below this
     }
 
     for key, default_value in defaults.items():
@@ -549,3 +549,4 @@ def _ensure_defaults():
 
 _ensure_defaults()
 _ensure_events_table()
+
