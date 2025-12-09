@@ -935,9 +935,12 @@
           ['phAlertHigh', 'alerts.ph_high'],
           ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec'],
           ['phInitialMl', 'dosing.ph_up_initial_ml'],
-          ['phMixDelay', 'dosing.ph_mix_delay_s'],
-          ['phMaxMlHour', 'dosing.ph_up_max_ml_per_hour'],
-          ['phMaxMlDay', 'dosing.ph_up_max_ml_per_day']
+          ['phMinInterval', 'dosing.ph_min_interval_s'],
+          ['phMaxPressSeconds', 'safety.max_seconds_per_press'],
+          ['phDailyCapMl', 'dosing.ph_up_max_ml_per_day'],
+          ['phStabilizationWindow', 'dosing.ph_stabilization_window_s'],
+          ['phStableDeltaThreshold', 'dosing.ph_stabilization_delta_threshold'],
+          ['phMaxPredictedDelta', 'dosing.ph_max_predicted_delta_ph']
         ];
         
         for(const [elemId, settingKey] of fields){
@@ -960,6 +963,7 @@
         if(!r.ok) throw new Error('HTTP '+r.status);
         
         if(window.showToast) showToast('pH settings saved', 'success');
+        updateParamChips(); // Refresh live chips
         tick(); // Refresh status to pick up new targets
       }catch(e){
         if(window.showToast) showToast('Failed to save pH settings', 'error');
@@ -976,18 +980,21 @@
         ['phTargetHigh', 'targets.ph_high', '6.2'],
         ['phAlertLow', 'alerts.ph_low', '5.5'],
         ['phAlertHigh', 'alerts.ph_high', '6.5'],
-        ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec', ''],
+        ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec', '1.0'],
         ['phInitialMl', 'dosing.ph_up_initial_ml', '0.01'],
-        ['phMixDelay', 'dosing.ph_mix_delay_s', ''],
-        ['phMaxMlHour', 'dosing.ph_up_max_ml_per_hour', ''],
-        ['phMaxMlDay', 'dosing.ph_up_max_ml_per_day', '']
+        ['phMinInterval', 'dosing.ph_min_interval_s', '900'],
+        ['phMaxPressSeconds', 'safety.max_seconds_per_press', '1.5'],
+        ['phDailyCapMl', 'dosing.ph_up_max_ml_per_day', '50'],
+        ['phStabilizationWindow', 'dosing.ph_stabilization_window_s', '300'],
+        ['phStableDeltaThreshold', 'dosing.ph_stabilization_delta_threshold', '0.02'],
+        ['phMaxPredictedDelta', 'dosing.ph_max_predicted_delta_ph', '0.5']
       ];
       for(const [elemId, settingKey, fallback] of settingsMap){
         const elem = el(elemId);
         const val = window.rdwcSettings?.get(settingKey);
         if(elem && (val || fallback)) elem.value = val || fallback;
       }
-      // Safety panel removed - fields now in main Parameters section
+      updateParamChips(); // Update live status chips
     }catch(e){ console.warn('[pH] Failed to load settings into form:', e); }
 
     // listen for settings UI updates to ui.sensors_poll_ms
