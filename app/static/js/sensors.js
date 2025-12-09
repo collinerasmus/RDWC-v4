@@ -125,8 +125,6 @@
       setMetric($("kpiTemp"), t, classify("temp", t));
       setMetric($("kpiEc"),   e, classify("ec", e));
       setMetric($("kpiPh"),   p, classify("ph", p));
-      const updated = $("sensors-updated");
-      if (updated){ updated.innerHTML = 'Updated: '+new Date().toLocaleTimeString()+ ' <span style="color:#22c55e;">(demo)</span>'; }
       setOnline(true);
     }, 3000);
     return; // Abort real wiring
@@ -191,8 +189,6 @@
     setMetric($("kpiTemp"), sim.t, classify("temp", sim.t));
     setMetric($("kpiEc"),   sim.e, classify("ec", sim.e));
     setMetric($("kpiPh"),   sim.p, classify("ph", sim.p));
-    const updated = $("sensors-updated");
-    if (updated){ updated.innerHTML = 'Updated: '+new Date().toLocaleTimeString()+ (label?` <span style="color:#22c55e;">(${label})</span>`:''); }
     setOnline(true);
   }
 
@@ -255,26 +251,6 @@
       const map = {ph:'inpOverridePh', ec_mscm:'inpOverrideEc', temperature_c:'inpOverrideTemp'};
       const id = map[field]; if(id){ const el=$(id); if(el) el.value=''; }
     }catch(e){ console.warn('[Sensors] clear override failed', e); }
-  }
-  // Recent readings now embedded in settings details (always visible when expanded)
-  async function refreshRecent(){
-    const list = $("s-recent");
-    if(!list) return;
-    try{
-      const r = await fetch('/api/sensors/status', {cache:'no-store'});
-      if(!r.ok) throw new Error('HTTP '+r.status);
-      const j = await r.json();
-      const rows = j?.recent || [];
-      if(rows.length===0){ list.innerHTML = '<div style="padding:2px 0;">No recent readings</div>'; return; }
-      // Take first 5 (already sorted newest first by API)
-      list.innerHTML = rows.slice(0,5).map(e => {
-        const when = e.ts?.replace('T',' ').replace('Z','') || '—';
-        const ph = e.ph!=null? e.ph.toFixed(2):'—';
-        const ec = e.ec_mscm!=null? e.ec_mscm.toFixed(2):'—';
-        const t  = e.temperature_c!=null? e.temperature_c.toFixed(2):'—';
-        return `<div style="padding:2px 0;">${when} • pH ${ph} • EC ${ec} • Temp ${t}°C</div>`;
-      }).join('');
-    }catch(e){ list.innerHTML = '<div style="padding:2px 0;color:#f59e0b;">Load error</div>'; }
   }
   
   // --- Bootstrap logic: ensure we initialize even if DOMContentLoaded already fired ---
@@ -374,41 +350,6 @@
     refreshServerMode();
     // Mode refresh slower (SSE covers sensors values only)
     setInterval(refreshServerMode, 15000);
-    // Initialize recent readings list
-    refreshRecent();
-    // Periodically refresh recent list (every 45s)
-    setInterval(refreshRecent, 60000);
-    // Read now handler (only enabled in Manual/Maintenance mode)
-    const btn = $("btnSensorsReadNow");
-    if (btn){
-      const updateBtnState = ()=>{
-        if (sensorsMode === 'auto'){
-          btn.disabled = true;
-          btn.title = 'Read now is only available in Manual or Maintenance mode';
-        } else {
-          btn.disabled = false;
-          btn.title = 'Trigger immediate sensor read';
-        }
-      };
-      updateBtnState();
-      // Re-check whenever mode changes
-      const origSetMode = window.sensorsSetMode;
-      window.sensorsSetMode = (m)=>{ origSetMode(m); updateBtnState(); };
-      
-      btn.addEventListener('click', async ()=>{
-        if (sensorsMode === 'auto') return; // safety guard
-        try{
-          btn.disabled = true; btn.textContent = (sensorsMode==='maintenance')?'Simulating...':'Reading...';
-          if (sensorsMode==='maintenance'){
-            simulateStep('manual');
-          } else {
-            const r = await fetch('/read_now', {method:'POST'});
-            setTimeout(()=>{ tick(); }, 1000);
-          }
-        }catch(e){ console.warn('[Sensors] read_now failed', e); }
-        finally{ updateBtnState(); btn.textContent = 'Read now'; }
-      });
-    }
     // Sensors health popover interactions
     const badge = $("sensors-health-badge");
     const pop = $("sensors-health-popover");
