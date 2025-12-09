@@ -95,6 +95,19 @@ def _get_grow_start_date() -> Optional[datetime]:
         pass
     return None
 
+
+def _format_grow_start_date(dt: Optional[datetime]) -> Optional[str]:
+    """Return grow start date as YYYY-MM-DD string for UI/Day-N calculations."""
+    if not dt:
+        return None
+    try:
+        return dt.strftime("%Y-%m-%d")
+    except Exception:
+        try:
+            return dt.isoformat().split('T')[0]
+        except Exception:
+            return None
+
 def _get_current_week() -> int:
     """Calculate current grow week based on start date."""
     start = _get_grow_start_date()
@@ -120,11 +133,10 @@ def get_nutrient_schedule():
             rows = cur.fetchall()
         if not rows:
             # Return empty with metadata
-            start_date = _get_grow_start_date()
             return {
                 "weeks": [],
                 "current_week": _get_current_week(),
-                "grow_start_date": start_date.isoformat() if start_date else None
+                "grow_start_date": _format_grow_start_date(_get_grow_start_date())
             }
         # Normal return (not shown in snippet)
         # ...
@@ -149,19 +161,10 @@ def get_nutrient_schedule():
             "notes": r[10] or ""
         })
     
-    start_date = _get_grow_start_date()
-    # Return date as YYYY-MM-DD string for frontend Day N calculation
-    start_date_str = None
-    if start_date:
-        try:
-            start_date_str = start_date.strftime("%Y-%m-%d")
-        except:
-            start_date_str = start_date.isoformat().split('T')[0]
-    
     return {
         "weeks": weeks,
         "current_week": _get_current_week(),
-        "grow_start_date": start_date_str,
+        "grow_start_date": _format_grow_start_date(_get_grow_start_date()),
         "ph_band": {"low": 5.8, "high": 6.2},
         "ec_tolerance": 0.2
     }
@@ -283,7 +286,7 @@ def get_current_week_info():
             return {
                 "week": week_num,
                 "phase": "unknown",
-                "grow_start_date": start_date.isoformat() if start_date else None
+                "grow_start_date": _format_grow_start_date(start_date)
             }
         # Normal return (not shown in snippet)
         # ...
@@ -304,7 +307,7 @@ def get_current_week_info():
         "temp_target": row[8],
         "lights": row[9],
         "notes": row[10] or "",
-        "grow_start_date": start_date.isoformat() if start_date else None
+        "grow_start_date": _format_grow_start_date(start_date)
     }
 
 @router.get("/api/schedule/plan")

@@ -254,20 +254,22 @@ def _get_schedule_ec_target() -> Tuple[Optional[float], Optional[float]]:
     """
     try:
         from app.settings import get_all_settings
-        from datetime import datetime, timezone
-        
         settings = get_all_settings()
         tolerance = float(settings.get("targets.ec_tolerance", "0.2") or 0.2)
-        
-        # Get grow start date
         start_str = settings.get("general.grow_start_date", "")
         if not start_str:
             return (None, None)
-        
-        start_date = datetime.fromisoformat(start_str).replace(tzinfo=timezone.utc)
+
+        # Align with schedule_api week calc (YYYY-MM-DD, UTC, capped to 12)
+        from datetime import datetime, timezone
+        try:
+            start_date = datetime.strptime(start_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except Exception:
+            start_date = datetime.fromisoformat(start_str).replace(tzinfo=timezone.utc)
+
         now = datetime.now(timezone.utc)
-        days = (now - start_date).days
-        current_week = (days // 7) + 1
+        days = max(0, (now - start_date).days)
+        current_week = min(12, max(1, (days // 7) + 1))
         
         # Get schedule from DB
         with sqlite3.connect(str(DB_PATH)) as conn:
