@@ -98,7 +98,7 @@
         // Update total dosed displays
         const totalEl = document.getElementById('ec-total-dosed');
         if (totalEl) {
-          totalEl.innerHTML = `Grow: ${totalGrow.toFixed(1)} ml<br>Micro: ${totalMicro.toFixed(1)} ml<br>Bloom: ${totalBloom.toFixed(1)} ml`;
+          totalEl.textContent = `Grow: ${totalGrow.toFixed(1)} ml  |  Micro: ${totalMicro.toFixed(1)} ml  |  Bloom: ${totalBloom.toFixed(1)} ml`;
         }
 
         // Get targets
