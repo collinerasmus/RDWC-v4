@@ -1234,9 +1234,40 @@ body{
       </div>
     </div>
 
+    <!-- Chiller Activity Chart -->
+    <hr class="separator" style="margin:20px 0;" />
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-sm);">
+      <div class="muted">Temperature & Chiller History</div>
+      <span id="chiller-total-runtime" class="kpi-pill" style="font-size:var(--font-sm);padding:2px 8px;border-radius:12px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Runtime: —</span>
+    </div>
+    <div id="chiller-chart-wrap" class="chart-card">
+      <canvas id="chillerChart"></canvas>
+      <div id="chiller-chart-empty" class="muted small" style="display:none;padding:8px 0;">
+        No temperature data available for this period.
+      </div>
+    </div>
+    <!-- Chart Controls -->
+    <div class="trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
+      <select id="chillerRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
+        <option value="1h">Last Hour</option>
+        <option value="24h" selected>Last 24 Hours</option>
+        <option value="1w">Last Week</option>
+        <option value="1m">Last Month</option>
+        <option value="grow">Entire Grow</option>
+        <option value="custom">Custom Range...</option>
+      </select>
+      <div id="chillerCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
+        <input type="datetime-local" id="chillerFrom" class="dt-input" />
+        <span style="opacity:0.5;font-size:var(--font-sm);">to</span>
+        <input type="datetime-local" id="chillerTo" class="dt-input" />
+        <button class="btn btn-secondary btn-compact" id="chillerApply">Apply</button>
+      </div>
+      <button id="btnChillerExport" class="btn-secondary btn-small" title="Export displayed temperature/chiller data to CSV" style="margin-left:auto;">Export CSV</button>
+    </div>
+
     <!-- Chiller automation controlled via header chips only - redundant buttons removed -->
 
-    <div style="margin-top:8px;">
+    <div style="margin-top:20px;">
       <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">⚙️ Temperature & Chiller Settings</div>
       <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
         <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure temperature targets, alert thresholds, and chiller compressor protection timings.</div>
@@ -1297,36 +1328,6 @@ body{
 
     <div class="muted" style="font-size:var(--font-sm);margin-top:12px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
       <strong>Hailea HS-52A:</strong> Compressor-protected (5min min ON, 10min min OFF) • Cannabis-optimized temps (16-24°C safe, 18-20°C optimal) • RDWC circulation required
-    </div>
-
-    <!-- Chiller Activity Chart -->
-    <hr class="separator" style="margin:20px 0;" />
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-sm);">
-      <div class="muted">Temperature & Chiller History</div>
-      <span id="chiller-total-runtime" class="kpi-pill" style="font-size:var(--font-sm);padding:2px 8px;border-radius:12px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;">Runtime: —</span>
-    </div>
-    <div id="chiller-chart-wrap" class="chart-card">
-      <canvas id="chillerChart"></canvas>
-      <div id="chiller-chart-empty" class="muted small" style="display:none;padding:8px 0;">
-        No temperature data available for this period.
-      </div>
-    </div>
-    <!-- Chart Controls -->
-    <div class="trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
-      <select id="chillerRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
-        <option value="1h">Last Hour</option>
-        <option value="24h" selected>Last 24 Hours</option>
-        <option value="1w">Last Week</option>
-        <option value="1m">Last Month</option>
-        <option value="grow">Entire Grow</option>
-        <option value="custom">Custom Range...</option>
-      </select>
-      <div id="chillerCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
-        <input type="datetime-local" id="chillerFrom" class="dt-input" />
-        <span style="opacity:0.5;font-size:var(--font-sm);">to</span>
-        <input type="datetime-local" id="chillerTo" class="dt-input" />
-        <button class="btn btn-secondary btn-compact" id="chillerApply">Apply</button>
-      </div>
     </div>
   </section>
 
@@ -1484,21 +1485,22 @@ body{
       </div>
       </div>
       
-      <hr class="separator" />
+      <hr class="separator" style="margin:20px 0;" />
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:var(--space-sm);">
         <div class="muted">Sensor History</div>
       </div>
-      <canvas id="trendChart" height="120"></canvas>
-      <div id="trendEmpty" style="display:none;margin-top:8px;opacity:.7;">No data for selected period.</div>
+      <div id="sensors-chart-wrap" class="chart-card">
+        <canvas id="trendChart"></canvas>
+        <div id="trendEmpty" class="muted small" style="display:none;padding:8px 0;">No data for selected period.</div>
+      </div>
       <!-- Time range selector -->
       <div class="trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
-        <select id="trendRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:100px;">
+        <select id="trendRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
+          <option value="1h">Last Hour</option>
           <option value="24h" selected>Last 24 Hours</option>
-          <option value="7d">Last 7 Days</option>
-          <option value="30d">Last 30 Days</option>
-          <option value="90d">Last 90 Days</option>
+          <option value="1w">Last Week</option>
+          <option value="1m">Last Month</option>
           <option value="grow">Entire Grow</option>
-          <option value="today">Since Midnight</option>
           <option value="custom">Custom Range...</option>
         </select>
         <div id="trendCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
@@ -1710,13 +1712,11 @@ body{
           <!-- 4. Graph Controls (Standardized dropdown + always-visible datetime inputs) -->
           <div class="ph-dose-controls trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
             <select id="phDoseRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
-              <option value="1h" selected>Last Hour</option>
-              <option value="24h">Last 24 Hours</option>
-              <option value="7d">Last 7 Days</option>
-              <option value="30d">Last 30 Days</option>
-              <option value="90d">Last 90 Days</option>
+              <option value="1h">Last Hour</option>
+              <option value="24h" selected>Last 24 Hours</option>
+              <option value="1w">Last Week</option>
+              <option value="1m">Last Month</option>
               <option value="grow">Entire Grow</option>
-              <option value="today">Since Midnight</option>
               <option value="custom">Custom Range...</option>
             </select>
             <div id="phDoseCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
@@ -1966,24 +1966,24 @@ body{
             </div>
 
             <!-- History chart under KPI + summary; graph buttons under the graph -->
-            <hr class="separator" />
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:var(--space-sm);">
+            <hr class="separator" style="margin:20px 0;" />
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-sm);">
               <div class="muted">Dose History</div>
+              <span id="ec-total-dosed" class="kpi-pill" style="font-size:var(--font-sm);padding:2px 8px;border-radius:12px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7;">Total: —</span>
             </div>
-            <div id="ec-dose-chart-wrap" class="chart-card" style="position:relative;height:var(--h-trends);min-height:var(--h-trends);max-height:var(--h-trends);overflow:hidden;contain:layout size;">
-              <canvas id="ecDoseChart" style="display:block;width:100%;height:var(--h-trends);"></canvas>
+            <div id="ec-dose-chart-wrap" class="chart-card">
+              <canvas id="ecDoseChart"></canvas>
               <div id="ec-dose-empty" class="muted small" style="display:none;padding:8px 0;">
                 No doses recorded in this period.
               </div>
             </div>
             <div class="trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
               <select id="ecDoseRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
+                <option value="1h">Last Hour</option>
                 <option value="24h" selected>Last 24 Hours</option>
-                <option value="7d">Last 7 Days</option>
-                <option value="30d">Last 30 Days</option>
-                <option value="90d">Last 90 Days</option>
+                <option value="1w">Last Week</option>
+                <option value="1m">Last Month</option>
                 <option value="grow">Entire Grow</option>
-                <option value="today">Since Midnight</option>
                 <option value="custom">Custom Range...</option>
               </select>
               <div id="ecDoseCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
