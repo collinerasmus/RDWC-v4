@@ -91,14 +91,21 @@ async def log_frontend_errors(payload: dict = Body(...)):
         conn = _get_db()
         cursor = conn.cursor()
         
+        inserted = 0
         for log in logs:
+            # Validate ts is present and is a number
+            ts = log.get("ts")
+            if not isinstance(ts, (int, float)) or ts <= 0:
+                logger.warning(f"Skipping log with invalid ts: {ts}")
+                continue
+            
             cursor.execute("""
                 INSERT INTO frontend_logs 
                 (ts, level, message, stack, url, line_number, column_number, 
                  user_agent, page_url, metadata)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                log.get("ts"),
+                int(ts),
                 log.get("level", "info"),
                 log.get("message", ""),
                 log.get("stack"),
@@ -109,12 +116,13 @@ async def log_frontend_errors(payload: dict = Body(...)):
                 log.get("page_url"),
                 log.get("metadata")
             ))
+            inserted += 1
         
         conn.commit()
         conn.close()
 
         trim_stats = _trim_frontend_logs(RETENTION_DAYS, MAX_ROWS)
-        return {"ok": True, "received": len(logs), "trim": trim_stats}
+        return {"ok": True, "received": len(logs), "inserted": inserted, "trim": trim_stats}
     
     except Exception as e:
         logger.error(f"Failed to store frontend logs: {e}", exc_info=True)
