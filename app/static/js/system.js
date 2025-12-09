@@ -59,11 +59,19 @@
 
     // Fetch auto status
     try {
-      const autoStatus = await getJSON('/api/auto/status');
-      globalAuto = autoStatus.global_auto;
-      if (modeEl) {
-        modeEl.textContent = globalAuto ? 'AUTO' : 'MANUAL';
-        modeEl.style.color = globalAuto ? '#22c55e' : '#94a3b8';
+      const autoStatus = await getJSON('/api/auto/status').catch(e => ({ ok: false, error: e.message }));
+      if (autoStatus && autoStatus.ok === false) {
+        if (modeEl) {
+          modeEl.textContent = 'ERROR';
+          modeEl.style.color = '#ef4444';
+          modeEl.title = autoStatus.error || 'API error';
+        }
+      } else {
+        globalAuto = autoStatus.global_auto;
+        if (modeEl) {
+          modeEl.textContent = globalAuto ? 'AUTO' : 'MANUAL';
+          modeEl.style.color = globalAuto ? '#22c55e' : '#94a3b8';
+        }
       }
     } catch(e) {
       if (modeEl) {

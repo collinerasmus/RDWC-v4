@@ -45,7 +45,7 @@
 
   async function refresh(opts={}){
     try{
-      const wrap = await getRelays({ force: opts.force });
+      const wrap = await getRelays({ force: opts.force }).catch(e => ({ error: e.message }));
       lastRelays = wrap || {};
       const rel = (wrap && wrap.relays) ? wrap.relays : {};
       const info = rel.lights || {};
@@ -54,7 +54,7 @@
       const label = $('lights-label');
       const btn = $('btnLightsToggle');
       if (badge){ badge.textContent = lightsIsOn? 'ON':'OFF'; badge.className = 'bop-status-badge '+(lightsIsOn?'on':'off'); }
-      if (label){ label.textContent = (lightsIsOn? '● ':'○ ') + 'Lights'; }
+      if (label){ label.textContent = (lightsIsOn? '\u25cf ':'\u25cb ') + 'Lights'; }
       // Determine current system mode (prefer relays response; fallback to global system mode)
       const mode = (wrap && wrap.mode) || window.__systemMode || 'manual';
       if (btn){
@@ -67,15 +67,21 @@
       // settings window preview - use PollingManager cache
       try{
         const s = await window.PollingManager.getSettings();
-        console.log('[LightsV2] Settings response:', s);
-        console.log('[LightsV2] today_window:', s.today_window);
-        updateWindowPreview(s.today_window);
+        if (s && s.error) {
+          updateWindowPreview(null);
+        } else {
+          updateWindowPreview(s.today_window);
+        }
       }catch(e){
+        updateWindowPreview(null);
         console.warn('[LightsV2] Failed to fetch settings:', e);
       }
       updateKpis((wrap && wrap.mode) || window.__systemMode || 'manual');
       updateHealth();
-    }catch(e){ console.warn('[LightsV2] refresh failed', e); }
+    }catch(e){
+      updateWindowPreview(null);
+      console.warn('[LightsV2] refresh failed', e);
+    }
   }
 
   async function toggle(){

@@ -108,18 +108,20 @@
   async function refreshTemperatureStatus() {
     try {
       const [status, relays] = await Promise.all([
-        getJSON('/api/temperature/status'),
+        getJSON('/api/temperature/status').catch(e => ({ ok: false, error: e.message })),
         getJSON('/api/relays/status').catch(()=>null)
       ]);
-      
-      // Update state
-      temperatureState = { ...temperatureState, ...status, estop: !!(relays && relays.estop) };
-      
-      // Update UI
+      // Defensive: if status is error, show toast and set safe defaults
+      if (status && status.ok === false) {
+        showToast('Temperature API error: ' + (status.error || 'Unknown'), 'error');
+        temperatureState = { ...temperatureState, current_temp: null, is_running: false, auto_enabled: false };
+      } else {
+        temperatureState = { ...temperatureState, ...status, estop: !!(relays && relays.estop) };
+      }
       updateTemperatureUI();
       updateEnvHealth();
-
     } catch (e) {
+      showToast('Failed to refresh temperature status', 'error');
       if (UI_VERBOSE) console.error('Failed to refresh temperature status:', e);
     }
   }

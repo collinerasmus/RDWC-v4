@@ -112,24 +112,30 @@ def _get_current_week() -> int:
 @router.get("/api/nutrient_schedule")
 def get_nutrient_schedule():
     """Return all weeks from nutrient schedule."""
-    _ensure_table()
-    with sqlite3.connect(str(DB_PATH)) as conn:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT week, phase, grow_ml10, micro_ml10, bloom_ml10, ec_target, ph_low, ph_high, temp_target, lights, notes
-            FROM nutrient_schedule
-            ORDER BY week ASC
-        """)
-        rows = cur.fetchall()
-    
-    if not rows:
-        # Return empty with metadata
-        start_date = _get_grow_start_date()
-        return {
-            "weeks": [],
-            "current_week": _get_current_week(),
-            "grow_start_date": start_date.isoformat() if start_date else None
-        }
+    try:
+        _ensure_table()
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT week, phase, grow_ml10, micro_ml10, bloom_ml10, ec_target, ph_low, ph_high, temp_target, lights, notes
+                FROM nutrient_schedule
+                ORDER BY week ASC
+            """)
+            rows = cur.fetchall()
+        if not rows:
+            # Return empty with metadata
+            start_date = _get_grow_start_date()
+            return {
+                "weeks": [],
+                "current_week": _get_current_week(),
+                "grow_start_date": start_date.isoformat() if start_date else None
+            }
+        # Normal return (not shown in snippet)
+        # ...
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("/api/nutrient_schedule failed")
+        return {"ok": False, "error": str(e), "weeks": []}
     
     weeks = []
     for r in rows:
@@ -257,25 +263,30 @@ def reset_nutrient_schedule():
 @router.get("/api/schedule/current_week")
 def get_current_week_info():
     """Get current grow week and phase."""
-    _ensure_table()
-    week_num = _get_current_week()
-    
-    with sqlite3.connect(str(DB_PATH)) as conn:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT week, phase, grow_ml10, micro_ml10, bloom_ml10, ec_target, ph_low, ph_high, temp_target, lights, notes
-            FROM nutrient_schedule
-            WHERE week = ?
-        """, (week_num,))
-        row = cur.fetchone()
-    
-    start_date = _get_grow_start_date()
-    if not row:
-        return {
-            "week": week_num,
-            "phase": "unknown",
-            "grow_start_date": start_date.isoformat() if start_date else None
-        }
+    try:
+        _ensure_table()
+        week_num = _get_current_week()
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT week, phase, grow_ml10, micro_ml10, bloom_ml10, ec_target, ph_low, ph_high, temp_target, lights, notes
+                FROM nutrient_schedule
+                WHERE week = ?
+            """, (week_num,))
+            row = cur.fetchone()
+        start_date = _get_grow_start_date()
+        if not row:
+            return {
+                "week": week_num,
+                "phase": "unknown",
+                "grow_start_date": start_date.isoformat() if start_date else None
+            }
+        # Normal return (not shown in snippet)
+        # ...
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("/api/schedule/current_week failed")
+        return {"ok": False, "error": str(e), "week": None, "phase": "unknown"}
     
     return {
         "week": row[0],
@@ -303,15 +314,15 @@ def get_schedule_plan(hours: int = Query(48, ge=1, le=168)):
     try:
         from app.settings import get_all_settings
         settings = get_all_settings()
-    except Exception:
-        settings = {}
-    
-    # Get EC preview logic
-    plan_items: List[Dict[str, Any]] = []
-    
-    try:
+        # Get EC preview logic
+        plan_items: List[Dict[str, Any]] = []
         from app.ec_control import _get_latest_ec
         ec_current, _ = _get_latest_ec()
+        # ... rest of logic ...
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("/api/schedule/plan failed")
+        return {"ok": False, "error": str(e), "plan": []}
     except Exception:
         ec_current = None
     

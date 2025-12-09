@@ -1333,10 +1333,19 @@ def api_relays_guard_recent(limit: int = 50):
 @app.get("/api/temperature/status")
 def api_chiller_status():
     """Get current chiller state, temperature, and automation status."""
-    from app.temperature_control import get_temperature_state, get_current_water_temp
-    state = get_temperature_state()
-    state['current_temp'] = get_current_water_temp()
-    return state
+    try:
+        from app.temperature_control import get_temperature_state, get_current_water_temp
+        state = get_temperature_state()
+        state['current_temp'] = get_current_water_temp()
+        return state
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("/api/temperature/status failed")
+        return JSONResponse(status_code=200, content={
+            "ok": False,
+            "error": str(e),
+            "current_temp": None
+        })
 
 @app.post("/api/temperature/auto/enable")
 def api_chiller_auto_enable():
@@ -3164,8 +3173,18 @@ def api_controller_mode_set(name: str, body: dict = Body(...)):
 @app.get("/api/auto/status")
 def api_auto_status():
     """Get global and per-controller auto-enable status"""
-    from app.auto_control import get_auto_status
-    return get_auto_status()
+    try:
+        from app.auto_control import get_auto_status
+        return get_auto_status()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("/api/auto/status failed")
+        return JSONResponse(status_code=200, content={
+            "ok": False,
+            "error": str(e),
+            "global_auto": None,
+            "controllers": {}
+        })
 
 @app.post("/api/auto/global")
 def api_auto_global_set(body: dict = Body(...)):
