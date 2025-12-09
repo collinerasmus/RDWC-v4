@@ -2,6 +2,12 @@
   const $ = (id)=>document.getElementById(id);
   const getJSON = async (u)=>{ const r = await fetch(u,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); };
   const postJSON = async (u,b)=>{ const r = await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json().catch(()=>({})); };
+  const getRelays = async (opts={})=>{
+    if (window.pollingManager && window.pollingManager.getRelays) {
+      return window.pollingManager.getRelays(opts);
+    }
+    return getJSON('/api/relays/status');
+  };
 
   let lastRelays = null;
   let lightsIsOn = false;
@@ -37,9 +43,9 @@
     ind.textContent = 'AUTO'; ind.className = 'ui-status-chip success'; ind.title = 'Automation running';
   }
 
-  async function refresh(){
+  async function refresh(opts={}){
     try{
-      const wrap = await getJSON('/api/relays/status');
+      const wrap = await getRelays({ force: opts.force });
       lastRelays = wrap || {};
       const rel = (wrap && wrap.relays) ? wrap.relays : {};
       const info = rel.lights || {};
@@ -81,7 +87,12 @@
         const cur = !!(wrap && wrap.relays && wrap.relays.lights && wrap.relays.lights.is_on);
         await postJSON('/relay/set', {name:'lights', on: !cur});
       }catch(e2){ console.warn('[LightsV2] toggle failed', e2); }
-    }finally{ setTimeout(refresh, 300); }
+    }finally{
+      if (window.pollingManager && window.pollingManager.invalidate) {
+        window.pollingManager.invalidate('relays');
+      }
+      setTimeout(()=>refresh({ force:true }), 300);
+    }
   }
 
   async function init(){

@@ -5,6 +5,12 @@
   const $ = (id)=>document.getElementById(id);
   const getJSON = async (u)=>{ const r = await fetch(u,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); };
   const postJSON = async (u,b)=>{ const r = await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json().catch(()=>({})); };
+  const getRelays = async ()=>{
+    if (window.pollingManager && window.pollingManager.getRelays) {
+      return window.pollingManager.getRelays();
+    }
+    return getJSON('/api/relays/status');
+  };
 
   let lastWrap = null;
   let globalAuto = false;
@@ -36,7 +42,7 @@
 
   async function refresh(){
     try{
-      const wrap = await getJSON('/api/relays/status');
+      const wrap = await getRelays();
       lastWrap = wrap;
       updateHealth();
       updateSystemStatus(wrap);

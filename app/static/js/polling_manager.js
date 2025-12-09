@@ -24,10 +24,12 @@
 
   // Shared data cache with TTLs for common endpoints
   const dataCache = {
-    sensors: { data: null, timestamp: 0, ttl: 5000 },  // 5s
+    sensors: { data: null, timestamp: 0, ttl: 5000 },   // 5s
     settings: { data: null, timestamp: 0, ttl: 30000 }, // 30s
     health: { data: null, timestamp: 0, ttl: 10000 },   // 10s
-    trends: { data: null, timestamp: 0, ttl: 60000 }    // 60s
+    trends: { data: null, timestamp: 0, ttl: 60000 },   // 60s
+    relays: { data: null, timestamp: 0, ttl: 4000 },    // 4s shared cache
+    controllers: { data: null, timestamp: 0, ttl: 5000 } // 5s shared cache
   };
 
   // Connection state tracking
@@ -51,16 +53,17 @@
   
   // Fetch with deduplication and connection recovery
   async function fetchJSON(url, options = {}) {
-    const cacheKey = url + JSON.stringify(options);
+    const { forceRefresh = false, ...fetchOpts } = options;
+    const cacheKey = url + JSON.stringify(fetchOpts);
     const cached = requestCache.get(cacheKey);
-    
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+
+    if (!forceRefresh && cached && Date.now() - cached.timestamp < CACHE_TTL) {
       if (VERBOSE) console.log(`[PollingManager] Cache hit: ${url}`);
       return cached.data;
     }
 
     // Check if request is already in flight
-    if (cached && cached.promise) {
+    if (!forceRefresh && cached && cached.promise) {
       if (VERBOSE) console.log(`[PollingManager] Request in flight: ${url}`);
       return cached.promise;
     }
@@ -68,11 +71,12 @@
     // Make new request with timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+    const fetchUrl = forceRefresh ? `${url}${url.includes('?') ? '&' : '?'}cb=${Date.now()}` : url;
 
-    const promise = fetch(url, { 
+    const promise = fetch(fetchUrl, { 
         cache: 'no-store', 
         signal: controller.signal,
-        ...options 
+        ...fetchOpts 
       })
       .then(r => {
         clearTimeout(timeoutId);
@@ -264,6 +268,28 @@
       // to reduce backend load. For precise time-range queries, use fetchJSON directly.
       const url = params ? `/api/trends?${new URLSearchParams(params)}` : '/api/trends';
       return fetchJSON(url); // Use fetchJSON which has its own request deduplication
+    },
+    getRelays: (opts = {}) => {
+      const force = opts.force === true;
+      if (!force) return getCachedOrFetch('relays', '/api/relays/status', dataCache.relays.ttl);
+      dataCache.relays = { data: null, timestamp: 0, ttl: dataCache.relays.ttl };
+      return fetchJSON('/api/relays/status', { forceRefresh: true }).then(data => {
+        dataCache.relays = { data, timestamp: Date.now(), ttl: dataCache.relays.ttl };
+        return data;
+      });
+    },
+    getControllersStatus: (opts = {}) => {
+      const force = opts.force === true;
+      if (!force) return getCachedOrFetch('controllers', '/api/controllers/status', dataCache.controllers.ttl);
+      dataCache.controllers = { data: null, timestamp: 0, ttl: dataCache.controllers.ttl };
+      return fetchJSON('/api/controllers/status', { forceRefresh: true }).then(data => {
+        dataCache.controllers = { data, timestamp: Date.now(), ttl: dataCache.controllers.ttl };
+        return data;
+      });
+    },
+    invalidate: (key) => {
+      if (!key || !dataCache[key]) return;
+      dataCache[key] = { data: null, timestamp: 0, ttl: dataCache[key].ttl };
     }
   };
 

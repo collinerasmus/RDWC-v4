@@ -1,6 +1,18 @@
 (function(){
   const q = (s)=>document.querySelector(s);
   const getJSON = async (u)=>{ const r = await fetch(u,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); };
+  const getRelays = async (opts={})=>{
+    if (window.pollingManager && window.pollingManager.getRelays) {
+      return window.pollingManager.getRelays(opts);
+    }
+    return getJSON('/api/relays/status');
+  };
+  const getControllersStatus = async (opts={})=>{
+    if (window.pollingManager && window.pollingManager.getControllersStatus) {
+      return window.pollingManager.getControllersStatus(opts);
+    }
+    return getJSON('/api/controllers/status');
+  };
   function setBadge(id, on){ const el = q(id); if (!el) return; el.className = 'bop-status-badge '+(on?'on':'off'); el.setAttribute('role','status'); el.setAttribute('aria-live','polite'); el.setAttribute('aria-label', (id.replace('#','')+' '+(on?'on':'off')).replace(/[-_]/g,' ')); }
   function setChip(id, text, cls){ const el = q(id); if (!el) return; el.textContent = text; el.className = 'ui-status-chip ' + cls; el.setAttribute('role','status'); el.setAttribute('aria-live','polite'); el.setAttribute('aria-label', (id.replace('#','')+' '+text).replace(/[-_]/g,' ')); }
   const last = { chiller: 0, ph: 0, ec: 0, settings: 0, sensors: 0, consolidated: 0 };
@@ -8,7 +20,7 @@
   
   async function refreshConsolidated(){
     try {
-      const data = await getJSON('/api/controllers/status');
+      const data = await getControllersStatus();
       const hb = q('#heartbeat'); if (hb) hb.textContent = 'heartbeat ' + new Date().toLocaleTimeString();
       
       // System-wide state (unified auto-enable system)
@@ -146,7 +158,7 @@
       
       // Update chiller power badge (from relay status - need to keep for now)
       try {
-        const relayStatus = await getJSON('/api/relays/status');
+        const relayStatus = await getRelays();
         const rel = relayStatus.relays || {};
         setBadge('#ov-chiller', !!(rel.chiller_power && rel.chiller_power.is_on));
       } catch(e) { /* ignore */ }
@@ -194,7 +206,7 @@
       if (sensorModeEl) {
         // Get system mode from relays status for sensor mode display
         try {
-          const wrap = await getJSON('/api/relays/status');
+          const wrap = await getRelays();
           sensorModeEl.textContent = wrap && wrap.mode ? wrap.mode.toUpperCase() : 'MANUAL';
           sensorModeEl.className = 'ui-status-chip ' + ((wrap && wrap.mode === 'auto') ? 'success' : 'neutral');
           sensorModeEl.title = 'Sensors mode';
@@ -217,7 +229,7 @@
     
     // Legacy fallback path
     try{
-  const wrap = await getJSON('/api/relays/status');
+  const wrap = await getRelays();
   // Debug heartbeat
   const hb = q('#heartbeat'); if (hb) hb.textContent = 'heartbeat ' + new Date().toLocaleTimeString();
       const rel = wrap.relays || {};

@@ -612,6 +612,9 @@
       const desired = !info.state;
       const result = await setRelay(key, desired);
       const latency = result && result._latency_ms !== undefined ? result._latency_ms : null;
+      if (window.pollingManager && window.pollingManager.invalidate) {
+        window.pollingManager.invalidate('relays');
+      }
       if (result && (result.ok===false || result.changed===false)){
         const reason = result.reason || 'unknown';
         const cooldown = result.cooldown_remaining || 0;
