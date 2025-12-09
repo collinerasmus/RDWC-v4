@@ -88,6 +88,15 @@
     createChart(canvas) {
       const ctx = canvas.getContext('2d');
 
+      // Destroy any existing chart on this canvas to prevent reuse errors
+      if (Chart && Chart.helpers && Chart.helpers.each) {
+        Chart.helpers.each(Chart.instances, (instance) => {
+          if (instance.canvas === canvas) {
+            instance.destroy();
+          }
+        });
+      }
+
       // Base chart configuration
       this.chart = new Chart(ctx, {
         type: 'line',
