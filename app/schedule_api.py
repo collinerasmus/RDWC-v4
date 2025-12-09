@@ -19,32 +19,28 @@ router = APIRouter()
 DB_PATH = Path(__file__).parent.parent / "data" / "rdwc.db"
 
 # EHG 3-Part default schedule (ml per 10L)
-# EHG Base Level 3-Part Schedule - matches official EHG nutrient chart
-# Based on EHG Nutrients Guide Per 10 Litres of Water
+# EHG Nutrient Guide - 18H and 12H photoperiod schedules
+# Based on EHG official nutrient chart with flush indicators
 AUTO_DEFAULTS = [
-    # Base Level Weeks 1-4 (per EHG chart)
-    {"week": 1, "phase": "seedling", "grow_ml10": 2.5, "micro_ml10": 2.5, "bloom_ml10": 2.5, "ec_target": 0.6, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "Week 1 Base Level - balanced introduction"},
-    {"week": 2, "phase": "seedling", "grow_ml10": 5.0, "micro_ml10": 5.0, "bloom_ml10": 5.0, "ec_target": 0.8, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "Week 2 Base Level - establishing growth"},
+    # 18H Photoperiod - Weeks 1-3 (Seedling/Early Veg)
+    {"week": 1, "phase": "seedling", "grow_ml10": 2.5, "micro_ml10": 2.5, "bloom_ml10": 2.5, "ec_target": 0.6, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "18H Week 1 - balanced seedling start"},
+    {"week": 2, "phase": "seedling", "grow_ml10": 2.5, "micro_ml10": 2.5, "bloom_ml10": 2.5, "ec_target": 0.8, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "18H Week 2 - root establishment"},
+    {"week": 3, "phase": "veg", "grow_ml10": 7.0, "micro_ml10": 7.0, "bloom_ml10": 7.0, "ec_target": 1.0, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "18H Week 3 - early vegetative ⚠️ FLUSH recommended before flower transition"},
     
-    # Early Veg (Weeks 3-4)
-    {"week": 3, "phase": "veg", "grow_ml10": 7.5, "micro_ml10": 7.5, "bloom_ml10": 7.5, "ec_target": 1.0, "ph_low": 5.5, "ph_high": 6.0, "temp_target": 20.0, "lights": "20/4", "notes": "Week 3 Base Level - balanced veg growth"},
-    {"week": 4, "phase": "veg", "grow_ml10": 10.0, "micro_ml10": 10.0, "bloom_ml10": 10.0, "ec_target": 1.2, "ph_low": 5.5, "ph_high": 6.0, "temp_target": 20.0, "lights": "20/4", "notes": "Week 4 Mixed Crops - peak balanced feed"},
+    # Veg Weeks 1-3 (High Grow phase)
+    {"week": 4, "phase": "veg", "grow_ml10": 20.0, "micro_ml10": 10.0, "bloom_ml10": 0.0, "ec_target": 1.2, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "Veg Week 1 - maximum vegetative growth"},
+    {"week": 5, "phase": "veg", "grow_ml10": 20.0, "micro_ml10": 10.0, "bloom_ml10": 0.0, "ec_target": 1.3, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "Veg Week 2 - building plant structure"},
+    {"week": 6, "phase": "veg", "grow_ml10": 0.0, "micro_ml10": 10.0, "bloom_ml10": 20.0, "ec_target": 1.4, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "Veg Week 3 - transition to bloom nutrients ⚠️ FLUSH recommended before 12/12"},
     
-    # Late Veg (Weeks 5-6) - Preparing for flower
-    {"week": 5, "phase": "veg", "grow_ml10": 12.0, "micro_ml10": 12.0, "bloom_ml10": 5.0, "ec_target": 1.3, "ph_low": 5.5, "ph_high": 6.0, "temp_target": 20.0, "lights": "20/4", "notes": "Late veg - maximum vegetative growth"},
-    {"week": 6, "phase": "veg", "grow_ml10": 12.0, "micro_ml10": 12.0, "bloom_ml10": 6.0, "ec_target": 1.4, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "Pre-flower - auto transition begins"},
+    # 12H Photoperiod - Weeks 4-8 (Flowering)
+    {"week": 7, "phase": "flower", "grow_ml10": 0.0, "micro_ml10": 10.0, "bloom_ml10": 20.0, "ec_target": 1.5, "ph_low": 6.0, "ph_high": 6.3, "temp_target": 19.0, "lights": "12/12", "notes": "12H Week 4 - flower initiation"},
+    {"week": 8, "phase": "flower", "grow_ml10": 0.0, "micro_ml10": 10.0, "bloom_ml10": 20.0, "ec_target": 1.6, "ph_low": 6.0, "ph_high": 6.3, "temp_target": 19.0, "lights": "12/12", "notes": "12H Week 5 - bud formation"},
+    {"week": 9, "phase": "flower", "grow_ml10": 0.0, "micro_ml10": 10.0, "bloom_ml10": 20.0, "ec_target": 1.7, "ph_low": 6.0, "ph_high": 6.3, "temp_target": 19.0, "lights": "12/12", "notes": "12H Week 6 - peak flowering"},
+    {"week": 10, "phase": "flower", "grow_ml10": 0.0, "micro_ml10": 10.0, "bloom_ml10": 20.0, "ec_target": 1.6, "ph_low": 6.0, "ph_high": 6.3, "temp_target": 19.0, "lights": "12/12", "notes": "12H Week 7 - bud swelling"},
+    {"week": 11, "phase": "flower", "grow_ml10": 0.0, "micro_ml10": 0.0, "bloom_ml10": 0.0, "ec_target": 0.4, "ph_low": 6.0, "ph_high": 6.5, "temp_target": 18.0, "lights": "12/12", "notes": "12H Week 8 - pH Balanced Water Only (final ripening)"},
     
-    # Pre-Flower/Transition (Weeks 7-8) - Auto flowering trigger
-    {"week": 7, "phase": "preflower", "grow_ml10": 10.0, "micro_ml10": 10.0, "bloom_ml10": 12.0, "ec_target": 1.5, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 19.0, "lights": "18/6", "notes": "Pre-flower - stretch phase begins"},
-    {"week": 8, "phase": "preflower", "grow_ml10": 8.0, "micro_ml10": 8.0, "bloom_ml10": 15.0, "ec_target": 1.6, "ph_low": 6.0, "ph_high": 6.3, "temp_target": 19.0, "lights": "18/6", "notes": "Early flower - bud sites forming"},
-    
-    # Flowering (Weeks 9-10) - Peak bud development
-    {"week": 9, "phase": "flower", "grow_ml10": 5.0, "micro_ml10": 5.0, "bloom_ml10": 18.0, "ec_target": 1.7, "ph_low": 6.0, "ph_high": 6.3, "temp_target": 19.0, "lights": "18/6", "notes": "Mid flower - bud swelling"},
-    {"week": 10, "phase": "flower", "grow_ml10": 3.0, "micro_ml10": 3.0, "bloom_ml10": 16.0, "ec_target": 1.5, "ph_low": 6.0, "ph_high": 6.5, "temp_target": 18.0, "lights": "18/6", "notes": "Late flower - ripening phase"},
-    
-    # Flush (Weeks 11-12) - Final flush and harvest prep
-    {"week": 11, "phase": "flush", "grow_ml10": 0.0, "micro_ml10": 0.0, "bloom_ml10": 0.0, "ec_target": 0.4, "ph_low": 6.0, "ph_high": 6.5, "temp_target": 18.0, "lights": "18/6", "notes": "Flush - week 1 (plain water, trichome check)"},
-    {"week": 12, "phase": "flush", "grow_ml10": 0.0, "micro_ml10": 0.0, "bloom_ml10": 0.0, "ec_target": 0.2, "ph_low": 6.0, "ph_high": 6.5, "temp_target": 18.0, "lights": "12/12", "notes": "Flush - week 2 (harvest prep, dark period)"},
+    # Final Flush
+    {"week": 12, "phase": "flush", "grow_ml10": 0.0, "micro_ml10": 0.0, "bloom_ml10": 0.0, "ec_target": 0.2, "ph_low": 6.0, "ph_high": 6.5, "temp_target": 18.0, "lights": "12/12", "notes": "Final flush - harvest prep (trichome check, dark period)"},
 ]
 
 # Legacy compatibility
@@ -154,10 +150,18 @@ def get_nutrient_schedule():
         })
     
     start_date = _get_grow_start_date()
+    # Return date as YYYY-MM-DD string for frontend Day N calculation
+    start_date_str = None
+    if start_date:
+        try:
+            start_date_str = start_date.strftime("%Y-%m-%d")
+        except:
+            start_date_str = start_date.isoformat().split('T')[0]
+    
     return {
         "weeks": weeks,
         "current_week": _get_current_week(),
-        "grow_start_date": start_date.isoformat() if start_date else None,
+        "grow_start_date": start_date_str,
         "ph_band": {"low": 5.8, "high": 6.2},
         "ec_tolerance": 0.2
     }
