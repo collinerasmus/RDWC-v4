@@ -46,35 +46,33 @@
         const doseHours = Math.min(Math.ceil(hours), 168);
         const doseUrl = `/api/dose/recent?hours=${doseHours}`;
 
-        // Fetch targets
-        const targetsUrl = '/api/ph/targets';
-
         try {
-          const [trendsRes, doseRes, targetsRes] = await Promise.all([
+          const [trendsRes, doseRes, settingsRes] = await Promise.all([
             fetch(trendsUrl, { cache: 'no-store' }),
             fetch(doseUrl, { cache: 'no-store' }),
-            fetch(targetsUrl, { cache: 'no-store' })
+            fetch('/api/settings', { cache: 'no-store' })
           ]);
 
           const trendsData = trendsRes.ok ? await trendsRes.json() : { series: { ph: [] } };
           const doseData = doseRes.ok ? await doseRes.json() : { events: [] };
-          const targetsData = targetsRes.ok ? await targetsRes.json() : {};
+          const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+          const targets = settingsData?.targets || {};
 
           console.log('[pH Chart] Fetched:', {
             ph: trendsData?.series?.ph?.length || 0,
             doses: doseData?.events?.length || 0,
-            targets: targetsData
+            targets: targets
           });
 
-          return { trendsData, doseData, targetsData };
+          return { trendsData, doseData, targets };
         } catch (e) {
           console.error('[pH Chart] Fetch failed:', e);
-          return { trendsData: { series: { ph: [] } }, doseData: { events: [] }, targetsData: {} };
+          return { trendsData: { series: { ph: [] } }, doseData: { events: [] }, targets: {} };
         }
       },
 
       onRender: (chart, data, window) => {
-        const { trendsData, doseData, targetsData } = data;
+        const { trendsData, doseData, targets } = data;
 
         // Parse pH readings
         const ph = (trendsData?.series?.ph || []).map(p => ({
@@ -99,9 +97,9 @@
           totalEl.textContent = `${totalDosed.toFixed(1)} ml`;
         }
 
-        // Get targets
-        const phLow = targetsData?.ph_low ?? 5.8;
-        const phHigh = targetsData?.ph_high ?? 6.2;
+        // Get targets from settings (convert strings to floats)
+        const phLow = parseFloat(targets?.ph_low) || 5.8;
+        const phHigh = parseFloat(targets?.ph_high) || 6.2;
 
         // Get current pH
         const currentPH = ph.length > 0 ? ph[ph.length - 1].y : null;

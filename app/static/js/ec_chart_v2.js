@@ -44,34 +44,33 @@
         const doseHours = Math.min(Math.ceil(hours), 168);
         const doseUrl = `/api/dose/recent?hours=${doseHours}`;
 
-        const targetsUrl = '/api/ec/targets';
-
         try {
-          const [trendsRes, doseRes, targetsRes] = await Promise.all([
+          const [trendsRes, doseRes, settingsRes] = await Promise.all([
             fetch(trendsUrl, { cache: 'no-store' }),
             fetch(doseUrl, { cache: 'no-store' }),
-            fetch(targetsUrl, { cache: 'no-store' })
+            fetch('/api/settings', { cache: 'no-store' })
           ]);
 
           const trendsData = trendsRes.ok ? await trendsRes.json() : { series: { ec: [] } };
           const doseData = doseRes.ok ? await doseRes.json() : { events: [] };
-          const targetsData = targetsRes.ok ? await targetsRes.json() : {};
+          const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+          const targets = settingsData?.targets || {};
 
           console.log('[EC Chart] Fetched:', {
             ec: trendsData?.series?.ec?.length || 0,
             doses: doseData?.events?.length || 0,
-            targets: targetsData
+            targets: targets
           });
 
-          return { trendsData, doseData, targetsData };
+          return { trendsData, doseData, targets };
         } catch (e) {
           console.error('[EC Chart] Fetch failed:', e);
-          return { trendsData: { series: { ec: [] } }, doseData: { events: [] }, targetsData: {} };
+          return { trendsData: { series: { ec: [] } }, doseData: { events: [] }, targets: {} };
         }
       },
 
       onRender: (chart, data, window) => {
-        const { trendsData, doseData, targetsData } = data;
+        const { trendsData, doseData, targets } = data;
 
         // Parse EC readings
         const ec = (trendsData?.series?.ec || []).map(p => ({
@@ -103,8 +102,8 @@
         }
 
         // Get targets
-        const ecLow = targetsData?.ec_low ?? 1.0;
-        const ecHigh = targetsData?.ec_high ?? 1.8;
+        const ecLow = parseFloat(targets?.ec_low) || 1.0;
+        const ecHigh = parseFloat(targets?.ec_high) || 1.8;
 
         // Get current EC
         const currentEC = ec.length > 0 ? ec[ec.length - 1].y : null;
