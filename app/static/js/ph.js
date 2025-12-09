@@ -644,7 +644,7 @@
   el('btnPhExport')?.addEventListener('click', ()=>{ exportCSV(); });
 
     // pH Calibration event handlers (for inline calibration in pH Settings)
-    const msgEl = el('ph-calib-msg-inline');
+    const msgEl = el('phCalMessage');
     const logEl = el('ph-calib-log-inline');
 
     // Helper to format time HH:MM:SS
@@ -678,9 +678,9 @@
       appendLog(message, t);
     }
 
-    // Current pH inline + range coloring (basic heuristic using settings if present)
+    // Current pH display + range coloring (basic heuristic using settings if present)
     function setCurrent(v){
-      const sp = el('ph-current-inline');
+      const sp = el('phCalCurrentReading');
       if(!sp) return;
       if(v==null){ sp.textContent = '—'; sp.style.color = '#9ca3af'; return; }
       const val = Number(v);
@@ -692,13 +692,13 @@
       else sp.style.color = '#34d399'; // in band
     }
 
-    const setBanner = (on) => { const b = el('ph-calib-banner-inline'); if (b) b.style.display = on? 'block':'none'; };
+    const setBanner = (on) => { const b = el('ph-calib-banner'); if (b) b.style.display = on? 'block':'none'; };
 
     // Disable/enable all calibration action buttons during operations
     const calibBtnIds = [
-      'btnPhReadInline','btnPhStabilizeInline','btnPhStatusInline',
-      'btnPhCalibrateInline','btnPhClearInline',
-      'btnLedsOnInline','btnLedsOffInline','btnLedsBlinkInline'
+      'btnPhRead','btnPhStabilize','btnPhStatus',
+      'btnPhCalMid','btnPhCalClear',
+      'btnLedsOn','btnLedsOff','btnLedsBlink'
     ];
     function setCalibBusy(busy, workingLabel){
       calibBtnIds.forEach(id => {
@@ -715,7 +715,7 @@
       }catch(e){ /* noop */ }
     };
 
-    el('btnPhReadInline')?.addEventListener('click', async ()=>{
+    el('btnPhRead')?.addEventListener('click', async ()=>{
       setCalibBusy(true);
       try{
         setMsg('Reading (waits for sensor poller to pause, ~8s)...');
@@ -734,7 +734,7 @@
       finally { setCalibBusy(false); }
     });
 
-    el('btnPhStabilizeInline')?.addEventListener('click', async ()=>{
+    el('btnPhStabilize')?.addEventListener('click', async ()=>{
       setCalibBusy(true);
       try{
         setMsg('Waiting for stable reading...');
@@ -776,35 +776,35 @@
       }catch(e){ if(showLoading) setMsg(`✗ Status failed (network): ${e.message}`, false); }
     }
 
-    el('btnPhStatusInline')?.addEventListener('click', async ()=>{
+    el('btnPhStatus')?.addEventListener('click', async ()=>{
       setCalibBusy(true);
       await refreshPhCalibStatus(true);
       setCalibBusy(false);
     });
 
-    el('btnPhCalibrateInline')?.addEventListener('click', async ()=>{
-      setCalibBusy(true, 'Working…');
+    // Helper to calibrate a specific pH point
+    async function phCalibPoint(endpoint, value, indicatorId) {
+      setCalibBusy(true, 'Calibrating…');
       try{
-        const kindSel = el('ph-buffer-kind-inline');
-        const valInp = el('ph-buffer-val-inline');
-        const kind = (kindSel && kindSel.value) || 'mid';
-        const val = parseFloat(valInp && valInp.value || '7.00');
-        if(!isFinite(val)) { setMsg('Invalid buffer value', false); return; }
-        const ep = kind==='low'? 'low' : kind==='high'? 'high' : 'mid';
-        setMsg(`⏳ Sending ${ep} calibration (${val.toFixed(2)})... This takes ~2-8 seconds`);
-        const resp = await fetch(`/calib/ph/${ep}?value=${encodeURIComponent(val.toFixed(2))}`, {method:'POST'});
+        setMsg(`⏳ Sending ${endpoint} calibration (${value.toFixed(2)})... This takes ~2-8 seconds`);
+        const resp = await fetch(`/calib/ph/${endpoint}?value=${encodeURIComponent(value.toFixed(2))}`, {method:'POST'});
         let r = null; try{ r = await resp.json(); }catch(_){ /* ignore */ }
         if (r && r.ok){ 
           setMsg(`✓ ${r.note || 'Calibration successful'}`, true, 'success'); 
+          if(indicatorId) { const ind = el(indicatorId); if(ind) ind.textContent = '✓'; }
           // Auto-refresh status after successful calibration
           setTimeout(() => refreshPhCalibStatus(false), CALIB_STATUS_REFRESH_DELAY);
         }
         else { setMsg(`✗ ${(r && r.note) || `Calibration failed (HTTP ${resp.status})`}`, false); }
       }catch(e){ setMsg(`✗ Calibration failed (network): ${e.message}`, false); }
       finally{ setCalibBusy(false); }
-    });
+    }
 
-    el('btnPhClearInline')?.addEventListener('click', async ()=>{
+    el('btnPhCalMid')?.addEventListener('click', async ()=> phCalibPoint('mid', 7.00, 'phCalMidIndicator'));
+    el('btnPhCalLow')?.addEventListener('click', async ()=> phCalibPoint('low', 4.00, 'phCalLowIndicator'));
+    el('btnPhCalHigh')?.addEventListener('click', async ()=> phCalibPoint('high', 10.00, 'phCalHighIndicator'));
+
+    el('btnPhCalClear')?.addEventListener('click', async ()=>{
       if(!confirm('Clear pH calibration? You will need to recalibrate all points.')) return;
       setCalibBusy(true);
       try{
@@ -812,6 +812,10 @@
         const r = await (await fetch('/calib/ph/clear', {method:'POST'})).json();
         if (r && r.ok){ 
           setMsg(`✓ ${r.note || 'Calibration cleared'}`, true, 'warn'); 
+          // Reset all indicators
+          ['phCalMidIndicator','phCalLowIndicator','phCalHighIndicator'].forEach(id => {
+            const ind = el(id); if(ind) ind.textContent = '—';
+          });
           // Auto-refresh status after clearing
           setTimeout(() => refreshPhCalibStatus(false), CALIB_STATUS_REFRESH_DELAY);
         }
@@ -820,26 +824,32 @@
       finally { setCalibBusy(false); }
     });
 
-    el('btnLedsOnInline')?.addEventListener('click', async ()=>{ 
+    el('btnLedsOn')?.addEventListener('click', async ()=>{ 
       setCalibBusy(true);
       try{ const r=await (await fetch('/calib/leds/on',{method:'POST'})).json(); setMsg(r.ok? 'LEDs on' : 'LEDs on failed', !!r.ok, r.ok?'success':'error'); }catch(e){ setMsg('LEDs on failed (network)', false);} 
       finally { setCalibBusy(false); }
     });
 
-    el('btnLedsOffInline')?.addEventListener('click', async ()=>{ 
+    el('btnLedsOff')?.addEventListener('click', async ()=>{ 
       setCalibBusy(true);
       try{ const r=await (await fetch('/calib/leds/off',{method:'POST'})).json(); setMsg(r.ok? 'LEDs off' : 'LEDs off failed', !!r.ok, r.ok?'success':'error'); }catch(e){ setMsg('LEDs off failed (network)', false);} 
       finally { setCalibBusy(false); }
     });
 
-    el('btnLedsBlinkInline')?.addEventListener('click', async ()=>{ 
+    el('btnLedsBlink')?.addEventListener('click', async ()=>{ 
       setCalibBusy(true);
       try{ const r=await (await fetch('/calib/leds/blink',{method:'POST'})).json(); setMsg(r.ok? `Blink x${r.count||''}` : 'Blink failed', !!r.ok, r.ok?'success':'error'); }catch(e){ setMsg('Blink failed (network)', false);} 
       finally { setCalibBusy(false); }
     });
 
+    // Refresh calibration status handler
+    el('btnPhCalRefreshStatus')?.addEventListener('click', async ()=> refreshPhCalibStatus(true));
+
     // Check calibration capabilities on init
     checkCaps();
+    
+    // Auto-refresh calibration status on load
+    setTimeout(refreshPhCalibStatus, 500);
 
     // --- Manual Dosing 0.3s button (moved from Quick Pulse section) ---
     el('btnPhPulse03')?.addEventListener('click', ()=> doseUnified('ph_up', 0.3, 'pulse'));
