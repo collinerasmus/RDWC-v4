@@ -329,34 +329,41 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
             if v is None or not (0.0 <= v <= 60.0):
                 return False, {"field": "safety.min_off_window_sec", "message": "Must be 0–60 seconds"}
     
-    # Chiller temperature control (14–26°C safe range for cannabis)
-    if "chiller.target_temp" in final:
-        v = f(final["chiller.target_temp"])
+    # Temperature control (14–26°C safe range for cannabis)
+    if "temperature.target_temp" in final or "chiller.target_temp" in final:  # Support legacy chiller.target_temp
+        key = "temperature.target_temp" if "temperature.target_temp" in final else "chiller.target_temp"
+        v = f(final[key])
         if v is None or not (14.0 <= v <= 26.0):
-            return False, {"field": "chiller.target_temp", "message": "Must be 14.0–26.0°C"}
+            return False, {"field": key, "message": "Must be 14.0–26.0°C"}
     
-    if "chiller.hysteresis" in final:
-        v = f(final["chiller.hysteresis"])
+    if "temperature.hysteresis" in final or "chiller.hysteresis" in final:  # Support legacy
+        key = "temperature.hysteresis" if "temperature.hysteresis" in final else "chiller.hysteresis"
+        v = f(final[key])
         if v is None or not (0.1 <= v <= 3.0):
-            return False, {"field": "chiller.hysteresis", "message": "Must be 0.1–3.0°C"}
+            return False, {"field": key, "message": "Must be 0.1–3.0°C"}
     
-    # Chiller timing (0-3600s)
-    for k in ("chiller.min_on_seconds", "chiller.min_off_seconds", "chiller.control_interval_s"):
+    # Temperature timing (0-3600s) - support both new and legacy keys
+    for old_k, new_k in [("chiller.min_on_seconds", "temperature.min_on_seconds"), 
+                          ("chiller.min_off_seconds", "temperature.min_off_seconds"),
+                          ("chiller.control_interval_s", "temperature.control_interval_s")]:
+        k = new_k if new_k in final else old_k
         if k in final:
             v = i(final[k])
             if v is None or not (0 <= v <= 3600):
                 return False, {"field": k, "message": "Must be 0–3600 seconds"}
     
-    # Chiller alarm temps
-    if "chiller.max_temp_alarm" in final:
-        v = f(final["chiller.max_temp_alarm"])
+    # Temperature alarm temps - support both new and legacy keys
+    if "temperature.max_temp_alarm" in final or "chiller.max_temp_alarm" in final:
+        key = "temperature.max_temp_alarm" if "temperature.max_temp_alarm" in final else "chiller.max_temp_alarm"
+        v = f(final[key])
         if v is None or not (20.0 <= v <= 30.0):
-            return False, {"field": "chiller.max_temp_alarm", "message": "Must be 20.0–30.0°C"}
+            return False, {"field": key, "message": "Must be 20.0–30.0°C"}
     
-    if "chiller.min_temp_alarm" in final:
-        v = f(final["chiller.min_temp_alarm"])
+    if "temperature.min_temp_alarm" in final or "chiller.min_temp_alarm" in final:
+        key = "temperature.min_temp_alarm" if "temperature.min_temp_alarm" in final else "chiller.min_temp_alarm"
+        v = f(final[key])
         if v is None or not (10.0 <= v <= 18.0):
-            return False, {"field": "chiller.min_temp_alarm", "message": "Must be 10.0–18.0°C"}
+            return False, {"field": key, "message": "Must be 10.0–18.0°C"}
 
     # Dosing settings validation
     if "dosing.ph_up_ml_per_sec" in final:
