@@ -250,7 +250,7 @@
       const now = Date.now();
       if (now - last.chiller > 6000) {
         try {
-          const chillerStatus = await getJSON('/api/chiller/status');
+          const chillerStatus = await getJSON('/api/temperature/status');
           const tempInfo = chillerStatus.current_temp ? ` ${chillerStatus.current_temp.toFixed(1)}°C` : '';
           const modeText = mode === 'manual' ? 'MANUAL' : mode === 'maintenance' ? 'MAINT' : 'AUTO';
           setChip('#ov-chiller-modechip', modeText + tempInfo, mode === 'manual' ? 'neutral' : mode === 'maintenance' ? 'warning' : 'success');

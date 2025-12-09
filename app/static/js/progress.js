@@ -100,7 +100,7 @@
       tasks.find(t=>t.key==='schedule').ok = !!(sched && Array.isArray(sched.weeks) && sched.weeks.length>0);
 
       // Environment via chiller status
-      const env = await fetch('/api/chiller/status', {cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null);
+      const env = await fetch('/api/temperature/status', {cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null);
       tasks.find(t=>t.key==='env').ok = !!env; // basic availability
 
       // Lights via relays wrap

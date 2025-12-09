@@ -120,7 +120,7 @@
         fetchJSON('/api/sensors/status').catch(()=>null),
         fetchJSON('/api/ph/status').catch(()=>null),
         fetchJSON('/api/ec/status').catch(()=>null),
-        fetchJSON('/api/chiller/status').catch(()=>null)
+        fetchJSON('/api/temperature/status').catch(()=>null)
       ]);
 
   const sSensors = classifySensorsFromStatus(sensorsStatus);
