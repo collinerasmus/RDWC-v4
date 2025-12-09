@@ -643,9 +643,9 @@
   // CSV export uses current range (support both legacy and new ids)
   el('btnPhExport')?.addEventListener('click', ()=>{ exportCSV(); });
 
-    // pH Calibration event handlers (for inline calibration in pH Settings)
+    // pH Calibration event handlers
     const msgEl = el('phCalMessage');
-    const logEl = el('ph-calib-log-inline');
+    const logEl = null;  // Log display removed in new streamlined UI (matches EC)
 
     // Helper to format time HH:MM:SS
     const ts = () => new Date().toLocaleTimeString();
@@ -702,7 +702,7 @@
     ];
     function setCalibBusy(busy, workingLabel){
       calibBtnIds.forEach(id => {
-        const b = el(id); if(!b) return; if(busy){ b.disabled = true; if(workingLabel && id==='btnPhCalibrateInline'){ b.dataset._orig = b.textContent; b.textContent = workingLabel; } }
+        const b = el(id); if(!b) return; if(busy){ b.disabled = true; if(workingLabel && id==='btnPhCalMid'){ b.dataset._orig = b.textContent; b.textContent = workingLabel; } }
         else { b.disabled = false; if(b.dataset._orig){ b.textContent = b.dataset._orig; delete b.dataset._orig; } }
       });
       if(busy) appendLog('⏳ Working...', 'warn');
