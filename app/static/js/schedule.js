@@ -84,57 +84,18 @@
 
   function el(id){ return document.getElementById(id); }
 
-  function calculateDayN(dateStr){
+  function getDayN(dateStr){
     if(!dateStr) return null;
+    if(window.rdwcSettings?.calculateDayN){
+      return window.rdwcSettings.calculateDayN(dateStr, window.rdwcSettings.get?.('general.timezone'));
+    }
     try{
       const start = new Date(`${dateStr}T00:00:00`);
       const diff = Date.now() - start.getTime();
       const day = Math.floor(diff/86400000)+1;
       return Number.isFinite(day) ? Math.max(1, day) : null;
-    }catch(e){
+    }catch(_){
       return null;
-    }
-  }
-
-  function updateGrowStartUI(dateStr){
-    const input = el('schedule-grow-start-input');
-    const chip = el('schedule-grow-start-chip');
-    if(input) input.value = dateStr ? dateStr.slice(0,10) : '';
-    const day = calculateDayN(dateStr);
-    if(chip){
-      chip.textContent = day ? `Day ${day}` : 'Day —';
-      chip.className = day ? 'schedule-badge ok' : 'schedule-badge';
-    }
-  }
-
-  async function saveGrowStartDate(){
-    const input = el('schedule-grow-start-input');
-    if(!input) return;
-    const val = (input.value || '').trim();
-    try{
-      const r = await fetch('/api/settings', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({'general.grow_start_date': val})});
-      const data = await r.json();
-      if(r.ok && data.ok){
-        if(window.rdwcSettings?.set) window.rdwcSettings.set('general.grow_start_date', val);
-        if(window.rdwcSettings?.reload) await window.rdwcSettings.reload();
-        await fetchSchedule();
-        updateGrowStartUI(val || scheduleCache?.grow_start_date || '');
-        updateKpis();
-        renderTimeline();
-        showToast('Grow start date saved', 'success');
-      } else {
-        showToast(data.error || 'Save failed', 'error');
-      }
-    }catch(e){
-      showToast('Save error: ' + e.message, 'error');
-    }
-  }
-
-  function wireGrowStartControls(){
-    const saveBtn = el('schedule-grow-start-save');
-    if(saveBtn && !saveBtn._wired){
-      saveBtn._wired = true;
-      saveBtn.addEventListener('click', saveGrowStartDate);
     }
   }
 
@@ -550,21 +511,13 @@
     if(phaseEl) phaseEl.textContent = currentWeekRow? (currentWeekRow.phase || '—') : '—';
     if(startEl) startEl.textContent = sched.grow_start_date ? new Date(sched.grow_start_date).toLocaleDateString() : '—';
     if(dayEl){
-      if(sched.grow_start_date){
-        const diffMs = Date.now() - Date.parse(sched.grow_start_date);
-        const days = Math.floor(diffMs/86400000)+1;
-        dayEl.textContent = days;
-      } else {
-        dayEl.textContent = '—';
-      }
+      const day = getDayN(sched.grow_start_date);
+      dayEl.textContent = day ? day : '—';
     }
   }
 
   async function init(){
     const data = await fetchSchedule();
-    wireGrowStartControls();
-    const growStart = scheduleCache?.grow_start_date || (window.rdwcSettings?.get ? window.rdwcSettings.get('general.grow_start_date') : '');
-    updateGrowStartUI(growStart);
     if(data){
       updateKpis();
       await renderTimeline();
@@ -597,7 +550,7 @@
   // Backwards-compatible global hooks used by tabs.js
   window.scheduleModule = {
     init,
-    refresh: async ()=>{ await fetchSchedule(); updateGrowStartUI(scheduleCache?.grow_start_date || (window.rdwcSettings?.get ? window.rdwcSettings.get('general.grow_start_date') : '')); await renderTimeline(); await renderPlan(); await renderStatus(); },
+    refresh: async ()=>{ await fetchSchedule(); await renderTimeline(); await renderPlan(); await renderStatus(); },
     showRapidHelper: ()=>{ const h = el('rapid-test-helper'); if(h) h.style.display = 'block'; },
     hideRapidHelper: ()=>{ const h = el('rapid-test-helper'); if(h) h.style.display = 'none'; }
   };

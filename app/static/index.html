@@ -845,13 +845,6 @@ body{
         </div>
       </div>
 
-      <div id="schedule-grow-start-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 12px 0;">
-        <div class="muted" style="font-weight:600;">Grow start date</div>
-        <input type="date" id="schedule-grow-start-input" style="padding:6px 8px;border-radius:8px;border:1px solid rgba(148,163,184,0.3);background:#0f172a;color:#e2e8f0;" />
-        <button id="schedule-grow-start-save" class="btn-secondary btn-small">Save</button>
-        <span id="schedule-grow-start-chip" class="schedule-badge">Day —</span>
-      </div>
-
       <!-- Timeline Visualization -->
       <hr class="separator" />
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -892,6 +885,16 @@ body{
           </div>
           
           <div id="schedule-status-badges" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--space-lg);"></div>
+
+          <div style="margin-bottom:var(--space-lg);padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <div class="muted" style="font-weight:600;font-size:var(--font-base);margin-bottom:8px;">Grow &amp; General Settings</div>
+            <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Manage grow name, timezone, reservoir size, and grow start date here. These values feed schedule KPIs and automation.</div>
+            <div id="settings-general"></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:var(--space-md);flex-wrap:wrap;">
+              <button id="btnSaveSettingsScheduler" data-role="save-settings" class="btn-secondary" disabled style="padding:8px 16px;border-radius:8px;font-weight:600;">💾 Save Changes</button>
+              <span class="muted" style="font-size:var(--font-xs);">Settings are global and persist to SQLite.</span>
+            </div>
+          </div>
           
           <div style="padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);">
             <div class="muted" style="font-size:var(--font-base);margin-bottom:var(--space-md);font-weight:600;">Rapid Test Helper (EC interval)</div>
@@ -2421,27 +2424,7 @@ body{
         </div>
       </div>
 
-      <!-- 8. General Settings -->
-      <div class="system-card" style="margin-bottom:20px;">
-        <div class="system-card-header">
-          <span class="system-card-icon">🏠</span>
-          <h4 class="system-card-title">General Settings</h4>
-        </div>
-        <div class="muted" style="font-size:var(--font-sm);margin-bottom:var(--space-md);padding:8px 12px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:6px;">
-          <strong>Note:</strong> Controller-specific settings (pH targets, EC targets, chiller controls, automation parameters) are available in their respective controller tabs.
-        </div>
-        <div style="margin-top:12px;">
-          <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">General</div>
-          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
-            <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure grow identification, timezone, and reservoir parameters.</div>
-            <div id="settings-general">
-              <!-- Populated by settings.js -->
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 9. Safety Settings -->
+      <!-- 8. Safety Settings -->
       <div class="system-card" style="margin-bottom:20px;">
         <div class="system-card-header">
           <span class="system-card-icon">🛡️</span>
@@ -2458,7 +2441,7 @@ body{
         </div>
       </div>
 
-      <!-- 10. Alerts Settings -->
+      <!-- 9. Alerts Settings -->
       <div class="system-card" style="margin-bottom:20px;">
         <div class="system-card-header">
           <span class="system-card-icon">🔔</span>
@@ -2475,7 +2458,7 @@ body{
         </div>
       </div>
 
-      <!-- 11. UI Settings -->
+      <!-- 10. UI Settings -->
       <div class="system-card">
         <div class="system-card-header">
           <span class="system-card-icon">🎨</span>
@@ -2491,7 +2474,7 @@ body{
           </div>
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:var(--space-md);">
-          <button id="btnSaveSettings" class="btn-secondary" disabled style="padding:8px 16px;border-radius:8px;font-weight:600;">💾 Save Changes</button>
+          <button id="btnSaveSettings" data-role="save-settings" class="btn-secondary" disabled style="padding:8px 16px;border-radius:8px;font-weight:600;">💾 Save Changes</button>
         </div>
         <div class="muted" style="font-size:var(--font-xs);margin-top:var(--space-md);padding-top:var(--space-md);border-top:1px solid rgba(55,65,81,0.5);">
           💡 Changes apply immediately unless noted. Relays never energize on save.

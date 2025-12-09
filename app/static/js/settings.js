@@ -8,7 +8,8 @@
       fields: {
         'general.grow_name': {label:'Grow name', type:'text'},
         'general.timezone': {label:'Timezone', type:'text', placeholder:'Africa/Johannesburg'},
-        'general.reservoir_liters': {label:'Reservoir (L)', type:'number', min:1, max:1000, step:0.1}
+        'general.reservoir_liters': {label:'Reservoir (L)', type:'number', min:1, max:1000, step:0.1},
+        'general.grow_start_date': {label:'Grow start date', type:'date'}
       }
     },
     safety: {
@@ -47,10 +48,13 @@
   let original = {}; // flat map
   let current = {};  // flat map
 
+  function getSaveButtons() {
+    return Array.from(document.querySelectorAll('[data-role="save-settings"]'));
+  }
+
   function markDirty() {
-    const saveBtn = q('#btnSaveSettings');
-    if (!saveBtn) return;
-    saveBtn.disabled = Object.keys(diff()).length === 0;
+    const dirty = Object.keys(diff()).length !== 0;
+    getSaveButtons().forEach(btn => { btn.disabled = !dirty; });
   }
 
   function renderAll(){
@@ -189,7 +193,11 @@
       if (changes['general.grow_start_date'] !== undefined) {
         updateDayNBadge();
         updateSensorsHeaderDayN();
+        if (window.scheduleModule?.refresh) {
+          window.scheduleModule.refresh();
+        }
       }
+      window.dispatchEvent(new CustomEvent('settings:saved', { detail: { changes } }));
       markDirty();
     }
   }
@@ -242,8 +250,8 @@
   }
 
   function bindActions(){
-    const saveBtn = q('#btnSaveSettings');
-    if (saveBtn) saveBtn.addEventListener('click', save);
+    const saveBtns = getSaveButtons();
+    saveBtns.forEach(btn => btn.addEventListener('click', save));
 
     const exportBtn = q('#btnExportSettings');
     if (exportBtn) exportBtn.addEventListener('click', async ()=>{
