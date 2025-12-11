@@ -170,8 +170,8 @@ def check_dosing_guards(pump: str, seconds: float) -> Tuple[bool, Optional[str],
         is_auto_mode = True  # Fail-safe: assume auto mode if can't check
     
     # Read caps from settings
-    max_press = _f("safety.max_seconds_per_press", 1.5)
-    daily_cap = _f("safety.max_total_seconds_per_24h", 120.0)
+    max_press = _f("safety.max_seconds_per_press", 40.0)  # Allows ~30ml doses at 0.78 ml/s
+    daily_cap = _f("safety.max_total_seconds_per_24h", 600.0)  # Increased for active dosing
     min_off = _f("safety.min_off_window_sec", 2.0)
     
     caps_info = {
