@@ -594,12 +594,15 @@ body{
     width: 100%;
     min-height: var(--control-h);
     padding: var(--control-pad-v) var(--control-pad-h);
-    background: var(--control-bg);
-    border: 1px solid var(--control-bd);
-    color: var(--control-fg);
+    background: var(--control-bg) !important;
+    border: 1px solid var(--control-bd) !important;
+    color: var(--control-fg) !important;
     border-radius: var(--control-radius);
     line-height: 1.2;
     display: block;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
   }
   textarea{ min-height: calc(var(--control-h) * 2); resize: vertical; }
   /* Remove number spinners */
