@@ -1939,50 +1939,50 @@ body{
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Low EC (mS/cm)</label>
-                    <input type="number" id="ecTargetLow" step="0.1" min="0.0" max="4.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;" title="Minimum EC target in mS/cm. Trigger grow nutrient dosing when below this.">Low EC Target (mS/cm)</label>
+                    <input type="number" id="ecTargetLow" step="0.1" min="0.0" max="4.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" title="Minimum acceptable EC value" />
                   </div>
                   <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">High EC (mS/cm)</label>
-                    <input type="number" id="ecTargetHigh" step="0.1" min="0.0" max="4.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;" title="Maximum EC target in mS/cm. Stop dosing growth nutrients when above this.">High EC Target (mS/cm)</label>
+                    <input type="number" id="ecTargetHigh" step="0.1" min="0.0" max="4.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" title="Maximum acceptable EC value" />
                   </div>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Micro ml/s</label>
-                    <input type="number" id="ecMicroMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="25" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;" title="Micro nutrient pump flow rate in ml/sec (calibrated from pump tests)">Micro ml/s</label>
+                    <input type="number" id="ecMicroMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="20" title="Flow rate from pump calibration" />
                   </div>
                   <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Grow ml/s</label>
-                    <input type="number" id="ecGrowMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="25" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;" title="Grow nutrient pump flow rate in ml/sec (calibrated from pump tests)">Grow ml/s</label>
+                    <input type="number" id="ecGrowMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="20" title="Flow rate from pump calibration" />
                   </div>
                   <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Bloom ml/s</label>
-                    <input type="number" id="ecBloomMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="25" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;" title="Bloom nutrient pump flow rate in ml/sec (calibrated from pump tests)">Bloom ml/s</label>
+                    <input type="number" id="ecBloomMlPerSec" step="0.1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="20" title="Flow rate from pump calibration" />
                   </div>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Step Min (ml)</label>
-                    <input type="number" id="ecStepMinMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="10" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;" title="Minimum dose volume in ml. Prevents too-small doses that won't move EC meaningfully.">Step Min (ml)</label>
+                    <input type="number" id="ecStepMinMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="10" title="Minimum dose volume" />
                   </div>
                   <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Step Max (ml)</label>
-                    <input type="number" id="ecStepMaxMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="120" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;" title="Maximum dose volume in ml. Prevents overly large single doses that could cause swings.">Step Max (ml)</label>
+                    <input type="number" id="ecStepMaxMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="120" title="Maximum dose volume" />
                   </div>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Safety Factor</label>
-                    <input type="number" id="ecSafetyFactor" step="0.1" min="0" max="1" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.6" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;" title="Safety factor 0–1. Doses are scaled down by this factor. 0.6 = dose 60% of calculated amount.">Safety Factor</label>
+                    <input type="number" id="ecSafetyFactor" step="0.1" min="0" max="1" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.6" title="Dose scaling factor (0.0-1.0)" />
                   </div>
                   <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Min Interval (s)</label>
-                    <input type="number" id="ecMinInterval" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="300" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;" title="Minimum seconds between consecutive EC doses. Prevents rapid, repeated dosing.">Min Interval (s)</label>
+                    <input type="number" id="ecMinInterval" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="300" title="Cooldown between doses in seconds" />
                   </div>
                   <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Max ml/day</label>
-                    <input type="number" id="ecMaxMlDay" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;" title="Maximum total ml/day for all EC nutrient pumps combined. 0 = no daily cap.">Max ml/day</label>
+                    <input type="number" id="ecMaxMlDay" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0" title="Daily dosing cap in ml (0=unlimited)" />
                   </div>
                 </div>
                 <button id="btnSaveEcSettings" class="btn-secondary btn-full">Save EC Settings</button>

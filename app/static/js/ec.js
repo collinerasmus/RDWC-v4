@@ -570,9 +570,9 @@
     const sp = window.rdwcSettings.get('ec.setpoint_mscm');
     const spInput = el('ecSetpoint');
     if(spInput) spInput.value = sp || '';
-    el('ecGrowMlPerSec').value = window.rdwcSettings.get('dosing.grow_ml_per_sec') || '25';
-    el('ecMicroMlPerSec').value = window.rdwcSettings.get('dosing.micro_ml_per_sec') || '25';
-    el('ecBloomMlPerSec').value = window.rdwcSettings.get('dosing.bloom_ml_per_sec') || '25';
+    el('ecGrowMlPerSec').value = window.rdwcSettings.get('dosing.grow_ml_per_sec') || '20';
+    el('ecMicroMlPerSec').value = window.rdwcSettings.get('dosing.micro_ml_per_sec') || '20';
+    el('ecBloomMlPerSec').value = window.rdwcSettings.get('dosing.bloom_ml_per_sec') || '20';
     el('ecStepMinMl').value = window.rdwcSettings.get('dosing.ec_step_ml_min') || '10';
     el('ecStepMaxMl').value = window.rdwcSettings.get('dosing.ec_step_ml_max') || '120';
     el('ecSafetyFactor').value = window.rdwcSettings.get('dosing.ec_safety_factor') || '0.6';
