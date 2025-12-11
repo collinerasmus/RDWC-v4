@@ -513,9 +513,8 @@
         else alert('Dose blocked: ' + msg);
       } else {
         if(window.showToast) showToast(`Dosed ${pump} for ${seconds}s`, 'success');
-        // Refresh status and dose log
+        // Refresh status
         tick();
-        refreshDoseLog();
         // Kick off a brief fast poll so Pump KPI reflects state immediately
         if (pump === 'ph_up') fastPollPump(seconds);
       }
@@ -583,7 +582,7 @@
     });
     
     // Dose log refresh
-    el('btnRefreshDoseLog')?.addEventListener('click', refreshDoseLog);
+    // Dose log UI removed; no refresh button wiring
     refreshDoseLog(); // Initial load
     // Bind Maintenance Override header toggle
     try{
