@@ -295,11 +295,13 @@ def _get_ec_targets() -> Tuple[float, float]:
     if schedule_target is not None and schedule_tol is not None:
         return (schedule_target - schedule_tol, schedule_target + schedule_tol)
     
-    # Fallback to manual settings
+    # Fallback to manual settings (SEEDLING-SAFE DEFAULTS)
+    # WARNING: If scheduler is broken, we use 0.4-0.6 (safe for seedlings)
+    # User MUST update targets based on grow stage from scheduler
     s = _get_settings_dict()
     def _f(k: str, d: float) -> float:
         return float(s.get(k, str(d)) or d)
-    return (_f("targets.ec_low", 0.8), _f("targets.ec_high", 1.2))
+    return (_f("targets.ec_low", 0.4), _f("targets.ec_high", 0.6))
 
 def _get_settings_dict() -> Dict[str, str]:
     """Get all settings as string dict."""
@@ -413,6 +415,18 @@ def _check_guards() -> Tuple[bool, Optional[str]]:
         is_auto_mode = is_global_auto_enabled()
     except Exception:
         is_auto_mode = True  # Fail-safe: assume auto mode if can't check
+    
+    # === SCHEDULER HEALTH CHECK FOR EC AUTO ===
+    # CRITICAL: If EC auto is enabled, scheduler MUST be healthy
+    # If scheduler is broken, we block all EC auto dosing to prevent killing plants
+    if is_auto_mode:
+        try:
+            from app.scheduler import load_cfg
+            cfg = load_cfg()
+            if not cfg.get("enabled", False):
+                return (False, "scheduler_disabled")
+        except Exception as e:
+            return (False, f"scheduler_error")
     
     # === ALWAYS-ON GUARDS ===
     

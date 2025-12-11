@@ -20,13 +20,13 @@ def test_ec_settings_defaults():
     
     # Check all EC-related defaults exist
     ec_defaults = {
-        'targets.ec_low': '0.8',
-        'targets.ec_high': '1.2',
+        'targets.ec_low': '0.4',
+        'targets.ec_high': '0.6',
         'dosing.grow_ml_per_sec': '20',
         'dosing.micro_ml_per_sec': '20',
         'dosing.bloom_ml_per_sec': '20',
-        'dosing.ec_step_ml_min': '10',
-        'dosing.ec_step_ml_max': '120',
+        'dosing.ec_step_ml_min': '5',
+        'dosing.ec_step_ml_max': '30',
         'dosing.ec_safety_factor': '0.6',
         'dosing.ec_min_interval_s': '300',
         'dosing.ec_max_ml_day': '0',
@@ -45,10 +45,13 @@ def test_settings_upsert_and_retrieval():
     # Ensure table is initialized
     _ensure_table_seed_defaults()
     
+    # First, reset EC targets to match new safe defaults
+    upsert_settings({'targets.ec_low': '0.4', 'targets.ec_high': '0.6'})
+    
     # Get initial state
     initial = get_all_settings()
     print(f"Initial EC target low: {initial.get('targets.ec_low')}")
-    assert initial.get('targets.ec_low') == '0.8', "Default not loaded"
+    assert initial.get('targets.ec_low') == '0.4', "Default not loaded"
     
     # Update a setting
     updated = upsert_settings({'targets.ec_low': '0.9'})
@@ -62,9 +65,9 @@ def test_settings_upsert_and_retrieval():
     print(f"After update EC target low: {after_update.get('targets.ec_low')}")
     
     # Reset to default
-    upsert_settings({'targets.ec_low': '0.8'})
+    upsert_settings({'targets.ec_low': '0.4'})
     final = get_all_settings()
-    assert final.get('targets.ec_low') == '0.8', "Reset failed"
+    assert final.get('targets.ec_low') == '0.4', "Reset failed"
     print(f"Reset EC target low to: {final.get('targets.ec_low')}")
 
 
@@ -81,8 +84,8 @@ def test_all_ec_parameters():
         'dosing.grow_ml_per_sec': '21',
         'dosing.micro_ml_per_sec': '19',
         'dosing.bloom_ml_per_sec': '22',
-        'dosing.ec_step_ml_min': '12',
-        'dosing.ec_step_ml_max': '125',
+        'dosing.ec_step_ml_min': '6',
+        'dosing.ec_step_ml_max': '35',
         'dosing.ec_safety_factor': '0.65',
         'dosing.ec_min_interval_s': '350',
         'dosing.ec_max_ml_day': '500',
@@ -103,13 +106,13 @@ def test_all_ec_parameters():
     
     # Reset to defaults
     defaults_to_reset = {
-        'targets.ec_low': '0.8',
-        'targets.ec_high': '1.2',
+        'targets.ec_low': '0.4',
+        'targets.ec_high': '0.6',
         'dosing.grow_ml_per_sec': '20',
         'dosing.micro_ml_per_sec': '20',
         'dosing.bloom_ml_per_sec': '20',
-        'dosing.ec_step_ml_min': '10',
-        'dosing.ec_step_ml_max': '120',
+        'dosing.ec_step_ml_min': '5',
+        'dosing.ec_step_ml_max': '30',
         'dosing.ec_safety_factor': '0.6',
         'dosing.ec_min_interval_s': '300',
         'dosing.ec_max_ml_day': '0',

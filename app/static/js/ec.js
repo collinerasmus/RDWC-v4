@@ -564,8 +564,8 @@
   // Load settings into UI
   async function loadECSettings(){
     if(!window.rdwcSettings) return;
-    el('ecTargetLow').value = window.rdwcSettings.get('targets.ec_low') || '0.8';
-    el('ecTargetHigh').value = window.rdwcSettings.get('targets.ec_high') || '1.2';
+    el('ecTargetLow').value = window.rdwcSettings.get('targets.ec_low') || '0.4';
+    el('ecTargetHigh').value = window.rdwcSettings.get('targets.ec_high') || '0.6';
     // Setpoint (new key ec.setpoint_mscm)
     const sp = window.rdwcSettings.get('ec.setpoint_mscm');
     const spInput = el('ecSetpoint');
@@ -573,8 +573,8 @@
     el('ecGrowMlPerSec').value = window.rdwcSettings.get('dosing.grow_ml_per_sec') || '20';
     el('ecMicroMlPerSec').value = window.rdwcSettings.get('dosing.micro_ml_per_sec') || '20';
     el('ecBloomMlPerSec').value = window.rdwcSettings.get('dosing.bloom_ml_per_sec') || '20';
-    el('ecStepMinMl').value = window.rdwcSettings.get('dosing.ec_step_ml_min') || '10';
-    el('ecStepMaxMl').value = window.rdwcSettings.get('dosing.ec_step_ml_max') || '120';
+    el('ecStepMinMl').value = window.rdwcSettings.get('dosing.ec_step_ml_min') || '5';
+    el('ecStepMaxMl').value = window.rdwcSettings.get('dosing.ec_step_ml_max') || '30';
     el('ecSafetyFactor').value = window.rdwcSettings.get('dosing.ec_safety_factor') || '0.6';
     el('ecMinInterval').value = window.rdwcSettings.get('dosing.ec_min_interval_s') || '300';
     el('ecMaxMlDay').value = window.rdwcSettings.get('dosing.ec_max_ml_day') || '0';

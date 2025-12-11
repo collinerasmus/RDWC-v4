@@ -53,10 +53,13 @@ DEFAULTS: Dict[str, str] = {
     "general.grow_start_date": "",  # YYYY-MM-DD or empty string
 
     # targets
+    # WARNING: These are STATIC defaults. In production, targets MUST be set based on grow stage from scheduler.
+    # For seedlings: 0.4-0.6 mS/cm. For veg: 0.8-1.2 mS/cm. For flower: 1.2-1.8 mS/cm.
+    # If scheduler is broken, EC auto MUST NOT RUN. Use safe seedling defaults here.
     "targets.ph_low": "5.8",
     "targets.ph_high": "6.2",
-    "targets.ec_low": "0.8",
-    "targets.ec_high": "1.2",
+    "targets.ec_low": "0.4",
+    "targets.ec_high": "0.6",
     "targets.ec_target": "1.8",
     "targets.ec_tolerance": "0.2",
     "targets.temp_target_c": "20",
@@ -110,8 +113,9 @@ DEFAULTS: Dict[str, str] = {
 
     # EC automation
     # NOTE: ec.auto_enabled is DEPRECATED - use controls.ec_auto via auto_control.py
-    "dosing.ec_step_ml_min": "10",
-    "dosing.ec_step_ml_max": "120",
+    # Conservative step sizes for smooth, gradual nutrient delivery (not shocking plants)
+    "dosing.ec_step_ml_min": "5",
+    "dosing.ec_step_ml_max": "30",
     "dosing.ec_safety_factor": "0.6",
     "dosing.ec_min_interval_s": "300",
     "dosing.ec_max_ml_day": "0",
