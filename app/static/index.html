@@ -605,8 +605,8 @@ body{
     -moz-appearance: none !important;
   }
   textarea{ min-height: calc(var(--control-h) * 2); resize: vertical; }
-  /* Remove number spinners */
-  input[type="number"]{ -moz-appearance: textfield; appearance: textfield; }
+  /* Remove number spinners but keep white text */
+  input[type="number"]{ -moz-appearance: none !important; appearance: none !important; }
   input[type="number"]::-webkit-outer-spin-button,
   input[type="number"]::-webkit-inner-spin-button{ -webkit-appearance: none; margin: 0; }
   /* Inputs placed inside summary headers should be compact and not full-width */
