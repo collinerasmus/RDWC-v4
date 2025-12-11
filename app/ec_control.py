@@ -558,8 +558,9 @@ def dose_ec(body: dict = Body(...)):
         
         # Get rate for this pump
         rate_key = f"dosing.{pump}_ml_per_sec"
-        rate = _f(rate_key, 25.0)
-        rate = max(5.0, min(50.0, rate))  # Clamp to safe range
+        rate = _f(rate_key, 0.784)  # Default to calibrated nursery standard
+        # Sanity bounds: 0.1–50 ml/sec (allow slow peristaltic to fast gear pumps)
+        rate = max(0.1, min(50.0, rate))
         ml = seconds * rate
         
         # Pre-read EC
