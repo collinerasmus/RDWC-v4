@@ -527,40 +527,7 @@
     }
   }
 
-  async function refreshDoseLog(){
-    const table = el('phDoseLogTable');
-    if(!table) return;
-    
-    try{
-      const r = await fetch('/api/dose/recent?limit=20', {cache:'no-store'});
-      if(!r.ok) throw new Error('HTTP '+r.status);
-      const data = await r.json();
-      const events = (data.events||[]).filter(e => e.pump === 'ph_up');
-      
-      if(events.length === 0){
-        table.innerHTML = '<tr><td colspan="6" style="padding:12px;text-align:center;">No doses yet</td></tr>';
-        return;
-      }
-      
-      table.innerHTML = events.map(e => {
-        const time = e.ts_utc ? new Date(e.ts_utc).toLocaleString() : '—';
-        const ph_before = e.ph_before != null ? e.ph_before.toFixed(2) : '—';
-        const ph_after = e.ph_after != null ? e.ph_after.toFixed(2) : '—';
-        const note = e.blocked_by || e.reason || '—';
-        const row_style = e.blocked_by ? 'color:#f59e0b;' : '';
-        return `<tr style="${row_style}">
-          <td style="padding:6px 8px;">${time}</td>
-          <td style="padding:6px 8px;">${e.pump}</td>
-          <td style="padding:6px 8px;text-align:right;">${e.seconds.toFixed(2)}s</td>
-          <td style="padding:6px 8px;text-align:right;">${ph_before}</td>
-          <td style="padding:6px 8px;text-align:right;">${ph_after}</td>
-          <td style="padding:6px 8px;">${note}</td>
-        </tr>`;
-      }).join('');
-    }catch(e){
-      table.innerHTML = '<tr><td colspan="6" style="padding:12px;text-align:center;">Error loading log</td></tr>';
-    }
-  }
+  // refreshDoseLog() removed: pH Dose Log UI deleted in commit 9c87f79
 
   async function wire(){
     const c = document.getElementById('ph-card');
@@ -581,9 +548,8 @@
       doseUnified('ph_up', v, 'custom');
     });
     
-    // Dose log refresh
-    // Dose log UI removed; no refresh button wiring
-    refreshDoseLog(); // Initial load
+    // pH Dose Log UI removed in commit 9c87f79; refreshDoseLog() function also deleted
+    
     // Bind Maintenance Override header toggle
     try{
       const toggle = document.getElementById('ph-maint-toggle');
