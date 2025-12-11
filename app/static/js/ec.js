@@ -105,58 +105,9 @@
       const override = (window.rdwcSettings?.get('safety.maintenance_override')||'false').toLowerCase() === 'true';
       overrideBadge.style.display = override ? 'inline-block' : 'none';
     }
-    // (Removed recent list rendering)
-    
-    // Update learned value KPI in readings row
-    const learnedKPI = el('ec-learned-kpi');
-    if (learnedKPI && s && s.learned_ml_per_mScm !== null && s.learned_ml_per_mScm !== undefined && s.learned_ml_per_mScm > 0) {
-      learnedKPI.style.display = 'inline-block';
-      const valueEl = learnedKPI.querySelector('.kpi-value');
-      if (valueEl) valueEl.textContent = `${s.learned_ml_per_mScm.toFixed(2)} ml/mS`;
-    } else if (learnedKPI) {
-      learnedKPI.style.display = 'none';
-    }
     
     // Update learned value display in Settings section
     updateLearnedDisplay(s);
-    
-    // Today total
-    const todayEl = el('ec-total-today');
-    if(todayEl && s){ 
-      const valEl = todayEl.querySelector('.kpi-value');
-      if (valEl) valEl.textContent = `${(s.today_ml||0).toFixed(1)} ml`;
-      else todayEl.textContent = `Today: ${(s.today_ml||0).toFixed(1)} ml`;
-    }
-
-    // Determine disabled state
-    const g = s?.guards || {};
-    const maint = (window.rdwcSettings?.get('safety.maintenance_override')||'false').toLowerCase() === 'true';
-    const bypass = maint;
-    const blockedCooldown = (g.interval || g.daily_cap) && !bypass;
-    const blockedHard = !!(g.estop || g.sensor_stale || g.reservoir || g.mix_lock);
-    const disabled = blockedCooldown || blockedHard;
-    ['btnEcDose10','btnEcDose50','btnEcDose100','btnEcDoseCustom','ecCustomMl'].forEach(id=>{
-      const e = el(id); if(e){ e.disabled = disabled; e.title = disabled ? 'Blocked by guard(s)' : ''; }
-    });
-
-    // Automation toggle button
-    const autoBtn = el('btnEcAutoToggle');
-    if (autoBtn) {
-      const enabled = !!(s && s.auto && s.auto.enabled);
-      autoBtn.textContent = enabled ? 'Disable EC automation' : 'Enable EC automation';
-      autoBtn.title = 'Automatically raises EC when below target band using G/M/B mix';
-    }
-    
-    // Update learned value display
-    const learnedEl = el('ecLearnedValue');
-    if (learnedEl && s?.auto) {
-      const learned = s.auto.learned_ml_per_mScm;
-      if (learned !== null && learned !== undefined) {
-        learnedEl.innerHTML = `Learned: <strong>${learned.toFixed(2)} ml/mS/cm</strong>`;
-      } else {
-        learnedEl.innerHTML = `<span style="opacity:0.6;">No learned value yet</span>`;
-      }
-    }
 
     // Update controller health chip after status changes
     updateHealthIndicator();
@@ -227,64 +178,6 @@
 
   function stopPoll(){ /* legacy no-op */ }
 
-  async function doseEC(ml){
-    // Mix ratio managed via Settings (dosing.ec_mix_ratio, dosing.ec_custom_*)
-    // Backend reads these settings; UI just passes ml and reason
-    const mix_ratio = window.rdwcSettings?.get('dosing.ec_mix_ratio') || 'schedule';
-    const body = { ml, mix_ratio, reason: 'manual' };
-    
-    // If custom, include custom ratios from settings
-    if (mix_ratio === 'custom') {
-      body.custom = {
-        grow: parseFloat(window.rdwcSettings?.get('dosing.ec_custom_grow') || 0),
-        micro: parseFloat(window.rdwcSettings?.get('dosing.ec_custom_micro') || 0),
-        bloom: parseFloat(window.rdwcSettings?.get('dosing.ec_custom_bloom') || 0)
-      };
-    }
-    
-    try{
-      const r = await fetch('/api/ec/dose', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(body)
-      });
-      if(!r.ok){
-        const e = await r.json();
-        showToast(`Dose failed: ${e.error||'unknown'}`, 'error');
-        return;
-      }
-      showToast(`Dosed ${ml} ml`, 'success');
-      const s = await fetchStatus();
-      if(s) renderStatus(s);
-      if(window.ecChart) window.ecChart.refresh();
-    }catch(e){
-      showToast(`Dose error: ${e.message}`, 'error');
-    }
-  }
-
-  async function toggleAuto(){
-    if(!lastStatus) return;
-    const enabled = !!(lastStatus.auto && lastStatus.auto.enabled);
-    const body = {enable: !enabled};
-    try{
-      const r = await fetch('/api/ec/auto', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(body)
-      });
-      if(!r.ok){
-        const e = await r.json();
-        showToast(`Auto toggle failed: ${e.error||'unknown'}`, 'error');
-        return;
-      }
-      showToast(enabled ? 'EC automation disabled' : 'EC automation enabled', 'success');
-      const s = await fetchStatus();
-      if(s) renderStatus(s);
-    }catch(e){
-      showToast(`Auto toggle error: ${e.message}`, 'error');
-    }
-  }
-
   function showToast(msg, type){
     if(window.showToast) window.showToast(msg, type);
     else console.log(`[EC] ${type}: ${msg}`);
@@ -349,60 +242,6 @@
     } finally {
       setTimeout(()=>{ btns.forEach(b => { b.disabled = false; b.classList.remove('loading'); }); }, 600);
     }
-  }
-
-  async function refreshDoseLog(){
-    const table = el('ecDoseLogTable');
-    if(!table) return;
-    
-    try{
-      const r = await fetch('/api/dose/recent?limit=20', {cache:'no-store'});
-      if(!r.ok) throw new Error('HTTP '+r.status);
-      const data = await r.json();
-      const events = (data.events||[]).filter(e => ['grow','micro','bloom'].includes(e.pump));
-      
-      if(events.length === 0){
-        table.innerHTML = '<tr><td colspan="6" style="padding:12px;text-align:center;">No doses yet</td></tr>';
-        return;
-      }
-      
-      table.innerHTML = events.map(e => {
-        const time = e.ts_utc ? new Date(e.ts_utc).toLocaleString() : '—';
-        const ec_before = e.ec_before != null ? e.ec_before.toFixed(2) : '—';
-        const ec_after = e.ec_after != null ? e.ec_after.toFixed(2) : '—';
-        const note = e.blocked_by || e.reason || '—';
-        const row_style = e.blocked_by ? 'color:#f59e0b;' : '';
-        return `<tr style="${row_style}">
-          <td style="padding:6px 8px;">${time}</td>
-          <td style="padding:6px 8px;">${e.pump}</td>
-          <td style="padding:6px 8px;text-align:right;">${e.seconds.toFixed(2)}s</td>
-          <td style="padding:6px 8px;text-align:right;">${ec_before}</td>
-          <td style="padding:6px 8px;text-align:right;">${ec_after}</td>
-          <td style="padding:6px 8px;">${note}</td>
-        </tr>`;
-      }).join('');
-    }catch(e){
-      table.innerHTML = '<tr><td colspan="6" style="padding:12px;text-align:center;">Error loading log</td></tr>';
-    }
-  }
-
-  // Last three doses widget
-  async function refreshLastThree(){
-    const wrap = document.getElementById('ec-last-three');
-    if(!wrap) return;
-    try{
-      const r = await fetch('/api/ec/dose/recent?limit=3', {cache:'no-store'});
-      if(!r.ok) throw new Error('HTTP '+r.status);
-      const j = await r.json();
-      const events = (j.events||[]);
-      if(events.length===0){ wrap.innerHTML = '<span class="muted small">No recent doses</span>'; return; }
-      wrap.innerHTML = events.map(e => {
-        const t = e.ts_iso ? new Date(e.ts_iso).toLocaleTimeString() : '—';
-        const pump = (e.pump||'').toUpperCase();
-        const sec = e.seconds!=null ? e.seconds.toFixed(1) : '?';
-        return `<span class="pill-muted nowrap">[${pump} • ${sec}s] ${t}</span>`;
-      }).join(' ');
-    }catch(err){ wrap.innerHTML = '<span class="muted small">Load error</span>'; }
   }
 
   // === EC Pump Calibration Functions ===
@@ -569,10 +408,6 @@
     el('btnDoseBloom05')?.addEventListener('click', ()=> doseUnified('bloom', 0.5, 'manual'));
     el('btnDoseBloom10')?.addEventListener('click', ()=> doseUnified('bloom', 1.0, 'manual'));
     el('btnPulseBloomCustom')?.addEventListener('click', ()=>{ const v=parseFloat(el('ecBloomCustomSec')?.value||0); if(v>0) doseUnified('bloom', v, 'manual'); });
-    // Rapid 0.4s
-    el('btnRapidGrow')?.addEventListener('click', ()=> doseUnified('grow', 0.4, 'rapid-test'));
-    el('btnRapidMicro')?.addEventListener('click', ()=> doseUnified('micro', 0.4, 'rapid-test'));
-    el('btnRapidBloom')?.addEventListener('click', ()=> doseUnified('bloom', 0.4, 'rapid-test'));
 
     // Helper to update interval display
     const updateIntervalDisplay = (val) => {
@@ -595,28 +430,8 @@
     });
     const initialInt = parseInt(window.rdwcSettings?.get('ec.min_interval_sec')||'300');
     updateIntervalDisplay(initialInt);
-    refreshLastThree();
     
-    // Legacy volume-based dose buttons (keep for now)
-    el('btnEcDose10')?.addEventListener('click', ()=>doseEC(10));
-    el('btnEcDose50')?.addEventListener('click', ()=>doseEC(50));
-    el('btnEcDose100')?.addEventListener('click', ()=>doseEC(100));
-    el('btnEcDoseCustom')?.addEventListener('click', ()=>{
-      const ml = parseFloat(el('ecCustomMl')?.value || 0);
-      if(ml > 0) doseEC(ml);
-    });
-    el('btnEcAutoToggle')?.addEventListener('click', toggleAuto);
-    
-    // Clear learner button (legacy ID)
-    el('btnEcClearLearner')?.addEventListener('click', async ()=>{
-      if (!confirm('Clear learned EC value? This will reset the automation learning.')) return;
-      const r = await fetch('/api/ec/auto/learn/reset', {method:'POST'});
-      let j = null; try{ j = await r.json(); }catch(e){}
-      if(window.showToast){ showToast(j?.ok ? 'EC learner reset' : 'Error resetting learner', j?.ok ? 'success':'error'); }
-      tick();
-    });
-    
-    // Clear learner button (new Settings section)
+    // Clear learner button
     el('btnClearEcLearned')?.addEventListener('click', async ()=>{
       if (!confirm('Clear learned EC value? This will reset the automation learning.')) return;
       const r = await fetch('/api/ec/auto/learn/reset', {method:'POST'});
@@ -631,10 +446,6 @@
       if(window.ecChart && window.ecChart.exportCSV){ window.ecChart.exportCSV(); }
       else exportCSV24h(); // fallback
     });
-    
-    // Dose log refresh
-    el('btnEcRefreshDoseLog')?.addEventListener('click', refreshDoseLog);
-    refreshDoseLog();
 
   // Compute EC Today/Week totals from unified dose_events as fallback
   updateEcTotals().catch(()=>{});
