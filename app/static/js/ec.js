@@ -193,6 +193,23 @@
     }
   }
 
+  // Toggle EC automation (header button)
+  async function toggleAuto(){
+    try{
+      const res = await fetch('/api/ec/auto/toggle', {method:'POST'});
+      const j = await res.json().catch(()=>({}));
+      if(!res.ok){
+        showToast(j.error || 'Failed to toggle EC auto', 'error');
+        return;
+      }
+      showToast('EC automation toggled', 'success');
+      const s2 = await fetchStatus();
+      if(s2) renderStatus(s2);
+    }catch(e){
+      showToast('EC auto toggle error: '+e.message, 'error');
+    }
+  }
+
   function startPoll(){ /* legacy no-op; pollingManager manages cadence */ }
 
   function stopPoll(){ /* legacy no-op */ }
