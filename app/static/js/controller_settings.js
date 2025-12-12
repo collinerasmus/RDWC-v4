@@ -146,8 +146,10 @@
         };
         
         if (settings.targets) {
-          setVal('ecTarget', parseFloat(settings.targets.ec_target) * 1000); // Convert mS/cm to ppm
-          setVal('ecTolerance', parseFloat(settings.targets.ec_tolerance) * 1000);
+          // Target comes strictly from scheduler; do not expose here
+          if (document.getElementById('ecTolerance')) {
+            setVal('ecTolerance', parseFloat(settings.targets.ec_tolerance) * 1000);
+          }
         }
         if (settings.alerts) {
           setVal('ecAlertLow', parseFloat(settings.alerts.ec_lo_alert) * 1000);
@@ -168,11 +170,9 @@
         return el ? parseFloat(el.value) || def : def;
       };
       
-      const ecTarget = getVal('ecTarget') / 1000;
       const ecTolerance = getVal('ecTolerance') / 1000;
       
       const updates = {
-        'targets.ec_target': ecTarget.toFixed(2),
         'targets.ec_tolerance': ecTolerance.toFixed(2),
         'alerts.ec_lo_alert': (getVal('ecAlertLow') / 1000).toFixed(2),
         'alerts.ec_hi_alert': (getVal('ecAlertHigh') / 1000).toFixed(2)
@@ -194,8 +194,12 @@
           btn.classList.remove('btn-loading');
           btn.classList.add('success-feedback');
           
-          const band = document.getElementById('ec-band');
-          if (band) band.textContent = `Target: ${ecTarget.toFixed(1)} ±${ecTolerance.toFixed(1)} mS/cm`;
+          const chip = document.getElementById('ecSchedulerTargetChip');
+          if (chip && window.lastEcStatus && window.lastEcStatus.targets) {
+            const low = window.lastEcStatus.targets.low;
+            const high = window.lastEcStatus.targets.high;
+            chip.textContent = `Target: ${low?.toFixed?.(1)}–${high?.toFixed?.(1)} mS/cm`;
+          }
           
           setTimeout(() => {
             btn.textContent = originalText;
