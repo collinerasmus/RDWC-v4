@@ -60,7 +60,18 @@
     const cdPill = el('ec-countdown-pill');
     
     if(ecVal){ ecVal.textContent = (s && s.ec_ms_cm!=null) ? s.ec_ms_cm.toFixed(2) : '—'; }
-    if(band && s){ band.textContent = `Targets ${s.targets.low} – ${s.targets.high} mS/cm`; }
+    if(band && s){
+      const low = (s.targets && s.targets.low!=null) ? Number(s.targets.low).toFixed(1) : '—';
+      const high = (s.targets && s.targets.high!=null) ? Number(s.targets.high).toFixed(1) : '—';
+      band.textContent = `Targets ${low} – ${high} mS/cm`;
+      // Optional KPI row element if present
+      const kpiTargets = el('ec-kpi-targets');
+      if(kpiTargets){
+        const valEl = kpiTargets.querySelector('.kpi-value');
+        if(valEl) valEl.textContent = `${low}–${high} mS/cm`;
+        else kpiTargets.textContent = `${low}–${high} mS/cm`;
+      }
+    }
     if(guards && s){
       const list = guardList(s.guards);
       guards.textContent = list.length ? list.join(' · ') : 'All clear';
@@ -108,6 +119,14 @@
     
     // Update learned value display in Settings section
     updateLearnedDisplay(s);
+    // Learned KPI in header row if present
+    const learnedKpi = el('ec-kpi-learned');
+    if(learnedKpi){
+      const val = s && s.learned_ml_per_mScm!=null ? Number(s.learned_ml_per_mScm).toFixed(1) : '—';
+      const valEl = learnedKpi.querySelector('.kpi-value');
+      if(valEl) valEl.textContent = val + ' ml/mS·cm';
+      else learnedKpi.textContent = val + ' ml/mS·cm';
+    }
 
     // Update controller health chip after status changes
     updateHealthIndicator();
@@ -243,6 +262,10 @@
       setTimeout(()=>{ btns.forEach(b => { b.disabled = false; b.classList.remove('loading'); }); }, 600);
     }
   }
+
+  // Expose legacy global for inline handlers before module boot
+  // Some templates call window.doseEC directly; keep alias stable.
+  window.doseEC = doseUnified;
 
   // === EC Pump Calibration Functions ===
   // Calibration constants
@@ -853,7 +876,8 @@
     if(e.target.id === 'ecDebugModal') closeEcDebug();
   });
 
-  window.ecController = { init, fetchStatus, renderStatus, doseEC, toggleAuto };
+  // Back-compat export: map legacy doseEC to unified dosing
+  window.ecController = { init, fetchStatus, renderStatus, doseEC: doseUnified, toggleAuto };
   
   // --- 3-mode header logic ---
   function updateHealthIndicator(){
