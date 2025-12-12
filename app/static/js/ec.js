@@ -569,7 +569,7 @@
       const container = el('ec-recent');
       if(!container) return;
       const header = el('ec-recent-header');
-      const res = await fetch('/api/ec/dose_log?hours=24&limit=10', {cache:'no-store'});
+      const res = await fetch('/api/ec/dose_log?hours=24&limit=100', {cache:'no-store'});
       if(!res.ok) throw new Error('HTTP ' + res.status);
       const doses = await res.json();
       if(!doses || doses.length === 0){
@@ -579,18 +579,28 @@
       }
       // Build HTML for recent doses with pump breakdown
       let html = '';
-      doses.slice(-5).reverse().forEach(d => {
+      // Filter to doses with valid pump breakdown, reverse for newest-first, take top 5
+      const validDoses = doses.filter(d => 
+        d.pumps && (d.pumps.grow !== null || d.pumps.micro !== null || d.pumps.bloom !== null)
+      );
+      validDoses.reverse().slice(0, 5).forEach(d => {
         const ts = new Date(d.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
         const total = d.volume_ml ? d.volume_ml.toFixed(1) : '0';
-        const g = d.pumps?.grow ? d.pumps.grow.toFixed(1) : '—';
-        const m = d.pumps?.micro ? d.pumps.micro.toFixed(1) : '—';
-        const b = d.pumps?.bloom ? d.pumps.bloom.toFixed(1) : '—';
+        const g = d.pumps?.grow ? d.pumps.grow.toFixed(1) : '0';
+        const m = d.pumps?.micro ? d.pumps.micro.toFixed(1) : '0';
+        const b = d.pumps?.bloom ? d.pumps.bloom.toFixed(1) : '0';
         const ecBefore = d.ec_before ? d.ec_before.toFixed(3) : '—';
         const ecAfter = d.ec_after ? d.ec_after.toFixed(3) : '—';
-        html += `<div style="margin-bottom:6px;padding:4px 6px;border-radius:4px;background:rgba(34,197,94,0.08);border-left:2px solid rgba(34,197,94,0.4);"><div style="font-weight:600;color:#10b981;font-size:var(--font-xs);">${ts}</div>` +
+        const detail = d.detail || 'dose';
+        html += `<div style="margin-bottom:6px;padding:4px 6px;border-radius:4px;background:rgba(34,197,94,0.08);border-left:2px solid rgba(34,197,94,0.4);"><div style="font-weight:600;color:#10b981;font-size:var(--font-xs);">${ts} (${detail})</div>` +
                 `<div style="font-size:var(--font-xs);color:#9ca3af;">Total: ${total}ml | G:${g} M:${m} B:${b}</div>` +
                 `<div style="font-size:var(--font-xs);color:#9ca3af;">EC: ${ecBefore}→${ecAfter}</div></div>`;
       });
+      if(validDoses.length === 0){
+        container.innerHTML = '<div style="opacity:0.5;font-size:var(--font-xs);">No valid doses in last 24h</div>';
+        if(header) header.textContent = 'Dose Log (No valid doses)';
+        return;
+      }
       container.innerHTML = html;
       if(header) header.textContent = 'Dose Log ▾';
     }catch(e){
