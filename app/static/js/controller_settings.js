@@ -173,10 +173,16 @@
       const ecTolerance = getVal('ecTolerance');
       
       const updates = {
-        'targets.ec_tolerance': ecTolerance.toFixed(2),
-        'alerts.ec_lo_alert': getVal('ecAlertLow').toFixed(2),
-        'alerts.ec_hi_alert': getVal('ecAlertHigh').toFixed(2)
+        'targets.ec_tolerance': ecTolerance.toFixed(2)
       };
+      
+      // Only save alerts if fields exist
+      if (document.getElementById('ecAlertLow')) {
+        updates['alerts.ec_lo_alert'] = getVal('ecAlertLow').toFixed(2);
+      }
+      if (document.getElementById('ecAlertHigh')) {
+        updates['alerts.ec_hi_alert'] = getVal('ecAlertHigh').toFixed(2);
+      }
       
       btn.classList.add('btn-loading');
       btn.disabled = true;

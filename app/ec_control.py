@@ -497,10 +497,10 @@ def _check_guards() -> Tuple[bool, Optional[str]]:
     if _dose_lock.locked():
         return (False, "mix_lock")
     
-    # Temperature range gate (16-26°C) - always enforced (plant safety)
+    # Temperature range gate (16-28°C) - always enforced (plant safety)
     temp_val, temp_ts = _get_latest_temp()
     if temp_val is not None:
-        if temp_val < 16.0 or temp_val > 26.0:
+        if temp_val < 16.0 or temp_val > 28.0:
             return (False, f"temp_range ({temp_val:.1f}°C)")
     
     # pH range gate (5.5-6.5) - always enforced (nutrient uptake safety)
