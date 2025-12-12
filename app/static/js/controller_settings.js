@@ -148,12 +148,12 @@
         if (settings.targets) {
           // Target comes strictly from scheduler; do not expose here
           if (document.getElementById('ecTolerance')) {
-            setVal('ecTolerance', parseFloat(settings.targets.ec_tolerance) * 1000);
+            setVal('ecTolerance', parseFloat(settings.targets.ec_tolerance));
           }
         }
         if (settings.alerts) {
-          setVal('ecAlertLow', parseFloat(settings.alerts.ec_lo_alert) * 1000);
-          setVal('ecAlertHigh', parseFloat(settings.alerts.ec_hi_alert) * 1000);
+          setVal('ecAlertLow', parseFloat(settings.alerts.ec_lo_alert));
+          setVal('ecAlertHigh', parseFloat(settings.alerts.ec_hi_alert));
         }
       } catch(e) {
         console.error('Failed to load EC settings:', e);
@@ -170,12 +170,12 @@
         return el ? parseFloat(el.value) || def : def;
       };
       
-      const ecTolerance = getVal('ecTolerance') / 1000;
+      const ecTolerance = getVal('ecTolerance');
       
       const updates = {
         'targets.ec_tolerance': ecTolerance.toFixed(2),
-        'alerts.ec_lo_alert': (getVal('ecAlertLow') / 1000).toFixed(2),
-        'alerts.ec_hi_alert': (getVal('ecAlertHigh') / 1000).toFixed(2)
+        'alerts.ec_lo_alert': getVal('ecAlertLow').toFixed(2),
+        'alerts.ec_hi_alert': getVal('ecAlertHigh').toFixed(2)
       };
       
       btn.classList.add('btn-loading');
