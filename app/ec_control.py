@@ -482,18 +482,6 @@ def _check_guards() -> Tuple[bool, Optional[str]]:
     except Exception:
         is_auto_mode = True  # Fail-safe: assume auto mode if can't check
     
-    # === SCHEDULER HEALTH CHECK FOR EC AUTO ===
-    # CRITICAL: If EC auto is enabled, scheduler MUST be healthy
-    # If scheduler is broken, we block all EC auto dosing to prevent killing plants
-    if is_auto_mode:
-        try:
-            from app.scheduler import load_cfg
-            cfg = load_cfg()
-            if not cfg.get("enabled", False):
-                return (False, "scheduler_disabled")
-        except Exception as e:
-            return (False, f"scheduler_error")
-    
     # === ALWAYS-ON GUARDS ===
     
     # E-STOP (always enforced)
