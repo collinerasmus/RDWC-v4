@@ -271,11 +271,14 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
             v = f(final[k])
             if v is None or not (0.0 <= v <= 4.0):
                 return False, {"field": k, "message": "Must be in 0.0–4.0"}
-    for k in ("targets.ec_target", "targets.ec_tolerance"):
-        if k in final:
-            v = f(final[k])
-            if v is None or not (0.0 <= v <= 4.0):
-                return False, {"field": k, "message": "Must be in 0.0–4.0"}
+    if "targets.ec_target" in final:
+        v = f(final["targets.ec_target"])
+        if v is None or not (0.0 <= v <= 4.0):
+            return False, {"field": "targets.ec_target", "message": "Must be in 0.0–4.0"}
+    if "targets.ec_tolerance" in final:
+        v = f(final["targets.ec_tolerance"])
+        if v is None or not (0.0 <= v <= 1.0):
+            return False, {"field": "targets.ec_tolerance", "message": "Must be in 0.0–1.0"}
 
     # Temp 15–28 °C
     if "targets.temp_target_c" in final:
