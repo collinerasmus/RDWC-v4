@@ -45,16 +45,16 @@
         const doseUrl = `/api/dose/recent?hours=${doseHours}`;
 
         try {
-          const [trendsRes, doseRes, settingsRes] = await Promise.all([
+          const [trendsRes, doseRes, statusRes] = await Promise.all([
             fetch(trendsUrl, { cache: 'no-store' }),
             fetch(doseUrl, { cache: 'no-store' }),
-            fetch('/api/settings', { cache: 'no-store' })
+            fetch('/api/ec/status', { cache: 'no-store' })
           ]);
 
           const trendsData = trendsRes.ok ? await trendsRes.json() : { series: { ec: [] } };
           const doseData = doseRes.ok ? await doseRes.json() : { events: [] };
-          const settingsData = settingsRes.ok ? await settingsRes.json() : {};
-          const targets = settingsData?.targets || {};
+          const statusData = statusRes.ok ? await statusRes.json() : {};
+          const targets = statusData?.targets || {};
 
           console.log('[EC Chart] Fetched:', {
             ec: trendsData?.series?.ec?.length || 0,
