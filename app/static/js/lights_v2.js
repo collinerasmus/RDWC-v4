@@ -58,7 +58,7 @@
       // Determine current system mode (prefer relays response; fallback to global system mode)
       const mode = (wrap && wrap.mode) || window.__systemMode || 'manual';
       if (btn){
-        const disabled = (mode==='auto' && !localStorage.getItem('safety.allow_force')) || !!wrap.estop;
+        const disabled = (mode==='auto' && !localStorage.getItem('safety.allow_force')) || !!(wrap && wrap.estop);
         btn.className = 'relay-btn ' + (lightsIsOn? 'relay-on':'relay-off');
         btn.disabled = disabled;
         btn.style.opacity = disabled ? '0.6':'1';

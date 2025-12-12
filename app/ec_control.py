@@ -944,6 +944,8 @@ def get_ec_status():
     try:
         from app.auto_control import should_automate
         auto_enabled = should_automate("ec")
+        if auto_enabled:
+            _start_auto_worker()  # ensure worker is running when automation is allowed
     except Exception:
         auto_enabled = False
     
