@@ -305,7 +305,16 @@ def _get_schedule_ec_target() -> Tuple[Optional[float], Optional[float]]:
 def _get_ec_targets() -> Tuple[float, float]:
     """
     Get EC low and high targets.
-    Priority: 1) Current week schedule ± tolerance, 2) Manual settings.
+    
+    **Priority 1**: Current week's scheduler target ± tolerance
+    (e.g., week 2 seedling = 0.8 ± 0.2 → 0.6-1.0 mS/cm)
+    
+    **Priority 2 (Fallback)**: Manual settings targets.ec_low/high
+    If scheduler is unavailable, defaults to 0.4-0.6 (SEEDLING-SAFE).
+    
+    **IMPORTANT**: UI Parameters section shows live scheduler-derived values.
+    Manual settings are LEGACY and only used if scheduler is broken.
+    
     Returns (ec_low, ec_high) in mS/cm.
     """
     schedule_target, schedule_tol = _get_schedule_ec_target()

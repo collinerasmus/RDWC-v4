@@ -71,6 +71,9 @@
         if(valEl) valEl.textContent = `${low}–${high} mS/cm`;
         else kpiTargets.textContent = `${low}–${high} mS/cm`;
       }
+      // Update Parameters scheduler target chip
+      const schedChip = el('ecSchedulerTargetChip');
+      if(schedChip) schedChip.textContent = `Target: ${low}–${high} mS/cm`;
     }
     if(guards && s){
       const list = guardList(s.guards);
@@ -521,8 +524,6 @@
     // Settings save
     el('btnSaveEcSettings')?.addEventListener('click', async ()=>{
       const payload = {
-        'targets.ec_low': el('ecTargetLow')?.value,
-        'targets.ec_high': el('ecTargetHigh')?.value,
         'dosing.grow_ml_per_sec': el('ecGrowMlPerSec')?.value,
         'dosing.micro_ml_per_sec': el('ecMicroMlPerSec')?.value,
         'dosing.bloom_ml_per_sec': el('ecBloomMlPerSec')?.value,
@@ -657,8 +658,6 @@
   // Load settings into UI
   async function loadECSettings(){
     if(!window.rdwcSettings) return;
-    el('ecTargetLow').value = window.rdwcSettings.get('targets.ec_low') || '0.4';
-    el('ecTargetHigh').value = window.rdwcSettings.get('targets.ec_high') || '0.6';
     // Setpoint (new key ec.setpoint_mscm)
     const sp = window.rdwcSettings.get('ec.setpoint_mscm');
     const spInput = el('ecSetpoint');

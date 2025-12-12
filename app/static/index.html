@@ -1939,20 +1939,11 @@ body{
             <div style="margin-top:12px;">
               <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">Parameters</div>
               <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
-                <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure EC targets, dosing parameters, and alert thresholds.</div>
+                <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">EC targets are set by the active <strong>Scheduler Week</strong>. Dosing safety parameters configured below.</div>
                 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--space-md);align-items:center;">
                   <span class="pill-muted nowrap" id="ecKChip">K=—</span>
                   <span class="pill-muted nowrap" id="ecCalChip">Cal: —</span>
-                </div>
-                <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
-                  <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Low EC Target (mS/cm)</label>
-                    <input type="number" id="ecTargetLow" step="0.1" min="0.0" max="4.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff;border-radius:6px;font-size:var(--font-base);" />
-                  </div>
-                  <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;">High EC Target (mS/cm)</label>
-                    <input type="number" id="ecTargetHigh" step="0.1" min="0.0" max="4.0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff;border-radius:6px;font-size:var(--font-base);" />
-                  </div>
+                  <span class="pill-info nowrap" id="ecSchedulerTargetChip" title="Live from active scheduler week">Target: —</span>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
