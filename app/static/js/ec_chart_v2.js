@@ -101,9 +101,10 @@
           totalEl.textContent = `Grow: ${totalGrow.toFixed(1)} ml  |  Micro: ${totalMicro.toFixed(1)} ml  |  Bloom: ${totalBloom.toFixed(1)} ml`;
         }
 
-        // Get targets
-        const ecLow = parseFloat(targets?.ec_low) || 1.0;
-        const ecHigh = parseFloat(targets?.ec_high) || 1.8;
+        // Get targets (scheduler-derived from /api/ec/status)
+        const ecLow = Number(targets?.low);
+        const ecHigh = Number(targets?.high);
+        const hasValidBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh) && ecLow < ecHigh;
 
         // Get current EC
         const currentEC = ec.length > 0 ? ec[ec.length - 1].y : null;
@@ -112,7 +113,7 @@
         const datasets = [];
 
         // 1. EC setpoint band
-        if (ecLow && ecHigh) {
+        if (hasValidBand) {
           datasets.push({
             type: 'line',
             label: 'EC Target Band',
@@ -173,10 +174,11 @@
         }
 
         // 4. Dose events (stacked vertically)
+        const doseBase = hasValidBand ? ecHigh : (ec.length ? (Math.max(...ec.map(p => p.y))) : 1.0);
         const doseY = [
-          ecHigh + 0.3,  // grow (top)
-          ecHigh + 0.2,  // micro
-          ecHigh + 0.1   // bloom (bottom)
+          doseBase + 0.3,  // grow (top)
+          doseBase + 0.2,  // micro
+          doseBase + 0.1   // bloom (bottom)
         ];
 
         if (growEvents.length) {
@@ -225,8 +227,10 @@
         }
 
         // Set fixed y-axis (EC range)
-        const ecMin = Math.min(ecLow - 0.2, 0.0);
-        const ecMax = Math.max(ecHigh + 0.5, 3.0);
+        const defaultMin = 0.0;
+        const defaultMax = 3.0;
+        const ecMin = hasValidBand ? Math.min(ecLow - 0.2, defaultMin) : defaultMin;
+        const ecMax = hasValidBand ? Math.max(ecHigh + 0.5, defaultMax) : defaultMax;
 
         if (!chart.options.scales.y) {
           chart.options.scales.y = {
