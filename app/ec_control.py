@@ -302,6 +302,46 @@ def _get_schedule_ec_target() -> Tuple[Optional[float], Optional[float]]:
         pass
     return (None, None)
 
+def _get_schedule_mix_ratios() -> Optional[Tuple[float, float, float]]:
+    """
+    Get nutrient mix ratios (Grow/Micro/Bloom) for the current week from the
+    nutrient_schedule table. Returns (grow, micro, bloom) ml per 10L. If the
+    schedule is unavailable or invalid, returns None.
+    """
+    try:
+        from app.settings import get_all_settings
+        settings = get_all_settings()
+        start_str = settings.get("general.grow_start_date", "")
+        if not start_str:
+            return None
+
+        from datetime import datetime, timezone
+        try:
+            start_date = datetime.strptime(start_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except Exception:
+            start_date = datetime.fromisoformat(start_str).replace(tzinfo=timezone.utc)
+
+        now = datetime.now(timezone.utc)
+        days = max(0, (now - start_date).days)
+        current_week = min(12, max(1, (days // 7) + 1))
+
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT grow_ml10, micro_ml10, bloom_ml10 FROM nutrient_schedule WHERE week = ? LIMIT 1",
+                (current_week,),
+            )
+            row = cur.fetchone()
+            if row:
+                g, m, b = (float(row[0] or 0.0), float(row[1] or 0.0), float(row[2] or 0.0))
+                # Treat negatives as zero for safety
+                g = max(0.0, g); m = max(0.0, m); b = max(0.0, b)
+                if (g + m + b) > 0:
+                    return (g, m, b)
+    except Exception:
+        pass
+    return None
+
 def _get_ec_targets() -> Tuple[float, float]:
     """
     Get EC low and high targets.
@@ -723,10 +763,20 @@ def dose_ec(body: dict = Body(...)):
         micro_ml = ml * (m / total_ratio)
         bloom_ml = ml * (b / total_ratio)
     else:
-        # Schedule ratio from active week (placeholder: equal split for now)
-        grow_ml = ml / 3.0
-        micro_ml = ml / 3.0
-        bloom_ml = ml / 3.0
+        # Schedule ratio from active week
+        ratios = _get_schedule_mix_ratios()
+        if ratios is None:
+            # Fallback: equal split if schedule not available
+            grow_ml = ml / 3.0
+            micro_ml = ml / 3.0
+            bloom_ml = ml / 3.0
+            mix_ratio = "schedule_fallback_equal"
+        else:
+            g, m, b = ratios
+            total = g + m + b
+            grow_ml = ml * (g / total)
+            micro_ml = ml * (m / total)
+            bloom_ml = ml * (b / total)
     
     # Pre-read
     ec_before, _ = _get_latest_ec()
