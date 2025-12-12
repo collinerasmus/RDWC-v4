@@ -63,7 +63,7 @@
     if(band && s){
       const low = (s.targets && s.targets.low!=null) ? Number(s.targets.low).toFixed(1) : '—';
       const high = (s.targets && s.targets.high!=null) ? Number(s.targets.high).toFixed(1) : '—';
-      band.textContent = `Targets ${low} – ${high} mS/cm`;
+      band.textContent = `${low} – ${high} mS/cm`;
       // Optional KPI row element if present
       const kpiTargets = el('ec-kpi-targets');
       if(kpiTargets){
