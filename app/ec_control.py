@@ -106,7 +106,7 @@ def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
 
 def _dose_events_range(start: Optional[str] = None, end: Optional[str] = None, hours: Optional[int] = None, limit: int = 2000) -> List[Dict[str, Any]]:
     """Return dose events within a time range ordered ascending by ts_utc.
-    Each row: {ts, seconds, volume_ml, detail, ec_before, ec_after, guard_triggered}
+    Each row: {ts, seconds, volume_ml, detail, pumps, ec_before, ec_after, guard_triggered}
     """
     _ensure_tables()
     # Determine time window
@@ -126,7 +126,7 @@ def _dose_events_range(start: Optional[str] = None, end: Optional[str] = None, h
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT ts_utc, action, volume_ml, duration_ms, pre_ec, post_ec, result, reason
+            SELECT ts_utc, action, volume_ml, duration_ms, pre_ec, post_ec, result, reason, mix_ratio
             FROM ec_dose_log
             WHERE ts_utc BETWEEN ? AND ?
             ORDER BY ts_utc ASC
@@ -138,10 +138,27 @@ def _dose_events_range(start: Optional[str] = None, end: Optional[str] = None, h
     out: List[Dict[str, Any]] = []
     for r in rows:
         ts_s = r[0]
+        # Parse mix_ratio to extract pump amounts (e.g., "schedule:G15.2M15.2B15.2" or "grow:1.0s")
+        pumps = {"grow": None, "micro": None, "bloom": None}
+        mix_ratio = r[8] or ""
+        if mix_ratio:
+            import re
+            # Look for G, M, B values
+            g_match = re.search(r'G([\d.]+)', mix_ratio)
+            m_match = re.search(r'M([\d.]+)', mix_ratio)
+            b_match = re.search(r'B([\d.]+)', mix_ratio)
+            if g_match:
+                pumps["grow"] = float(g_match.group(1))
+            if m_match:
+                pumps["micro"] = float(m_match.group(1))
+            if b_match:
+                pumps["bloom"] = float(b_match.group(1))
+        
         out.append({
             "ts": ts_s,
             "seconds": (float(r[3]) / 1000.0) if r[3] is not None else None,
             "volume_ml": float(r[2]) if r[2] is not None else None,
+            "pumps": pumps,
             "detail": r[7] or r[1],
             "ec_before": float(r[4]) if r[4] is not None else None,
             "ec_after": float(r[5]) if r[5] is not None else None,
