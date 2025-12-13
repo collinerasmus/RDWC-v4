@@ -2964,14 +2964,19 @@ def api_sensors():
     Returns most recent DB reading with online flag based on freshness.
     """
     from app.sensors_core import read_sensors_from_db
+    from app.settings import get_all_settings
     # Read cached (max 60s)
     data = read_sensors_from_db(max_age_sec=60)
 
-    # Calibration placeholder (future real state)
+    # Check actual calibration state from database
+    settings = get_all_settings()
+    ph_calibrated = bool(settings.get("cal.ph.mid") or settings.get("cal.ph.low"))
+    ec_calibrated = bool(settings.get("cal.ec.low"))
+    
     cal_state = {
-        "temp": {"is_calibrated": False, "detail": "fallback"},
-        "ec": {"is_calibrated": False, "detail": "fallback"},
-        "ph": {"is_calibrated": False, "detail": "fallback"}
+        "temp": {"is_calibrated": False, "detail": "db"},
+        "ec": {"is_calibrated": ec_calibrated, "detail": "db"},
+        "ph": {"is_calibrated": ph_calibrated, "detail": "db"}
     }
     age_sec = data.get("age_sec")
     stale = bool(age_sec is not None and age_sec > 60)
