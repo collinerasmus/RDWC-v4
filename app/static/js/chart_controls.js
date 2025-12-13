@@ -253,7 +253,12 @@
 
     updateUI() {
       const zoom = ZOOM_LEVELS[this.currentZoomIndex];
-      
+      const now = Date.now();
+      const extent = this.getDataExtent ? this.getDataExtent() : { first: null, last: null };
+      const firstData = extent.first ? new Date(extent.first).getTime() : (now - 90 * 24 * 60 * 60 * 1000);
+      const lastData = extent.last ? new Date(extent.last).getTime() : now;
+      const epsilon = 1000; // 1s tolerance at live edge
+
       // Update zoom label
       const label = this.container.querySelector('.chart-zoom-label');
       if (label) label.textContent = zoom.label;
@@ -268,10 +273,12 @@
       
       // Update pan button states
       if (this.elements.panLeft) {
-        this.elements.panLeft.disabled = (this.sliderPosition <= 0);
+        const atLeftEdge = (this.currentStart != null) ? (this.currentStart <= firstData + epsilon) : (this.sliderPosition <= 0);
+        this.elements.panLeft.disabled = atLeftEdge;
       }
       if (this.elements.panRight) {
-        this.elements.panRight.disabled = (this.sliderPosition >= 100);
+        const atRightEdge = (this.currentEnd != null) ? (this.currentEnd >= lastData - epsilon) : (this.sliderPosition >= 100);
+        this.elements.panRight.disabled = atRightEdge;
       }
       
       // Update Now button appearance
