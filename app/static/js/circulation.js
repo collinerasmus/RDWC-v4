@@ -57,18 +57,23 @@
         let lastChange = null;
         let lastOnTime = null;
         
+        if (!events || events.length === 0) {
+          return { runtime: 0, cycles: 0, lastChange: null };
+        }
+        
         // Process events chronologically (reverse order since API returns DESC)
         const sorted = [...events].sort((a,b) => new Date(a.ts) - new Date(b.ts));
         
         sorted.forEach(evt => {
           const evtTime = new Date(evt.ts).getTime();
           const isToday = evtTime >= todayStart;
+          const newState = evt.final; // Use 'final' field from event log
           
-          if (evt.new_state && !lastState) {
+          if (newState && !lastState) {
             // Pump turned ON
             if (isToday) cycles++;
             lastOnTime = evtTime;
-          } else if (!evt.new_state && lastState && lastOnTime) {
+          } else if (!newState && lastState && lastOnTime) {
             // Pump turned OFF - add runtime
             if (isToday) {
               runtime += (evtTime - lastOnTime) / 1000;
@@ -76,7 +81,7 @@
             lastOnTime = null;
           }
           
-          lastState = evt.new_state;
+          lastState = newState;
           lastChange = evt.ts;
         });
         
@@ -98,7 +103,7 @@
       const mainLastChangeEl = document.getElementById('main-last-change');
       
       if (mainRuntimeEl) mainRuntimeEl.textContent = formatDuration(mainStats.runtime);
-      if (mainCyclesEl) mainCyclesEl.textContent = mainStats.cycles || '0';
+      if (mainCyclesEl) mainCyclesEl.textContent = String(mainStats.cycles);
       if (mainLastChangeEl) mainLastChangeEl.textContent = formatTimeAgo(mainStats.lastChange);
       
       // Update chiller pump stats
@@ -107,7 +112,7 @@
       const chillerLastChangeEl = document.getElementById('chiller-last-change');
       
       if (chillerRuntimeEl) chillerRuntimeEl.textContent = formatDuration(chillerStats.runtime);
-      if (chillerCyclesEl) chillerCyclesEl.textContent = chillerStats.cycles || '0';
+      if (chillerCyclesEl) chillerCyclesEl.textContent = String(chillerStats.cycles);
       if (chillerLastChangeEl) chillerLastChangeEl.textContent = formatTimeAgo(chillerStats.lastChange);
       
     } catch (e) {
@@ -136,13 +141,13 @@
       if (!listEl) return;
       
       if (allEvents.length === 0) {
-        listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;">No recent events</div>';
+        listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;">No events recorded yet. Events will appear after pump state changes.</div>';
         return;
       }
       
       listEl.innerHTML = allEvents.map(evt => {
-        const stateColor = evt.new_state ? '#22c55e' : '#64748b';
-        const stateText = evt.new_state ? 'ON' : 'OFF';
+        const stateColor = evt.final ? '#22c55e' : '#64748b';
+        const stateText = evt.final ? 'ON' : 'OFF';
         const pumpColor = evt.pump === 'main_pump' ? '#60a5fa' : '#22d3ee';
         
         return `
@@ -197,12 +202,20 @@
         const data = [];
         let lastState = false;
         
+        if (!events || events.length === 0) {
+          // No events - show current state as flat line
+          data.push({ x: new Date(dayAgo), y: 0 });
+          data.push({ x: new Date(), y: 0 });
+          return data;
+        }
+        
         events.forEach(evt => {
+          const newState = evt.final; // Use 'final' field
           data.push({
             x: new Date(evt.ts),
-            y: evt.new_state ? 1 : 0
+            y: newState ? 1 : 0
           });
-          lastState = evt.new_state;
+          lastState = newState;
         });
         
         // Add current point
