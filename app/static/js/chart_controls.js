@@ -111,17 +111,55 @@
     }
 
     panLeft() {
-      // Pan backward by 100% of current zoom window (move to previous adjacent timeframe)
-      const panPercent = 100;
-      this.sliderPosition = Math.max(0, this.sliderPosition - panPercent);
+      // Pan backward by exactly one current zoom window
+      const zoom = ZOOM_LEVELS[this.currentZoomIndex];
+      if (zoom.id === 'grow') return; // no pan for full grow view
+
+      const now = Date.now();
+      const extent = this.getDataExtent();
+      const firstData = extent.first ? new Date(extent.first).getTime() : now - 90 * 24 * 60 * 60 * 1000;
+      const lastData = extent.last ? new Date(extent.last).getTime() : now;
+      const windowSize = zoom.ms;
+
+      // End of window slides from (firstData + windowSize) to lastData
+      const maxEnd = lastData;
+      const minEnd = Math.min(firstData + windowSize, lastData);
+
+      // Current end based on sliderPosition
+      const sliderFraction = this.sliderPosition / 100;
+      const currentEnd = minEnd + (maxEnd - minEnd) * sliderFraction;
+
+      // New end moved left by one window
+      const newEnd = Math.max(minEnd, currentEnd - windowSize);
+
+      // Recompute slider position from newEnd
+      const newFraction = (newEnd - minEnd) / (maxEnd - minEnd || 1);
+      this.sliderPosition = Math.max(0, Math.min(100, Math.round(newFraction * 100)));
       this.isLiveMode = false;
       this.updateRange();
     }
 
     panRight() {
-      // Pan forward by 100% of current zoom window (move to next adjacent timeframe)
-      const panPercent = 100;
-      this.sliderPosition = Math.min(100, this.sliderPosition + panPercent);
+      // Pan forward by exactly one current zoom window
+      const zoom = ZOOM_LEVELS[this.currentZoomIndex];
+      if (zoom.id === 'grow') return; // no pan for full grow view
+
+      const now = Date.now();
+      const extent = this.getDataExtent();
+      const firstData = extent.first ? new Date(extent.first).getTime() : now - 90 * 24 * 60 * 60 * 1000;
+      const lastData = extent.last ? new Date(extent.last).getTime() : now;
+      const windowSize = zoom.ms;
+
+      const maxEnd = lastData;
+      const minEnd = Math.min(firstData + windowSize, lastData);
+
+      const sliderFraction = this.sliderPosition / 100;
+      const currentEnd = minEnd + (maxEnd - minEnd) * sliderFraction;
+
+      const newEnd = Math.min(maxEnd, currentEnd + windowSize);
+
+      const newFraction = (newEnd - minEnd) / (maxEnd - minEnd || 1);
+      this.sliderPosition = Math.max(0, Math.min(100, Math.round(newFraction * 100)));
       this.isLiveMode = (this.sliderPosition === 100);
       this.updateRange();
     }
