@@ -676,6 +676,8 @@ body{
 <script src="/static/js/error_reporter.js"></script>
 <!-- System Information Controller: fetches and displays comprehensive system info -->
 <script src="/static/system_info.js"></script>
+<!-- Overview Dashboard Controller: unified KPI display for System tab -->
+<script src="/static/js/overview_dashboard.js"></script>
 <!-- Chart Controls: unified zoom + slider interface for all charts -->
 <script src="/static/js/chart_controls.js"></script>
 </head>
@@ -1066,80 +1068,167 @@ body{
   <section id="overview-card" class="card card-wide tab-section" data-tab="overview">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <div style="display:flex;align-items:baseline;gap:10px;">
-        <h3 class="card-title" style="margin:0;">System</h3>
-        <span style="font-size:var(--font-xs);letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">Controllers</span>
+        <h3 class="card-title" style="margin:0;">System Overview</h3>
+        <span id="ov-auto-badge" class="ui-status-chip neutral" style="font-size:var(--font-xs);">—</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span id="ov-refresh-time" class="muted" style="font-size:var(--font-xs);">—</span>
+      </div>
     </div>
-      <div class="card-body">
-      <!-- Removed redundant section label 'Controllers' per user request -->
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
-        <!-- 1. Sensors -->
-        <div class="controller-status-row">
-          <div class="controller-status-label">📡 Sensors</div>
-          <div class="controller-status-chips">
-            <span class="ui-status-chip neutral" id="ov-sensors-health" title="Sensor poller health">Health</span>
-            <span class="ui-status-chip neutral" id="ov-sensors-status" title="Sensor status">Status</span>
+    <div class="card-body">
+      <!-- Primary KPI Dashboard Grid -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;">
+        <!-- Sensor Readings -->
+        <div style="padding:16px;border-radius:12px;background:linear-gradient(135deg,rgba(59,130,246,0.08) 0%,rgba(37,99,235,0.04) 100%);border:1px solid rgba(59,130,246,0.2);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <span style="font-size:1.5rem;">📡</span>
+            <span style="font-weight:600;font-size:var(--font-base);color:#93c5fd;">Sensors</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-size:var(--font-xs);color:#94a3b8;">pH</span>
+              <span id="ov-kpi-ph" style="font-size:1.5rem;font-weight:700;color:#e0e0e0;">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-size:var(--font-xs);color:#94a3b8;">EC (mS/cm)</span>
+              <span id="ov-kpi-ec" style="font-size:1.5rem;font-weight:700;color:#e0e0e0;">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-size:var(--font-xs);color:#94a3b8;">Temp (°C)</span>
+              <span id="ov-kpi-temp" style="font-size:1.5rem;font-weight:700;color:#e0e0e0;">—</span>
+            </div>
+          </div>
+          <div style="margin-top:12px;padding-top:8px;border-top:1px solid rgba(148,163,184,0.15);">
+            <span id="ov-sensors-status-text" class="ui-status-chip success" style="font-size:0.6rem;">ONLINE</span>
           </div>
         </div>
-        <!-- 2. pH Controller -->
-        <div class="controller-status-row">
-          <div class="controller-status-label">🧪 pH Controller</div>
-          <div class="controller-status-chips">
-            <span class="ui-status-chip neutral" id="ov-ph-health" title="Controller health">Health</span>
-            <span class="ui-status-chip neutral" id="ov-ph-status" title="Controller status">Status</span>
+
+        <!-- pH Controller -->
+        <div style="padding:16px;border-radius:12px;background:linear-gradient(135deg,rgba(168,85,247,0.08) 0%,rgba(147,51,234,0.04) 100%);border:1px solid rgba(168,85,247,0.2);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <span style="font-size:1.5rem;">🧪</span>
+            <span style="font-weight:600;font-size:var(--font-base);color:#c4b5fd;">pH Control</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-size:var(--font-xs);color:#94a3b8;">Current</span>
+              <span id="ov-kpi-ph-current" style="font-size:1.5rem;font-weight:700;color:#e0e0e0;">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-size:var(--font-xs);color:#94a3b8;">Setpoint</span>
+              <span id="ov-kpi-ph-setpoint" style="font-size:var(--font-base);color:#d1d5db;">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-size:var(--font-xs);color:#94a3b8;">Status</span>
+              <span id="ov-kpi-ph-pump" style="font-size:var(--font-xs);color:#94a3b8;">—</span>
+            </div>
+          </div>
+          <div style="margin-top:12px;padding-top:8px;border-top:1px solid rgba(148,163,184,0.15);">
+            <span id="ov-ph-health" class="ui-status-chip neutral" style="font-size:0.6rem;">—</span>
+            <span id="ov-ph-status" class="ui-status-chip neutral" style="font-size:0.6rem;margin-left:4px;">—</span>
           </div>
         </div>
-        <!-- 3. EC Controller -->
-        <div class="controller-status-row">
-          <div class="controller-status-label">⚡ EC Controller</div>
-          <div class="controller-status-chips">
-            <span class="ui-status-chip neutral" id="ov-ec-health" title="Controller health">Health</span>
-            <span class="ui-status-chip neutral" id="ov-ec-status" title="Controller status">Status</span>
+
+        <!-- EC Controller -->
+        <div style="padding:16px;border-radius:12px;background:linear-gradient(135deg,rgba(34,197,94,0.08) 0%,rgba(22,163,74,0.04) 100%);border:1px solid rgba(34,197,94,0.2);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <span style="font-size:1.5rem;">⚡</span>
+            <span style="font-weight:600;font-size:var(--font-base);color:#86efac;">EC Control</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-size:var(--font-xs);color:#94a3b8;">Current</span>
+              <span id="ov-kpi-ec-current" style="font-size:1.5rem;font-weight:700;color:#e0e0e0;">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-size:var(--font-xs);color:#94a3b8;">Setpoint</span>
+              <span id="ov-kpi-ec-setpoint" style="font-size:var(--font-base);color:#d1d5db;">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-size:var(--font-xs);color:#94a3b8;">Status</span>
+              <span id="ov-kpi-ec-pump" style="font-size:var(--font-xs);color:#94a3b8;">—</span>
+            </div>
+          </div>
+          <div style="margin-top:12px;padding-top:8px;border-top:1px solid rgba(148,163,184,0.15);">
+            <span id="ov-ec-health" class="ui-status-chip neutral" style="font-size:0.6rem;">—</span>
+            <span id="ov-ec-status" class="ui-status-chip neutral" style="font-size:0.6rem;margin-left:4px;">—</span>
           </div>
         </div>
-  <!-- 4. Temperature (Water Temperature + Pumps) -->
-        <div class="controller-status-row">
-          <div class="controller-status-label">🌡️ Temperature</div>
-          <div class="controller-status-chips">
-            <span class="bop-status-badge" id="ov-temperature" title="Chiller" aria-label="Chiller">Chiller</span>
-            <span class="bop-status-badge" id="ov-temperature-pump" title="Chiller Pump" aria-label="Chiller Pump">Pump</span>
-            <span class="ui-status-chip neutral" id="ov-temperature-health" title="Temperature health">Health</span>
-            <span class="ui-status-chip neutral" id="ov-temperature-status" title="Chiller status">Status</span>
+
+        <!-- Temperature Controller -->
+        <div style="padding:16px;border-radius:12px;background:linear-gradient(135deg,rgba(236,72,153,0.08) 0%,rgba(219,39,119,0.04) 100%);border:1px solid rgba(236,72,153,0.2);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <span style="font-size:1.5rem;">🌡️</span>
+            <span style="font-weight:600;font-size:var(--font-base);color:#f9a8d4;">Temperature</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-size:var(--font-xs);color:#94a3b8;">Water</span>
+              <span id="ov-kpi-water-temp" style="font-size:1.5rem;font-weight:700;color:#e0e0e0;">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-size:var(--font-xs);color:#94a3b8;">Target</span>
+              <span id="ov-kpi-target-temp" style="font-size:var(--font-base);color:#d1d5db;">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:4px;">
+              <span id="ov-temperature" class="bop-status-badge" title="Chiller" style="font-size:0.65rem;">Chiller</span>
+              <span id="ov-temperature-pump" class="bop-status-badge" title="Pump" style="font-size:0.65rem;">Pump</span>
+            </div>
+          </div>
+          <div style="margin-top:12px;padding-top:8px;border-top:1px solid rgba(148,163,184,0.15);">
+            <span id="ov-temperature-health" class="ui-status-chip neutral" style="font-size:0.6rem;">—</span>
+            <span id="ov-temperature-status" class="ui-status-chip neutral" style="font-size:0.6rem;margin-left:4px;">—</span>
           </div>
         </div>
-        <!-- 5. Circulation -->
-        <div class="controller-status-row">
-          <div class="controller-status-label">🔁 Circulation</div>
-          <div class="controller-status-chips">
-            <span class="bop-status-badge" id="ov-main-pump" title="Main Pump" aria-label="Main Pump">Pump</span>
-            <span class="ui-status-chip neutral" id="ov-main-pump-health" title="Main pump health">Health</span>
-            <span class="ui-status-chip neutral" id="ov-main-pump-status" title="Main pump status">Status</span>
+      </div>
+
+      <!-- Secondary Systems Row -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px;">
+        <!-- Circulation -->
+        <div style="padding:12px;border-radius:8px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.2);">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <span style="font-size:1.2rem;">🔁</span>
+            <span style="font-weight:600;font-size:var(--font-sm);">Circulation</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span id="ov-main-pump" class="bop-status-badge" style="font-size:0.7rem;">Pump</span>
+            <span id="ov-main-pump-health" class="ui-status-chip neutral" style="font-size:0.6rem;">—</span>
           </div>
         </div>
-        <!-- 6. Lights -->
-        <div class="controller-status-row">
-          <div class="controller-status-label">💡 Lights</div>
-          <div class="controller-status-chips">
-            <span class="bop-status-badge" id="ov-lights" aria-label="Lights">Lights</span>
-            <span class="ui-status-chip neutral" id="ov-lights-health" title="Lights health">Health</span>
-            <span class="ui-status-chip neutral" id="ov-lights-status" title="Lights status">Status</span>
+
+        <!-- Lights -->
+        <div style="padding:12px;border-radius:8px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.2);">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <span style="font-size:1.2rem;">💡</span>
+            <span style="font-weight:600;font-size:var(--font-sm);">Lights</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span id="ov-lights" class="bop-status-badge" style="font-size:0.7rem;">Status</span>
+            <span id="ov-lights-health" class="ui-status-chip neutral" style="font-size:0.6rem;">—</span>
           </div>
         </div>
-        <!-- 7. Schedule -->
-        <div class="controller-status-row">
-          <div class="controller-status-label">📅 Schedule</div>
-          <div class="controller-status-chips">
-            <span class="ui-status-chip neutral" id="ov-schedule-chip" title="Schedule status">Status</span>
-            <span class="ui-status-chip neutral" id="ov-schedule-status" title="Schedule activity">Health</span>
+
+        <!-- Schedule -->
+        <div style="padding:12px;border-radius:8px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.2);">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <span style="font-size:1.2rem;">📅</span>
+            <span style="font-weight:600;font-size:var(--font-sm);">Schedule</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <span id="ov-schedule-week" style="font-size:var(--font-xs);color:#d1d5db;">Week —</span>
+            <span id="ov-schedule-phase" style="font-size:var(--font-xs);color:#94a3b8;">—</span>
           </div>
         </div>
-        <!-- 8. System -->
-        <div class="controller-status-row">
-          <div class="controller-status-label">🛠️ System</div>
-          <div class="controller-status-chips">
-            <span class="ui-status-chip neutral" id="ov-system-health" title="System health">Health</span>
-            <span class="ui-status-chip neutral" id="ov-system-status" title="System status">Status</span>
+
+        <!-- System Health -->
+        <div style="padding:12px;border-radius:8px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.2);">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <span style="font-size:1.2rem;">🛠️</span>
+            <span style="font-weight:600;font-size:var(--font-sm);">System</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span id="ov-system-health" class="ui-status-chip neutral" style="font-size:0.6rem;">—</span>
+            <span id="ov-estop-badge" class="ui-status-chip success" style="font-size:0.6rem;">E-STOP</span>
           </div>
         </div>
       </div>
