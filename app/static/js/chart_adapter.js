@@ -162,6 +162,7 @@
     // circulation_v2.js initializes window.circChart (RDWCChart instance)
     // Note: Circulation chart may initialize after chart_adapter, so we retry aggressively
     function initCirculationControls(attempts = 0) {
+      console.log('[Chart Adapter Circulation Retry] Attempt', attempts, '- circChart available:', !!window.circChart);
       const container = document.getElementById('circ-chart-controls');
       if (!container) {
         console.warn('[Chart Adapter] circ-chart-controls container not found');
@@ -169,7 +170,7 @@
       }
       
       if (window.circChart && typeof window.circChart.setTimeRange === 'function') {
-        console.log('[Chart Adapter] circChart found at attempt', attempts, '- initializing controls');
+        console.log('[Chart Adapter] ✓ circChart found at attempt', attempts, '- creating ChartControls');
         try {
           const circControls = new ChartControls({
             containerId: 'circ-chart-controls',
@@ -185,17 +186,17 @@
             },
             getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
           });
-          console.log('[Chart Adapter] Circulation controls initialized successfully');
+          console.log('[Chart Adapter] ✓ Circulation controls initialized successfully');
         } catch (e) {
-          console.error('[Chart Adapter] Failed to create ChartControls for circulation:', e);
+          console.error('[Chart Adapter] ✗ Failed to create ChartControls for circulation:', e.message, e);
         }
       } else if (attempts < 20) {
         if (attempts === 0) {
-          console.log('[Chart Adapter] circChart not ready yet, retrying...');
+          console.log('[Chart Adapter Circulation] circChart not ready yet (', typeof window.circChart, '), retrying... Total attempts will be up to 20 with 300ms delay');
         }
         setTimeout(() => initCirculationControls(attempts + 1), 300);
       } else {
-        console.warn('[Chart Adapter] Circulation chart not ready after', attempts, 'retries. circChart:', !!window.circChart, 'setTimeRange:', typeof window.circChart?.setTimeRange);
+        console.warn('[Chart Adapter] ✗ Circulation chart not ready after', attempts, 'retries. Final status - circChart:', !!window.circChart, ', setTimeRange type:', typeof window.circChart?.setTimeRange);
       }
     }
     initCirculationControls();
