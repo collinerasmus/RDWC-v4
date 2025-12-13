@@ -379,29 +379,46 @@
     }
   }, 30000);
 
-  // Initialize when tab becomes visible
-  document.addEventListener('DOMContentLoaded', () => {
-    console.log('[Circulation] DOMContentLoaded - setting up observers');
-    // Watch for tab changes
-    const observer = new MutationObserver(() => {
-      const card = document.getElementById('circ-card');
-      if (card && card.style.display !== 'none') {
-        console.log('[Circulation] Tab became visible, initializing...');
-        initCirculation();
-      }
-    });
+  console.log('[Circulation] Controller script loaded');
+  
+  // Initialize circulation controller
+  function setupCirculation() {
+    console.log('[Circulation] Setting up circulation controller');
     
     const card = document.getElementById('circ-card');
-    if (card) {
-      observer.observe(card, { attributes: true, attributeFilter: ['style'] });
-      // Check if already visible
-      if (card.style.display !== 'none') {
-        console.log('[Circulation] Tab already visible on load');
-        initCirculation();
-      }
+    if (!card) {
+      console.warn('[Circulation] Card element not found, retrying in 100ms...');
+      setTimeout(setupCirculation, 100);
+      return;
     }
-  });
-  
-  console.log('[Circulation] Controller script loaded');
+
+    // Check if tab is already visible
+    if (card.style.display !== 'none' && card.style.display !== '') {
+      console.log('[Circulation] Tab already visible, initializing immediately');
+      initCirculation();
+      return;
+    }
+
+    // Set up MutationObserver to watch for tab visibility changes
+    console.log('[Circulation] Tab not visible yet, setting up observer');
+    const observer = new MutationObserver(() => {
+      if (card.style.display !== 'none') {
+        console.log('[Circulation] Tab became visible, initializing...');
+        initCirculation();
+        observer.disconnect();
+      }
+    });
+
+    observer.observe(card, { attributes: true, attributeFilter: ['style'] });
+  }
+
+  // Run setup when DOM is ready or immediately if already ready
+  if (document.readyState === 'loading') {
+    console.log('[Circulation] DOM still loading, waiting for DOMContentLoaded');
+    document.addEventListener('DOMContentLoaded', setupCirculation);
+  } else {
+    console.log('[Circulation] DOM already ready, setting up immediately');
+    setupCirculation();
+  }
 })();
 
