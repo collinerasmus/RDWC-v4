@@ -1212,9 +1212,9 @@ def clear_ph_calibration() -> Dict[str, Any]:
                     # Clear calibration points from database
                     try:
                         from app.settings import delete_settings
-                        delete_settings([\"cal.ph.mid\", \"cal.ph.low\", \"cal.ph.high\"])
+                        delete_settings(["cal.ph.mid", "cal.ph.low", "cal.ph.high"])
                     except Exception as e:
-                        logger.warning(f\"Failed to clear pH cal from DB: {e}\")
+                        logger.warning(f"Failed to clear pH cal from DB: {e}")
                     return {"ok": True, "note": "Cleared"}
                 else:
                     # Retry once on failure
