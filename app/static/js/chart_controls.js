@@ -111,16 +111,16 @@
     }
 
     panLeft() {
-      // Pan backward by 25% of current zoom window
-      const panPercent = 25;
+      // Pan backward by 100% of current zoom window (move to previous adjacent timeframe)
+      const panPercent = 100;
       this.sliderPosition = Math.max(0, this.sliderPosition - panPercent);
       this.isLiveMode = false;
       this.updateRange();
     }
 
     panRight() {
-      // Pan forward by 25% of current zoom window
-      const panPercent = 25;
+      // Pan forward by 100% of current zoom window (move to next adjacent timeframe)
+      const panPercent = 100;
       this.sliderPosition = Math.min(100, this.sliderPosition + panPercent);
       this.isLiveMode = (this.sliderPosition === 100);
       this.updateRange();
