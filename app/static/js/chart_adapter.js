@@ -170,21 +170,25 @@
       
       if (window.circChart && typeof window.circChart.setTimeRange === 'function') {
         console.log('[Chart Adapter] circChart found at attempt', attempts, '- initializing controls');
-        const circControls = new ChartControls({
-          containerId: 'circ-chart-controls',
-          onRangeChange: async (start, end) => {
-            console.log('[Chart Adapter] Circulation range changed:', start, end);
-            try {
-              window.circChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
-              window.circChart.selectedRange = 'custom';
-              await window.circChart.refresh(true);
-            } catch (e) {
-              console.error('[Chart Adapter] Circulation chart update failed:', e);
-            }
-          },
-          getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
-        });
-        console.log('[Chart Adapter] Circulation controls initialized successfully');
+        try {
+          const circControls = new ChartControls({
+            containerId: 'circ-chart-controls',
+            onRangeChange: async (start, end) => {
+              console.log('[Chart Adapter] Circulation range changed:', start, end);
+              try {
+                window.circChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
+                window.circChart.selectedRange = 'custom';
+                await window.circChart.refresh(true);
+              } catch (e) {
+                console.error('[Chart Adapter] Circulation chart update failed:', e);
+              }
+            },
+            getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
+          });
+          console.log('[Chart Adapter] Circulation controls initialized successfully');
+        } catch (e) {
+          console.error('[Chart Adapter] Failed to create ChartControls for circulation:', e);
+        }
       } else if (attempts < 20) {
         if (attempts === 0) {
           console.log('[Chart Adapter] circChart not ready yet, retrying...');
