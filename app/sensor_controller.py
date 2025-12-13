@@ -1144,7 +1144,7 @@ def get_ph_calibration_status() -> Dict[str, Any]:
                                 points = ["mid", "low", "high"]
                 
                 # If no response from Cal,?, try database fallback
-                if not response or not points:
+                if (not response or response == "No response" or not points):
                     try:
                         from app.settings import get_settings
                         db_points = []
