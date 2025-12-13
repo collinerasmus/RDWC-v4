@@ -207,16 +207,23 @@ def get_settings_grouped() -> Dict[str, Dict[str, Any]]:
     """Return grouped settings by namespace: {namespace: {key: value}}.
     Values are strings; UI/backend can cast/validate as needed.
     """
-    flat = get_all_settings()
-    if flat is None:
+    try:
+        flat = get_all_settings()
+        if not isinstance(flat, dict):
+            flat = {}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         flat = {}
+    
     grouped: Dict[str, Dict[str, Any]] = {}
-    for k, v in flat.items():
-        if "." in k:
-            ns, leaf = k.split(".", 1)
-        else:
-            ns, leaf = "root", k
-        grouped.setdefault(ns, {})[leaf] = v
+    if flat:
+        for k, v in flat.items():
+            if "." in k:
+                ns, leaf = k.split(".", 1)
+            else:
+                ns, leaf = "root", k
+            grouped.setdefault(ns, {})[leaf] = v
     return grouped
 
 def upsert_settings(partial: Dict[str, Any]) -> Dict[str, Any]:
