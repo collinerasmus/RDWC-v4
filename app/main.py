@@ -2965,13 +2965,18 @@ def api_sensors():
     """
     from app.sensors_core import read_sensors_from_db
     from app.settings import get_all_settings
+    from app.logger import get_logger
+    logger = get_logger(__name__)
     # Read cached (max 60s)
     data = read_sensors_from_db(max_age_sec=60)
 
     # Check actual calibration state from database
     settings = get_all_settings()
     ph_calibrated = bool(settings.get("cal.ph.mid") or settings.get("cal.ph.low"))
-    ec_calibrated = bool(settings.get("cal.ec.low"))
+    ec_calibrated = settings.get("ec.cal_low_us", "0") != "0"
+    
+    logger.debug(f"Calibration check: pH mid={settings.get('cal.ph.mid')}, low={settings.get('cal.ph.low')}, ph_calibrated={ph_calibrated}")
+    logger.debug(f"Calibration check: EC low_us={settings.get('ec.cal_low_us')}, ec_calibrated={ec_calibrated}")
     
     cal_state = {
         "temp": {"is_calibrated": False, "detail": "db"},
