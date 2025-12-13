@@ -288,17 +288,25 @@
             fetch(`/api/relays/events?name=chiller_pump&last=200`, {cache: 'no-store'})
           ]);
           
-          const mainEvents = mainResp.ok ? await mainResp.json() : [];
-          const chillerEvents = chillerResp.ok ? await chillerResp.json() : [];
-          
-          // Filter to time window
-          const filterEvents = (events) => events
-            .filter(e => {
-              const t = new Date(e.ts).getTime();
-              return t >= start && t <= end;
-            })
-            .sort((a,b) => new Date(a.ts) - new Date(b.ts));
-          
+          const startMs = new Date(start).getTime();
+          const endMs = new Date(end).getTime();
+
+          const normalizeEvents = (events) => ([...events]
+            .map(e => ({ ...e, tsMs: new Date(e.ts).getTime() }))
+            .sort((a, b) => a.tsMs - b.tsMs));
+
+          const mainEvents = mainResp.ok ? normalizeEvents(await mainResp.json()) : [];
+          const chillerEvents = chillerResp.ok ? normalizeEvents(await chillerResp.json()) : [];
+
+          const stateAtWindowStart = (events, currentState) => {
+            for (let i = events.length - 1; i >= 0; i -= 1) {
+              if (events[i].tsMs <= startMs) return events[i].final ? 1 : 0;
+            }
+            return currentState;
+          };
+
+          const filterEvents = (events) => events.filter(e => e.tsMs >= startMs && e.tsMs <= endMs);
+
           const mainFiltered = filterEvents(mainEvents);
           const chillerFiltered = filterEvents(chillerEvents);
           
@@ -311,35 +319,63 @@
           return {
             mainEvents: mainFiltered,
             chillerEvents: chillerFiltered,
+            mainStartState: stateAtWindowStart(mainEvents, currentMainState),
+            chillerStartState: stateAtWindowStart(chillerEvents, currentChillerState),
             currentMainState,
-            currentChillerState
+            currentChillerState,
+            startMs,
+            endMs
           };
         },
         
         onRender: (chart, data, timeWindow) => {
-          const buildTimeline = (events, currentState, startTime) => {
+          const buildTimeline = (events, currentState, startState, startTime, endTime) => {
             const timeline = [];
-            if (!events || events.length === 0) {
-              timeline.push({ x: new Date(startTime), y: currentState });
-              timeline.push({ x: new Date(), y: currentState });
-              return timeline;
-            }
-            
+            const initialState = startState != null ? startState : currentState;
+            timeline.push({ x: new Date(startTime), y: initialState });
+
+            let lastState = initialState;
+
             events.forEach(evt => {
-              timeline.push({
-                x: new Date(evt.ts),
-                y: evt.final ? 1 : 0
-              });
+              const pointState = evt.final ? 1 : 0;
+              if (timeline.length && timeline[timeline.length - 1].y === pointState) {
+                timeline[timeline.length - 1] = { x: new Date(evt.tsMs), y: pointState };
+              } else {
+                timeline.push({ x: new Date(evt.tsMs), y: pointState });
+              }
+              lastState = pointState;
             });
-            
-            const lastState = events.length > 0 ? (events[events.length - 1].final ? 1 : 0) : currentState;
-            timeline.push({ x: new Date(), y: lastState });
-            
+
+            timeline.push({ x: new Date(endTime), y: lastState });
+
             return timeline;
           };
           
-          const mainTimeline = buildTimeline(data.mainEvents, data.currentMainState, timeWindow.start);
-          const chillerTimeline = buildTimeline(data.chillerEvents, data.currentChillerState, timeWindow.start);
+          const mainTimeline = buildTimeline(
+            data.mainEvents,
+            data.currentMainState,
+            data.mainStartState,
+            data.startMs,
+            data.endMs
+          );
+          const chillerTimeline = buildTimeline(
+            data.chillerEvents,
+            data.currentChillerState,
+            data.chillerStartState,
+            data.startMs,
+            data.endMs
+          );
+
+          chart.options.scales.y = {
+            type: 'linear',
+            min: -0.1,
+            max: 1.1,
+            ticks: {
+              stepSize: 1,
+              callback: (value) => (value <= 0 ? 'OFF' : 'ON')
+            },
+            grid: { color: 'rgba(148,163,184,0.15)' }
+          };
           
           return [
             {

@@ -266,6 +266,9 @@
       if (value == null) return '';
 
       const label = ctx.dataset.label || '';
+      if (this.type === 'circulation' || label.includes('Pump')) {
+        return ` ${label}: ${value >= 1 ? 'ON' : 'OFF'}`;
+      }
       if (label.includes('pH')) return ` ${label}: ${value.toFixed(2)}`;
       if (label.includes('EC')) return ` ${label}: ${value.toFixed(2)} mS/cm`;
       if (label.includes('Temp')) return ` ${label}: ${value.toFixed(1)} °C`;
