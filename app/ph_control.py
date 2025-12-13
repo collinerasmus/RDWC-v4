@@ -393,10 +393,43 @@ def _compute_guards(now: float) -> Dict[str, Any]:
 def ph_status():
     now = time.time()
     ph_val, ts = _get_latest_ph()
-    targets = {
-        "low": _settings_get_float("targets.ph_low", 5.8),
-        "high": _settings_get_float("targets.ph_high", 6.2),
-    }
+    # Prefer scheduler setpoint + band tolerance if available
+    band_tol = _settings_get_float("targets.ph_band", 0.2)
+    setpoint = None
+    try:
+        # Lightweight read of current week setpoint from nutrient_schedule
+        from datetime import datetime, timezone
+        import sqlite3
+        from pathlib import Path
+        from app.schedule_api import DB_PATH as _DB
+        # Compute current week (duplicate minimal logic)
+        from app.settings import get_all_settings
+        s = get_all_settings()
+        date_str = s.get("general.grow_start_date", "")
+        week_num = 1
+        if date_str:
+            try:
+                start = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                now_dt = datetime.now(timezone.utc)
+                delta_days = (now_dt - start).days
+                week_num = max(1, min(12, (delta_days // 7) + 1))
+            except Exception:
+                week_num = 1
+        with sqlite3.connect(str(_DB)) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT ph_low, ph_high FROM nutrient_schedule WHERE week = ?", (week_num,))
+            row = cur.fetchone()
+            if row and row[0] is not None and row[1] is not None:
+                setpoint = ((float(row[0]) + float(row[1])) / 2.0)
+    except Exception:
+        setpoint = None
+    if setpoint is not None:
+        targets = {"low": round(setpoint - band_tol, 2), "high": round(setpoint + band_tol, 2)}
+    else:
+        targets = {
+            "low": _settings_get_float("targets.ph_low", 5.8),
+            "high": _settings_get_float("targets.ph_high", 6.2),
+        }
     guards = _compute_guards(now)
     # Remaining cooldown helper
     since = guards.get("since_last_ok_s") or 0
@@ -721,7 +754,11 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
     # Hard guardrail: disallow pH-Up when pH is already above the safe high threshold
     try:
         # Use targets.ph_high if configured; otherwise use an absolute 6.6 ceiling
-        ph_high = _settings_get_float("targets.ph_high", 6.2)
+        # Use scheduler-derived high if available, else settings
+        if setpoint is not None:
+            ph_high = max(setpoint + band_tol, _settings_get_float("targets.ph_high", 6.2))
+        else:
+            ph_high = _settings_get_float("targets.ph_high", 6.2)
         hard_hi = max(6.6, ph_high)
         if (pre_ph is not None) and (pre_ph >= hard_hi):
             ts_iso = datetime.now(timezone.utc).isoformat()

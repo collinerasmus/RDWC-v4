@@ -31,7 +31,7 @@
         // Target range
         if (settings.targets) {
           setVal('phTargetLow', parseFloat(settings.targets.ph_low));
-          setVal('phTargetHigh', parseFloat(settings.targets.ph_high));
+           setVal('phBand', parseFloat(settings.targets.ph_band ?? '0.2'));
         }
         
         // Dosing parameters
@@ -68,7 +68,7 @@
       
       // Validation
       const phLow = getVal('phTargetLow', 5.8);
-      const phHigh = getVal('phTargetHigh', 6.2);
+        const phBand = getVal('phBand', 0.2);
       if (phLow >= phHigh) {
         alert('Error: pH Low must be less than pH High');
         return;
@@ -77,6 +77,7 @@
       const updates = {
         'targets.ph_low': phLow,
         'targets.ph_high': phHigh,
+          'targets.ph_band': phBand.toFixed(2),
         'dosing.pulse_ml_grow': getVal('phPulseGrow'),
         'dosing.pulse_ml_micro': getVal('phPulseMicro'),
         'dosing.pulse_ml_bloom': getVal('phPulseBloom'),

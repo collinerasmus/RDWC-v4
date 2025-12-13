@@ -682,8 +682,27 @@
       if(v==null){ sp.textContent = '—'; sp.style.color = '#9ca3af'; return; }
       const val = Number(v);
       sp.textContent = val.toFixed(2);
-      let low = parseFloat(window.rdwcSettings?.get('targets.ph_low') || '5.5');
-      let high = parseFloat(window.rdwcSettings?.get('targets.ph_high') || '6.5');
+      // Compute band around scheduler setpoint when available
+      let bandTol = parseFloat(window.rdwcSettings?.get('targets.ph_band') || '0.2');
+      let setpointEl = document.getElementById('phSetpoint');
+      let setpoint = null;
+      try {
+        const r = await fetch('/api/schedule/current_week', {cache:'no-store'});
+        if (r.ok) {
+          const data = await r.json();
+          if (data && typeof data.ph_setpoint === 'number') setpoint = data.ph_setpoint;
+        }
+      } catch(e) {}
+      if (setpointEl) setpointEl.textContent = (setpoint!=null) ? setpoint.toFixed(2) : '—';
+      let low, high;
+      if (setpoint != null) {
+        low = setpoint - bandTol;
+        high = setpoint + bandTol;
+      } else {
+        // Fallback to settings low/high
+        low = parseFloat(window.rdwcSettings?.get('targets.ph_low') || '5.8');
+        high = parseFloat(window.rdwcSettings?.get('targets.ph_high') || '6.2');
+      }
       if(val < low - 0.05) sp.style.color = '#60a5fa'; // low = blue
       else if(val > high + 0.05) sp.style.color = '#f87171'; // high = red
       else sp.style.color = '#34d399'; // in band
@@ -955,8 +974,7 @@
       try{
         const settings = {};
         const fields = [
-          ['phTargetLow', 'targets.ph_low'],
-          ['phTargetHigh', 'targets.ph_high'],
+          ['phBand', 'targets.ph_band'],
           ['phAlertLow', 'alerts.ph_low'],
           ['phAlertHigh', 'alerts.ph_high'],
           ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec'],
@@ -1002,8 +1020,7 @@
     // Load current settings into form fields
     try{
       const settingsMap = [
-        ['phTargetLow', 'targets.ph_low', '5.8'],
-        ['phTargetHigh', 'targets.ph_high', '6.2'],
+        ['phBand', 'targets.ph_band', '0.2'],
         ['phAlertLow', 'alerts.ph_low', '5.5'],
         ['phAlertHigh', 'alerts.ph_high', '6.5'],
         ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec', '1.0'],

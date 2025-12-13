@@ -58,6 +58,7 @@ DEFAULTS: Dict[str, str] = {
     # If scheduler is broken, EC auto MUST NOT RUN. Use safe seedling defaults here.
     "targets.ph_low": "5.8",
     "targets.ph_high": "6.2",
+    "targets.ph_band": "0.2",
     "targets.ec_low": "0.4",
     "targets.ec_high": "0.6",
     "targets.ec_target": "1.8",
@@ -284,6 +285,10 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
         v = f(final["targets.ec_tolerance"])
         if v is None or not (0.0 <= v <= 1.0):
             return False, {"field": "targets.ec_tolerance", "message": "Must be in 0.0–1.0"}
+    if "targets.ph_band" in final:
+        v = f(final["targets.ph_band"])
+        if v is None or not (0.0 <= v <= 1.0):
+            return False, {"field": "targets.ph_band", "message": "Must be in 0.0–1.0"}
 
     # Temp 15–28 °C
     if "targets.temp_target_c" in final:

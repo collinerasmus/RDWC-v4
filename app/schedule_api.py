@@ -147,6 +147,13 @@ def get_nutrient_schedule():
     
     weeks = []
     for r in rows:
+        # Compute ph_setpoint as midpoint for compatibility
+        ph_setpoint = None
+        try:
+            if r[6] is not None and r[7] is not None:
+                ph_setpoint = round((float(r[6]) + float(r[7])) / 2.0, 2)
+        except Exception:
+            ph_setpoint = None
         weeks.append({
             "week": r[0],
             "phase": r[1],
@@ -156,6 +163,7 @@ def get_nutrient_schedule():
             "ec_target": r[5],
             "ph_low": r[6],
             "ph_high": r[7],
+            "ph_setpoint": ph_setpoint,
             "temp_target": r[8],
             "lights": r[9],
             "notes": r[10] or ""
@@ -295,6 +303,13 @@ def get_current_week_info():
         logging.getLogger(__name__).exception("/api/schedule/current_week failed")
         return {"ok": False, "error": str(e), "week": None, "phase": "unknown"}
     
+    # Compute setpoint midpoint for current week
+    ph_setpoint = None
+    try:
+        if row[6] is not None and row[7] is not None:
+            ph_setpoint = round((float(row[6]) + float(row[7])) / 2.0, 2)
+    except Exception:
+        ph_setpoint = None
     return {
         "week": row[0],
         "phase": row[1],
@@ -304,6 +319,7 @@ def get_current_week_info():
         "ec_target": row[5],
         "ph_low": row[6],
         "ph_high": row[7],
+        "ph_setpoint": ph_setpoint,
         "temp_target": row[8],
         "lights": row[9],
         "notes": row[10] or "",
