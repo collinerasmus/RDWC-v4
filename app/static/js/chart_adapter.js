@@ -47,7 +47,8 @@
             console.log('[Chart Adapter] Sensors range changed:', start, end);
             try {
               window.sensorsChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
-              await window.sensorsChart.setTimeRange('custom');
+              window.sensorsChart.selectedRange = 'custom';
+              await window.sensorsChart.refresh();
             } catch (e) {
               console.error('[Chart Adapter] Sensors chart update failed:', e);
             }
@@ -70,7 +71,8 @@
             console.log('[Chart Adapter] Trends range changed:', start, end);
             try {
               window.trendsChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
-              await window.trendsChart.setTimeRange('custom');
+              window.trendsChart.selectedRange = 'custom';
+              await window.trendsChart.refresh();
             } catch (e) {
               console.error('[Chart Adapter] Trends chart update failed:', e);
             }
@@ -93,7 +95,8 @@
             console.log('[Chart Adapter] pH range changed:', start, end);
             try {
               window.phChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
-              await window.phChart.setTimeRange('custom');
+              window.phChart.selectedRange = 'custom';
+              await window.phChart.refresh();
             } catch (e) {
               console.error('[Chart Adapter] pH chart update failed:', e);
             }
@@ -116,7 +119,8 @@
             console.log('[Chart Adapter] EC range changed:', start, end);
             try {
               window.ecChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
-              await window.ecChart.setTimeRange('custom');
+              window.ecChart.selectedRange = 'custom';
+              await window.ecChart.refresh();
             } catch (e) {
               console.error('[Chart Adapter] EC chart update failed:', e);
             }
@@ -139,7 +143,8 @@
             console.log('[Chart Adapter] Temperature range changed:', start, end);
             try {
               window.temperatureChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
-              await window.temperatureChart.setTimeRange('custom');
+              window.temperatureChart.selectedRange = 'custom';
+              await window.temperatureChart.refresh();
             } catch (e) {
               console.error('[Chart Adapter] Temperature chart update failed:', e);
             }
