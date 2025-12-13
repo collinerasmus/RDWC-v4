@@ -249,7 +249,7 @@
           : null;
         const deltaStr = (delta !== null) ? `${delta >= 0 ? '+' : ''}${delta.toFixed(3)}` : '—';
         const volume = (d.volume_ml != null) ? `${d.volume_ml.toFixed(2)} ml` : '— ml';
-        const duration = (d.duration_ms != null) ? `${(d.duration_ms / 1000).toFixed(1)}s` : null;
+        const duration = (d.duration_ms != null && d.duration_ms >= 0) ? `${(d.duration_ms / 1000).toFixed(1)}s` : null;
         const result = d.result || 'ok';
         const reason = d.reason || 'dose';
         
