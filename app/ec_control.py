@@ -738,38 +738,38 @@ def dose_ec(body: dict = Body(...)):
                 pass
         
 # Log with post_ec=None initially (will be updated after settling time)
-    rowid = _log_row({
-        "ts_utc": datetime.now(timezone.utc).isoformat(),
-        "action": "dose",
-        "volume_ml": ml,
-        "mix_ratio": f"{pump}:{seconds}s",
-        "duration_ms": duration_ms,
-        "pre_ec": ec_before,
-        "post_ec": None,
-        "result": result,
-        "reason": reason
-    })
+        rowid = _log_row({
+            "ts_utc": datetime.now(timezone.utc).isoformat(),
+            "action": "dose",
+            "volume_ml": ml,
+            "mix_ratio": f"{pump}:{seconds}s",
+            "duration_ms": duration_ms,
+            "pre_ec": ec_before,
+            "post_ec": None,
+            "result": result,
+            "reason": reason
+        })
+        
+        # Schedule post-read after settling time (async)
+        observe_s = _i("dosing.observe_s_after_dose", 900)
+        threading.Thread(
+            target=_read_post_ec_async,
+            args=(rowid, observe_s),
+            daemon=True
+        ).start()
+        
+        ec_after = None
+        
+        return {
+            "ok": True,
+            "pump": pump,
+            "seconds": seconds,
+            "ec_before": ec_before,
+            "ec_after": ec_after,
+            "ts": datetime.now(timezone.utc).isoformat()
+        }
     
-    # Schedule post-read after settling time (async)
-    observe_s = _i("dosing.observe_s_after_dose", 900)
-    threading.Thread(
-        target=_read_post_ec_async,
-        args=(rowid, observe_s),
-        daemon=True
-    ).start()
-    
-    ec_after = None
-    
-    return {
-        "ok": True,
-        "pump": pump,
-        "seconds": seconds,
-        "ec_before": ec_before,
-        "ec_after": ec_after,
-        "ts": datetime.now(timezone.utc).isoformat()
-    }
-    
-    # Legacy mode: ml+mix_ratio
+    # Legacy mode: ml+mix_ratio (only reached if pump+seconds not in body)
     ml = body.get("ml", 0)
     mix_ratio = body.get("mix_ratio", "schedule")  # schedule | custom
     custom = body.get("custom", {})
