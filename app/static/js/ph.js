@@ -228,15 +228,44 @@
     updateHealthIndicator();
     if(recent && s){
       recent.innerHTML = '';
-      // Ensure compact, scrollable log even if HTML wasn't updated
-      try{ recent.style.maxHeight = '140px'; recent.style.overflowY = 'auto'; recent.style.paddingRight = '6px'; }catch(e){}
-      (s.recent||[]).forEach(r => {
-        const li = document.createElement('div');
-        li.className = 'muted';
-        const when = r.ts_utc?.replace('T',' ').replace('Z','');
-        li.textContent = `${when} • ${r.action} • ${r.volume_ml||''} ml • ${r.result}${r.reason? ' • '+r.reason: ''}`;
-        recent.appendChild(li);
-      });
+      // Ensure compact, scrollable log with proper styling
+      try{ recent.style.maxHeight = '220px'; recent.style.overflowY = 'auto'; recent.style.paddingRight = '6px'; }catch(e){}
+      const doses = s.recent || [];
+      if(doses.length === 0){
+        recent.innerHTML = '<div style="opacity:0.5;font-size:var(--font-xs);">No doses recorded</div>';
+        return;
+      }
+      
+      // Reverse for newest-first (s.recent is already ordered, but render in display order)
+      const rows = doses.map(d => {
+        const ts = d.ts_utc?.split('T')[0] + ' ' + (d.ts_utc?.split('T')[1]?.split('Z')[0] || '');
+        const phBefore = (d.pre_ph != null) ? d.pre_ph.toFixed(3) : '—';
+        const phAfter = (d.post_ph != null) ? d.post_ph.toFixed(3) : '—';
+        const delta = (d.pre_ph != null && d.post_ph != null)
+          ? (d.post_ph - d.pre_ph)
+          : null;
+        const deltaStr = (delta !== null) ? `${delta >= 0 ? '+' : ''}${delta.toFixed(3)}` : '—';
+        const volume = (d.volume_ml != null) ? `${d.volume_ml.toFixed(2)} ml` : '— ml';
+        const duration = (d.duration_ms != null) ? `${(d.duration_ms / 1000).toFixed(1)}s` : null;
+        const result = d.result || 'ok';
+        const reason = d.reason || 'dose';
+        
+        // Single-row compact chip: time • pH • Δ • volume • duration • result • reason
+        const dot = '<span style="color:#4b5563;">•</span>';
+        const segments = [
+          `<span style="font-weight:700;">${ts}</span>`,
+          `<span style="color:#9ca3af;">pH ${phBefore}→${phAfter}</span>`,
+          `<span style="color:#9ca3af;">Δ ${deltaStr}</span>`,
+          `<span style="color:#9ca3af;">${volume}</span>`
+        ];
+        if (duration) segments.push(`<span style="color:#9ca3af;">${duration}</span>`);
+        segments.push(`<span style="color:#9ca3af;">${result}</span>`);
+        segments.push(`<span style="color:#9ca3af;">${reason}</span>`);
+        
+        return `<div style="margin-bottom:4px;padding:4px 6px;border-radius:4px;background:rgba(59,130,246,0.06);border-left:2px solid rgba(59,130,246,0.25);display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--font-xs);color:#cbd5e1;">${segments.join(dot)}</div>`;
+      }).join('');
+      
+      recent.innerHTML = rows;
     }
     // Determine disabled state; maintenance override bypasses cooldown/daily_cap
     const g = s?.guards || {};
