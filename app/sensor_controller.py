@@ -1147,8 +1147,8 @@ def get_ph_calibration_status() -> Dict[str, Any]:
                 if (not response or response == "No response" or not points):
                     logger.info(f"pH Cal,? failed (response={repr(response)}, points={points}), trying DB fallback")
                     try:
-                        from app.settings import get_settings
-                        settings = get_settings()
+                        from app.settings import get_all_settings
+                        settings = get_all_settings()
                         db_points = []
                         for pt in ["mid", "low", "high"]:
                             val = settings.get(f"cal.ph.{pt}")
