@@ -2975,8 +2975,8 @@ def api_sensors():
     ph_calibrated = bool(settings.get("cal.ph.mid") or settings.get("cal.ph.low"))
     ec_calibrated = settings.get("ec.cal_low_us", "0") != "0"
     
-    logger.debug(f"Calibration check: pH mid={settings.get('cal.ph.mid')}, low={settings.get('cal.ph.low')}, ph_calibrated={ph_calibrated}")
-    logger.debug(f"Calibration check: EC low_us={settings.get('ec.cal_low_us')}, ec_calibrated={ec_calibrated}")
+    logger.info(f"Calibration check: pH mid={settings.get('cal.ph.mid')}, low={settings.get('cal.ph.low')}, ph_calibrated={ph_calibrated}")
+    logger.info(f"Calibration check: EC low_us={settings.get('ec.cal_low_us')}, ec_calibrated={ec_calibrated}")
     
     cal_state = {
         "temp": {"is_calibrated": False, "detail": "db"},
