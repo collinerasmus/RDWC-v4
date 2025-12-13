@@ -185,7 +185,7 @@ def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
     with sqlite3.connect(str(DB_PATH)) as conn:
         cur = conn.cursor()
         cur.execute(
-            "SELECT id, ts_utc, action, volume_ml, mix_ratio, duration_ms, pre_ec, post_ec, result, reason FROM ec_dose_log ORDER BY id DESC LIMIT ?",
+            "SELECT id, ts_utc, action, volume_ml, mix_ratio, duration_ms, pre_ec, post_ec, result, reason FROM ec_dose_log WHERE post_ec IS NOT NULL ORDER BY id DESC LIMIT ?",
             (int(limit),)
         )
         rows = cur.fetchall()
