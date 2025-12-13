@@ -676,7 +676,8 @@ body{
 <script src="/static/js/error_reporter.js"></script>
 <!-- System Information Controller: fetches and displays comprehensive system info -->
 <script src="/static/system_info.js"></script>
-</head>
+<!-- Chart Controls: unified zoom + slider interface for all charts -->
+<parameter name="filePath">c:\Users\USER-PC\OneDrive\Documents\GitHub\RDWC-v4\app\static\index.html
 <body>
 <main id="rdwc-root" class="container">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
@@ -786,6 +787,9 @@ body{
   <button class="btn-chip ctrl-with-dot" data-tab="sensors" aria-label="Sensors">
     <span class="ctrl-label">🔬 Sensors</span>
     <span class="ctrl-health-dot" data-controller="sensors" aria-label="Sensors status"></span>
+  </button>
+  <button class="btn-chip" data-tab="trends" aria-label="Trends">
+    <span class="ctrl-label">📈 Trends</span>
   </button>
   <button class="btn-chip ctrl-with-dot" data-tab="ph" aria-label="pH">
     <span class="ctrl-label">🧪 pH</span>
@@ -1455,24 +1459,8 @@ body{
         <canvas id="trendChart"></canvas>
         <div id="trendEmpty" class="muted small" style="display:none;padding:8px 0;">No data for selected period.</div>
       </div>
-      <!-- Time range selector -->
-      <div class="trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
-        <select id="trendRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
-          <option value="1h">Last Hour</option>
-          <option value="24h" selected>Last 24 Hours</option>
-          <option value="1w">Last Week</option>
-          <option value="1m">Last Month</option>
-          <option value="grow">Entire Grow</option>
-          <option value="custom">Custom Range...</option>
-        </select>
-        <div id="trendCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
-          <input type="datetime-local" id="trendFrom" class="dt-input">
-          <span style="opacity:0.5;font-size:var(--font-sm);">to</span>
-          <input type="datetime-local" id="trendTo" class="dt-input">
-          <button class="btn btn-secondary btn-compact" id="trendApply">Apply</button>
-        </div>
-        <button id="btnSensorsExport" class="btn-secondary btn-small" title="Export displayed graph data to CSV" onclick="exportCsv()" style="margin-left:auto;">Export CSV</button>
-      </div>
+      <!-- Unified controls (zoom + slider) -->
+      <div id="sensors-chart-controls"></div>
       <!-- Settings with exclusive-open accordions -->
       <div style="margin-top:12px;">
         <div class="muted" style="cursor:default;font-size:var(--font-lg);margin-bottom:8px;">⚙️ Settings</div>
@@ -1615,6 +1603,23 @@ body{
     </div>
   </section>
 
+  <!-- Trends Tab - Historical sensor data with zoom + slider controls -->
+  <section id="trends-card" class="card card-wide tab-section" data-tab="trends" style="display:none;">
+    <div class="card-header">
+      <h3 class="card-title">📈 Sensor Trends</h3>
+    </div>
+    <div class="card-body">
+      <!-- Chart -->
+      <div id="trends-chart-wrap" class="chart-card">
+        <canvas id="trendsChart"></canvas>
+        <div id="trendsEmpty" class="muted small" style="display:none;padding:8px 0;">No data for selected period.</div>
+      </div>
+      
+      <!-- Unified controls (zoom + slider) -->
+      <div id="trends-controls"></div>
+    </div>
+  </section>
+
   <!-- 4. pH Control Card -->
   <section id="ph-card" class="card card-wide tab-section" data-tab="ph" style="display:none;">
         <div class="card-header">
@@ -1662,24 +1667,8 @@ body{
               No doses recorded in this period.
             </div>
           </div>
-          <!-- 4. Graph Controls (Standardized dropdown + always-visible datetime inputs) -->
-          <div class="ph-dose-controls trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
-            <select id="phDoseRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
-              <option value="1h">Last Hour</option>
-              <option value="24h" selected>Last 24 Hours</option>
-              <option value="1w">Last Week</option>
-              <option value="1m">Last Month</option>
-              <option value="grow">Entire Grow</option>
-              <option value="custom">Custom Range...</option>
-            </select>
-            <div id="phDoseCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
-              <input type="datetime-local" id="phDoseFrom" class="dt-input" />
-              <span style="opacity:0.5;font-size:var(--font-sm);">to</span>
-              <input type="datetime-local" id="phDoseTo" class="dt-input" />
-              <button class="btn btn-secondary btn-compact" id="phDoseApply">Apply</button>
-            </div>
-            <button id="btnPhExport" class="btn-secondary btn-small" title="Export displayed pH dose history to CSV" style="margin-left:auto;">Export CSV</button>
-          </div>
+          <!-- Unified controls (zoom + slider) -->
+          <div id="ph-chart-controls"></div>
 
           <!-- Dose Log (Recent Events) -->
           <div style="margin-top:12px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);">
@@ -1871,23 +1860,8 @@ body{
                 No doses recorded in this period.
               </div>
             </div>
-            <div class="trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
-              <select id="ecDoseRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
-                <option value="1h">Last Hour</option>
-                <option value="24h" selected>Last 24 Hours</option>
-                <option value="1w">Last Week</option>
-                <option value="1m">Last Month</option>
-                <option value="grow">Entire Grow</option>
-                <option value="custom">Custom Range...</option>
-              </select>
-              <div id="ecDoseCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
-                <input type="datetime-local" id="ecDoseFrom" class="dt-input" />
-                <span style="opacity:0.5;font-size:var(--font-sm);">to</span>
-                <input type="datetime-local" id="ecDoseTo" class="dt-input" />
-                <button class="btn btn-secondary btn-compact" id="ecDoseApply">Apply</button>
-              </div>
-              <button id="btnEcExport" class="btn-secondary btn-small" title="Export displayed EC dose history to CSV" style="margin-left:auto;">Export CSV</button>
-            </div>
+            <!-- Unified controls (zoom + slider) -->
+            <div id="ec-chart-controls"></div>
 
             <!-- Dose Log (Recent Events) -->
             <div style="margin-top:12px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);">
