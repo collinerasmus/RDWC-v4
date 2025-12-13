@@ -623,7 +623,7 @@
       const ordered = [...doses].reverse();
       const rows = ordered.map(d => {
         const ts = new Date(d.ts);
-        const tsStr = ts.toLocaleString([], {month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+        const tsStr = `${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,'0')}-${String(ts.getDate()).padStart(2,'0')} ${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}:${String(ts.getSeconds()).padStart(2,'0')}`;
         const total = (d.volume_ml != null) ? `${d.volume_ml.toFixed(2)} ml` : '— ml';
         const g = d.pumps?.grow != null ? `G:${d.pumps.grow.toFixed(2)} ml` : null;
         const m = d.pumps?.micro != null ? `M:${d.pumps.micro.toFixed(2)} ml` : null;
@@ -639,16 +639,19 @@
         const reason = d.reason || detail;
         const duration = (d.seconds != null) ? `${d.seconds.toFixed(1)}s` : null;
 
-        // Single-row compact chip: time | detail | EC | delta | volume | duration | pumps
-        return `<div style="margin-bottom:4px;padding:4px 6px;border-radius:4px;background:rgba(59,130,246,0.06);border-left:2px solid rgba(59,130,246,0.25);display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--font-xs);color:#cbd5e1;">`
-          + `<span style="font-weight:700;">${tsStr}</span>`
-          + `<span style="color:#9ca3af;">EC ${ecBefore}→${ecAfter}</span>`
-          + `<span style="color:#9ca3af;">Δ ${deltaStr}</span>`
-          + `<span style="color:#9ca3af;">${total}</span>`
-          + (duration ? `<span style="color:#9ca3af;">${duration}</span>` : '')
-          + (pumpParts ? `<span style="color:#9ca3af;">${pumpParts}</span>` : '')
-          + `<span style="color:#9ca3af;">${reason}</span>`
-          + `</div>`;
+        // Single-row compact chip: time • EC • Δ • volume • duration • pumps • reason
+        const dot = '<span style="color:#4b5563;">•</span>';
+        const segments = [
+          `<span style="font-weight:700;">${tsStr}</span>`,
+          `<span style="color:#9ca3af;">EC ${ecBefore}→${ecAfter}</span>`,
+          `<span style="color:#9ca3af;">Δ ${deltaStr}</span>`,
+          `<span style="color:#9ca3af;">${total}</span>`
+        ];
+        if (duration) segments.push(`<span style="color:#9ca3af;">${duration}</span>`);
+        if (pumpParts) segments.push(`<span style="color:#9ca3af;">${pumpParts}</span>`);
+        segments.push(`<span style="color:#9ca3af;">${reason}</span>`);
+
+        return `<div style="margin-bottom:4px;padding:4px 6px;border-radius:4px;background:rgba(59,130,246,0.06);border-left:2px solid rgba(59,130,246,0.25);display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--font-xs);color:#cbd5e1;">${segments.join(dot)}</div>`;
       }).join('');
 
       container.innerHTML = rows;
