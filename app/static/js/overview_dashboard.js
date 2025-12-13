@@ -135,7 +135,9 @@
     const healthEl = el('ov-ec-health');
     const statusChipEl = el('ov-ec-status');
     
-    if (currentEl) currentEl.textContent = status.ec_mscm !== null && status.ec_mscm !== undefined ? status.ec_mscm.toFixed(2) : '—';
+    // EC status returns 'ec' not 'ec_mscm'
+    const ecValue = status.ec !== null && status.ec !== undefined ? status.ec : status.ec_mscm;
+    if (currentEl) currentEl.textContent = ecValue !== null && ecValue !== undefined ? ecValue.toFixed(2) : '—';
     
     // Setpoint from targets midpoint
     if (setpointEl && status.targets) {
@@ -192,8 +194,12 @@
     const healthEl = el('ov-temperature-health');
     const statusChipEl = el('ov-temperature-status');
     
-    if (waterEl) waterEl.textContent = status.temperature_c !== null && status.temperature_c !== undefined ? status.temperature_c.toFixed(1) + '°C' : '—';
-    if (targetEl) targetEl.textContent = status.target_c !== null && status.target_c !== undefined ? status.target_c.toFixed(1) + '°C' : '—';
+    // Temperature status returns 'current_temp_c' and 'target_temp_c'
+    const currentTemp = status.current_temp_c !== null && status.current_temp_c !== undefined ? status.current_temp_c : status.temperature_c;
+    const targetTemp = status.target_temp_c !== null && status.target_temp_c !== undefined ? status.target_temp_c : status.target_c;
+    
+    if (waterEl) waterEl.textContent = currentTemp !== null && currentTemp !== undefined ? currentTemp.toFixed(1) + '°C' : '—';
+    if (targetEl) targetEl.textContent = targetTemp !== null && targetTemp !== undefined ? targetTemp.toFixed(1) + '°C' : '—';
     
     // Health chip
     if (healthEl) {
@@ -262,7 +268,8 @@
   function updateScheduleKPIs(schedule) {
     if (!schedule) return;
     
-    const weekEl = el('ov-schedule-week');
+    coconst weekNum = schedule.week_number !== null && schedule.week_number !== undefined ? schedule.week_number : schedule.week;
+      weekEl.textContent = weekNum !== null && weekNum !== undefined ? `Week ${weekNum}` : 'Week —'
     const phaseEl = el('ov-schedule-phase');
     
     if (weekEl) {
