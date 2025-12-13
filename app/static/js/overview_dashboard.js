@@ -135,8 +135,8 @@
     const healthEl = el('ov-ec-health');
     const statusChipEl = el('ov-ec-status');
     
-    // EC status returns 'ec' not 'ec_mscm'
-    const ecValue = status.ec !== null && status.ec !== undefined ? status.ec : status.ec_mscm;
+    // EC status returns 'ec_ms_cm'
+    const ecValue = status.ec_ms_cm;
     if (currentEl) currentEl.textContent = ecValue !== null && ecValue !== undefined ? ecValue.toFixed(2) : '—';
     
     // Setpoint from targets midpoint
@@ -194,9 +194,9 @@
     const healthEl = el('ov-temperature-health');
     const statusChipEl = el('ov-temperature-status');
     
-    // Temperature status returns 'current_temp_c' and 'target_temp_c'
-    const currentTemp = status.current_temp_c !== null && status.current_temp_c !== undefined ? status.current_temp_c : status.temperature_c;
-    const targetTemp = status.target_temp_c !== null && status.target_temp_c !== undefined ? status.target_temp_c : status.target_c;
+    // Temperature status returns 'current_temp' and 'target_temp'
+    const currentTemp = status.current_temp;
+    const targetTemp = status.target_temp;
     
     if (waterEl) waterEl.textContent = currentTemp !== null && currentTemp !== undefined ? currentTemp.toFixed(1) + '°C' : '—';
     if (targetEl) targetEl.textContent = targetTemp !== null && targetTemp !== undefined ? targetTemp.toFixed(1) + '°C' : '—';
@@ -209,8 +209,8 @@
     }
     
     // Status chip
-    if (statusChipEl && status.auto !== undefined) {
-      const enabled = status.auto;
+    if (statusChipEl && status.auto_enabled !== undefined) {
+      const enabled = status.auto_enabled;
       statusChipEl.textContent = enabled ? 'AUTO' : 'MANUAL';
       statusChipEl.className = 'ui-status-chip ' + (enabled ? 'success' : 'neutral');
       statusChipEl.style.fontSize = '0.6rem';
@@ -272,7 +272,7 @@
     const phaseEl = el('ov-schedule-phase');
     
     if (weekEl) {
-      const weekNum = schedule.week_number !== null && schedule.week_number !== undefined ? schedule.week_number : schedule.week;
+      const weekNum = schedule.week;
       weekEl.textContent = weekNum !== null && weekNum !== undefined ? `Week ${weekNum}` : 'Week —';
     }
     
