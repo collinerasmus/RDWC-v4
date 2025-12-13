@@ -231,13 +231,15 @@
       // Ensure compact, scrollable log with proper styling
       try{ recent.style.maxHeight = '220px'; recent.style.overflowY = 'auto'; recent.style.paddingRight = '6px'; }catch(e){}
       const doses = s.recent || [];
-      if(doses.length === 0){
+      // Filter out incomplete entries (missing post_ph means dose hasn't been confirmed yet)
+      const completeDoses = doses.filter(d => d.post_ph != null);
+      if(completeDoses.length === 0){
         recent.innerHTML = '<div style="opacity:0.5;font-size:var(--font-xs);">No doses recorded</div>';
         return;
       }
       
       // Reverse for newest-first (s.recent is already ordered, but render in display order)
-      const rows = doses.map(d => {
+      const rows = completeDoses.map(d => {
         // Parse ISO timestamp same as EC (YYYY-MM-DD HH:MM:SS)
         const ts = new Date(d.ts_utc);
         const tsStr = `${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,'0')}-${String(ts.getDate()).padStart(2,'0')} ${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}:${String(ts.getSeconds()).padStart(2,'0')}`;
