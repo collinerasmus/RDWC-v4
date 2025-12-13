@@ -676,7 +676,7 @@
     }
 
     // Current pH display + range coloring (basic heuristic using settings if present)
-    function setCurrent(v){
+    async function setCurrent(v){
       const sp = el('phCalCurrentReading');
       if(!sp) return;
       if(v==null){ sp.textContent = '—'; sp.style.color = '#9ca3af'; return; }
@@ -738,7 +738,7 @@
         const resp = await fetch('/calib/ph/read?t='+Date.now(), {cache:'no-store'});
         const r = await resp.json();
         if (r && r.ok){ 
-          setCurrent(r.value); 
+          await setCurrent(r.value); 
           setMsg(`pH: ${Number(r.value).toFixed(2)}`, true, 'success'); 
         } else { 
           const hint = (r && r.note === 'NoData') 
@@ -757,7 +757,7 @@
         const resp = await fetch('/calib/ph/read_stable?t='+Date.now(), {cache:'no-store'});
         const r = await resp.json();
         if (r && r.ok){ 
-          setCurrent(r.value); 
+          await setCurrent(r.value); 
           setMsg(`Stable pH: ${Number(r.value).toFixed(2)} (σ=${r.std?.toFixed(3)||'?'})`, true, 'success'); 
         } else { 
           const hint = (r && r.note && r.note.includes('NoData')) 
@@ -815,7 +815,7 @@
           const sensorsResp = await fetch('/api/sensors?t='+Date.now(), {cache:'no-store'});
           const sensorsData = await sensorsResp.json();
           if(sensorsData && typeof sensorsData.ph === 'number') {
-            setCurrent(sensorsData.ph);
+            await setCurrent(sensorsData.ph);
           }
         } catch(e) { /* Ignore sensor fetch errors */ }
       }catch(e){ if(showLoading) setMsg(`✗ Status failed (network): ${e.message}`, false); }
