@@ -201,13 +201,15 @@ def get_all_settings() -> Dict[str, str]:
         if row and len(row) >= 2:
             k, v = row[0], row[1]
             result[k] = v if v is not None else ""
-    return result
+    return result if result else {}
 
 def get_settings_grouped() -> Dict[str, Dict[str, Any]]:
     """Return grouped settings by namespace: {namespace: {key: value}}.
     Values are strings; UI/backend can cast/validate as needed.
     """
     flat = get_all_settings()
+    if flat is None:
+        flat = {}
     grouped: Dict[str, Dict[str, Any]] = {}
     for k, v in flat.items():
         if "." in k:

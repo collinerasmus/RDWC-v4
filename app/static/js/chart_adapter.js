@@ -34,7 +34,8 @@
       trendsChart: !!window.trendsChart,
       phChart: !!window.phChart,
       ecChart: !!window.ecChart,
-      temperatureChart: !!window.temperatureChart
+      temperatureChart: !!window.temperatureChart,
+      circChart: !!window.circChart
     });
 
     // ===== SENSORS CHART =====
