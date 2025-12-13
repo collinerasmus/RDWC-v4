@@ -1558,3 +1558,33 @@ def _stop_auto_worker():
         if _auto_thread:
             _auto_thread.join(timeout=2)
             _auto_thread = None
+
+# --- Module initialization ---------------------------------------------------
+def _init_learning_on_load():
+    """On module load, recalculate learning from existing dose log if available."""
+    global _learned_ml_per_mScm
+    _ensure_tables()
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM ec_dose_log
+                WHERE result='ok' AND pre_ec IS NOT NULL AND post_ec IS NOT NULL
+                  AND volume_ml > 0
+                """
+            )
+            count = cur.fetchone()[0]
+        if count > 0:
+            _update_learning(None, None)
+            import logging
+            logging.info(f"EC learning initialized: {_learned_ml_per_mScm} ml/mScm from {count} doses")
+    except Exception as e:
+        import logging
+        logging.warning(f"Failed to initialize EC learning on load: {e}")
+
+# Initialize learning on module load
+try:
+    _init_learning_on_load()
+except Exception:
+    pass  # Silently fail if DB not ready yet
