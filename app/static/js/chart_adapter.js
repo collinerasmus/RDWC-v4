@@ -16,9 +16,9 @@
 
   // Wait for DOM and dependencies
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => setTimeout(init, 500));
   } else {
-    setTimeout(init, 100); // Small delay to ensure chart modules loaded
+    setTimeout(init, 500); // Increased delay to ensure chart modules loaded
   }
 
   function init() {
@@ -27,6 +27,15 @@
       console.error('[Chart Adapter] ChartControls not loaded');
       return;
     }
+
+    console.log('[Chart Adapter] Starting initialization...');
+    console.log('[Chart Adapter] Available chart instances:', {
+      sensorsChart: !!window.sensorsChart,
+      trendsChart: !!window.trendsChart,
+      phChart: !!window.phChart,
+      ecChart: !!window.ecChart,
+      temperatureChart: !!window.temperatureChart
+    });
 
     // ===== SENSORS CHART =====
     // sensors_chart.js exposes window.sensorsChart (RDWCChart instance)
