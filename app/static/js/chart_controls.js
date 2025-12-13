@@ -83,6 +83,13 @@
         </div>
       `;
       
+      // Log visibility info
+      const computed = window.getComputedStyle(this.container);
+      const parent = this.container.parentElement;
+      const parentComputed = parent ? window.getComputedStyle(parent) : null;
+      console.log('[ChartControls] After render - Container display:', computed.display, 'visibility:', computed.visibility, 'overflow:', computed.overflow);
+      console.log('[ChartControls] Parent element:', parent?.tagName, 'display:', parentComputed?.display, 'overflow:', parentComputed?.overflow);
+      
       // Wire up event listeners
       const zoomOut = this.container.querySelector('.chart-zoom-out');
       const zoomIn = this.container.querySelector('.chart-zoom-in');
