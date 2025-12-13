@@ -2,6 +2,16 @@
 ### Planned
 - Finalize v1.0.0 stable after Phase 11 soak testing and user approval.
 
+### Checkpoint — 2025-12-13
+- Commit: 1ed1b0a (main)
+- Version: v4.0-ph1-final
+- Services: rdwc=active, rdwc-sensors=active
+- Charts: Pan/Zoom controls unified; 1h/1d/1w/1m pan shifts window width; forced refresh on user actions
+- API `/api/sensors`: 10 calls avg ~6.2ms, 95th ~20.4ms
+- Poller: running=true, interval=5s, heartbeat fresh, I²C=/dev/i2c-1
+- Relays: mode=auto, estop=false, protected relays sane (lights off, chiller power off)
+- DB: data/rdwc.db ~7.2 MB
+
 ## [1.0.0-rc1-ui-stable] - 2025-11-26
 ### Changed
 - Frontend cache-busting and version bump to `1.0.0-rc1-fix831-ui-stable`.
