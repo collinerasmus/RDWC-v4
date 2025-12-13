@@ -52,11 +52,11 @@
           <!-- Zoom controls -->
           <div style="display:flex;align-items:center;gap:6px;">
             <span style="font-size:var(--font-sm);color:#9ca3af;font-weight:600;">Zoom:</span>
-            <button class="chart-zoom-out btn-secondary btn-compact" title="Zoom out (wider time range)">
+            <button class="chart-zoom-out btn-secondary btn-compact" style="background:#334155;color:#e2e8f0;border:1px solid #1f2937;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;" title="Zoom out (wider time range)">
               <span style="font-size:16px;font-weight:bold;">−</span>
             </button>
             <span class="chart-zoom-label" style="min-width:90px;text-align:center;font-size:var(--font-sm);font-weight:600;color:#cbd5e1;">${zoom.label}</span>
-            <button class="chart-zoom-in btn-secondary btn-compact" title="Zoom in (narrower time range)">
+            <button class="chart-zoom-in btn-secondary btn-compact" style="background:#334155;color:#e2e8f0;border:1px solid #1f2937;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;" title="Zoom in (narrower time range)">
               <span style="font-size:16px;font-weight:bold;">+</span>
             </button>
           </div>
@@ -64,17 +64,17 @@
           <!-- Pan controls -->
           <div style="display:flex;align-items:center;gap:6px;">
             <span style="font-size:var(--font-sm);color:#9ca3af;font-weight:600;">Pan:</span>
-            <button class="chart-pan-left btn-secondary btn-compact" title="Pan backward in time">
+            <button class="chart-pan-left btn-secondary btn-compact" style="background:#334155;color:#e2e8f0;border:1px solid #1f2937;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;" title="Pan backward in time">
               <span style="font-size:16px;font-weight:bold;">←</span>
             </button>
-            <button class="chart-pan-right btn-secondary btn-compact" title="Pan forward in time">
+            <button class="chart-pan-right btn-secondary btn-compact" style="background:#334155;color:#e2e8f0;border:1px solid #1f2937;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;" title="Pan forward in time">
               <span style="font-size:16px;font-weight:bold;">→</span>
             </button>
-            <button class="chart-now-btn btn-secondary btn-compact" title="Jump to latest data">Now</button>
+            <button class="chart-now-btn btn-secondary btn-compact" style="background:#334155;color:#e2e8f0;border:1px solid #1f2937;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;" title="Jump to latest data">Now</button>
           </div>
           
           <!-- Export button -->
-          <button class="chart-export-btn btn-secondary btn-compact" style="margin-left:auto;" title="Export chart data to CSV">Export CSV</button>
+          <button class="chart-export-btn btn-secondary btn-compact" style="margin-left:auto;background:#334155;color:#e2e8f0;border:1px solid #1f2937;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;" title="Export chart data to CSV">Export CSV</button>
         </div>
         
         <!-- Range display -->
