@@ -582,6 +582,7 @@
     // Settings save
     el('btnSaveEcSettings')?.addEventListener('click', async ()=>{
       const payload = {
+        'targets.ec_tolerance': el('ecTolerance')?.value,
         'dosing.grow_ml_per_sec': el('ecGrowMlPerSec')?.value,
         'dosing.micro_ml_per_sec': el('ecMicroMlPerSec')?.value,
         'dosing.bloom_ml_per_sec': el('ecBloomMlPerSec')?.value,
@@ -735,6 +736,7 @@
     if (el('ecGrowMlPerSec')) el('ecGrowMlPerSec').value = window.rdwcSettings.get('dosing.grow_ml_per_sec') || '20';
     if (el('ecMicroMlPerSec')) el('ecMicroMlPerSec').value = window.rdwcSettings.get('dosing.micro_ml_per_sec') || '20';
     if (el('ecBloomMlPerSec')) el('ecBloomMlPerSec').value = window.rdwcSettings.get('dosing.bloom_ml_per_sec') || '20';
+    if (el('ecTolerance')) el('ecTolerance').value = window.rdwcSettings.get('targets.ec_tolerance') || '0.2';
     el('ecStepMinMl').value = window.rdwcSettings.get('dosing.ec_step_ml_min') || '5';
     el('ecStepMaxMl').value = window.rdwcSettings.get('dosing.ec_step_ml_max') || '30';
     el('ecSafetyFactor').value = window.rdwcSettings.get('dosing.ec_safety_factor') || '0.6';
