@@ -59,7 +59,7 @@
     // Status indicator
     const statusEl = el('ov-sensors-status-text');
     if (statusEl) {
-      const age = sensors.ts ? (Date.now() / 1000 - sensors.ts) : 999;
+      const age = sensors.ts ? ((Date.now() - new Date(sensors.ts).getTime()) / 1000) : 999;
       const online = sensors.online && age < 90;
       
       statusEl.textContent = online ? 'ONLINE' : 'OFFLINE';
