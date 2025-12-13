@@ -225,15 +225,15 @@
     // Temperature relays
     const chillerEl = el('ov-temperature');
     const tempPumpEl = el('ov-temperature-pump');
-    if (chillerEl && r.chiller) {
-      chillerEl.textContent = r.chiller.is_on ? 'ON' : 'OFF';
-      chillerEl.classList.toggle('relay-on', r.chiller.is_on);
-      chillerEl.classList.toggle('relay-off', !r.chiller.is_on);
+    if (chillerEl && r.chiller_power) {
+      chillerEl.textContent = r.chiller_power.is_on ? 'ON' : 'OFF';
+      chillerEl.classList.toggle('relay-on', r.chiller_power.is_on);
+      chillerEl.classList.toggle('relay-off', !r.chiller_power.is_on);
     }
-    if (tempPumpEl && r.temperature_pump) {
-      tempPumpEl.textContent = r.temperature_pump.is_on ? 'ON' : 'OFF';
-      tempPumpEl.classList.toggle('relay-on', r.temperature_pump.is_on);
-      tempPumpEl.classList.toggle('relay-off', !r.temperature_pump.is_on);
+    if (tempPumpEl && r.chiller_pump) {
+      tempPumpEl.textContent = r.chiller_pump.is_on ? 'ON' : 'OFF';
+      tempPumpEl.classList.toggle('relay-on', r.chiller_pump.is_on);
+      tempPumpEl.classList.toggle('relay-off', !r.chiller_pump.is_on);
     }
     
     // Main pump

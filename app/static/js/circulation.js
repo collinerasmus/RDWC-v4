@@ -22,7 +22,7 @@
       circEstop = !!wrap.estop;
       const rel = wrap.relays || {};
       const main = rel.main_pump || {};
-      const temp = rel.temperature_pump || {};
+      const temp = rel.chiller_pump || {};
       const cdMain = main.cooldown_remaining || main.cooldown || 0;
       const cdtemp = temp.cooldown_remaining || temp.cooldown || 0;
       circCooldown = (cdMain>0) || (cdtemp>0);
