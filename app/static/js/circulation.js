@@ -403,8 +403,11 @@
       return;
     }
 
-    // Check if tab is already visible
-    if (card.style.display !== 'none' && card.style.display !== '') {
+    // Check if tab is already visible (empty string or not 'none' means visible)
+    const isVisible = card.style.display !== 'none';
+    console.log('[Circulation] Card display style:', card.style.display, 'isVisible:', isVisible);
+    
+    if (isVisible) {
       console.log('[Circulation] Tab already visible, initializing immediately');
       initCirculation();
       return;
