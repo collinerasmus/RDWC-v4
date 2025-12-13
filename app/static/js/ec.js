@@ -85,8 +85,10 @@
     
     if(ecVal){ ecVal.textContent = (s && s.ec_ms_cm!=null) ? s.ec_ms_cm.toFixed(2) : '—'; }
     if(band && s){
-      const low = (s.targets && s.targets.low!=null) ? Number(s.targets.low).toFixed(2) : '—';
-      const high = (s.targets && s.targets.high!=null) ? Number(s.targets.high).toFixed(2) : '—';
+      const rawLow = (s.targets && s.targets.low!=null) ? Number(s.targets.low) : null;
+      const rawHigh = (s.targets && s.targets.high!=null) ? Number(s.targets.high) : null;
+      const low = rawLow!=null ? rawLow.toFixed(2) : '—';
+      const high = rawHigh!=null ? rawHigh.toFixed(2) : '—';
       band.textContent = `${low} – ${high}`;
       // Optional KPI row element if present
       const kpiTargets = el('ec-kpi-targets');
@@ -98,6 +100,12 @@
       // Update Parameters scheduler target chip
       const schedChip = el('ecSchedulerTargetChip');
       if(schedChip) schedChip.textContent = `Target: ${low}–${high} mS/cm`;
+      // Update EC setpoint display from scheduler-derived targets
+      const setpointEl = el('ecSetpoint');
+      if(setpointEl && rawLow!=null && rawHigh!=null){
+        const sp = (rawLow + rawHigh) / 2;
+        setpointEl.textContent = (!Number.isNaN(sp)) ? sp.toFixed(2) : '—';
+      }
     }
     if(guards && s){
       const list = guardList(s.guards);
