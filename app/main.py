@@ -2975,6 +2975,10 @@ def api_sensors():
     ph_calibrated = bool(settings.get("cal.ph.mid") or settings.get("cal.ph.low"))
     ec_calibrated = settings.get("ec.cal_low_us", "0") != "0"
     
+    # Force output for debugging
+    import sys
+    print(f"DEBUG API_SENSORS: pH={ph_calibrated}, EC={ec_calibrated}, mid={settings.get('cal.ph.mid')}", file=sys.stderr, flush=True)
+    
     logger.info(f"Calibration check: pH mid={settings.get('cal.ph.mid')}, low={settings.get('cal.ph.low')}, ph_calibrated={ph_calibrated}")
     logger.info(f"Calibration check: EC low_us={settings.get('ec.cal_low_us')}, ec_calibrated={ec_calibrated}")
     
