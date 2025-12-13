@@ -1178,6 +1178,16 @@ def api_relays_status():
     restore = get_last_restore_event() if mode == 'auto' else {"restored": False}
     return {"mode": mode, "estop": estop, "restored": bool(restore.get("restored", False)), "relays": rel}
 
+@app.get("/api/relays/events")
+def api_relay_events(name: str = Query("main_pump", description="Relay name (e.g., main_pump, chiller_pump)"), 
+                     last: int = Query(50, description="Number of recent events")):
+    """Get recent relay state change events for timeline/analytics."""
+    try:
+        events = get_relay_event_log(name, last=last)
+        return events
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.post("/api/sensors/power_cycle")
 def api_sensors_power_cycle(off_ms: int = 2000, post_wait_ms: int = 4000, validate: int = 1):
     """Power-cycle the EZO sensor power rail via optional relay 'sensor_power'.
