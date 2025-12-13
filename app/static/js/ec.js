@@ -135,6 +135,30 @@
       else learnedKpi.textContent = val;
     }
 
+    // Update pump status indicators in calibration section
+    try {
+      const relayRes = await fetch('/api/relays/status', {cache: 'no-store'});
+      if (relayRes.ok) {
+        const relayData = await relayRes.json();
+        const relays = relayData?.relays || {};
+        const growStatus = el('growPumpStatus');
+        const microStatus = el('microPumpStatus');
+        const bloomStatus = el('bloomPumpStatus');
+
+        const setStatus = (el, isOn) => {
+          if (!el) return;
+          el.textContent = isOn ? 'Running' : 'Idle';
+          el.style.color = isOn ? '#16a34a' : '#9ca3af';
+        };
+
+        setStatus(growStatus, relays.dosing_grow?.is_on === true);
+        setStatus(microStatus, relays.dosing_micro?.is_on === true);
+        setStatus(bloomStatus, relays.dosing_bloom?.is_on === true);
+      }
+    } catch (e) {
+      console.warn('[EC] Failed to fetch pump status for calibration:', e);
+    }
+
     // Update controller health chip after status changes
     updateHealthIndicator();
     
