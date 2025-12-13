@@ -247,13 +247,18 @@
         timelineChart.destroy();
       }
       
+      const mainData = buildTimeline(mainFiltered, currentMainState);
+      const chillerData = buildTimeline(chillerFiltered, currentChillerState);
+      console.log('[Circulation] Timeline data - Main:', mainData.length, 'points, Chiller:', chillerData.length, 'points');
+      console.log('[Circulation] Sample main data:', mainData.slice(0, 3));
+      
       timelineChart = new Chart(ctx, {
         type: 'line',
         data: {
           datasets: [
             {
               label: 'Main Pump',
-              data: buildTimeline(mainFiltered, currentMainState),
+              data: mainData,
               borderColor: '#60a5fa',
               backgroundColor: 'rgba(96,165,250,0.1)',
               borderWidth: 2,
@@ -263,7 +268,7 @@
             },
             {
               label: 'Chiller Pump',
-              data: buildTimeline(chillerFiltered, currentChillerState),
+              data: chillerData,
               borderColor: '#22d3ee',
               backgroundColor: 'rgba(34,211,238,0.1)',
               borderWidth: 2,
