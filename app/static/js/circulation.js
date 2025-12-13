@@ -348,12 +348,14 @@
 
   // Initialize when tab becomes visible
   function initCirculation() {
+    console.log('[Circulation] Initializing circulation controller');
     refreshAll();
     
     // Setup refresh button
     const btnRefresh = document.getElementById('btnRefreshTimeline');
     if (btnRefresh) {
       btnRefresh.addEventListener('click', () => {
+        console.log('[Circulation] Manual refresh triggered');
         updateTimelineChart();
         updateEventsLog();
       });
@@ -379,10 +381,12 @@
 
   // Initialize when tab becomes visible
   document.addEventListener('DOMContentLoaded', () => {
+    console.log('[Circulation] DOMContentLoaded - setting up observers');
     // Watch for tab changes
     const observer = new MutationObserver(() => {
       const card = document.getElementById('circ-card');
       if (card && card.style.display !== 'none') {
+        console.log('[Circulation] Tab became visible, initializing...');
         initCirculation();
       }
     });
@@ -390,7 +394,14 @@
     const card = document.getElementById('circ-card');
     if (card) {
       observer.observe(card, { attributes: true, attributeFilter: ['style'] });
+      // Check if already visible
+      if (card.style.display !== 'none') {
+        console.log('[Circulation] Tab already visible on load');
+        initCirculation();
+      }
     }
   });
+  
+  console.log('[Circulation] Controller script loaded');
 })();
 
