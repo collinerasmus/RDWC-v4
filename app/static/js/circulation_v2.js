@@ -96,12 +96,18 @@
       const chillerStats = calcStats(chillerEvents);
       console.log('[Circulation] Main stats:', mainStats, 'Chiller stats:', chillerStats);
       
-      document.getElementById('main-runtime-today')?.textContent = formatDuration(mainStats.runtime);
-      document.getElementById('main-cycles-today')?.textContent = mainStats.cycles;
-      document.getElementById('main-last-change')?.textContent = formatTimeAgo(mainStats.lastChange);
-      document.getElementById('chiller-runtime-today')?.textContent = formatDuration(chillerStats.runtime);
-      document.getElementById('chiller-cycles-today')?.textContent = chillerStats.cycles;
-      document.getElementById('chiller-last-change')?.textContent = formatTimeAgo(chillerStats.lastChange);
+      const mainRuntimeEl = document.getElementById('main-runtime-today');
+      if (mainRuntimeEl) mainRuntimeEl.textContent = formatDuration(mainStats.runtime);
+      const mainCyclesEl = document.getElementById('main-cycles-today');
+      if (mainCyclesEl) mainCyclesEl.textContent = mainStats.cycles;
+      const mainLastEl = document.getElementById('main-last-change');
+      if (mainLastEl) mainLastEl.textContent = formatTimeAgo(mainStats.lastChange);
+      const chillerRuntimeEl = document.getElementById('chiller-runtime-today');
+      if (chillerRuntimeEl) chillerRuntimeEl.textContent = formatDuration(chillerStats.runtime);
+      const chillerCyclesEl = document.getElementById('chiller-cycles-today');
+      if (chillerCyclesEl) chillerCyclesEl.textContent = chillerStats.cycles;
+      const chillerLastEl = document.getElementById('chiller-last-change');
+      if (chillerLastEl) chillerLastEl.textContent = formatTimeAgo(chillerStats.lastChange);
       
     } catch (e) {
       console.error('[Circulation] Stats error:', e);
