@@ -636,17 +636,18 @@
           : null;
         const deltaStr = (delta !== null) ? `${delta >= 0 ? '+' : ''}${delta.toFixed(3)}` : '—';
         const detail = d.detail || 'dose';
+        const reason = d.reason || detail;
         const duration = (d.seconds != null) ? `${d.seconds.toFixed(1)}s` : null;
 
         // Single-row compact chip: time | detail | EC | delta | volume | duration | pumps
         return `<div style="margin-bottom:4px;padding:4px 6px;border-radius:4px;background:rgba(59,130,246,0.06);border-left:2px solid rgba(59,130,246,0.25);display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--font-xs);color:#cbd5e1;">`
           + `<span style="font-weight:700;">${tsStr}</span>`
-          + `<span style="color:#9ca3af;">${detail}</span>`
           + `<span style="color:#9ca3af;">EC ${ecBefore}→${ecAfter}</span>`
           + `<span style="color:#9ca3af;">Δ ${deltaStr}</span>`
           + `<span style="color:#9ca3af;">${total}</span>`
           + (duration ? `<span style="color:#9ca3af;">${duration}</span>` : '')
           + (pumpParts ? `<span style="color:#9ca3af;">${pumpParts}</span>` : '')
+          + `<span style="color:#9ca3af;">${reason}</span>`
           + `</div>`;
       }).join('');
 
