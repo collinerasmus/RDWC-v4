@@ -197,6 +197,27 @@
     // Expose for external access
     window.sensorsChart = chart;
 
+    // ===== TRENDS TAB CHART =====
+    // Also initialize trendsChart canvas for the Trends tab (separate from Sensors tab)
+    // Uses the exact same configuration and shares the same state
+    const trendsChartEl = document.getElementById('trendsChart');
+    if (trendsChartEl) {
+      const trendsChart = new RDWCChart({
+        canvasId: 'trendsChart',
+        emptyMessageId: 'trendsEmpty',
+        type: 'trends',
+        title: 'Sensor Trends',
+        
+        // Reuse the same data fetch logic as sensors chart
+        onDataFetch: chart.onDataFetch,
+        onRender: chart.onRender
+      });
+
+      // Expose for external access
+      window.trendsChart = trendsChart;
+      console.log('[Sensors Chart] Trends tab chart initialized');
+    }
+
     console.log('[Sensors Chart] Initialized');
   }
 

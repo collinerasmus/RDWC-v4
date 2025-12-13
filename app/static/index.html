@@ -677,7 +677,8 @@ body{
 <!-- System Information Controller: fetches and displays comprehensive system info -->
 <script src="/static/system_info.js"></script>
 <!-- Chart Controls: unified zoom + slider interface for all charts -->
-<parameter name="filePath">c:\Users\USER-PC\OneDrive\Documents\GitHub\RDWC-v4\app\static\index.html
+<script src="/static/js/chart_controls.js"></script>
+</head>
 <body>
 <main id="rdwc-root" class="container">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
@@ -784,12 +785,12 @@ body{
     <span class="ctrl-label">📊 Overview</span>
     <span class="ctrl-health-dot" data-controller="overview" aria-label="Overview status"></span>
   </button>
+  <button class="btn-chip" data-tab="trends" aria-label="Trends">
+    <span class="ctrl-label">📈 Trends</span>
+  </button>
   <button class="btn-chip ctrl-with-dot" data-tab="sensors" aria-label="Sensors">
     <span class="ctrl-label">🔬 Sensors</span>
     <span class="ctrl-health-dot" data-controller="sensors" aria-label="Sensors status"></span>
-  </button>
-  <button class="btn-chip" data-tab="trends" aria-label="Trends">
-    <span class="ctrl-label">📈 Trends</span>
   </button>
   <button class="btn-chip ctrl-with-dot" data-tab="ph" aria-label="pH">
     <span class="ctrl-label">🧪 pH</span>
@@ -1212,24 +1213,8 @@ body{
         No temperature data available for this period.
       </div>
     </div>
-    <!-- Chart Controls -->
-    <div class="trend-controls" style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:nowrap;">
-      <select id="temperatureRangeSelect" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-base);cursor:pointer;min-width:110px;">
-        <option value="1h">Last Hour</option>
-        <option value="24h" selected>Last 24 Hours</option>
-        <option value="1w">Last Week</option>
-        <option value="1m">Last Month</option>
-        <option value="grow">Entire Grow</option>
-        <option value="custom">Custom Range...</option>
-      </select>
-      <div id="temperatureCustomInputs" style="display:flex;gap:4px;align-items:center;flex-shrink:1;">
-        <input type="datetime-local" id="temperatureFrom" class="dt-input" />
-        <span style="opacity:0.5;font-size:var(--font-sm);">to</span>
-        <input type="datetime-local" id="temperatureTo" class="dt-input" />
-        <button class="btn btn-secondary btn-compact" id="temperatureApply">Apply</button>
-      </div>
-      <button id="btnTemperatureExport" class="btn-secondary btn-small" title="Export displayed temperature/chiller data to CSV" style="margin-left:auto;">Export CSV</button>
-    </div>
+    <!-- Unified controls (zoom + slider) -->
+    <div id="temperature-chart-controls"></div>
 
     <!-- Chiller automation controlled via header chips only - redundant buttons removed -->
 
@@ -2869,15 +2854,15 @@ window.CircControl = (function(){
       .then(function(j){
         window.__app_version = (j&&j.version)||null;
         try{ var vEl=document.getElementById('build-version'); if(vEl) vEl.textContent = window.__app_version || 'n/a'; }catch(e){}
-            // Load polling_manager FIRST (core system), then range.js (date range utilities) BEFORE any controllers needing it.
+          // Load polling_manager FIRST (core system), then range.js (date range utilities) BEFORE any controllers needing it.
             // Reordered: range.js immediately after core to satisfy rdwcRange dependency for pH & EC charts before sensors/ph/ec modules run.
           // Instrumented loader: log each script as it begins loading (sequence is synchronous via promises)
           window.BUILD_COMMIT = '1764522441';
-          return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','temperature.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
+          return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','temperature.js','controller_settings.js','settings.js','circulation.js','chart_adapter.js'], window.__app_version);
       })
       .catch(function(){
         window.__app_version = (new Date()).toISOString().slice(0,10);
-  return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','temperature.js','controller_settings.js','settings.js','circulation.js'], window.__app_version);
+  return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','temperature.js','controller_settings.js','settings.js','circulation.js','chart_adapter.js'], window.__app_version);
       })
       .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();
