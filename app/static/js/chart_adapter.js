@@ -157,6 +157,30 @@
       }
     }
 
+    // ===== CIRCULATION CHART =====
+    // circulation_v2.js initializes window.circChart (RDWCChart instance)
+    if (document.getElementById('circ-chart-controls')) {
+      if (window.circChart && typeof window.circChart.setTimeRange === 'function') {
+        const circControls = new ChartControls({
+          containerId: 'circ-chart-controls',
+          onRangeChange: async (start, end) => {
+            console.log('[Chart Adapter] Circulation range changed:', start, end);
+            try {
+              window.circChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
+              window.circChart.selectedRange = 'custom';
+              await window.circChart.refresh(true);
+            } catch (e) {
+              console.error('[Chart Adapter] Circulation chart update failed:', e);
+            }
+          },
+          getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
+        });
+        console.log('[Chart Adapter] Circulation controls initialized');
+      } else {
+        console.warn('[Chart Adapter] Circulation chart controls div found but window.circChart not ready');
+      }
+    }
+
     console.log('[Chart Adapter] All chart controls initialized successfully');
   }
 })();
