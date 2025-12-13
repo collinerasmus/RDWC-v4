@@ -2963,6 +2963,9 @@ def api_sensors():
     Never hits I²C bus directly to prevent contention.
     Returns most recent DB reading with online flag based on freshness.
     """
+    import sys
+    print("▬▬ API_SENSORS CALLED ▬▬", file=sys.stderr, flush=True)
+    
     from app.sensors_core import read_sensors_from_db
     from app.settings import get_all_settings
     from app.logger import get_logger
@@ -2970,14 +2973,21 @@ def api_sensors():
     # Read cached (max 60s)
     data = read_sensors_from_db(max_age_sec=60)
 
-    # Check actual calibration state from database
+    # Check actual calibration state from database  
     settings = get_all_settings()
-    ph_calibrated = bool(settings.get("cal.ph.mid") or settings.get("cal.ph.low"))
-    ec_calibrated = settings.get("ec.cal_low_us", "0") != "0"
+    
+    # pH: check for mid OR low point (2-point calibration typical)
+    ph_mid = settings.get("cal.ph.mid")
+    ph_low = settings.get("cal.ph.low")
+    ph_calibrated = bool(ph_mid or ph_low)
+    
+    # EC: check for low calibration value (stored as µS/cm, "0" = not calibrated)
+    ec_low_us = settings.get("ec.cal_low_us", "0")
+    ec_calibrated = (ec_low_us != "0" and ec_low_us != "" and ec_low_us is not None)
     
     # Force output for debugging
     import sys
-    print(f"DEBUG API_SENSORS: pH={ph_calibrated}, EC={ec_calibrated}, mid={settings.get('cal.ph.mid')}", file=sys.stderr, flush=True)
+    print(f"DEBUG API_SENSORS: pH={ph_calibrated} (mid={ph_mid}, low={ph_low}), EC={ec_calibrated} (low_us={ec_low_us})", file=sys.stderr, flush=True)
     
     logger.info(f"Calibration check: pH mid={settings.get('cal.ph.mid')}, low={settings.get('cal.ph.low')}, ph_calibrated={ph_calibrated}")
     logger.info(f"Calibration check: EC low_us={settings.get('ec.cal_low_us')}, ec_calibrated={ec_calibrated}")
