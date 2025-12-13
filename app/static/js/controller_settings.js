@@ -16,7 +16,7 @@
         // Helper to safely set element value
         const setVal = (id, val) => {
           const el = document.getElementById(id);
-          if (el && val !== undefined) el.value = val;
+          if (el && val !== undefined && val !== null && !isNaN(val)) el.value = val;
         };
         
         // Target range
@@ -142,7 +142,7 @@
         // Helper to safely set element value
         const setVal = (id, val) => {
           const el = document.getElementById(id);
-          if (el && val !== undefined) el.value = val;
+          if (el && val !== undefined && val !== null && !isNaN(val)) el.value = val;
         };
         
         if (settings.targets) {
