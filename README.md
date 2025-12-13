@@ -37,7 +37,7 @@ Automated RDWC (Recirculating Deep Water Culture) hydroponic controller with pH/
 ### UI Structure
 - **Overview Tab**: System-wide health indicators and controller status
 - **Sensors Tab**: Live sensor readings + historical trend chart (Temperature, pH, EC)
-- **pH/EC Tabs**: Current values, targets, guards, manual dosing controls (no charts)
+- **pH/EC Tabs**: Current values, targets, guards, automation controls, dose logs
 - **Chiller Tab**: Water temperature, target, stage display (no chart)
 - **Lights/Circulation/Scheduler/System**: Settings panels with collapsible sections
 

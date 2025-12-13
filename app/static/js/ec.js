@@ -3,7 +3,6 @@
   const POLL_DEFAULT = 5000; // retained for potential fallback (unused)
   let endpointMode = null; // 'dose_api' or 'relay_pulse'
   let pollMs = POLL_DEFAULT; // no local interval; pollingManager drives updates
-  let pollTimer = null; // deprecated
   lastStatus = null;
   let countdownTimer = null;
   let lastPollAt = Date.now();

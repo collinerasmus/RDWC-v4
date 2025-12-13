@@ -1599,17 +1599,17 @@ def api_chiller_events(limit: int = Query(200, ge=1, le=1000)):
 # --- Unified dosing endpoints ------------------------------------------------
 @app.post("/api/dose/grow")
 def dose_grow(body: dict = Body(...)):
-    """Manual Grow nutrient dose with centralized safety caps."""
+    """DEPRECATED: Manual Grow nutrient dose (time-based). Use /api/ec/dose instead."""
     return _dose_pump("grow", body)
 
 @app.post("/api/dose/micro")
 def dose_micro(body: dict = Body(...)):
-    """Manual Micro nutrient dose with centralized safety caps."""
+    """DEPRECATED: Manual Micro nutrient dose (time-based). Use /api/ec/dose instead."""
     return _dose_pump("micro", body)
 
 @app.post("/api/dose/bloom")
 def dose_bloom(body: dict = Body(...)):
-    """Manual Bloom nutrient dose with centralized safety caps."""
+    """DEPRECATED: Manual Bloom nutrient dose (time-based). Use /api/ec/dose instead."""
     return _dose_pump("bloom", body)
 
 @app.post("/api/dose/ph_up")
