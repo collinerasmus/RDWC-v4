@@ -136,15 +136,24 @@
       if (!listEl) return;
       
       if (allEvents.length === 0) {
-        listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;">No events recorded yet. Events will appear after pump state changes.</div>';
+        listEl.innerHTML = '<div style="text-align:center;padding:16px;color:#94a3b8;">No events yet. Events will appear after pump state changes.</div>';
         return;
       }
-      
+
       listEl.innerHTML = allEvents.map(evt => {
-        const icon = evt.pump === 'Main Pump' ? '🔄' : '🌊';
-        const state = evt.final ? '<span style="color:#10b981;">ON</span>' : '<span style="color:#ef4444;">OFF</span>';
-        const time = formatTimeAgo(evt.ts);
-        return `<div style="padding:8px;border-bottom:1px solid rgba(148,163,184,0.1);display:flex;align-items:center;gap:8px;"><span>${icon}</span><span style="flex:1;"><strong>${evt.pump}</strong> → ${state}</span><span style="color:#64748b;font-size:var(--font-xs);">${time}</span></div>`;
+        const ts = new Date(evt.ts);
+        const tsStr = ts.toISOString().replace('T',' ').split('.')[0];
+        const state = evt.final ? '<span style="color:#22c55e;font-weight:600;">ON</span>' : '<span style="color:#ef4444;font-weight:600;">OFF</span>';
+        const reason = evt.reason ? ` · ${evt.reason}` : '';
+        return `
+          <div style="padding:6px 4px;border-bottom:1px solid rgba(148,163,184,0.12);display:flex;align-items:center;gap:8px;">
+            <span style="font-weight:700;color:#e5e7eb;white-space:nowrap;">${tsStr}</span>
+            <span style="color:#9ca3af;">• ${evt.pump}</span>
+            <span style="color:#9ca3af;">→</span>
+            <span>${state}</span>
+            <span style="color:#9ca3af;">${reason}</span>
+          </div>
+        `;
       }).join('');
       
     } catch (e) {
