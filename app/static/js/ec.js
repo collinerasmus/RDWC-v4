@@ -625,10 +625,10 @@
         const ts = new Date(d.ts);
         const tsStr = ts.toLocaleString([], {month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit'});
         const total = (d.volume_ml != null) ? `${d.volume_ml.toFixed(2)} ml` : '— ml';
-        const g = d.pumps?.grow != null ? `${d.pumps.grow.toFixed(2)} ml` : null;
-        const m = d.pumps?.micro != null ? `${d.pumps.micro.toFixed(2)} ml` : null;
-        const b = d.pumps?.bloom != null ? `${d.pumps.bloom.toFixed(2)} ml` : null;
-        const pumpParts = [g && `G:${g}`, m && `M:${m}`, b && `B:${b}`].filter(Boolean).join(' ');
+        const g = d.pumps?.grow != null ? `G:${d.pumps.grow.toFixed(2)} ml` : null;
+        const m = d.pumps?.micro != null ? `M:${d.pumps.micro.toFixed(2)} ml` : null;
+        const b = d.pumps?.bloom != null ? `B:${d.pumps.bloom.toFixed(2)} ml` : null;
+        const pumpParts = [g, m, b].filter(Boolean).join(' ');
         const ecBefore = (d.ec_before != null) ? d.ec_before.toFixed(3) : '—';
         const ecAfter = (d.ec_after != null) ? d.ec_after.toFixed(3) : '—';
         const delta = (d.ec_before != null && d.ec_after != null)
@@ -638,12 +638,15 @@
         const detail = d.detail || 'dose';
         const duration = (d.seconds != null) ? `${d.seconds.toFixed(1)}s` : null;
 
-        return `<div style="margin-bottom:6px;padding:4px 6px;border-radius:4px;background:rgba(59,130,246,0.06);border-left:2px solid rgba(59,130,246,0.25);">`
-          + `<div style="display:flex;justify-content:space-between;align-items:center;font-weight:600;color:#cbd5e1;font-size:var(--font-xs);">`
-          + `<span>${tsStr}</span><span style="color:#9ca3af;font-weight:500;">${detail}</span>`
-          + `</div>`
-          + `<div style="font-size:var(--font-xs);color:#9ca3af;">EC ${ecBefore}→${ecAfter} (${deltaStr})</div>`
-          + `<div style="font-size:var(--font-xs);color:#9ca3af;">${total}${duration ? ` • ${duration}` : ''}${pumpParts ? ` • ${pumpParts}` : ''}</div>`
+        // Single-row compact chip: time | detail | EC | delta | volume | duration | pumps
+        return `<div style="margin-bottom:4px;padding:4px 6px;border-radius:4px;background:rgba(59,130,246,0.06);border-left:2px solid rgba(59,130,246,0.25);display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--font-xs);color:#cbd5e1;">`
+          + `<span style="font-weight:700;">${tsStr}</span>`
+          + `<span style="color:#9ca3af;">${detail}</span>`
+          + `<span style="color:#9ca3af;">EC ${ecBefore}→${ecAfter}</span>`
+          + `<span style="color:#9ca3af;">Δ ${deltaStr}</span>`
+          + `<span style="color:#9ca3af;">${total}</span>`
+          + (duration ? `<span style="color:#9ca3af;">${duration}</span>` : '')
+          + (pumpParts ? `<span style="color:#9ca3af;">${pumpParts}</span>` : '')
           + `</div>`;
       }).join('');
 
