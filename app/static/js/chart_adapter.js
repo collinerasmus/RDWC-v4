@@ -24,11 +24,11 @@
   function init() {
     // Check dependencies
     if (typeof ChartControls === 'undefined') {
-      console.error('[Chart Adapter] ChartControls not loaded');
+      console.error('[Chart Adapter] ✗ ChartControls not loaded at init() time');
       return;
     }
 
-    console.log('[Chart Adapter] Starting initialization...');
+    console.log('[Chart Adapter] ✓ init() called, ChartControls available');
     console.log('[Chart Adapter] Available chart instances:', {
       sensorsChart: !!window.sensorsChart,
       trendsChart: !!window.trendsChart,
@@ -162,17 +162,22 @@
     // circulation_v2.js initializes window.circChart (RDWCChart instance)
     // Note: Circulation chart may initialize after chart_adapter, so we retry aggressively
     function initCirculationControls(attempts = 0) {
-      console.log('[Chart Adapter Circulation Retry] Attempt', attempts, '- circChart available:', !!window.circChart);
+      console.log('[Chart Adapter Circulation Retry] Attempt', attempts, '- circChart available:', !!window.circChart, 'ChartControls available:', typeof window.ChartControls);
       const container = document.getElementById('circ-chart-controls');
       if (!container) {
-        console.warn('[Chart Adapter] circ-chart-controls container not found');
+        console.error('[Chart Adapter] ✗ circ-chart-controls container not found in DOM');
         return;
       }
+      console.log('[Chart Adapter] ✓ Container found, innerHTML length:', container.innerHTML.length);
       
       if (window.circChart && typeof window.circChart.setTimeRange === 'function') {
         console.log('[Chart Adapter] ✓ circChart found at attempt', attempts, '- creating ChartControls');
+        if (typeof window.ChartControls === 'undefined') {
+          console.error('[Chart Adapter] ✗ ChartControls class is not available!');
+          return;
+        }
         try {
-          const circControls = new ChartControls({
+          const circControls = new window.ChartControls({
             containerId: 'circ-chart-controls',
             onRangeChange: async (start, end) => {
               console.log('[Chart Adapter] Circulation range changed:', start, end);
@@ -186,19 +191,20 @@
             },
             getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
           });
-          console.log('[Chart Adapter] ✓ Circulation controls initialized successfully');
+          console.log('[Chart Adapter] ✓ Circulation controls initialized successfully, container now has:', container.innerHTML.length, 'chars');
         } catch (e) {
-          console.error('[Chart Adapter] ✗ Failed to create ChartControls for circulation:', e.message, e);
+          console.error('[Chart Adapter] ✗ Failed to create ChartControls for circulation:', e.message, e.stack);
         }
-      } else if (attempts < 20) {
-        if (attempts === 0) {
-          console.log('[Chart Adapter Circulation] circChart not ready yet (', typeof window.circChart, '), retrying... Total attempts will be up to 20 with 300ms delay');
+      } else if (attempts < 50) {
+        if (attempts % 10 === 0) {
+          console.log('[Chart Adapter Circulation] circChart not ready (attempt', attempts, ')', typeof window.circChart === 'function' ? 'is function' : typeof window.circChart);
         }
-        setTimeout(() => initCirculationControls(attempts + 1), 300);
+        setTimeout(() => initCirculationControls(attempts + 1), 200);
       } else {
-        console.warn('[Chart Adapter] ✗ Circulation chart not ready after', attempts, 'retries. Final status - circChart:', !!window.circChart, ', setTimeRange type:', typeof window.circChart?.setTimeRange);
+        console.error('[Chart Adapter] ✗ Circulation chart not ready after', attempts, 'retries. Final status - circChart:', !!window.circChart, ', setTimeRange type:', typeof window.circChart?.setTimeRange);
       }
     }
+    console.log('[Chart Adapter] Calling initCirculationControls() with ChartControls available:', typeof window.ChartControls);
     initCirculationControls();
 
     console.log('[Chart Adapter] All chart controls initialized successfully');
