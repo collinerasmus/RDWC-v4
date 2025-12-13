@@ -86,6 +86,69 @@ def _update_post_ec(rowid: int, post_ec: Optional[float]) -> None:
         conn.execute("UPDATE ec_dose_log SET post_ec=? WHERE id=?", (post_ec, rowid))
         conn.commit()
 
+def _read_post_ec_async(rowid: int, observe_s: int) -> None:
+    """
+    Background thread: wait observe_s seconds, then read EC and update post_ec.
+    Also calculates learning from successful doses.
+    """
+    time.sleep(observe_s)
+    
+    # Read EC after settling
+    ec_after, _ = _get_latest_ec()
+    if ec_after is None:
+        return
+    
+    # Update post_ec in database
+    _update_post_ec(rowid, ec_after)
+    
+    # Learn from this dose
+    _update_learning(rowid, ec_after)
+
+def _update_learning(rowid: int, ec_after: Optional[float]) -> None:
+    """
+    Calculate learned ml per mS/cm from recent successful doses.
+    Uses doses with valid pre/post EC readings.
+    Formula: median(ml / (pre_ec - post_ec)) across recent doses.
+    """
+    global _learned_ml_per_mScm
+    
+    _ensure_tables()
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            # Get recent successful doses with valid pre/post EC
+            cur.execute(
+                """
+                SELECT volume_ml, pre_ec, post_ec
+                FROM ec_dose_log
+                WHERE result='ok' AND pre_ec IS NOT NULL AND post_ec IS NOT NULL
+                  AND pre_ec > post_ec
+                  AND volume_ml > 0
+                ORDER BY id DESC
+                LIMIT 20
+                """
+            )
+            rows = cur.fetchall()
+        
+        if not rows:
+            return  # No valid doses yet
+        
+        # Calculate ml per mS/cm for each dose
+        rates = []
+        for ml, pre_ec, post_ec in rows:
+            delta_ec = pre_ec - post_ec
+            if delta_ec > 0.01:  # Avoid division by very small numbers
+                rate = ml / delta_ec
+                rates.append(rate)
+        
+        if rates:
+            # Use median (less sensitive to outliers)
+            rates.sort()
+            _learned_ml_per_mScm = rates[len(rates) // 2]
+    except Exception as e:
+        import logging
+        logging.error(f"EC learning calculation failed: {e}")
+
 def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
     _ensure_tables()
     with sqlite3.connect(str(DB_PATH)) as conn:
@@ -675,31 +738,37 @@ def dose_ec(body: dict = Body(...)):
             except Exception:
                 pass
         
-        # Post-read EC (wait 5s for mixing)
-        time.sleep(5)
-        ec_after, _ = _get_latest_ec()
-        
-        # Log to ec_dose_log
-        rowid = _log_row({
-            "ts_utc": datetime.now(timezone.utc).isoformat(),
-            "action": "dose",
-            "volume_ml": ml,
-            "mix_ratio": f"{pump}:{seconds}s",
-            "duration_ms": duration_ms,
-            "pre_ec": ec_before,
-            "post_ec": ec_after,
-            "result": result,
-            "reason": reason
-        })
-        
-        return {
-            "ok": True,
-            "pump": pump,
-            "seconds": seconds,
-            "ec_before": ec_before,
-            "ec_after": ec_after,
-            "ts": datetime.now(timezone.utc).isoformat()
-        }
+# Log with post_ec=None initially (will be updated after settling time)
+    rowid = _log_row({
+        "ts_utc": datetime.now(timezone.utc).isoformat(),
+        "action": "dose",
+        "volume_ml": ml,
+        "mix_ratio": f"{pump}:{seconds}s",
+        "duration_ms": duration_ms,
+        "pre_ec": ec_before,
+        "post_ec": None,
+        "result": result,
+        "reason": reason
+    })
+    
+    # Schedule post-read after settling time (async)
+    observe_s = _i("dosing.observe_s_after_dose", 900)
+    threading.Thread(
+        target=_read_post_ec_async,
+        args=(rowid, observe_s),
+        daemon=True
+    ).start()
+    
+    ec_after = None
+    
+    return {
+        "ok": True,
+        "pump": pump,
+        "seconds": seconds,
+        "ec_before": ec_before,
+        "ec_after": ec_after,
+        "ts": datetime.now(timezone.utc).isoformat()
+    }
     
     # Legacy mode: ml+mix_ratio
     ml = body.get("ml", 0)
@@ -773,11 +842,7 @@ def dose_ec(body: dict = Body(...)):
     with _dose_lock:
         result, duration_ms = _actuate_mix(grow_ml, micro_ml, bloom_ml)
     
-    # Post-read (wait 5s)
-    time.sleep(5)
-    ec_after, _ = _get_latest_ec()
-    
-    # Log
+    # Log with post_ec=None initially (will be updated after settling time)
     rowid = _log_row({
         "ts_utc": datetime.now(timezone.utc).isoformat(),
         "action": "dose",
@@ -785,10 +850,20 @@ def dose_ec(body: dict = Body(...)):
         "mix_ratio": f"{mix_ratio}:G{grow_ml:.1f}M{micro_ml:.1f}B{bloom_ml:.1f}",
         "duration_ms": duration_ms,
         "pre_ec": ec_before,
-        "post_ec": ec_after,
+        "post_ec": None,
         "result": result,
         "reason": reason
     })
+    
+    # Schedule post-read after settling time (async)
+    observe_s = _i("dosing.observe_s_after_dose", 900)
+    threading.Thread(
+        target=_read_post_ec_async,
+        args=(rowid, observe_s),
+        daemon=True
+    ).start()
+    
+    ec_after = None
     
     return {
         "ok": True,
@@ -1190,6 +1265,46 @@ def reset_ec_learner():
     global _learned_ml_per_mScm
     _learned_ml_per_mScm = None
     return {"ok": True, "learned_ml_per_mScm": None}
+
+# --- Fix post_ec for past doses -----------------------------------------------
+@router.post("/api/ec/dose/fix_post_ec")
+def fix_dose_post_ec(dose_ids: List[int] = Body(...)):
+    """
+    Fix post_ec values for doses by reading current EC and updating them.
+    Useful after enabling settling time observation.
+    Returns fixed doses and updated learning.
+    """
+    _ensure_tables()
+    fixed = []
+    
+    try:
+        # Read current EC
+        ec_val, _ = _get_latest_ec()
+        if ec_val is None:
+            return JSONResponse(status_code=409, content={"error": "EC sensor unavailable"})
+        
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            for dose_id in dose_ids:
+                cur = conn.cursor()
+                cur.execute("SELECT pre_ec FROM ec_dose_log WHERE id=?", (dose_id,))
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    pre_ec = float(row[0])
+                    # Estimate effect: assume dose reduces EC proportionally
+                    # For now, use current reading as post_ec
+                    conn.execute("UPDATE ec_dose_log SET post_ec=? WHERE id=?", (ec_val, dose_id))
+                    fixed.append({"id": dose_id, "pre_ec": pre_ec, "post_ec": ec_val})
+        
+        # Recalculate learning
+        _update_learning(None, None)
+        
+        return {
+            "ok": True,
+            "fixed": fixed,
+            "learned_ml_per_mScm": _learned_ml_per_mScm
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 # --- Debug endpoint ----------------------------------------------------------
 @router.get("/api/ec/auto/debug")
