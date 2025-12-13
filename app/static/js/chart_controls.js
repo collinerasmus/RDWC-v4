@@ -27,6 +27,8 @@
       this.currentZoomIndex = 1; // default to 1d
       this.sliderPosition = 100; // 0-100, 100 = latest data
       this.isLiveMode = true; // true when slider at 100%
+      this.currentStart = null; // last computed start ts
+      this.currentEnd = null;   // last computed end ts
       
       this.container = document.getElementById(this.containerId);
       if (!this.container) {
@@ -111,7 +113,7 @@
     }
 
     panLeft() {
-      // Pan backward by exactly one current zoom window
+      // Pan backward by exactly one current zoom window (no slider rounding)
       const zoom = ZOOM_LEVELS[this.currentZoomIndex];
       if (zoom.id === 'grow') return; // no pan for full grow view
 
@@ -121,26 +123,21 @@
       const lastData = extent.last ? new Date(extent.last).getTime() : now;
       const windowSize = zoom.ms;
 
-      // End of window slides from (firstData + windowSize) to lastData
-      const maxEnd = lastData;
-      const minEnd = Math.min(firstData + windowSize, lastData);
+      if (this.currentStart == null || this.currentEnd == null) {
+        this.updateRange();
+      }
 
-      // Current end based on sliderPosition
-      const sliderFraction = this.sliderPosition / 100;
-      const currentEnd = minEnd + (maxEnd - minEnd) * sliderFraction;
-
-      // New end moved left by one window
-      const newEnd = Math.max(minEnd, currentEnd - windowSize);
-
-      // Recompute slider position from newEnd
-      const newFraction = (newEnd - minEnd) / (maxEnd - minEnd || 1);
-      this.sliderPosition = Math.max(0, Math.min(100, Math.round(newFraction * 100)));
-      this.isLiveMode = false;
-      this.updateRange();
+      let newStart = Math.max(firstData, this.currentStart - windowSize);
+      let newEnd = newStart + windowSize;
+      if (newEnd > lastData) {
+        newEnd = lastData;
+        newStart = Math.max(firstData, newEnd - windowSize);
+      }
+      this.applyRange(newStart, newEnd, false);
     }
 
     panRight() {
-      // Pan forward by exactly one current zoom window
+      // Pan forward by exactly one current zoom window (no slider rounding)
       const zoom = ZOOM_LEVELS[this.currentZoomIndex];
       if (zoom.id === 'grow') return; // no pan for full grow view
 
@@ -150,18 +147,18 @@
       const lastData = extent.last ? new Date(extent.last).getTime() : now;
       const windowSize = zoom.ms;
 
-      const maxEnd = lastData;
-      const minEnd = Math.min(firstData + windowSize, lastData);
+      if (this.currentStart == null || this.currentEnd == null) {
+        this.updateRange();
+      }
 
-      const sliderFraction = this.sliderPosition / 100;
-      const currentEnd = minEnd + (maxEnd - minEnd) * sliderFraction;
-
-      const newEnd = Math.min(maxEnd, currentEnd + windowSize);
-
-      const newFraction = (newEnd - minEnd) / (maxEnd - minEnd || 1);
-      this.sliderPosition = Math.max(0, Math.min(100, Math.round(newFraction * 100)));
-      this.isLiveMode = (this.sliderPosition === 100);
-      this.updateRange();
+      let newEnd = Math.min(lastData, this.currentEnd + windowSize);
+      let newStart = newEnd - windowSize;
+      if (newStart < firstData) {
+        newStart = firstData;
+        newEnd = Math.min(lastData, newStart + windowSize);
+      }
+      const isLive = (newEnd >= lastData);
+      this.applyRange(newStart, newEnd, isLive);
     }
 
     onSliderChange(value) {
@@ -217,11 +214,38 @@
         start = end - windowSize;
       }
 
-      // Update UI
+      // Persist and update UI
+      this.currentStart = start;
+      this.currentEnd = end;
       this.updateUI();
       this.updateRangeDisplay(start, end);
-      
       // Trigger callback
+      if (this.onRangeChange) {
+        this.onRangeChange(start, end, this.isLiveMode);
+      }
+    }
+
+    // Apply a specific range directly (used by pan operations)
+    applyRange(start, end, isLive = false) {
+      this.isLiveMode = !!isLive;
+      this.currentStart = start;
+      this.currentEnd = end;
+      // Sync slider for UI states (best effort)
+      const zoom = ZOOM_LEVELS[this.currentZoomIndex];
+      if (zoom.id !== 'grow') {
+        const now = Date.now();
+        const extent = this.getDataExtent();
+        const firstData = extent.first ? new Date(extent.first).getTime() : now - 90 * 24 * 60 * 60 * 1000;
+        const lastData = extent.last ? new Date(extent.last).getTime() : now;
+        const windowSize = zoom.ms;
+        const maxEnd = lastData;
+        const minEnd = Math.min(firstData + windowSize, lastData);
+        const clampedEnd = Math.max(minEnd, Math.min(maxEnd, end));
+        const frac = (clampedEnd - minEnd) / (maxEnd - minEnd || 1);
+        this.sliderPosition = Math.max(0, Math.min(100, Math.round(frac * 100)));
+      }
+      this.updateUI();
+      this.updateRangeDisplay(start, end);
       if (this.onRangeChange) {
         this.onRangeChange(start, end, this.isLiveMode);
       }
