@@ -16,7 +16,9 @@
   }
 
   function formatDuration(seconds) {
-    if (!seconds || seconds < 0) return '—';
+    if (seconds === null || seconds === undefined) return '—';
+    if (seconds === 0) return '0s';
+    if (seconds < 0) return '—';
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
@@ -36,6 +38,7 @@
   }
 
   async function updateRuntimeStats() {
+    console.log('[Circulation] Updating runtime stats...');
     try {
       // Fetch relay event logs for both pumps
       const [mainResp, chillerResp] = await Promise.all([
@@ -45,6 +48,7 @@
       
       const mainEvents = mainResp.ok ? await mainResp.json() : [];
       const chillerEvents = chillerResp.ok ? await chillerResp.json() : [];
+      console.log('[Circulation] Fetched events - Main:', mainEvents.length, 'Chiller:', chillerEvents.length);
       
       // Calculate today's stats (SA timezone)
       const now = new Date();
@@ -96,6 +100,7 @@
       
       const mainStats = calcStats(mainEvents);
       const chillerStats = calcStats(chillerEvents);
+      console.log('[Circulation] Main stats:', mainStats, 'Chiller stats:', chillerStats);
       
       // Update main pump stats
       const mainRuntimeEl = document.getElementById('main-runtime-today');
@@ -121,6 +126,7 @@
   }
 
   async function updateEventsLog() {
+    console.log('[Circulation] Updating events log...');
     try {
       // Fetch recent events for both pumps
       const [mainResp, chillerResp] = await Promise.all([
@@ -173,9 +179,13 @@
   }
 
   async function updateTimelineChart() {
+    console.log('[Circulation] Updating timeline chart...');
     try {
       const canvas = document.getElementById('circTimelineChart');
-      if (!canvas) return;
+      if (!canvas) {
+        console.warn('[Circulation] Timeline canvas not found');
+        return;
+      }
       
       // Fetch 24h of events
       const [mainResp, chillerResp] = await Promise.all([
@@ -294,6 +304,7 @@
           }
         }
       });
+      console.log('[Circulation] Timeline chart created successfully');
       
     } catch (e) {
       console.error('[Circulation] Timeline chart error:', e);
