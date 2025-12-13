@@ -42,8 +42,8 @@
     if (document.getElementById('sensors-chart-controls')) {
       if (window.sensorsChart && typeof window.sensorsChart.setTimeRange === 'function') {
         const sensorsControls = new ChartControls({
-          container: 'sensors-chart-controls',
-          callback: async (start, end) => {
+          containerId: 'sensors-chart-controls',
+          onRangeChange: async (start, end) => {
             console.log('[Chart Adapter] Sensors range changed:', start, end);
             try {
               window.sensorsChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
@@ -52,9 +52,8 @@
               console.error('[Chart Adapter] Sensors chart update failed:', e);
             }
           },
-          getGrowDate: () => window.rdwcSettings?.get('general.grow_start_date')
+          getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
         });
-        sensorsControls.render();
         console.log('[Chart Adapter] Sensors controls initialized');
       } else {
         console.warn('[Chart Adapter] Sensors chart controls div found but window.sensorsChart not ready');
@@ -66,8 +65,8 @@
     if (document.getElementById('trends-controls')) {
       if (window.trendsChart && typeof window.trendsChart.setTimeRange === 'function') {
         const trendsControls = new ChartControls({
-          container: 'trends-controls',
-          callback: async (start, end) => {
+          containerId: 'trends-controls',
+          onRangeChange: async (start, end) => {
             console.log('[Chart Adapter] Trends range changed:', start, end);
             try {
               window.trendsChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
@@ -76,9 +75,8 @@
               console.error('[Chart Adapter] Trends chart update failed:', e);
             }
           },
-          getGrowDate: () => window.rdwcSettings?.get('general.grow_start_date')
+          getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
         });
-        trendsControls.render();
         console.log('[Chart Adapter] Trends controls initialized');
       } else {
         console.warn('[Chart Adapter] Trends chart controls div found but window.trendsChart not ready');
@@ -90,8 +88,8 @@
     if (document.getElementById('ph-chart-controls')) {
       if (window.phChart && typeof window.phChart.setTimeRange === 'function') {
         const phControls = new ChartControls({
-          container: 'ph-chart-controls',
-          callback: async (start, end) => {
+          containerId: 'ph-chart-controls',
+          onRangeChange: async (start, end) => {
             console.log('[Chart Adapter] pH range changed:', start, end);
             try {
               window.phChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
@@ -100,9 +98,8 @@
               console.error('[Chart Adapter] pH chart update failed:', e);
             }
           },
-          getGrowDate: () => window.rdwcSettings?.get('general.grow_start_date')
+          getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
         });
-        phControls.render();
         console.log('[Chart Adapter] pH controls initialized');
       } else {
         console.warn('[Chart Adapter] pH chart controls div found but window.phChart not ready');
@@ -114,8 +111,8 @@
     if (document.getElementById('ec-chart-controls')) {
       if (window.ecChart && typeof window.ecChart.setTimeRange === 'function') {
         const ecControls = new ChartControls({
-          container: 'ec-chart-controls',
-          callback: async (start, end) => {
+          containerId: 'ec-chart-controls',
+          onRangeChange: async (start, end) => {
             console.log('[Chart Adapter] EC range changed:', start, end);
             try {
               window.ecChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
@@ -124,9 +121,8 @@
               console.error('[Chart Adapter] EC chart update failed:', e);
             }
           },
-          getGrowDate: () => window.rdwcSettings?.get('general.grow_start_date')
+          getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
         });
-        ecControls.render();
         console.log('[Chart Adapter] EC controls initialized');
       } else {
         console.warn('[Chart Adapter] EC chart controls div found but window.ecChart not ready');
@@ -138,8 +134,8 @@
     if (document.getElementById('temperature-chart-controls')) {
       if (window.temperatureChart && typeof window.temperatureChart.setTimeRange === 'function') {
         const tempControls = new ChartControls({
-          container: 'temperature-chart-controls',
-          callback: async (start, end) => {
+          containerId: 'temperature-chart-controls',
+          onRangeChange: async (start, end) => {
             console.log('[Chart Adapter] Temperature range changed:', start, end);
             try {
               window.temperatureChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
@@ -148,9 +144,8 @@
               console.error('[Chart Adapter] Temperature chart update failed:', e);
             }
           },
-          getGrowDate: () => window.rdwcSettings?.get('general.grow_start_date')
+          getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
         });
-        tempControls.render();
         console.log('[Chart Adapter] Temperature controls initialized');
       } else {
         console.warn('[Chart Adapter] Temperature chart controls div found but window.temperatureChart not ready');
