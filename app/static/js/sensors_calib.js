@@ -9,6 +9,16 @@
     micro: 0,
     bloom: 0
   };
+
+  // Map UI pump names to backend pump keys
+  const pumpKeyMap = {
+    ph: 'ph_up',
+    grow: 'grow',
+    micro: 'micro',
+    bloom: 'bloom'
+  };
+
+  const toBackendPump = (pumpName) => pumpKeyMap[pumpName] || pumpName;
   
   // Fetch current pump rates
   async function fetchPumpRates() {
@@ -54,11 +64,10 @@
     try {
       const btn = $(`${pumpName}-pump-prime`);
       if (btn) btn.disabled = true;
-      
-      const r = await fetch('/calib/dose/prime', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({pump: pumpName})
+      const backendPump = toBackendPump(pumpName);
+      const primeSeconds = 3.0;
+      const r = await fetch(`/calib/dose/prime?pump=${encodeURIComponent(backendPump)}&seconds=${primeSeconds}`, {
+        method: 'POST'
       });
       
       if (r.ok) {
@@ -66,7 +75,7 @@
         if (data.ok) {
           showToast(`${pumpName.toUpperCase()} pump primed (3s)`, 'success');
         } else {
-          showToast(`Prime failed: ${data.error || 'Unknown error'}`, 'error');
+          showToast(`Prime failed: ${data.note || data.error || 'Unknown error'}`, 'error');
         }
       } else {
         showToast(`Prime failed: HTTP ${r.status}`, 'error');
@@ -92,20 +101,15 @@
       }
       
       const duration = parseFloat(durationEl.value);
-      if (isNaN(duration) || duration < 5 || duration > 60) {
-        showToast('Duration must be between 5 and 60 seconds', 'error');
+      if (isNaN(duration) || duration < 0.2 || duration > 10) {
+        showToast('Duration must be between 0.2 and 10 seconds', 'error');
         return;
       }
       
       if (btn) btn.disabled = true;
-      
-      const r = await fetch('/calib/dose/run', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          pump: pumpName,
-          duration_s: duration
-        })
+      const backendPump = toBackendPump(pumpName);
+      const r = await fetch(`/calib/dose/run?pump=${encodeURIComponent(backendPump)}&seconds=${duration}`, {
+        method: 'POST'
       });
       
       if (r.ok) {
@@ -113,7 +117,8 @@
         if (data.ok) {
           showToast(`${pumpName.toUpperCase()} pump ran for ${duration}s. Measure output and commit.`, 'success');
         } else {
-          showToast(`Run failed: ${data.error || 'Unknown error'}`, 'error');
+          const msg = data.note || data.error || 'Unknown error';
+          showToast(`Run failed: ${msg}`, 'error');
         }
       } else {
         showToast(`Run failed: HTTP ${r.status}`, 'error');
@@ -142,8 +147,8 @@
       const duration = parseFloat(durationEl.value);
       const measured = parseFloat(measuredEl.value);
       
-      if (isNaN(duration) || duration < 5 || duration > 60) {
-        showToast('Duration must be between 5 and 60 seconds', 'error');
+      if (isNaN(duration) || duration < 0.2 || duration > 10) {
+        showToast('Duration must be between 0.2 and 10 seconds', 'error');
         return;
       }
       
@@ -153,26 +158,20 @@
       }
       
       if (btn) btn.disabled = true;
-      
-      const r = await fetch('/calib/dose/commit', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          pump: pumpName,
-          duration_s: duration,
-          measured_ml: measured
-        })
+      const backendPump = toBackendPump(pumpName);
+      const r = await fetch(`/calib/dose/commit?pump=${encodeURIComponent(backendPump)}&seconds=${duration}&measured_ml=${measured}`, {
+        method: 'POST'
       });
       
       if (r.ok) {
         const data = await r.json();
         if (data.ok) {
-          const rate = measured / duration;
+          const rate = data.rate_ml_per_sec || (measured / duration);
           pumpRates[pumpName] = rate;
           updatePumpRateDisplays();
           showToast(`${pumpName.toUpperCase()} pump rate saved: ${rate.toFixed(3)} ml/s`, 'success');
         } else {
-          showToast(`Commit failed: ${data.error || 'Unknown error'}`, 'error');
+          showToast(`Commit failed: ${data.note || data.error || 'Unknown error'}`, 'error');
         }
       } else {
         showToast(`Commit failed: HTTP ${r.status}`, 'error');
