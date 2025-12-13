@@ -114,33 +114,6 @@
       }
     }
 
-    // Update pump status indicators
-    try {
-      const relayRes = await fetch('/api/relays/status', {cache: 'no-store'});
-      if (relayRes.ok) {
-        const relayData = await relayRes.json();
-        const relays = relayData?.relays || {};
-        const pumpGrowStatus = el('ec-pump-grow-status');
-        const pumpMicroStatus = el('ec-pump-micro-status');
-        const pumpBloomStatus = el('ec-pump-bloom-status');
-        
-        if (pumpGrowStatus) {
-          const running = relays.dosing_grow?.is_on === true;
-          pumpGrowStatus.textContent = running ? 'Running' : 'Idle';
-        }
-        if (pumpMicroStatus) {
-          const running = relays.dosing_micro?.is_on === true;
-          pumpMicroStatus.textContent = running ? 'Running' : 'Idle';
-        }
-        if (pumpBloomStatus) {
-          const running = relays.dosing_bloom?.is_on === true;
-          pumpBloomStatus.textContent = running ? 'Running' : 'Idle';
-        }
-      }
-    } catch (e) {
-      console.error('[EC] Failed to fetch pump status:', e);
-    }
-
     // Freshness indicator
     // Removed freshness dot in EC header (uses global health indicator)
 
