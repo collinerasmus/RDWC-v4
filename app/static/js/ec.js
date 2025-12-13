@@ -55,7 +55,8 @@
     const ecVal = el('ec-current');
     const band = el('ec-band');
     const guards = el('ec-guards');
-  const resBanner = el('ec-reservoir-banner');
+    const statusEl = el('ec-status');
+    const resBanner = el('ec-reservoir-banner');
     const cdPill = el('ec-countdown-pill');
     
     if(ecVal){ ecVal.textContent = (s && s.ec_ms_cm!=null) ? s.ec_ms_cm.toFixed(2) : '—'; }
@@ -81,6 +82,37 @@
       guards.title = list.length ? guardHints(s.guards) : '';
     }
     if(resBanner && s){ resBanner.style.display = s.guards?.reservoir ? 'block' : 'none'; }
+
+    // Update controller status KPI
+    if(statusEl && s){
+      const auto = s.auto || {};
+      const holding = auto.holding_reason;
+
+      if (holding && holding.includes('interval')) {
+        // Parse "interval (749s)" format
+        const match = holding.match(/(\d+)/);
+        const seconds = match ? parseInt(match[1], 10) : 0;
+        statusEl.textContent = `Interval ${seconds}s`;
+        statusEl.style.color = '#f59e0b';
+        startCountdown();
+      } else if (holding === 'in_range') {
+        statusEl.textContent = 'In Range';
+        statusEl.style.color = '#16a34a';
+        stopCountdown();
+      } else if (holding) {
+        statusEl.textContent = holding.replace(/_/g, ' ');
+        statusEl.style.color = '#f59e0b';
+        stopCountdown();
+      } else if (auto.enabled) {
+        statusEl.textContent = 'Auto Ready';
+        statusEl.style.color = '#3b82f6';
+        stopCountdown();
+      } else {
+        statusEl.textContent = 'Idle';
+        statusEl.style.color = '#94a3b8';
+        stopCountdown();
+      }
+    }
 
     // Update pump status indicators
     try {
@@ -209,6 +241,45 @@
       if(s2) renderStatus(s2);
     }catch(e){
       showToast('EC auto toggle error: '+e.message, 'error');
+    }
+  }
+
+  function startCountdown(){
+    if(countdownTimer) return;
+    countdownTimer = setInterval(updateCountdownPill, 1000);
+  }
+
+  function stopCountdown(){
+    if(countdownTimer){ clearInterval(countdownTimer); countdownTimer = null; }
+  }
+
+  function updateCountdownPill(){
+    const statusEl = el('ec-status');
+    if(!statusEl || !lastStatus) return;
+
+    const auto = lastStatus.auto || {};
+    const holding = auto.holding_reason;
+
+    if (!holding || !holding.includes('interval')) {
+      stopCountdown();
+      return;
+    }
+
+    // Extract initial seconds from "interval (749s)" format
+    const match = holding.match(/(\d+)/);
+    const initialSeconds = match ? parseInt(match[1], 10) : 0;
+
+    // Estimate remaining time locally since last poll
+    const elapsed = Math.floor((Date.now() - lastPollAt) / 1000);
+    const remaining = Math.max(0, initialSeconds - elapsed);
+
+    if (remaining <= 0) {
+      statusEl.textContent = 'Interval clear';
+      statusEl.style.color = '#16a34a';
+      stopCountdown();
+    } else {
+      statusEl.textContent = `Interval ${remaining}s`;
+      statusEl.style.color = '#f59e0b';
     }
   }
 
