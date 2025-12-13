@@ -40,7 +40,6 @@
       
       this.render();
       this.updateRange();
-      console.log('[ChartControls] Initialization complete');
     }
 
     render() {
@@ -90,10 +89,6 @@
       const panRight = this.container.querySelector('.chart-pan-right');
       const nowBtn = this.container.querySelector('.chart-now-btn');
       const exportBtn = this.container.querySelector('.chart-export-btn');
-      
-      console.log('[ChartControls] Buttons found - zoomOut:', !!zoomOut, 'zoomIn:', !!zoomIn, 'panLeft:', !!panLeft, 'panRight:', !!panRight, 'nowBtn:', !!nowBtn, 'exportBtn:', !!exportBtn);
-      console.log('[ChartControls] Container innerHTML length:', this.container.innerHTML.length);
-      console.log('[ChartControls] Container style:', this.container.getAttribute('style'));
       
       if (zoomOut) zoomOut.addEventListener('click', () => this.zoomOut());
       if (zoomIn) zoomIn.addEventListener('click', () => this.zoomIn());
