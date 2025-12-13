@@ -261,9 +261,11 @@
               data: mainData,
               borderColor: '#60a5fa',
               backgroundColor: 'rgba(96,165,250,0.1)',
-              borderWidth: 2,
+              borderWidth: 3,
               stepped: true,
-              pointRadius: 0,
+              pointRadius: 4,
+              pointBorderColor: '#60a5fa',
+              pointBackgroundColor: '#60a5fa',
               fill: false
             },
             {
@@ -271,9 +273,11 @@
               data: chillerData,
               borderColor: '#22d3ee',
               backgroundColor: 'rgba(34,211,238,0.1)',
-              borderWidth: 2,
+              borderWidth: 3,
               stepped: true,
-              pointRadius: 0,
+              pointRadius: 4,
+              pointBorderColor: '#22d3ee',
+              pointBackgroundColor: '#22d3ee',
               fill: false
             }
           ]
