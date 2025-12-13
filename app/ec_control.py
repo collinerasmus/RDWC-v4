@@ -108,7 +108,7 @@ def _update_learning(rowid: int, ec_after: Optional[float]) -> None:
     """
     Calculate learned ml per mS/cm from recent successful doses.
     Uses doses with valid pre/post EC readings.
-    Formula: median(ml / (pre_ec - post_ec)) across recent doses.
+    Formula: median(ml / delta_ec) where delta_ec = |post_ec - pre_ec|.
     """
     global _learned_ml_per_mScm
     
@@ -122,7 +122,6 @@ def _update_learning(rowid: int, ec_after: Optional[float]) -> None:
                 SELECT volume_ml, pre_ec, post_ec
                 FROM ec_dose_log
                 WHERE result='ok' AND pre_ec IS NOT NULL AND post_ec IS NOT NULL
-                  AND pre_ec > post_ec
                   AND volume_ml > 0
                 ORDER BY id DESC
                 LIMIT 20
@@ -136,7 +135,7 @@ def _update_learning(rowid: int, ec_after: Optional[float]) -> None:
         # Calculate ml per mS/cm for each dose
         rates = []
         for ml, pre_ec, post_ec in rows:
-            delta_ec = pre_ec - post_ec
+            delta_ec = abs(post_ec - pre_ec)
             if delta_ec > 0.01:  # Avoid division by very small numbers
                 rate = ml / delta_ec
                 rates.append(rate)
