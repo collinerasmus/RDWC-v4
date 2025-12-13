@@ -2061,47 +2061,6 @@ body{
               </div>
             </div>
 
-            <!-- Pump Control (Time-based) -->
-            <div style="margin-top:12px;">
-              <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">Manual Dosing (Time)</div>
-              <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
-                <div class="muted" style="font-size:var(--font-sm);margin-bottom:12px;">Dose individual nutrient pumps by time (seconds). Safety guards enforced in Auto mode; E-STOP and reservoir checks in Manual mode.</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-                  <div>
-                    <button id="btnDoseGrow" class="btn-secondary btn-full" title="Dose Grow for 0.3s">Grow (0.3s)</button>
-                    <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;">
-                      <button id="btnDoseGrow05" class="btn-mini" title="Dose 0.5s">0.5s</button>
-                      <button id="btnDoseGrow10" class="btn-mini" title="Dose 1.0s">1.0s</button>
-                      <input id="ecGrowCustomSec" type="number" step="0.1" min="0" placeholder="sec" style="width:50px;height:24px;padding:0 4px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-xs);" />
-                      <button id="btnPulseGrowCustom" class="btn-mini" title="Custom dose">Go</button>
-                    </div>
-                  </div>
-                  <div>
-                    <button id="btnDoseMicro" class="btn-secondary btn-full" title="Dose Micro for 0.3s">Micro (0.3s)</button>
-                    <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;">
-                      <button id="btnDoseMicro05" class="btn-mini" title="Dose 0.5s">0.5s</button>
-                      <button id="btnDoseMicro10" class="btn-mini" title="Dose 1.0s">1.0s</button>
-                      <input id="ecMicroCustomSec" type="number" step="0.1" min="0" placeholder="sec" style="width:50px;height:24px;padding:0 4px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-xs);" />
-                      <button id="btnPulseMicroCustom" class="btn-mini" title="Custom dose">Go</button>
-                    </div>
-                  </div>
-                  <div>
-                    <button id="btnDoseBloom" class="btn-secondary btn-full" title="Dose Bloom for 0.3s">Bloom (0.3s)</button>
-                    <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;">
-                      <button id="btnDoseBloom05" class="btn-mini" title="Dose 0.5s">0.5s</button>
-                      <button id="btnDoseBloom10" class="btn-mini" title="Dose 1.0s">1.0s</button>
-                      <input id="ecBloomCustomSec" type="number" step="0.1" min="0" placeholder="sec" style="width:50px;height:24px;padding:0 4px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-xs);" />
-                      <button id="btnPulseBloomCustom" class="btn-mini" title="Custom dose">Go</button>
-                    </div>
-                  </div>
-                </div>
-                <div class="muted" style="font-size:var(--font-sm);margin-top:12px;padding:6px 8px;border-radius:6px;background:rgba(148,163,184,0.05);">
-                  Safety: Max per press <span id="ecCapMaxPress">1.5s</span> • Daily cap <span id="ecCapDaily">120s</span> • Min off <span id="ecCapMinOff">2s</span>
-                </div>
-              </div>
-            </div>
-
-
           </div>
   </section>
 
