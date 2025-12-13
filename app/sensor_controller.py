@@ -1145,22 +1145,28 @@ def get_ph_calibration_status() -> Dict[str, Any]:
                 
                 # If no response from Cal,?, try database fallback
                 if (not response or response == "No response" or not points):
+                    logger.info(f"pH Cal,? failed (response={repr(response)}, points={points}), trying DB fallback")
                     try:
                         from app.settings import get_settings
+                        settings = get_settings()
                         db_points = []
                         for pt in ["mid", "low", "high"]:
-                            val = get_settings().get(f"cal.ph.{pt}")
+                            val = settings.get(f"cal.ph.{pt}")
                             if val is not None:
                                 db_points.append(pt)
+                                logger.info(f"Found pH cal point in DB: {pt}={val}")
                         if db_points:
+                            logger.info(f"Using DB calibration points: {db_points}")
                             return {
                                 "ok": True,
                                 "status": "From database (probe Cal,? not responding)",
                                 "flags": db_points,
                                 "points": db_points
                             }
+                        else:
+                            logger.warning("No pH calibration points found in database")
                     except Exception as e:
-                        logger.warning(f"Failed to read pH cal from DB: {e}")
+                        logger.error(f"Failed to read pH cal from DB: {e}", exc_info=True)
                 
                 return {
                     "ok": True,
