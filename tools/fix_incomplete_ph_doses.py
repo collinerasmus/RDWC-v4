@@ -52,8 +52,8 @@ def fix_incomplete_doses():
             after_time = (dose_time + timedelta(minutes=10)).isoformat()
             cur.execute("""
                 SELECT ph FROM readings 
-                WHERE ts_utc > ? AND ts_utc <= ? AND ph IS NOT NULL 
-                ORDER BY ts_utc ASC 
+                WHERE ts > ? AND ts <= ? AND ph IS NOT NULL 
+                ORDER BY ts ASC 
                 LIMIT 1
             """, (ts_utc, after_time))
             
