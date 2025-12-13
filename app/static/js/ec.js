@@ -153,7 +153,10 @@
     // Learned KPI in header row if present
     const learnedKpi = el('ec-kpi-learned');
     if(learnedKpi){
-      const val = s && s.learned_ml_per_mScm!=null ? Number(s.learned_ml_per_mScm).toFixed(1) : '—';
+      const learned = (s && s.auto && s.auto.learned_ml_per_mScm != null)
+        ? s.auto.learned_ml_per_mScm
+        : (s && s.learned_ml_per_mScm);
+      const val = learned != null ? Number(learned).toFixed(1) : '—';
       const valEl = learnedKpi.querySelector('.kpi-value');
       if(valEl) valEl.textContent = val;
       else learnedKpi.textContent = val;
@@ -217,10 +220,14 @@
     const displayBox = el('ec-learned-display');
     const displayValue = el('ec-learned-display-value');
     if (!displayBox || !displayValue) return;
-    
-    if (s && s.learned_ml_per_mScm !== null && s.learned_ml_per_mScm !== undefined && s.learned_ml_per_mScm > 0) {
+
+    const learned = (s && s.auto && s.auto.learned_ml_per_mScm != null)
+      ? s.auto.learned_ml_per_mScm
+      : (s && s.learned_ml_per_mScm);
+
+    if (learned !== null && learned !== undefined && learned > 0) {
       displayBox.style.display = 'block';
-      displayValue.textContent = s.learned_ml_per_mScm.toFixed(2);
+      displayValue.textContent = Number(learned).toFixed(2);
     } else {
       displayBox.style.display = 'none';
       displayValue.textContent = '—';
