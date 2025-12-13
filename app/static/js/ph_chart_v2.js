@@ -47,16 +47,19 @@
         const doseUrl = `/api/dose/recent?hours=${doseHours}`;
 
         try {
-          const [trendsRes, doseRes, settingsRes] = await Promise.all([
+          const [trendsRes, doseRes, settingsRes, scheduleRes] = await Promise.all([
             fetch(trendsUrl, { cache: 'no-store' }),
             fetch(doseUrl, { cache: 'no-store' }),
-            fetch('/api/settings', { cache: 'no-store' })
+            fetch('/api/settings', { cache: 'no-store' }),
+            fetch('/api/schedule/current_week', { cache: 'no-store' })
           ]);
 
           const trendsData = trendsRes.ok ? await trendsRes.json() : { series: { ph: [] } };
           const doseData = doseRes.ok ? await doseRes.json() : { events: [] };
           const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+          const scheduleData = scheduleRes.ok ? await scheduleRes.json() : {};
           const targets = settingsData?.targets || {};
+          const phSetpoint = typeof scheduleData.ph_setpoint === 'number' ? scheduleData.ph_setpoint : null;
 
           console.log('[pH Chart] Fetched:', {
             ph: trendsData?.series?.ph?.length || 0,
@@ -64,15 +67,15 @@
             targets: targets
           });
 
-          return { trendsData, doseData, targets };
+          return { trendsData, doseData, targets, phSetpoint };
         } catch (e) {
           console.error('[pH Chart] Fetch failed:', e);
-          return { trendsData: { series: { ph: [] } }, doseData: { events: [] }, targets: {} };
+          return { trendsData: { series: { ph: [] } }, doseData: { events: [] }, targets: {}, phSetpoint: null };
         }
       },
 
       onRender: (chart, data, window) => {
-        const { trendsData, doseData, targets } = data;
+        const { trendsData, doseData, targets, phSetpoint } = data;
 
         // Parse pH readings
         const ph = (trendsData?.series?.ph || []).map(p => ({
@@ -98,8 +101,10 @@
         }
 
         // Get targets from settings (convert strings to floats)
-        const phLow = parseFloat(targets?.ph_low) || 5.8;
-        const phHigh = parseFloat(targets?.ph_high) || 6.2;
+        const band = parseFloat(targets?.ph_band);
+        const useBand = !Number.isNaN(band);
+        const phLow = useBand && phSetpoint != null ? phSetpoint - band : (parseFloat(targets?.ph_low) || 5.8);
+        const phHigh = useBand && phSetpoint != null ? phSetpoint + band : (parseFloat(targets?.ph_high) || 6.2);
 
         // Get current pH
         const currentPH = ph.length > 0 ? ph[ph.length - 1].y : null;
