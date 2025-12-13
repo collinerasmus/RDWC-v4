@@ -55,15 +55,17 @@
             </button>
           </div>
           
-          <!-- Slider -->
-          <div style="flex:1;min-width:200px;display:flex;align-items:center;gap:8px;">
-            <input type="range" class="chart-slider" min="0" max="100" value="100" 
-                   style="flex:1;height:6px;background:#374151;border-radius:3px;cursor:pointer;"
-                   title="Drag to pan through time">
+          <!-- Pan controls -->
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:var(--font-sm);color:#9ca3af;font-weight:600;">Pan:</span>
+            <button class="chart-pan-left btn-secondary btn-compact" title="Pan backward in time">
+              <span style="font-size:16px;font-weight:bold;">←</span>
+            </button>
+            <button class="chart-pan-right btn-secondary btn-compact" title="Pan forward in time">
+              <span style="font-size:16px;font-weight:bold;">→</span>
+            </button>
+            <button class="chart-now-btn btn-secondary btn-compact" title="Jump to latest data">Now</button>
           </div>
-          
-          <!-- Now button -->
-          <button class="chart-now-btn btn-secondary btn-compact" title="Jump to latest data">Now</button>
           
           <!-- Export button -->
           <button class="chart-export-btn btn-secondary btn-compact" style="margin-left:auto;" title="Export chart data to CSV">Export CSV</button>
@@ -78,20 +80,19 @@
       // Wire up event listeners
       const zoomOut = this.container.querySelector('.chart-zoom-out');
       const zoomIn = this.container.querySelector('.chart-zoom-in');
-      const slider = this.container.querySelector('.chart-slider');
+      const panLeft = this.container.querySelector('.chart-pan-left');
+      const panRight = this.container.querySelector('.chart-pan-right');
       const nowBtn = this.container.querySelector('.chart-now-btn');
       const exportBtn = this.container.querySelector('.chart-export-btn');
       
       if (zoomOut) zoomOut.addEventListener('click', () => this.zoomOut());
       if (zoomIn) zoomIn.addEventListener('click', () => this.zoomIn());
-      if (slider) {
-        slider.addEventListener('input', (e) => this.onSliderChange(parseInt(e.target.value, 10)));
-        slider.addEventListener('change', (e) => this.onSliderChange(parseInt(e.target.value, 10)));
-      }
+      if (panLeft) panLeft.addEventListener('click', () => this.panLeft());
+      if (panRight) panRight.addEventListener('click', () => this.panRight());
       if (nowBtn) nowBtn.addEventListener('click', () => this.jumpToNow());
       if (exportBtn) exportBtn.addEventListener('click', () => this.onExport());
       
-      this.elements = { zoomOut, zoomIn, slider, nowBtn, exportBtn };
+      this.elements = { zoomOut, zoomIn, panLeft, panRight, nowBtn, exportBtn };
       this.updateUI();
     }
 
@@ -107,6 +108,22 @@
         this.currentZoomIndex--;
         this.updateRange();
       }
+    }
+
+    panLeft() {
+      // Pan backward by 25% of current zoom window
+      const panPercent = 25;
+      this.sliderPosition = Math.max(0, this.sliderPosition - panPercent);
+      this.isLiveMode = false;
+      this.updateRange();
+    }
+
+    panRight() {
+      // Pan forward by 25% of current zoom window
+      const panPercent = 25;
+      this.sliderPosition = Math.min(100, this.sliderPosition + panPercent);
+      this.isLiveMode = (this.sliderPosition === 100);
+      this.updateRange();
     }
 
     onSliderChange(value) {
@@ -179,7 +196,7 @@
       const label = this.container.querySelector('.chart-zoom-label');
       if (label) label.textContent = zoom.label;
       
-      // Update button states
+      // Update zoom button states
       if (this.elements.zoomOut) {
         this.elements.zoomOut.disabled = (this.currentZoomIndex === ZOOM_LEVELS.length - 1);
       }
@@ -187,8 +204,17 @@
         this.elements.zoomIn.disabled = (this.currentZoomIndex === 0);
       }
       
+      // Update pan button states
+      if (this.elements.panLeft) {
+        this.elements.panLeft.disabled = (this.sliderPosition <= 0);
+      }
+      if (this.elements.panRight) {
+        this.elements.panRight.disabled = (this.sliderPosition >= 100);
+      }
+      
       // Update Now button appearance
       if (this.elements.nowBtn) {
+        this.elements.nowBtn.disabled = this.isLiveMode;
         this.elements.nowBtn.classList.toggle('active', this.isLiveMode);
         this.elements.nowBtn.style.background = this.isLiveMode 
           ? 'rgba(34,197,94,0.15)' 
