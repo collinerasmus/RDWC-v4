@@ -47,11 +47,8 @@
       const zoom = ZOOM_LEVELS[this.currentZoomIndex];
       console.log('[ChartControls] render() called for container:', this.containerId, 'with zoom level:', zoom.label);
       
-      // Add visual feedback directly to the page
-      const debugBox = `<div style="background:yellow;color:black;padding:8px;margin:4px 0;border:2px solid red;font-weight:bold;font-size:16px;">CONTROLS RENDERING FOR: ${this.containerId}</div>`;
-      
-      this.container.innerHTML = debugBox + `
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;background:rgba(51,65,85,0.4);border:1px solid rgba(51,65,85,0.8);border-radius:4px;margin:4px 0;">
+      this.container.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;">
           <!-- Zoom controls -->
           <div style="display:flex;align-items:center;gap:6px;">
             <span style="font-size:var(--font-sm);color:#9ca3af;font-weight:600;">Zoom:</span>
@@ -85,13 +82,6 @@
           Loading...
         </div>
       `;
-      
-      // Log visibility info
-      const computed = window.getComputedStyle(this.container);
-      const parent = this.container.parentElement;
-      const parentComputed = parent ? window.getComputedStyle(parent) : null;
-      console.log('[ChartControls] After render - Container display:', computed.display, 'visibility:', computed.visibility, 'overflow:', computed.overflow, 'parent:', parent?.className);
-      console.log('[ChartControls] Parent element:', parent?.tagName, 'display:', parentComputed?.display, 'overflow:', parentComputed?.overflow, 'height:', parentComputed?.height);
       
       // Wire up event listeners
       const zoomOut = this.container.querySelector('.chart-zoom-out');
