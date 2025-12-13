@@ -238,7 +238,10 @@
       
       // Reverse for newest-first (s.recent is already ordered, but render in display order)
       const rows = doses.map(d => {
-        const ts = d.ts_utc?.split('T')[0] + ' ' + (d.ts_utc?.split('T')[1]?.split('Z')[0] || '');
+        // Parse ISO timestamp same as EC (YYYY-MM-DD HH:MM:SS)
+        const ts = new Date(d.ts_utc);
+        const tsStr = `${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,'0')}-${String(ts.getDate()).padStart(2,'0')} ${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}:${String(ts.getSeconds()).padStart(2,'0')}`;
+        
         const phBefore = (d.pre_ph != null) ? d.pre_ph.toFixed(3) : '—';
         const phAfter = (d.post_ph != null) ? d.post_ph.toFixed(3) : '—';
         const delta = (d.pre_ph != null && d.post_ph != null)
@@ -253,7 +256,7 @@
         // Single-row compact chip: time • pH • Δ • volume • duration • result • reason
         const dot = '<span style="color:#4b5563;">•</span>';
         const segments = [
-          `<span style="font-weight:700;">${ts}</span>`,
+          `<span style="font-weight:700;">${tsStr}</span>`,
           `<span style="color:#9ca3af;">pH ${phBefore}→${phAfter}</span>`,
           `<span style="color:#9ca3af;">Δ ${deltaStr}</span>`,
           `<span style="color:#9ca3af;">${volume}</span>`
