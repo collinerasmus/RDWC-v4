@@ -2,6 +2,16 @@
 (function(){
   'use strict';
 
+  // Shared helper to fetch settings with proper error handling
+  async function fetchSettingsSafe(){
+    const res = await fetch('/api/settings');
+    if (!res.ok){
+      const text = await res.text();
+      throw new Error(`settings ${res.status}: ${text?.slice?.(0,200) || text}`);
+    }
+    return res.json();
+  }
+
   // pH Controller Settings
   function initPhSettings(){
     const btn = document.getElementById('btnSavePhSettings');
@@ -10,8 +20,7 @@
     // Load current settings
     async function loadPhSettings(){
       try {
-        const res = await fetch('/api/settings');
-        const settings = await res.json();
+        const settings = await fetchSettingsSafe();
         
         // Helper to safely set element value
         const setVal = (id, val) => {
@@ -136,8 +145,7 @@
     
     async function loadEcSettings(){
       try {
-        const res = await fetch('/api/settings');
-        const settings = await res.json();
+        const settings = await fetchSettingsSafe();
         
         // Helper to safely set element value
         const setVal = (id, val) => {
@@ -241,8 +249,7 @@
     
     async function loadTempSettings(){
       try {
-        const res = await fetch('/api/settings');
-        const settings = await res.json();
+        const settings = await fetchSettingsSafe();
         
         if (settings.targets && settings.targets.temp_target_c !== undefined) {
           document.getElementById('tempTarget').value = parseFloat(settings.targets.temp_target_c);
@@ -341,8 +348,7 @@
     
     async function loadCircSettings(){
       try {
-        const res = await fetch('/api/settings');
-        const settings = await res.json();
+        const settings = await fetchSettingsSafe();
         
         if (settings.safety) {
           if (settings.safety.main_pump_min_off_s !== undefined) document.getElementById('mainPumpMinOff').value = parseInt(settings.safety.main_pump_min_off_s);

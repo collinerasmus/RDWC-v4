@@ -2090,7 +2090,15 @@ def api_settings_get():
     Secrets are not included; email credentials must live outside this table.
     """
     from app.settings import get_settings_grouped
-    return get_settings_grouped()
+    try:
+        return get_settings_grouped()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": "settings_fetch_failed", "detail": str(e)},
+        )
 
 
 @app.put("/api/settings")

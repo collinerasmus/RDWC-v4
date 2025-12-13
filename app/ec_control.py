@@ -148,6 +148,38 @@ def _update_learning(rowid: int, ec_after: Optional[float]) -> None:
         import logging
         logging.error(f"EC learning calculation failed: {e}")
 
+
+def _compute_learning_from_db(limit: int = 50) -> Optional[float]:
+    """Recompute learned ml/mS·cm from recent successful doses.
+    Used on startup/status when in-memory cache is empty so the UI doesn't show blanks after restart."""
+    _ensure_tables()
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT volume_ml, pre_ec, post_ec
+                FROM ec_dose_log
+                WHERE result='ok' AND pre_ec IS NOT NULL AND post_ec IS NOT NULL
+                  AND volume_ml > 0
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (int(limit),),
+            )
+            rows = cur.fetchall()
+        rates = []
+        for ml, pre_ec, post_ec in rows:
+            delta_ec = abs(post_ec - pre_ec)
+            if delta_ec > 0.01:
+                rates.append(ml / delta_ec)
+        if not rates:
+            return None
+        rates.sort()
+        return rates[len(rates) // 2]
+    except Exception:
+        return None
+
 def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
     _ensure_tables()
     with sqlite3.connect(str(DB_PATH)) as conn:
@@ -1025,6 +1057,11 @@ def get_ec_status():
     
     with _auto_lock:
         holding_reason = _auto_last_holding_reason
+
+    # Ensure learned estimate is populated after restart (pull from DB if cache empty)
+    global _learned_ml_per_mScm
+    if _learned_ml_per_mScm is None:
+        _learned_ml_per_mScm = _compute_learning_from_db()
     
     # Targets from scheduler or manual settings
     ec_low, ec_high = _get_ec_targets()
