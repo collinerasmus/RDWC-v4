@@ -61,9 +61,9 @@
     
     if(ecVal){ ecVal.textContent = (s && s.ec_ms_cm!=null) ? s.ec_ms_cm.toFixed(2) : '—'; }
     if(band && s){
-      const low = (s.targets && s.targets.low!=null) ? Number(s.targets.low).toFixed(1) : '—';
-      const high = (s.targets && s.targets.high!=null) ? Number(s.targets.high).toFixed(1) : '—';
-      band.textContent = `${low} – ${high} mS/cm`;
+      const low = (s.targets && s.targets.low!=null) ? Number(s.targets.low).toFixed(2) : '—';
+      const high = (s.targets && s.targets.high!=null) ? Number(s.targets.high).toFixed(2) : '—';
+      band.textContent = `${low} – ${high}`;
       // Optional KPI row element if present
       const kpiTargets = el('ec-kpi-targets');
       if(kpiTargets){
@@ -158,8 +158,8 @@
     if(learnedKpi){
       const val = s && s.learned_ml_per_mScm!=null ? Number(s.learned_ml_per_mScm).toFixed(1) : '—';
       const valEl = learnedKpi.querySelector('.kpi-value');
-      if(valEl) valEl.textContent = val + ' ml/mS·cm';
-      else learnedKpi.textContent = val + ' ml/mS·cm';
+      if(valEl) valEl.textContent = val;
+      else learnedKpi.textContent = val;
     }
 
     // Update controller health chip after status changes
