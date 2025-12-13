@@ -126,6 +126,45 @@
     }
   }
 
+  // Render chiller event log (similar styling to dose logs)
+  function renderChillerLog(events) {
+    const listEl = q('#temperature-events-list');
+    if (!listEl) return;
+
+    if (!events || events.length === 0) {
+      listEl.innerHTML = '<div style="text-align:center;padding:16px;color:#94a3b8;">No chiller events yet.</div>';
+      return;
+    }
+
+    listEl.innerHTML = events.map(evt => {
+      const ts = new Date(evt.ts * 1000);
+      const tsStr = ts.toISOString().replace('T', ' ').split('.')[0];
+      const state = evt.state === 'ON' || evt.final === true ? '<span style="color:#22c55e;font-weight:600;">ON</span>' : '<span style="color:#ef4444;font-weight:600;">OFF</span>';
+      const reason = evt.reason ? ` · ${evt.reason}` : '';
+      return `
+        <div style="padding:6px 4px;border-bottom:1px solid rgba(148,163,184,0.12);display:flex;align-items:center;gap:8px;">
+          <span style="font-weight:700;color:#e5e7eb;white-space:nowrap;">${tsStr}</span>
+          <span style="color:#9ca3af;">• Chiller</span>
+          <span style="color:#9ca3af;">→</span>
+          <span>${state}</span>
+          <span style="color:#9ca3af;">${reason}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function updateChillerLog() {
+    try {
+      const res = await fetch('/api/temperature/events?hours=168', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const events = (data?.events || []).slice().sort((a,b) => (b.ts||0) - (a.ts||0)).slice(0, 50);
+      renderChillerLog(events);
+    } catch (e) {
+      if (UI_VERBOSE) console.error('Chiller log fetch failed', e);
+    }
+  }
+
   // Update UI elements
   function updateTemperatureUI() {
     const state = temperatureState;
@@ -351,14 +390,15 @@
     
     // Initial refresh
     refreshTemperatureStatus();
+    updateChillerLog();
     
     // Register with centralized polling manager (main loop ~6s)
     if(window.pollingManager && !window.__temperaturePollingRegistered){
       window.__temperaturePollingRegistered = true;
-      window.pollingManager.register('temperature-status', async ()=>{ await refreshTemperatureStatus(); await syncTemperatureHoldState(); }, 'main');
+      window.pollingManager.register('temperature-status', async ()=>{ await refreshTemperatureStatus(); await syncTemperatureHoldState(); await updateChillerLog(); }, 'main');
     } else {
       // Fallback: very slow local polling if manager missing
-      _refreshInterval = setInterval(refreshTemperatureStatus, 12000);
+      _refreshInterval = setInterval(() => { refreshTemperatureStatus(); updateChillerLog(); }, 12000);
     }
     console.log('Intelligent temperature control initialized (event-driven)');
   }

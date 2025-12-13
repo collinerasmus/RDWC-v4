@@ -1292,6 +1292,12 @@ body{
     <!-- Unified controls (zoom + slider) -->
     <div id="temperature-chart-controls"></div>
 
+    <!-- Chiller Event Log -->
+    <div style="margin-top:12px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);">
+      <div style="font-size:var(--font-sm);color:#9ca3af;font-weight:500;margin-bottom:6px;" id="temperature-events-header">Chiller Log ▾</div>
+      <div id="temperature-events-list" style="max-height:220px;overflow-y:auto;padding-right:6px;font-size:var(--font-xs);"></div>
+    </div>
+
     <!-- Chiller automation controlled via header chips only - redundant buttons removed -->
 
     <div style="margin-top:20px;">
@@ -1499,14 +1505,13 @@ body{
       </div>
 
       <!-- Pump Activity Timeline -->
-      <div style="background:rgba(15,23,42,0.6);border:1px solid rgba(148,163,184,0.2);border-radius:12px;padding:16px;margin-bottom:20px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <div style="font-weight:600;font-size:var(--font-base);color:#e0e0e0;">📊 Activity Timeline</div>
+      <div class="chart-card" style="margin-bottom:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div class="muted" style="font-weight:600;">📊 Activity Timeline</div>
         </div>
-        <div id="circ-chart-controls" style="margin-bottom:12px;"></div>
-        <div style="height:300px;position:relative;">
-          <canvas id="circTimelineChart" style="width:100%;height:100%;"></canvas>
-        </div>
+        <div id="circ-chart-controls" style="margin-bottom:8px;"></div>
+        <canvas id="circTimelineChart"></canvas>
+        <div id="circ-chart-empty" class="muted small" style="display:none;padding:8px 0;">No circulation activity in this window.</div>
       </div>
 
       <!-- Event Log (match dose log styling) -->

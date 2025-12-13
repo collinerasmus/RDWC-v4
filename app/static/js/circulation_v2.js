@@ -277,7 +277,7 @@
     function initChart() {
       window.circChart = new RDWCChart({
         canvasId: 'circTimelineChart',
-        emptyMessageId: null,
+        emptyMessageId: 'circ-chart-empty',
         type: 'circulation',
         title: 'Pump Activity Timeline',
         
