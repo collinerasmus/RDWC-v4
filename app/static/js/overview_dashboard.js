@@ -268,12 +268,12 @@
   function updateScheduleKPIs(schedule) {
     if (!schedule) return;
     
-    coconst weekNum = schedule.week_number !== null && schedule.week_number !== undefined ? schedule.week_number : schedule.week;
-      weekEl.textContent = weekNum !== null && weekNum !== undefined ? `Week ${weekNum}` : 'Week —'
+    const weekEl = el('ov-schedule-week');
     const phaseEl = el('ov-schedule-phase');
     
     if (weekEl) {
-      weekEl.textContent = `Week ${schedule.week_number || '—'}`;
+      const weekNum = schedule.week_number !== null && schedule.week_number !== undefined ? schedule.week_number : schedule.week;
+      weekEl.textContent = weekNum !== null && weekNum !== undefined ? `Week ${weekNum}` : 'Week —';
     }
     
     if (phaseEl) {
