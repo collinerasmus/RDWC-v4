@@ -1143,6 +1143,25 @@ def get_ph_calibration_status() -> Dict[str, Any]:
                             elif cnt >= 3:
                                 points = ["mid", "low", "high"]
                 
+                # If no response from Cal,?, try database fallback
+                if not response or not points:
+                    try:
+                        from app.settings import get_settings
+                        db_points = []
+                        for pt in ["mid", "low", "high"]:
+                            val = get_settings().get(f"cal.ph.{pt}")
+                            if val is not None:
+                                db_points.append(pt)
+                        if db_points:
+                            return {
+                                "ok": True,
+                                "status": "From database (probe Cal,? not responding)",
+                                "flags": db_points,
+                                "points": db_points
+                            }
+                    except Exception as e:
+                        logger.warning(f"Failed to read pH cal from DB: {e}")
+                
                 return {
                     "ok": True,
                     "status": response or "No response",
@@ -1189,6 +1208,13 @@ def clear_ph_calibration() -> Dict[str, Any]:
                 # Check if successful - EZO typically returns "1" or empty string on success
                 if response is not None:
                     logger.info("pH calibration cleared")
+                    
+                    # Clear calibration points from database
+                    try:
+                        from app.settings import delete_settings
+                        delete_settings([\"cal.ph.mid\", \"cal.ph.low\", \"cal.ph.high\"])
+                    except Exception as e:
+                        logger.warning(f\"Failed to clear pH cal from DB: {e}\")
                     return {"ok": True, "note": "Cleared"}
                 else:
                     # Retry once on failure
@@ -1266,6 +1292,14 @@ def calibrate_ph_point(point: str, value: float) -> Dict[str, Any]:
                             logger.info(f"pH {point} calibration success on attempt {idx}")
                             # CRITICAL: Give probe time to settle after calibration before releasing lock
                             time.sleep(3.0)
+                            
+                            # Store calibration point in database (since Cal,? often fails on EZO pH)
+                            try:
+                                from app.settings import upsert_settings
+                                upsert_settings({f"cal.ph.{point}": value})
+                            except Exception as e:
+                                logger.warning(f"Failed to store pH cal point in DB: {e}")
+                            
                             return {
                                 "ok": True,
                                 "note": f"{point.title()} calibrated at {value:.2f}"
