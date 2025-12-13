@@ -19,6 +19,7 @@
    */
   class ChartControls {
     constructor(options) {
+      console.log('[ChartControls] Constructor called with containerId:', options.containerId);
       this.containerId = options.containerId;
       this.onRangeChange = options.onRangeChange; // callback(start, end)
       this.getGrowStartDate = options.getGrowStartDate || (() => null);
@@ -35,13 +36,16 @@
         console.error('[ChartControls] Container not found:', this.containerId);
         return;
       }
+      console.log('[ChartControls] Container found, calling render()');
       
       this.render();
       this.updateRange();
+      console.log('[ChartControls] Initialization complete');
     }
 
     render() {
       const zoom = ZOOM_LEVELS[this.currentZoomIndex];
+      console.log('[ChartControls] render() called for container:', this.containerId, 'with zoom level:', zoom.label);
       
       this.container.innerHTML = `
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;">
