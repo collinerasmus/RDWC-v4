@@ -187,6 +187,13 @@
         return;
       }
       
+      // Fetch current relay status first to get current state
+      const statusResp = await fetch('/api/relays/status', {cache: 'no-store'});
+      const statusData = statusResp.ok ? await statusResp.json() : {};
+      const currentMainState = statusData.relays?.main_pump?.is_on ? 1 : 0;
+      const currentChillerState = statusData.relays?.chiller_pump?.is_on ? 1 : 0;
+      console.log('[Circulation] Current states - Main:', currentMainState, 'Chiller:', currentChillerState);
+      
       // Fetch 24h of events
       const [mainResp, chillerResp] = await Promise.all([
         fetch('/api/relays/events?name=main_pump&last=200', {cache: 'no-store'}),
@@ -208,14 +215,14 @@
       const chillerFiltered = filterEvents(chillerEvents);
       
       // Build timeline data (1=ON, 0=OFF)
-      const buildTimeline = (events) => {
+      const buildTimeline = (events, currentState) => {
         const data = [];
         let lastState = false;
         
         if (!events || events.length === 0) {
           // No events - show current state as flat line
-          data.push({ x: new Date(dayAgo), y: 0 });
-          data.push({ x: new Date(), y: 0 });
+          data.push({ x: new Date(dayAgo), y: currentState });
+          data.push({ x: new Date(), y: currentState });
           return data;
         }
         
@@ -246,7 +253,7 @@
           datasets: [
             {
               label: 'Main Pump',
-              data: buildTimeline(mainFiltered),
+              data: buildTimeline(mainFiltered, currentMainState),
               borderColor: '#60a5fa',
               backgroundColor: 'rgba(96,165,250,0.1)',
               borderWidth: 2,
@@ -256,7 +263,7 @@
             },
             {
               label: 'Chiller Pump',
-              data: buildTimeline(chillerFiltered),
+              data: buildTimeline(chillerFiltered, currentChillerState),
               borderColor: '#22d3ee',
               backgroundColor: 'rgba(34,211,238,0.1)',
               borderWidth: 2,
