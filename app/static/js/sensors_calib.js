@@ -45,17 +45,16 @@
   
   function updatePumpRateDisplays() {
     const displays = {
-      ph: $('ph-pump-rate'),
-      grow: $('grow-pump-rate'),
-      micro: $('micro-pump-rate'),
-      bloom: $('bloom-pump-rate')
+      ph: $('phPumpCurrentRate'),
+      grow: $('growPumpCurrentRate'),
+      micro: $('microPumpCurrentRate'),
+      bloom: $('bloomPumpCurrentRate')
     };
-    
+
     for (const [pump, el] of Object.entries(displays)) {
-      if (el) {
-        const rate = pumpRates[pump];
-        el.textContent = rate > 0 ? `${rate.toFixed(3)} ml/s` : 'Not calibrated';
-      }
+      if (!el) continue;
+      const rate = pumpRates[pump];
+      el.textContent = rate > 0 ? rate.toFixed(3) : '—';
     }
   }
   

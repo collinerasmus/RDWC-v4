@@ -763,6 +763,26 @@
           const pts = r.points ? (r.points.length? r.points.join(', ') : 'none') : 'none';
           const statusEl = el('ph-current-calib');
           if(statusEl) statusEl.textContent = pts === 'none' ? 'Not calibrated' : pts;
+          
+          // Update status value display
+          const statusValEl = el('phCalStatusValue');
+          if(statusValEl) {
+            if(pts === 'none') {
+              statusValEl.textContent = 'Not calibrated';
+            } else {
+              statusValEl.textContent = `✓ ${pts}`;
+            }
+          }
+          
+          // Update step indicators based on calibration points
+          const points = r.points || [];
+          const midInd = el('phCalMidIndicator');
+          const lowInd = el('phCalLowIndicator');
+          const highInd = el('phCalHighIndicator');
+          if(midInd) midInd.textContent = points.includes('mid') ? '✓' : '—';
+          if(lowInd) lowInd.textContent = points.includes('low') ? '✓' : '—';
+          if(highInd) highInd.textContent = points.includes('high') ? '✓' : '—';
+          
           if(showLoading) setMsg(`✓ Calibration points: ${pts}`, true, 'success'); 
         } else { 
           const hint = (r && r.note && r.note.includes('NoData')) 
@@ -770,6 +790,15 @@
             : `✗ ${(r && r.note) || 'Status failed'}`;
           setMsg(hint, false); 
         }
+        
+        // Fetch current pH from sensors endpoint
+        try {
+          const sensorsResp = await fetch('/api/sensors?t='+Date.now(), {cache:'no-store'});
+          const sensorsData = await sensorsResp.json();
+          if(sensorsData && typeof sensorsData.ph === 'number') {
+            setCurrent(sensorsData.ph);
+          }
+        } catch(e) { /* Ignore sensor fetch errors */ }
       }catch(e){ if(showLoading) setMsg(`✗ Status failed (network): ${e.message}`, false); }
     }
 
