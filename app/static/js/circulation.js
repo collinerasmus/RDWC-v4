@@ -320,6 +320,8 @@
       const rel = wrap.relays || {};
       const main = rel.main_pump || {};
       const temp = rel.chiller_pump || {};
+      console.log('[Circulation] Relay status - Main pump:', main.is_on, 'Chiller pump:', temp.is_on);
+      
       const cdMain = main.cooldown_remaining || main.cooldown || 0;
       const cdtemp = temp.cooldown_remaining || temp.cooldown || 0;
       circCooldown = (cdMain>0) || (cdtemp>0);
