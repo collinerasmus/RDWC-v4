@@ -2091,9 +2091,13 @@ def api_settings_get():
     """
     from app.settings import get_settings_grouped
     try:
-        return get_settings_grouped()
+        result = get_settings_grouped()
+        if result is None:
+            result = {}
+        return result
     except Exception as e:
         import traceback
+        logger.error(f"Settings fetch error: {e}")
         traceback.print_exc()
         return JSONResponse(
             status_code=500,

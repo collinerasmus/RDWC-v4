@@ -195,7 +195,12 @@ def get_all_settings() -> Dict[str, str]:
     from app.db_pool import get_conn
     conn = get_conn(readonly=True)
     cur = conn.execute("SELECT key, value FROM settings")
-    return {k: (v if v is not None else "") for k, v in cur.fetchall()}
+    result = {}
+    for row in cur.fetchall():
+        if row and len(row) >= 2:
+            k, v = row[0], row[1]
+            result[k] = v if v is not None else ""
+    return result
 
 def get_settings_grouped() -> Dict[str, Dict[str, Any]]:
     """Return grouped settings by namespace: {namespace: {key: value}}.
