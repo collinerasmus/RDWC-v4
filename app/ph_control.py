@@ -106,11 +106,15 @@ def _update_post_ph(rowid: int, post_ph: Optional[float]) -> None:
         conn.commit()
 
 def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
+    """Return recent complete dose log entries (post_ph must not be NULL).
+    Filters incomplete entries where stabilization hasn't finished yet.
+    """
     _ensure_tables()
     with sqlite3.connect(str(DB_PATH)) as conn:
         cur = conn.cursor()
+        # Only return complete entries where post_ph has been populated
         cur.execute(
-            "SELECT id, ts_utc, action, volume_ml, duration_ms, pre_ph, post_ph, result, reason FROM ph_dose_log ORDER BY id DESC LIMIT ?",
+            "SELECT id, ts_utc, action, volume_ml, duration_ms, pre_ph, post_ph, result, reason FROM ph_dose_log WHERE post_ph IS NOT NULL ORDER BY id DESC LIMIT ?",
             (int(limit),)
         )
         rows = cur.fetchall()
