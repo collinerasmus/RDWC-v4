@@ -150,17 +150,6 @@
     
     // Update learned value display in Settings section
     updateLearnedDisplay(s);
-    // Learned KPI in header row if present
-    const learnedKpi = el('ec-kpi-learned');
-    if(learnedKpi){
-      const learned = (s && s.auto && s.auto.learned_ml_per_mScm != null)
-        ? s.auto.learned_ml_per_mScm
-        : (s && s.learned_ml_per_mScm);
-      const val = learned != null ? Number(learned).toFixed(1) : '—';
-      const valEl = learnedKpi.querySelector('.kpi-value');
-      if(valEl) valEl.textContent = val;
-      else learnedKpi.textContent = val;
-    }
 
     // Update pump status indicators in calibration section
     await updatePumpStatuses();
