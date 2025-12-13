@@ -202,9 +202,9 @@
     /**
      * Refresh chart data
      */
-    async refresh() {
+    async refresh(force = false) {
       const now = Date.now();
-      if (now - this.lastRefreshTime < this.MIN_REFRESH_INTERVAL) {
+      if (!force && (now - this.lastRefreshTime < this.MIN_REFRESH_INTERVAL)) {
         console.log(`[ChartBase] ${this.type}: Skipping refresh (too soon)`);
         return;
       }

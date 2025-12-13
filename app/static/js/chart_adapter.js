@@ -48,7 +48,7 @@
             try {
               window.sensorsChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
               window.sensorsChart.selectedRange = 'custom';
-              await window.sensorsChart.refresh();
+              await window.sensorsChart.refresh(true);
             } catch (e) {
               console.error('[Chart Adapter] Sensors chart update failed:', e);
             }
@@ -72,7 +72,7 @@
             try {
               window.trendsChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
               window.trendsChart.selectedRange = 'custom';
-              await window.trendsChart.refresh();
+              await window.trendsChart.refresh(true);
             } catch (e) {
               console.error('[Chart Adapter] Trends chart update failed:', e);
             }
@@ -96,7 +96,7 @@
             try {
               window.phChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
               window.phChart.selectedRange = 'custom';
-              await window.phChart.refresh();
+              await window.phChart.refresh(true);
             } catch (e) {
               console.error('[Chart Adapter] pH chart update failed:', e);
             }
@@ -120,7 +120,7 @@
             try {
               window.ecChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
               window.ecChart.selectedRange = 'custom';
-              await window.ecChart.refresh();
+              await window.ecChart.refresh(true);
             } catch (e) {
               console.error('[Chart Adapter] EC chart update failed:', e);
             }
@@ -144,7 +144,7 @@
             try {
               window.temperatureChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
               window.temperatureChart.selectedRange = 'custom';
-              await window.temperatureChart.refresh();
+              await window.temperatureChart.refresh(true);
             } catch (e) {
               console.error('[Chart Adapter] Temperature chart update failed:', e);
             }
