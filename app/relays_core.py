@@ -396,6 +396,7 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False, act
         if time_since_startup < _CHILLER_STARTUP_DELAY_S:
             remaining = int(_CHILLER_STARTUP_DELAY_S - time_since_startup)
             logger.info(f"[CHILLER] Blocked ON: startup delay active ({remaining}s remaining) - protects compressor during restarts")
+            _log_relay_event(name, desired_on, current_state, "startup_delay", remaining, blocked=True)
             return {"changed": False, "state": current_state, "reason": "startup_delay", "cooldown_remaining": remaining}
 
     # Controller mode gating for circulation pumps (block non-forced automation when auto disabled)
@@ -403,6 +404,7 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False, act
     try:
         from app.auto_control import should_automate
         if name in ("main_pump", "chiller_pump") and not should_automate("circulation") and not force and reason not in (REASON_OVERRIDE, REASON_EMERGENCY, "restore"):
+            _log_relay_event(name, desired_on, current_state, "mode_hold", 0, blocked=True)
             return {"changed": False, "state": current_state, "reason": "mode_hold", "cooldown_remaining": 0}
     except Exception:
         pass
@@ -416,6 +418,7 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False, act
 
     # Idempotent skip (unless force)
     if current_state == desired_on and not force:
+        _log_relay_event(name, desired_on, current_state, "idempotent", 0, blocked=False)
         return {"changed": False, "state": current_state, "reason": "idempotent", "cooldown_remaining": 0}
 
     if not force:
@@ -431,6 +434,7 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False, act
         # Anti-flap: only in auto mode (manual = unrestricted)
         if is_auto_mode and name in _antiflap_until and now < _antiflap_until[name]:
             remaining = int(_antiflap_until[name] - now)
+            _log_relay_event(name, desired_on, current_state, "antiflap", remaining, blocked=True)
             return {"changed": False, "state": current_state, "reason": "antiflap", "cooldown_remaining": remaining}
         
         # Cooldowns: chiller_power always enforced, others only in auto mode
@@ -440,12 +444,14 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False, act
             # Chiller compressor MIN_ON always enforced, others only in auto mode
             if (name == "chiller_power" or is_auto_mode) and elapsed < min_on:
                 remaining = int(min_on - elapsed)
+                _log_relay_event(name, desired_on, current_state, "cooldown", remaining, blocked=True)
                 return {"changed": False, "state": current_state, "reason": "cooldown", "cooldown_remaining": remaining}
         else:  # OFF -> check MIN_OFF
             min_off = _get_min_time(name, MIN_OFF)
             # Chiller compressor MIN_OFF always enforced, others only in auto mode
             if (name == "chiller_power" or is_auto_mode) and elapsed < min_off:
                 remaining = int(min_off - elapsed)
+                _log_relay_event(name, desired_on, current_state, "cooldown", remaining, blocked=True)
                 return {"changed": False, "state": current_state, "reason": "cooldown", "cooldown_remaining": remaining}
 
     # Delegate to guard
@@ -464,6 +470,10 @@ def set_relay(name: str, desired_on: bool, reason: str, force: bool = False, act
 
     # Structured legacy log wrapper (guard already logged detailed line)
     logger.info(f"relay_core {name} final={'ON' if _last_state.get(name, False) else 'OFF'} reason={reason} ok={ok} coerced={coerced}")
+
+    # Log event for timeline/history tracking
+    final_state = _last_state.get(name, False)
+    _log_relay_event(name, desired_on, final_state, reason, cooldown=0, blocked=False)
 
     return {
         "changed": changed,
