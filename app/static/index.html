@@ -1636,10 +1636,6 @@ body{
               <div class="kpi-value" id="ph-current">—</div>
             </div>
             <div class="kpi kpi-ph">
-              <div class="kpi-label">Pump</div>
-              <div class="kpi-value" id="ph-pump">OFF</div>
-            </div>
-            <div class="kpi kpi-ph">
               <div class="kpi-label">Status</div>
               <div class="kpi-value" id="ph-status">Idle</div>
             </div>
@@ -1648,12 +1644,8 @@ body{
               <div class="kpi-value" id="ph-guards">All clear</div>
             </div>
             <div class="kpi kpi-ph">
-              <div class="kpi-label">Targets</div>
+              <div class="kpi-label">Target (pH)</div>
               <div class="kpi-value" id="ph-band">5.8 – 6.2</div>
-            </div>
-            <div class="kpi kpi-ph">
-              <div class="kpi-label">Learned</div>
-              <div class="kpi-value" id="ph-learned" title="Learned ml per 1.0 pH change">— ml/pH</div>
             </div>
             <span id="ph-countdown-pill" class="countdown-pill" style="display:none;">⏱ 0s</span>
           </div>
@@ -1796,7 +1788,10 @@ body{
                 <button id="btnPhPumpRun" class="btn-secondary" title="Run pump for specified duration - collect output in graduated cylinder">② Run</button>
                 <button id="btnPhPumpCommit" class="btn-secondary" title="Calculate and save ml/s rate from measured output">③ Commit Rate</button>
               </div>
-              <div style="font-size:var(--font-xs);color:#9ca3af;margin-top:8px;">Current rate: <span id="phPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s</div>
+              <div style="font-size:var(--font-xs);color:#9ca3af;margin-top:8px;">
+                Current rate: <span id="phPumpCurrentRate" style="color:#93c5fd;font-weight:600;">—</span> ml/s · 
+                Status: <span id="ph-pump" style="color:#9ca3af;font-weight:600;">OFF</span>
+              </div>
               <div id="phPumpCalibMsg" class="muted" style="font-size:var(--font-xs);padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
             </div>
           </div>
