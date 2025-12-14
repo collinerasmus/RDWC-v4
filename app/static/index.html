@@ -1534,6 +1534,16 @@ body{
             <div class="muted">Activity Timeline</div>
             <button id="circ-export" class="btn-secondary">Export CSV</button>
           </div>
+          <div class="chart-legend-row">
+            <span class="pill-muted nowrap" style="display:flex;align-items:center;gap:6px;">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#60a5fa;"></span>
+              Main Pump
+            </span>
+            <span class="pill-muted nowrap" style="display:flex;align-items:center;gap:6px;">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22d3ee;"></span>
+              Chiller Pump
+            </span>
+          </div>
           <div id="circ-chart-wrap" class="chart-card">
             <canvas id="circTimelineChart"></canvas>
             <div id="circ-chart-empty" class="muted small" style="display:none;padding:8px 0;">No circulation activity in this window.</div>
