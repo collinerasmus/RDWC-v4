@@ -1432,12 +1432,6 @@ body{
       <div class="muted">Lights History</div>
       <span id="lights-chart-total" class="kpi-pill" style="font-size:var(--font-sm);padding:2px 8px;border-radius:12px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);color:#fde047;">Total: 0h 0m</span>
     </div>
-    <div class="chart-legend-row">
-      <span class="pill-muted nowrap" style="display:flex;align-items:center;gap:6px;">
-        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;"></span>
-        Lights ON
-      </span>
-    </div>
     <div id="lights-dose-chart-wrap" class="chart-card">
       <canvas id="lightsChart"></canvas>
       <div id="lights-chart-empty" class="muted small" style="display:none;padding:8px 0;">
@@ -1533,16 +1527,6 @@ body{
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-sm);">
             <div class="muted">Activity Timeline</div>
             <button id="circ-export" class="btn-secondary">Export CSV</button>
-          </div>
-          <div class="chart-legend-row">
-            <span class="pill-muted nowrap" style="display:flex;align-items:center;gap:6px;">
-              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#60a5fa;"></span>
-              Main Pump
-            </span>
-            <span class="pill-muted nowrap" style="display:flex;align-items:center;gap:6px;">
-              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22d3ee;"></span>
-              Chiller Pump
-            </span>
           </div>
           <div id="circ-chart-wrap" class="chart-card">
             <canvas id="circTimelineChart"></canvas>
