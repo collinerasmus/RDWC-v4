@@ -310,7 +310,6 @@
     if (!lightsChart) return;
 
     try {
-      // Use custom time range if set (from pan slider), otherwise use current time
       let startMs, endMs;
       if (customTimeRange) {
         startMs = customTimeRange.start;
@@ -330,26 +329,53 @@
         lightsChart.data.datasets[0].data = [];
         lightsChart.update('none');
         const totalEl = $('lights-chart-total');
-        if (totalEl) totalEl.textContent = '0h 0m';
+        if (totalEl) totalEl.textContent = 'Total: 0h 0m';
         return;
       }
 
-      // Normalize timestamps
       const normalizedEvents = events.map(e => ({
         ts: typeof e.ts === 'string' ? new Date(e.ts).getTime() / 1000 : e.ts,
         final: e.final
       })).sort((a, b) => a.ts - b.ts);
 
-      // Calculate total ON time in this window
+      // Build bar data for each ON period
+      const bars = [];
       let windowTotal = 0;
+      
       for (let i = 0; i < normalizedEvents.length - 1; i++) {
         if (normalizedEvents[i].final === true) {
-          windowTotal += normalizedEvents[i + 1].ts - normalizedEvents[i].ts;
+          const onStart = normalizedEvents[i].ts * 1000;
+          const onEnd = normalizedEvents[i + 1].ts * 1000;
+          const duration = (onEnd - onStart) / 1000;
+          windowTotal += duration;
+          
+          const durationHrs = Math.floor(duration / 3600);
+          const durationMins = Math.floor((duration % 3600) / 60);
+          const label = durationHrs > 0 ? `${durationHrs}h ${durationMins}m` : `${durationMins}m`;
+          
+          bars.push({
+            x: [onStart, onEnd],
+            y: 'ON',
+            duration: label
+          });
         }
       }
-      // If last is ON, add time to end of window (not necessarily now)
+      
+      // Handle ongoing ON period
       if (normalizedEvents[normalizedEvents.length - 1].final === true) {
-        windowTotal += end - normalizedEvents[normalizedEvents.length - 1].ts;
+        const onStart = normalizedEvents[normalizedEvents.length - 1].ts * 1000;
+        const duration = (endMs - onStart) / 1000;
+        windowTotal += duration;
+        
+        const durationHrs = Math.floor(duration / 3600);
+        const durationMins = Math.floor((duration % 3600) / 60);
+        const label = durationHrs > 0 ? `${durationHrs}h ${durationMins}m` : `${durationMins}m`;
+        
+        bars.push({
+          x: [onStart, endMs],
+          y: 'ON',
+          duration: label
+        });
       }
 
       // Update chart total display
@@ -360,68 +386,7 @@
         totalEl.textContent = `Total: ${hours}h ${mins}m`;
       }
 
-      // Build annotations for each ON period showing duration
-      const annotations = {};
-      let onPeriods = [];
-      for (let i = 0; i < normalizedEvents.length - 1; i++) {
-        if (normalizedEvents[i].final === true) {
-          const onStart = normalizedEvents[i].ts;
-          const onEnd = normalizedEvents[i + 1].ts;
-          const duration = onEnd - onStart;
-          onPeriods.push({ start: onStart * 1000, end: onEnd * 1000, duration });
-        }
-      }
-      // Handle ongoing ON period
-      if (normalizedEvents[normalizedEvents.length - 1].final === true) {
-        const onStart = normalizedEvents[normalizedEvents.length - 1].ts;
-        const duration = end - onStart;
-        onPeriods.push({ start: onStart * 1000, end: endMs, duration });
-      }
-
-      // Create annotation labels for each ON period
-      onPeriods.forEach((period, idx) => {
-        const durationHrs = Math.floor(period.duration / 3600);
-        const durationMins = Math.floor((period.duration % 3600) / 60);
-        const label = durationHrs > 0 ? `${durationHrs}h ${durationMins}m` : `${durationMins}m`;
-        const midpoint = (period.start + period.end) / 2;
-        
-        annotations[`label${idx}`] = {
-          type: 'label',
-          xValue: midpoint,
-          yValue: 0.5,
-          content: label,
-          color: '#22c55e',
-          font: {
-            size: 11,
-            weight: 'bold'
-          },
-          backgroundColor: 'rgba(0,0,0,0.7)',
-          borderRadius: 4,
-          padding: { top: 2, bottom: 2, left: 6, right: 6 }
-        };
-      });
-
-      lightsChart.options.plugins.annotation = {
-        annotations: annotations
-      };
-
-      // Build step chart data with rectangles for ON periods
-      const data = [];
-      for (let i = 0; i < normalizedEvents.length; i++) {
-        const evt = normalizedEvents[i];
-        const state = evt.final ? 1 : 0;
-        const ts = evt.ts * 1000;
-        
-        data.push({ x: ts, y: state });
-        
-        if (i < normalizedEvents.length - 1) {
-          data.push({ x: normalizedEvents[i + 1].ts * 1000 - 1, y: state });
-        } else {
-          data.push({ x: endMs, y: state });
-        }
-      }
-
-      lightsChart.data.datasets[0].data = data;
+      lightsChart.data.datasets[0].data = bars;
       lightsChart.options.scales.x.min = startMs;
       lightsChart.options.scales.x.max = endMs;
       lightsChart.update('none');
@@ -437,67 +402,31 @@
 
     const ctx = canvas.getContext('2d');
     lightsChart = new Chart(ctx, {
-      type: 'line',
+      type: 'bar',
       data: {
         datasets: [{
-          label: 'Lights State',
+          label: 'Lights ON',
           data: [],
-          stepped: 'before',
-          borderColor: '#22c55e',
-          backgroundColor: (context) => {
-            const value = context.parsed?.y;
-            if (value === 1) {
-              return 'rgba(34,197,94,0.3)';
-            }
-            return 'rgba(148,163,184,0.05)';
-          },
-          segment: {
-            borderColor: ctx => {
-              return ctx.p0.parsed.y === 1 ? '#22c55e' : '#64748b';
-            },
-            borderWidth: ctx => {
-              return ctx.p0.parsed.y === 1 ? 3 : 1;
-            }
-          },
-          fill: {
-            target: 'origin',
-            above: 'rgba(34,197,94,0.25)',
-            below: 'rgba(148,163,184,0.03)'
-          },
-          pointRadius: 0
+          backgroundColor: '#22c55e',
+          barThickness: 40,
+          borderRadius: 4,
+          borderSkipped: false
         }]
       },
       options: {
+        indexAxis: 'y',
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: 'nearest', intersect: false },
         plugins: {
-          legend: {
-            display: true,
-            position: 'top',
-            align: 'end',
-            labels: {
-              color: '#9ca3af',
-              font: { size: 11 },
-              generateLabels: () => [
-                {
-                  text: '■ ON',
-                  fillStyle: '#22c55e',
-                  hidden: false,
-                  lineWidth: 0
-                },
-                {
-                  text: '■ OFF',
-                  fillStyle: '#374151',
-                  hidden: false,
-                  lineWidth: 0
-                }
-              ]
-            }
-          },
+          legend: { display: false },
           tooltip: {
             callbacks: {
-              label: ctx => ctx.parsed.y === 1 ? '● Lights ON' : '○ Lights OFF'
+              title: () => '',
+              label: (ctx) => {
+                const bar = ctx.raw;
+                return `ON for ${bar.duration}`;
+              }
             }
           }
         },
@@ -511,15 +440,8 @@
             ticks: { color: '#9ca3af' }
           },
           y: {
-            min: 0,
-            max: 1,
-            ticks: {
-              stepSize: 1,
-              color: '#9ca3af',
-              font: { size: 12, weight: 'bold' },
-              callback: val => val === 1 ? '💡 ON' : '⚫ OFF'
-            },
-            grid: { color: 'rgba(148,163,184,0.1)' }
+            display: false,
+            grid: { display: false }
           }
         }
       }
