@@ -186,18 +186,18 @@ def get_interlock_status() -> Dict[str, Any]:
     try:
         relays = get_relay_status()
         main_pump_on = relays.get('main_pump', {}).get('state', False)
-        temperature_pump_on = relays.get('temperature_pump', {}).get('state', False)
-        temperature_running = relays.get('temperature_power', {}).get('state', False)
+        chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
+        chiller_running = relays.get('chiller_power', {}).get('state', False)
         
         # NEW: Use unified auto-enable system
         auto_enabled = should_automate_temperature()
         
         # Determine violations
         violations = []
-        if temperature_running and not main_pump_on:
+        if chiller_running and not main_pump_on:
             violations.append('main_pump_off')
-        if temperature_running and not temperature_pump_on:
-            violations.append('temperature_pump_off')
+        if chiller_running and not chiller_pump_on:
+            violations.append('chiller_pump_off')
         
         interlock_ok = len(violations) == 0
         
@@ -205,8 +205,8 @@ def get_interlock_status() -> Dict[str, Any]:
             'interlock_ok': interlock_ok,
             'interlock_details': {
                 'main_pump_on': main_pump_on,
-                'temperature_pump_on': temperature_pump_on,
-                'temperature_running': temperature_running,
+                'chiller_pump_on': chiller_pump_on,
+                'chiller_running': chiller_running,
                 'auto_enabled': auto_enabled,
                 'violations': violations if violations else None
             }
@@ -217,8 +217,8 @@ def get_interlock_status() -> Dict[str, Any]:
             'interlock_ok': False,
             'interlock_details': {
                 'main_pump_on': False,
-                'temperature_pump_on': False,
-                'temperature_running': False,
+                'chiller_pump_on': False,
+                'chiller_running': False,
                 'auto_enabled': False,
                 'violations': ['error_reading_status']
             }
@@ -334,7 +334,7 @@ def set_temperature_relay(desired_on: bool, reason: str = '') -> bool:
         
         # Set relay
         try:
-            relay_set('temperature_power', desired_on, reason=reason, actor='temperature-ctl')
+            relay_set('chiller_power', desired_on, reason=reason, actor='temperature-ctl')
             
             # Update state
             now = time.time()
