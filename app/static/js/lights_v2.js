@@ -357,8 +357,53 @@
       if (totalEl) {
         const hours = Math.floor(windowTotal / 3600);
         const mins = Math.floor((windowTotal % 3600) / 60);
-        totalEl.textContent = `${hours}h ${mins}m`;
+        totalEl.textContent = `Total: ${hours}h ${mins}m`;
       }
+
+      // Build annotations for each ON period showing duration
+      const annotations = {};
+      let onPeriods = [];
+      for (let i = 0; i < normalizedEvents.length - 1; i++) {
+        if (normalizedEvents[i].final === true) {
+          const onStart = normalizedEvents[i].ts;
+          const onEnd = normalizedEvents[i + 1].ts;
+          const duration = onEnd - onStart;
+          onPeriods.push({ start: onStart * 1000, end: onEnd * 1000, duration });
+        }
+      }
+      // Handle ongoing ON period
+      if (normalizedEvents[normalizedEvents.length - 1].final === true) {
+        const onStart = normalizedEvents[normalizedEvents.length - 1].ts;
+        const duration = end - onStart;
+        onPeriods.push({ start: onStart * 1000, end: endMs, duration });
+      }
+
+      // Create annotation labels for each ON period
+      onPeriods.forEach((period, idx) => {
+        const durationHrs = Math.floor(period.duration / 3600);
+        const durationMins = Math.floor((period.duration % 3600) / 60);
+        const label = durationHrs > 0 ? `${durationHrs}h ${durationMins}m` : `${durationMins}m`;
+        const midpoint = (period.start + period.end) / 2;
+        
+        annotations[`label${idx}`] = {
+          type: 'label',
+          xValue: midpoint,
+          yValue: 0.5,
+          content: label,
+          color: '#22c55e',
+          font: {
+            size: 11,
+            weight: 'bold'
+          },
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          borderRadius: 4,
+          padding: { top: 2, bottom: 2, left: 6, right: 6 }
+        };
+      });
+
+      lightsChart.options.plugins.annotation = {
+        annotations: annotations
+      };
 
       // Build step chart data with rectangles for ON periods
       const data = [];
