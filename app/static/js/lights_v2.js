@@ -396,15 +396,13 @@
   async function loadSettings() {
     try {
       const settings = await getJSON('/api/settings');
-      console.log('[Lights] Loaded settings:', settings);
       
       const onTimeInput = $('lightsOnTime');
-      if (onTimeInput && settings.lights_on_time) {
-        onTimeInput.value = settings.lights_on_time;
+      if (onTimeInput && settings.root?.lights_on_time) {
+        onTimeInput.value = settings.root.lights_on_time;
       }
 
-      durationHours = parseFloat(settings.lights_duration_hours) || 0;
-      console.log('[Lights] Duration hours:', durationHours);
+      durationHours = parseFloat(settings.root?.lights_duration_hours) || 0;
       updateLightsUI(settings);
 
     } catch (e) {
