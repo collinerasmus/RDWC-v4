@@ -226,24 +226,54 @@
       }
     }
     
-    // Status message
+    // Status message and countdown timer
     const statusMsg = q('#temperature-status-message');
+    const timerKpi = q('#temperature-timer-kpi');
+    const timerEl = q('#temperature-countdown-timer');
+    
     if (statusMsg) {
       if (state.auto_enabled) {
         let msg = '';
+        let showTimer = false;
+        let timerSeconds = 0;
+        
         if (state.is_running) {
           msg = state.min_runtime_active ? '❄️ Cooling (min runtime guard)' : '❄️ Actively cooling';
+          if (state.min_runtime_active && state.current_runtime !== undefined) {
+            const minOn = 60; // default min_on_seconds
+            timerSeconds = Math.max(0, minOn - state.current_runtime);
+            showTimer = timerSeconds > 0;
+          }
         } else if (state.in_cooldown) {
           msg = '🕒 In cooldown period';
+          if (state.seconds_since_off !== undefined) {
+            const minOff = 300; // default min_off_seconds
+            timerSeconds = Math.max(0, minOff - state.seconds_since_off);
+            showTimer = timerSeconds > 0;
+          }
         } else if (state.min_runtime_active) {
           msg = '⏱️ Minimum runtime active';
         } else {
           msg = '✓ Monitoring temperature';
         }
+        
         statusMsg.textContent = msg;
         statusMsg.style.color = '#93c5fd';
+        
+        // Update countdown timer
+        if (timerKpi && timerEl) {
+          if (showTimer && timerSeconds > 0) {
+            const mins = Math.floor(timerSeconds / 60);
+            const secs = timerSeconds % 60;
+            timerEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+            timerKpi.style.display = '';
+          } else {
+            timerKpi.style.display = 'none';
+          }
+        }
       } else {
         statusMsg.textContent = '';
+        if (timerKpi) timerKpi.style.display = 'none';
       }
     }
 
