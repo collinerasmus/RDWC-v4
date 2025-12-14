@@ -338,11 +338,7 @@
 
             events.forEach(evt => {
               const pointState = evt.final ? 1 : 0;
-              if (timeline.length && timeline[timeline.length - 1].y === pointState) {
-                timeline[timeline.length - 1] = { x: new Date(evt.tsMs), y: pointState };
-              } else {
-                timeline.push({ x: new Date(evt.tsMs), y: pointState });
-              }
+              timeline.push({ x: new Date(evt.tsMs), y: pointState });
               lastState = pointState;
             });
 
