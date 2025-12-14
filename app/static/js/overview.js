@@ -156,12 +156,12 @@
         setChip('#ov-main-pump-status', circAuto ? 'AUTO' : 'MANUAL', circAuto ? 'success' : 'neutral');
       }
       
-      // Update chiller power badge from relays (active-low normalization handled in backend payload)
+      // Update chiller power badge from relays (NC contact: state=true means chiller ON)
       try {
         const relayStatus = await getRelays();
         const rel = relayStatus.relays || {};
         const raw = rel.chiller_power && (rel.chiller_power.state ?? rel.chiller_power.is_on);
-        const isOn = raw !== undefined ? !raw : !!(rel.chiller_power && rel.chiller_power.is_on);
+        const isOn = !!raw; // NC contact: true = coil OFF = NC closed = chiller ON
         setBadge('#ov-chiller', isOn);
       } catch(e) { /* ignore */ }
       

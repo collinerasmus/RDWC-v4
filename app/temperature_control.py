@@ -180,22 +180,28 @@ def get_interlock_status() -> Dict[str, Any]:
     """
     Check current interlock conditions for temperature operation.
 
-    NOTE: All three relays are active-low. `state=True` means the coil is
-    energized (OFF), and `state=False` means the circuit is closed (ON). We
-    normalize to *_on booleans that reflect the physical ON state.
+    NOTE: main_pump and chiller_pump use NO contacts (active-low: state=False means ON).
+    chiller_power uses NC contact: state=True means chiller ON (coil de-energized, NC closed),
+    state=False means chiller OFF (coil energized, NC opens).
     """
     try:
         relays = get_relay_status()
 
-        def _is_on_active_low(name: str) -> bool:
+        def _is_on_no_contact(name: str) -> bool:
+            """For NO contact relays (pumps): active-low, state=False means ON"""
             raw = relays.get(name, {})
-            # `state` is the canonical flag; `is_on` exists in some payloads
             val = raw.get('state', raw.get('is_on', False))
-            return not bool(val)  # active-low: False => energized/ON
+            return not bool(val)
 
-        main_pump_on = _is_on_active_low('main_pump')
-        chiller_pump_on = _is_on_active_low('chiller_pump')
-        chiller_running = _is_on_active_low('chiller_power')
+        def _is_on_nc_contact(name: str) -> bool:
+            """For NC contact relays (chiller): state=True means ON (coil de-energized)"""
+            raw = relays.get(name, {})
+            val = raw.get('state', raw.get('is_on', False))
+            return bool(val)
+
+        main_pump_on = _is_on_no_contact('main_pump')
+        chiller_pump_on = _is_on_no_contact('chiller_pump')
+        chiller_running = _is_on_nc_contact('chiller_power')
 
         auto_enabled = should_automate_temperature()
 
@@ -235,11 +241,11 @@ def get_temperature_state() -> Dict[str, Any]:
     """Get current temperature state for API/UI."""
     with _control_lock:
         state = _temperature_state.copy()
-        # Reconcile with actual relay state (active-low: False means ON)
+        # Reconcile with actual relay state (NC contact: state=True means chiller ON)
         try:
             rel = get_relay_status().get('chiller_power', {})
             relay_raw = rel.get('state', rel.get('is_on', False))
-            relay_on = not bool(relay_raw)  # active-low normalized
+            relay_on = bool(relay_raw)  # NC contact: True = coil OFF = NC closed = chiller ON
         except Exception:
             relay_on = state.get('is_running', False)
         now_reconcile = time.time()
