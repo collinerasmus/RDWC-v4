@@ -46,6 +46,9 @@
   let pollTimer = null; // deprecated
   let lastStatus = null;
   let countdownTimer = null;
+  let stabilizeCountdownTimer = null;
+  let stabilizeStartTime = null;
+  let stabilizeDuration = 300; // seconds, updated from settings
   let lastPollAt = Date.now();
   let currentRange = { preset: null, start: null, end: null };
   // Short-lived fast poll timer for immediate pump state feedback
@@ -463,6 +466,37 @@
     }
   }
 
+  // Stabilization countdown for Stabilize button
+  function startStabilizeCountdown(){
+    if(stabilizeCountdownTimer) return;
+    stabilizeStartTime = Date.now();
+    stabilizeCountdownTimer = setInterval(updateStabilizeCountdownPill, 100); // Update every 100ms for smooth countdown
+  }
+  
+  function stopStabilizeCountdown(){
+    if(stabilizeCountdownTimer){ 
+      clearInterval(stabilizeCountdownTimer); 
+      stabilizeCountdownTimer = null; 
+      stabilizeStartTime = null;
+    }
+    const cdPill = el('ph-stabilize-countdown');
+    if(cdPill) cdPill.style.display = 'none';
+  }
+  
+  function updateStabilizeCountdownPill(){
+    const cdPill = el('ph-stabilize-countdown');
+    if(!cdPill || !stabilizeStartTime) return;
+    
+    const elapsed = Math.floor((Date.now() - stabilizeStartTime) / 1000);
+    const remaining = Math.max(0, stabilizeDuration - elapsed);
+    
+    if(remaining <= 0){
+      stopStabilizeCountdown();
+    } else {
+      cdPill.textContent = `⏱ ${remaining}s`;
+    }
+  }
+
   // --- Chart refresh (scoped here to access currentRange) ---
   async function refreshDoseChart(){
     // Delegate to ph_chart.js module
@@ -753,19 +787,32 @@
     el('btnPhStabilize')?.addEventListener('click', async ()=>{
       setCalibBusy(true);
       try{
+        // Get stabilization duration from settings (default 300s)
+        stabilizeDuration = parseInt(window.rdwcSettings?.get('dosing.ph_stabilization_window_s') || '300', 10);
+        
+        // Show countdown pill and start timer
+        const cdPill = el('ph-stabilize-countdown');
+        if(cdPill) cdPill.style.display = 'inline-block';
+        startStabilizeCountdown();
+        
         setMsg('Waiting for stable reading...');
         const resp = await fetch('/calib/ph/read_stable?t='+Date.now(), {cache:'no-store'});
         const r = await resp.json();
         if (r && r.ok){ 
           await setCurrent(r.value); 
           setMsg(`Stable pH: ${Number(r.value).toFixed(2)} (σ=${r.std?.toFixed(3)||'?'})`, true, 'success'); 
+          stopStabilizeCountdown();
         } else { 
           const hint = (r && r.note && r.note.includes('NoData')) 
             ? 'NoData — probe not responding. Check sensor power & I²C wiring.' 
             : ((r && r.note) || 'Stabilize failed');
-          setMsg(hint, false); 
+          setMsg(hint, false);
+          stopStabilizeCountdown();
         }
-      }catch(e){ setMsg(`Stabilize failed (network): ${e.message}`, false); }
+      }catch(e){ 
+        setMsg(`Stabilize failed (network): ${e.message}`, false);
+        stopStabilizeCountdown();
+      }
       finally { setCalibBusy(false); }
     });
 
