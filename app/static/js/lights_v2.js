@@ -107,6 +107,8 @@
   }
 
   function updateLightsUI(settings) {
+    console.log('[Lights] updateLightsUI called with settings:', settings);
+    
     // State badge
     const badge = $('lights-status');
     if (badge) {
@@ -116,15 +118,20 @@
 
     // Duration KPI - show hours value
     const durationEl = $('lights-sched-kpi');
-    if (durationEl && durationHours > 0) {
-      durationEl.textContent = `${durationHours}h`;
+    if (durationEl) {
+      if (durationHours > 0) {
+        durationEl.textContent = `${durationHours}h`;
+        console.log('[Lights] Duration displayed:', durationEl.textContent);
+      } else {
+        durationEl.textContent = '—';
+      }
     }
 
     // Window KPI - calculate with midnight rollover
     const windowEl = $('lights-window-kpi');
     if (windowEl && settings) {
       const onTime = settings.lights_on_time || '';
-      const hours = settings.lights_duration_hours || 0;
+      const hours = parseFloat(settings.lights_duration_hours) || 0;
       
       if (onTime && hours > 0) {
         const [onH, onM] = onTime.split(':').map(Number);
@@ -134,6 +141,7 @@
         const offM = offMinutes % 60;
         const offTime = `${String(offH).padStart(2, '0')}:${String(offM).padStart(2, '0')}`;
         windowEl.textContent = `${onTime} → ${offTime}`;
+        console.log('[Lights] Window displayed:', windowEl.textContent);
       } else {
         windowEl.textContent = '—';
       }
@@ -185,7 +193,10 @@
   }
 
   async function refreshLightsChart() {
-    if (!lightsChart) return;
+    if (!lightsChart) {
+      console.warn('[Lights] Chart not initialized, skipping refresh');
+      return;
+    }
 
     try {
       const now = Date.now();
@@ -193,11 +204,14 @@
       const start = Math.floor((now - hoursAgo * 3600000) / 1000);
       const end = Math.floor(now / 1000);
 
+      console.log('[Lights] Fetching chart data:', {start, end, hours: hoursAgo});
       const events = await getJSON(`/api/relays/events?name=lights&start=${start}&end=${end}`);
+      console.log('[Lights] Fetched events:', events.length);
       
       if (!events || events.length === 0) {
         lightsChart.data.datasets[0].data = [];
         lightsChart.update('none');
+        console.log('[Lights] No events, chart cleared');
         return;
       }
 
@@ -225,16 +239,26 @@
       lightsChart.options.scales.x.min = now - hoursAgo * 3600000;
       lightsChart.options.scales.x.max = now;
       lightsChart.update('none');
+      console.log('[Lights] Chart updated with', segments.length, 'segments');
 
     } catch (e) {
-      if (UI_VERBOSE) console.error('[Lights] chart refresh failed:', e);
+      console.error('[Lights] chart refresh failed:', e);
     }
   }
 
   function initLightsChart() {
     const canvas = $('lightsChart');
-    if (!canvas || !window.Chart) return;
+    if (!canvas) {
+      console.warn('[Lights] Chart canvas not found');
+      return;
+    }
+    
+    if (!window.Chart) {
+      console.error('[Lights] Chart.js not loaded');
+      return;
+    }
 
+    console.log('[Lights] Initializing chart');
     const ctx = canvas.getContext('2d');
     lightsChart = new Chart(ctx, {
       type: 'line',
@@ -287,6 +311,7 @@
       }
     });
 
+    console.log('[Lights] Chart created');
     refreshLightsChart();
   }
 
@@ -371,25 +396,38 @@
   async function loadSettings() {
     try {
       const settings = await getJSON('/api/settings');
+      console.log('[Lights] Loaded settings:', settings);
       
-      if (settings.lights_on_time) {
-        $('lightsOnTime').value = settings.lights_on_time;
+      const onTimeInput = $('lightsOnTime');
+      if (onTimeInput && settings.lights_on_time) {
+        onTimeInput.value = settings.lights_on_time;
       }
 
-      durationHours = settings.lights_duration_hours || 0;
-      updateLightsUI(settings);
-
-    } catch (e) {
-      if (UI_VERBOSE) console.error('[Lights] load settings failed:', e);
-    }
-  }
-
-  async function init() {
+      durationHours = parseFloat(settings.lights_duration_hours) || 0;
+      console.log('[Lights] Duration hours:', durationHours);
+      upole.log('[Lights] Initializing lights controller');
+    
     const toggleBtn = $('btnLightsToggle');
-    if (toggleBtn) toggleBtn.addEventListener('click', toggleLights);
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', toggleLights);
+      console.log('[Lights] Toggle button wired');
+    }
 
     const saveBtn = $('btnSaveLightsSettings');
-    if (saveBtn) saveBtn.addEventListener('click', saveSettings);
+    if (saveBtn) {
+      saveBtn.addEventListener('click', saveSettings);
+      console.log('[Lights] Save button wired');
+    }
+
+    await loadSettings();
+    initLightsChart();
+    createChartControls();
+    await refreshLightsStatus();
+
+    setInterval(refreshLightsStatus, 30000);
+    setInterval(refreshLightsChart, 60000);
+    
+    console.log('[Lights] Initialization complete'('click', saveSettings);
 
     await loadSettings();
     initLightsChart();
