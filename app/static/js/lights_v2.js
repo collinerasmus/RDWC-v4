@@ -262,21 +262,18 @@
         : 'NOW';
       const duration = formatDuration(pair.duration);
       const isActive = !pair.offTime;
+      const reason = pair.onReason || 'lights';
       
-      return `<div style="padding:6px 0;border-bottom:1px solid rgba(148,163,184,0.1);display:grid;grid-template-columns:auto auto 1fr;gap:12px;font-size:12px;align-items:center;">
-        <div>
-          <div style="color:#22c55e;font-weight:600;">ON</div>
-          <div class="muted" style="font-size:11px;">${onTime}</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="color:${isActive ? '#fbbf24' : '#9ca3af'};font-weight:600;font-size:14px;">${duration}</div>
-          <div style="font-size:10px;color:#6b7280;">⏱️ ${isActive ? 'Running' : 'Duration'}</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="color:${isActive ? '#fbbf24' : '#ef4444'};font-weight:600;">${isActive ? 'ON' : 'OFF'}</div>
-          <div class="muted" style="font-size:11px;">${offTime}</div>
-        </div>
-      </div>`;
+      // Single-row compact chip: ON time • OFF time • duration • reason
+      const dot = '<span style="color:#4b5563;">•</span>';
+      const segments = [
+        `<span style="font-weight:700;">${onTime}</span>`,
+        `<span style="color:#9ca3af;">→ ${offTime}</span>`,
+        `<span style="color:#9ca3af;">${duration}</span>`,
+        `<span style="color:#9ca3af;">${reason}</span>`
+      ];
+
+      return `<div style="margin-bottom:4px;padding:4px 6px;border-radius:4px;background:rgba(251,191,36,0.06);border-left:2px solid rgba(251,191,36,0.25);display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--font-xs);color:#cbd5e1;">${segments.join(dot)}</div>`;
     }).join('');
     
     // Show raw events if no pairs

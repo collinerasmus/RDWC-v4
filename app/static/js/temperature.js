@@ -140,17 +140,18 @@
     listEl.innerHTML = events.map(evt => {
       const ts = new Date(evt.ts * 1000);
       const tsStr = ts.toISOString().replace('T', ' ').split('.')[0];
-      const state = evt.state === 'ON' || evt.final === true ? '<span style="color:#22c55e;font-weight:600;">ON</span>' : '<span style="color:#ef4444;font-weight:600;">OFF</span>';
-      const reason = evt.reason ? ` · ${evt.reason}` : '';
-      return `
-        <div style="padding:6px 4px;border-bottom:1px solid rgba(148,163,184,0.12);display:flex;align-items:center;gap:8px;">
-          <span style="font-weight:700;color:#e5e7eb;white-space:nowrap;">${tsStr}</span>
-          <span style="color:#9ca3af;">• Chiller</span>
-          <span style="color:#9ca3af;">→</span>
-          <span>${state}</span>
-          <span style="color:#9ca3af;">${reason}</span>
-        </div>
-      `;
+      const stateText = evt.state === 'ON' || evt.final === true ? 'ON' : 'OFF';
+      const reason = evt.reason || 'chiller';
+      
+      // Single-row compact chip: timestamp • state • reason
+      const dot = '<span style="color:#4b5563;">•</span>';
+      const segments = [
+        `<span style="font-weight:700;">${tsStr}</span>`,
+        `<span style="color:#9ca3af;">${stateText}</span>`,
+        `<span style="color:#9ca3af;">${reason}</span>`
+      ];
+
+      return `<div style="margin-bottom:4px;padding:4px 6px;border-radius:4px;background:rgba(59,130,246,0.06);border-left:2px solid rgba(59,130,246,0.25);display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--font-xs);color:#cbd5e1;">${segments.join(dot)}</div>`;
     }).join('');
   }
 

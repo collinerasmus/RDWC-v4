@@ -152,25 +152,22 @@
       }
       
       listEl.innerHTML = allEvents.map(evt => {
-        const stateColor = evt.final ? '#22c55e' : '#64748b';
         const stateText = evt.final ? 'ON' : 'OFF';
-        const pumpColor = evt.pump === 'main_pump' ? '#60a5fa' : '#22d3ee';
+        const ts = new Date(evt.ts);
+        const tsStr = ts.toISOString().replace('T', ' ').split('.')[0];
+        const pumpLabel = evt.label;
+        const reason = evt.reason || 'manual';
         
-        return `
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid rgba(148,163,184,0.1);">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:18px;">${evt.pump === 'main_pump' ? '🔄' : '🌊'}</span>
-              <div>
-                <div style="font-size:var(--font-sm);font-weight:600;color:${pumpColor};">${evt.label} Pump</div>
-                <div style="font-size:var(--font-xs);color:#9ca3af;">${evt.reason || 'manual'}</div>
-              </div>
-            </div>
-            <div style="text-align:right;">
-              <div style="font-size:var(--font-sm);font-weight:600;color:${stateColor};">${stateText}</div>
-              <div style="font-size:var(--font-xs);color:#64748b;">${formatTimeAgo(evt.ts)}</div>
-            </div>
-          </div>
-        `;
+        // Single-row compact chip: timestamp • pump • state • reason
+        const dot = '<span style="color:#4b5563;">•</span>';
+        const segments = [
+          `<span style="font-weight:700;">${tsStr}</span>`,
+          `<span style="color:#9ca3af;">${pumpLabel}</span>`,
+          `<span style="color:#9ca3af;">${stateText}</span>`,
+          `<span style="color:#9ca3af;">${reason}</span>`
+        ];
+
+        return `<div style="margin-bottom:4px;padding:4px 6px;border-radius:4px;background:rgba(59,130,246,0.06);border-left:2px solid rgba(59,130,246,0.25);display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--font-xs);color:#cbd5e1;">${segments.join(dot)}</div>`;
       }).join('');
       
     } catch (e) {
