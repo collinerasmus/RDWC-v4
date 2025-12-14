@@ -1476,15 +1476,15 @@ body{
     </div>
 
     <div class="card-body">
-      <!-- Status badges row -->
-      <div style="display:flex;gap:12px;margin-bottom:var(--space-md);">
-        <span class="bop-status-badge on" id="circ-main-pump" style="font-size:var(--font-xs);padding:4px 10px;">—</span>
-        <span class="bop-status-badge on" id="circ-temperature-pump" style="font-size:var(--font-xs);padding:4px 10px;">—</span>
-      </div>
-
-      <!-- KPI Row (uniform across tabs) -->
-      <!-- KPI Row: 6 items (3 per pump) - single source of truth -->
+      <!-- KPI Row: 7 items (status + 3 per pump) - single source of truth -->
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
+        <div class="kpi">
+          <div class="kpi-label">Pump Status</div>
+          <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px;">
+            <span class="bop-status-badge on" id="circ-main-pump" style="font-size:var(--font-xs);padding:4px 10px;">—</span>
+            <span class="bop-status-badge on" id="circ-temperature-pump" style="font-size:var(--font-xs);padding:4px 10px;">—</span>
+          </div>
+        </div>
         <div class="kpi">
           <div class="kpi-label">🔄 Main Runtime</div>
           <div class="kpi-value" id="main-runtime-today">—</div>
