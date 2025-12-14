@@ -255,6 +255,15 @@ body{
   box-shadow: inset 0 0 0 2px rgba(214,39,40,.10); 
 }
 
+  /* Shared centered chart legend row */
+  .chart-legend-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:12px;
+    margin-bottom:8px;
+  }
+
 /* Sensors Card Styles */
 #sensors-card .card-header{
   display: flex;
@@ -1423,7 +1432,7 @@ body{
       <div class="muted">Lights History</div>
       <span id="lights-chart-total" class="kpi-pill" style="font-size:var(--font-sm);padding:2px 8px;border-radius:12px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);color:#fde047;">Total: 0h 0m</span>
     </div>
-    <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:8px;">
+    <div class="chart-legend-row">
       <span class="pill-muted nowrap" style="display:flex;align-items:center;gap:6px;">
         <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;"></span>
         Lights ON
