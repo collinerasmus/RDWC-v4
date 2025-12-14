@@ -90,7 +90,7 @@ MIN_ON = {
 
 # Startup delay tracking - prevent chiller from turning on immediately after service restart
 _startup_time = time.monotonic()
-_CHILLER_STARTUP_DELAY_S = 30  # 30s delay before chiller can turn ON after service start (prevents rapid cycling during restarts)
+_CHILLER_STARTUP_DELAY_S = 0  # Disabled for development - in production use 300 (5 min) for compressor protection
 
 MIN_OFF = {
     # Tuned per request: chiller power needs significant cooldown (compressor protection)
