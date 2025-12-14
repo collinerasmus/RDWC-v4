@@ -115,9 +115,9 @@ temperature_SPECS = {
     'cooling_capacity_watts': 160,
     'recommended_volume_liters': (50, 150),
     # Defaults per approved brief (compressor-safe but responsive):
-    # min_off_seconds: 60 for dev/testing (5 min 300 for production), min_on_seconds: 60 (≥1 min runtime), hysteresis default 0.7°C
+    # min_off_seconds: 300 (5 min cooldown), min_on_seconds: 60 (≥1 min runtime), hysteresis default 0.7°C
     'min_on_seconds': 60,
-    'min_off_seconds': 60,  # DEV: 60s, PRODUCTION: 300s
+    'min_off_seconds': 300,
     'max_cycles_per_hour': 8,   # Allow up to 8 safe cycles/hour given shorter min_on
 }
 
