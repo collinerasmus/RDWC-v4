@@ -435,7 +435,7 @@ body{
     margin: 0;
     background: transparent;
   }
-  #trendChart, #phDoseChart, #ecDoseChart, #temperatureChart, #circTimelineChart {
+  #trendChart, #phDoseChart, #ecDoseChart, #temperatureChart, #circTimelineChart, #lightsChart {
     display: block !important;
     width: 100% !important;
     height: var(--h-trends) !important;
@@ -1422,6 +1422,12 @@ body{
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-sm);">
       <div class="muted">Lights History</div>
       <span id="lights-chart-total" class="kpi-pill" style="font-size:var(--font-sm);padding:2px 8px;border-radius:12px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);color:#fde047;">Total: 0h 0m</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+      <span class="pill-muted nowrap" style="display:flex;align-items:center;gap:6px;">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;"></span>
+        Lights ON
+      </span>
     </div>
     <div id="lights-dose-chart-wrap" class="chart-card">
       <canvas id="lightsChart"></canvas>
