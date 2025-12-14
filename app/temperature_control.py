@@ -43,10 +43,12 @@ def should_automate_temperature():
     
     Returns True ONLY if:
     - Global auto is enabled AND
-    - temperature-specific auto is enabled
+    - chiller-specific auto is enabled
+    
+    Note: Uses "chiller" key to match unified auto system controller naming.
     """
     from app.auto_control import should_automate
-    return should_automate("temperature")
+    return should_automate("chiller")
 
 def get_latest_reading():
     """Get cached sensor reading from main app's background loop."""
