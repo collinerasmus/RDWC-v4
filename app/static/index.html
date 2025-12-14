@@ -1426,8 +1426,12 @@ body{
 
     <!-- Activity Chart -->
     <hr class="separator" style="margin:20px 0;" />
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-sm);">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
       <div class="muted" style="font-weight:600;">Lights Activity (ON/OFF Timeline)</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="muted" style="font-size:12px;">Total Runtime (window):</span>
+        <span id="lights-chart-total" style="font-size:16px;font-weight:700;color:#fbbf24;">0h 0m</span>
+      </div>
     </div>
     <div class="chart-card" style="margin-bottom:8px;">
       <canvas id="lightsChart" style="height:240px;"></canvas>
@@ -1439,8 +1443,8 @@ body{
 
     <!-- Event Log -->
     <div style="margin-top:12px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);">
-      <div style="font-size:var(--font-sm);color:#9ca3af;font-weight:500;margin-bottom:6px;" id="lights-events-header">Event Log ▾</div>
-      <div id="lights-events-list" style="max-height:220px;overflow-y:auto;padding-right:6px;font-size:var(--font-xs);"></div>
+      <div style="font-size:13px;color:#9ca3af;font-weight:600;margin-bottom:6px;">⏱️ Light ON Periods (with duration timers)</div>
+      <div id="lights-events-list" style="max-height:280px;overflow-y:auto;padding-right:6px;font-size:12px;"></div>
     </div>
 
     <!-- Manual Control -->

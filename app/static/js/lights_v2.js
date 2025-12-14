@@ -217,22 +217,85 @@
       return;
     }
 
-    const recent = events.slice(0, 20);
-    container.innerHTML = recent.map(evt => {
-      const ts = typeof evt.ts === 'string' 
-        ? new Date(evt.ts).getTime() 
-        : evt.ts * 1000;
-      const d = new Date(ts);
-      const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const state = evt.final ? 'ON' : 'OFF';
-      const color = evt.final ? '#22c55e' : '#ef4444';
-      const reason = evt.reason || 'unknown';
-      return `<div style="padding:4px 0;border-bottom:1px solid rgba(148,163,184,0.1);display:flex;justify-content:space-between;font-size:12px;">
-        <span style="color:${color};font-weight:600;min-width:30px;">${state}</span>
-        <span style="flex:1;text-align:right;padding:0 8px;">${time}</span>
-        <span class="muted" style="min-width:80px;text-align:right;">${reason}</span>
+    // Build event pairs with durations
+    const eventPairs = [];
+    let onEvent = null;
+    
+    for (let i = 0; i < events.length; i++) {
+      const evt = events[i];
+      const ts = typeof evt.ts === 'string' ? new Date(evt.ts).getTime() : evt.ts * 1000;
+      
+      if (evt.final === true) {
+        onEvent = { ...evt, tsMs: ts };
+      } else if (evt.final === false && onEvent) {
+        const duration = (ts - onEvent.tsMs) / 1000; // seconds
+        eventPairs.push({
+          onTime: onEvent.tsMs,
+          offTime: ts,
+          duration,
+          onReason: onEvent.reason,
+          offReason: evt.reason
+        });
+        onEvent = null;
+      }
+    }
+    
+    // If still ON, calculate current duration
+    if (onEvent && lightsState.is_on) {
+      const duration = (Date.now() - onEvent.tsMs) / 1000;
+      eventPairs.push({
+        onTime: onEvent.tsMs,
+        offTime: null,
+        duration,
+        onReason: onEvent.reason,
+        offReason: null
+      });
+    }
+
+    // Render pairs (most recent first)
+    const recent = eventPairs.slice(0, 10);
+    container.innerHTML = recent.map(pair => {
+      const onD = new Date(pair.onTime);
+      const onTime = onD.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const offTime = pair.offTime 
+        ? new Date(pair.offTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        : 'NOW';
+      const duration = formatDuration(pair.duration);
+      const isActive = !pair.offTime;
+      
+      return `<div style="padding:6px 0;border-bottom:1px solid rgba(148,163,184,0.1);display:grid;grid-template-columns:auto auto 1fr;gap:12px;font-size:12px;align-items:center;">
+        <div>
+          <div style="color:#22c55e;font-weight:600;">ON</div>
+          <div class="muted" style="font-size:11px;">${onTime}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="color:${isActive ? '#fbbf24' : '#9ca3af'};font-weight:600;font-size:14px;">${duration}</div>
+          <div style="font-size:10px;color:#6b7280;">⏱️ ${isActive ? 'Running' : 'Duration'}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="color:${isActive ? '#fbbf24' : '#ef4444'};font-weight:600;">${isActive ? 'ON' : 'OFF'}</div>
+          <div class="muted" style="font-size:11px;">${offTime}</div>
+        </div>
       </div>`;
     }).join('');
+    
+    // Show raw events if no pairs
+    if (recent.length === 0) {
+      const rawRecent = events.slice(0, 20);
+      container.innerHTML = rawRecent.map(evt => {
+        const ts = typeof evt.ts === 'string' ? new Date(evt.ts).getTime() : evt.ts * 1000;
+        const d = new Date(ts);
+        const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const state = evt.final ? 'ON' : 'OFF';
+        const color = evt.final ? '#22c55e' : '#ef4444';
+        const reason = evt.reason || 'unknown';
+        return `<div style="padding:4px 0;border-bottom:1px solid rgba(148,163,184,0.1);display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:${color};font-weight:600;min-width:30px;">${state}</span>
+          <span style="flex:1;text-align:right;padding:0 8px;">${time}</span>
+          <span class="muted" style="min-width:80px;text-align:right;">${reason}</span>
+        </div>`;
+      }).join('');
+    }
   }
 
   async function refreshLightsChart() {
@@ -248,16 +311,37 @@
       if (!events || events.length === 0) {
         lightsChart.data.datasets[0].data = [];
         lightsChart.update('none');
+        $('lights-chart-total')?.textContent = '0h 0m';
         return;
       }
 
-      // Convert to unix timestamps if needed
+      // Normalize timestamps
       const normalizedEvents = events.map(e => ({
         ts: typeof e.ts === 'string' ? new Date(e.ts).getTime() / 1000 : e.ts,
         final: e.final
-      }));
+      })).sort((a, b) => a.ts - b.ts);
 
-      // Build step chart data - only ON/OFF transitions matter
+      // Calculate total ON time in this window
+      let windowTotal = 0;
+      for (let i = 0; i < normalizedEvents.length - 1; i++) {
+        if (normalizedEvents[i].final === true) {
+          windowTotal += normalizedEvents[i + 1].ts - normalizedEvents[i].ts;
+        }
+      }
+      // If last is ON, add time to now
+      if (normalizedEvents[normalizedEvents.length - 1].final === true) {
+        windowTotal += Math.floor(now / 1000) - normalizedEvents[normalizedEvents.length - 1].ts;
+      }
+
+      // Update chart total display
+      const totalEl = $('lights-chart-total');
+      if (totalEl) {
+        const hours = Math.floor(windowTotal / 3600);
+        const mins = Math.floor((windowTotal % 3600) / 60);
+        totalEl.textContent = `${hours}h ${mins}m`;
+      }
+
+      // Build step chart data with rectangles for ON periods
       const data = [];
       for (let i = 0; i < normalizedEvents.length; i++) {
         const evt = normalizedEvents[i];
