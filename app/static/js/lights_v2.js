@@ -311,7 +311,8 @@
       if (!events || events.length === 0) {
         lightsChart.data.datasets[0].data = [];
         lightsChart.update('none');
-        $('lights-chart-total')?.textContent = '0h 0m';
+        const totalEl = $('lights-chart-total');
+        if (totalEl) totalEl.textContent = '0h 0m';
         return;
       }
 
