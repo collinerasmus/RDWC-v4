@@ -188,16 +188,18 @@ def get_interlock_status() -> Dict[str, Any]:
         relays = get_relay_status()
 
         def _is_on_no_contact(name: str) -> bool:
-            """For NO contact relays (pumps): active-low, state=False means ON"""
+            """For NO contact relays (pumps): is_on already reflects semantic state"""
             raw = relays.get(name, {})
-            val = raw.get('state', raw.get('is_on', False))
-            return not bool(val)
+            # is_on is the semantic state from relays_core; for active-low NO contacts,
+            # is_on=True already means pump is running (GPIO LOW)
+            return bool(raw.get('is_on', False))
 
         def _is_on_nc_contact(name: str) -> bool:
-            """For NC contact relays (chiller): state=True means ON (coil de-energized)"""
+            """For NC contact relays (chiller): is_on already reflects semantic state"""
             raw = relays.get(name, {})
-            val = raw.get('state', raw.get('is_on', False))
-            return bool(val)
+            # is_on is the semantic state from relays_core; for active-low NC contacts,
+            # is_on=True already means chiller is running (GPIO LOW, NC closed, coil de-energized)
+            return bool(raw.get('is_on', False))
 
         main_pump_on = _is_on_no_contact('main_pump')
         chiller_pump_on = _is_on_no_contact('chiller_pump')
