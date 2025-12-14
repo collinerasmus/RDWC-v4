@@ -316,6 +316,7 @@ def set_temperature_relay(desired_on: bool, reason: str = '') -> bool:
                 _temperature_state['in_cooldown'] = True
                 return False
             else:
+                # Cooldown expired, clear the flag
                 _temperature_state['in_cooldown'] = False
         
         # Check minimum ON time (don't short-cycle)
