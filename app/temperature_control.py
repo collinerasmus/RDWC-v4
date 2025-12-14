@@ -293,16 +293,11 @@ def set_temperature_relay(desired_on: bool, reason: str = '') -> bool:
     with _control_lock:
         # Check RDWC coordination: require main_pump + chiller_pump
         if desired_on:
-            relays = get_relay_status()
+            from app.relay_guard import get_shadow_state
+            shadow = get_shadow_state() or {}
             
-            # NO contact pumps: active-low, state=False means ON
-            def _is_pump_on(name: str) -> bool:
-                raw = relays.get(name, {})
-                val = raw.get('state', raw.get('is_on', False))
-                return not bool(val)  # Invert for NO contact
-            
-            main_pump_on = _is_pump_on('main_pump')
-            chiller_pump_on = _is_pump_on('chiller_pump')
+            main_pump_on = bool(shadow.get('main_pump', False))
+            chiller_pump_on = bool(shadow.get('chiller_pump', False))
             
             if not main_pump_on:
                 log.warning('[temperature] Blocked: Main pump is OFF (RDWC circulation required)')
