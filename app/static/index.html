@@ -1476,7 +1476,7 @@ body{
     </div>
 
     <div class="card-body">
-      <!-- KPI Row: 7 items (3 main + status + 3 chiller) - single source of truth -->
+      <!-- KPI Row: 7 items (3 main + status + 3 chiller reversed) - single source of truth -->
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
         <div class="kpi">
           <div class="kpi-label">🔄 Main Runtime</div>
@@ -1498,16 +1498,16 @@ body{
           </div>
         </div>
         <div class="kpi">
-          <div class="kpi-label">🌊 Chiller Runtime</div>
-          <div class="kpi-value" id="chiller-runtime-today">—</div>
+          <div class="kpi-label">Chiller Cooldown</div>
+          <div class="kpi-value" id="chiller-cooldown">—</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">Chiller Cycles</div>
           <div class="kpi-value" id="chiller-cycles-today">—</div>
         </div>
         <div class="kpi">
-          <div class="kpi-label">Chiller Cooldown</div>
-          <div class="kpi-value" id="chiller-cooldown">—</div>
+          <div class="kpi-label">🌊 Chiller Runtime</div>
+          <div class="kpi-value" id="chiller-runtime-today">—</div>
         </div>
       </div>
 
