@@ -129,26 +129,33 @@
   }
 
   function calculateTodayTotal(events) {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayStartTs = todayStart.getTime() / 1000;
-
-    const todayEvents = events
-      .filter(e => {
-        const ts = typeof e.ts === 'string' 
-          ? new Date(e.ts).getTime() / 1000 
-          : e.ts;
-        return ts >= todayStartTs;
-      })
-      .map(e => ({
-        ts: typeof e.ts === 'string' ? new Date(e.ts).getTime() / 1000 : e.ts,
-        final: e.final
-      }));
+    // For lights with overnight schedules (e.g., 15:00-07:00), we need to count
+    // the CURRENT cycle, not just today's calendar day. Find the most recent OFF
+    // event and calculate from the previous ON to now.
+    
+    const normalized = events.map(e => ({
+      ts: typeof e.ts === 'string' ? new Date(e.ts).getTime() / 1000 : e.ts,
+      final: e.final
+    })).sort((a, b) => a.ts - b.ts);
 
     let total = 0;
+    let currentCycleStart = null;
+
+    // Find the start of the current ON period (most recent ON event)
+    for (let i = normalized.length - 1; i >= 0; i--) {
+      if (normalized[i].final === true) {
+        currentCycleStart = normalized[i].ts;
+        break;
+      }
+    }
+
+    // Calculate total from all complete ON/OFF pairs in the last 24 hours
+    const last24h = Math.floor(Date.now() / 1000) - 86400;
     let lastOn = null;
 
-    for (const evt of todayEvents) {
+    for (const evt of normalized) {
+      if (evt.ts < last24h) continue;
+      
       if (evt.final === true) {
         lastOn = evt.ts;
       } else if (lastOn) {
@@ -157,8 +164,12 @@
       }
     }
 
-    if (lastOn) {
-      total += Math.floor(Date.now() / 1000) - lastOn;
+    // Add current ON duration if lights are currently ON
+    if (currentCycleStart) {
+      const currentDuration = Math.floor(Date.now() / 1000) - currentCycleStart;
+      if (currentDuration > 0 && currentDuration < 86400) {
+        total += currentDuration;
+      }
     }
 
     todayTotalSeconds = total;
@@ -386,22 +397,22 @@
         datasets: [{
           label: 'Lights State',
           data: [],
-          stepped: false,
+          stepped: 'before',
           borderColor: '#fbbf24',
-          backgroundColor: 'rgba(251,191,36,0.2)',
+          backgroundColor: (context) => {
+            const chart = context.chart;
+            const {ctx, chartArea} = chart;
+            if (!chartArea) return 'rgba(251,191,36,0.2)';
+            
+            const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+            gradient.addColorStop(0, 'rgba(34,197,94,0.05)');
+            gradient.addColorStop(0.5, 'rgba(251,191,36,0.2)');
+            gradient.addColorStop(1, 'rgba(251,191,36,0.4)');
+            return gradient;
+          },
           fill: true,
           pointRadius: 0,
-          borderWidth: 2,
-          segment: {
-            borderColor: ctx => {
-              const y = ctx.p0.parsed.y;
-              return y === 1 ? '#22c55e' : '#ef4444';
-            },
-            backgroundColor: ctx => {
-              const y = ctx.p0.parsed.y;
-              return y === 1 ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.1)';
-            }
-          }
+          borderWidth: 2
         }]
       },
       options: {
