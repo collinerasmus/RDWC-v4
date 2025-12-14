@@ -184,13 +184,6 @@
         return;
       }
       
-      // Fetch current relay status first to get current state
-      const statusResp = await fetch('/api/relays/status', {cache: 'no-store'});
-      const statusData = statusResp.ok ? await statusResp.json() : {};
-      const currentMainState = statusData.relays?.main_pump?.is_on ? 1 : 0;
-      const currentChillerState = statusData.relays?.chiller_pump?.is_on ? 1 : 0;
-      console.log('[Circulation] Current states - Main:', currentMainState, 'Chiller:', currentChillerState);
-      
       // Fetch 24h of events
       const [mainResp, chillerResp] = await Promise.all([
         fetch('/api/relays/events?name=main_pump&last=200', {cache: 'no-store'}),
@@ -204,39 +197,61 @@
       const now = Date.now();
       const dayAgo = now - 24 * 3600 * 1000;
       
-      const filterEvents = (events) => events
+      const filterAndNormalize = (events) => events
         .filter(e => new Date(e.ts).getTime() >= dayAgo)
-        .sort((a,b) => new Date(a.ts) - new Date(b.ts));
+        .map(e => ({
+          ts: new Date(e.ts).getTime(),
+          final: e.final
+        }))
+        .sort((a,b) => a.ts - b.ts);
       
-      const mainFiltered = filterEvents(mainEvents);
-      const chillerFiltered = filterEvents(chillerEvents);
+      const mainFiltered = filterAndNormalize(mainEvents);
+      const chillerFiltered = filterAndNormalize(chillerEvents);
       
-      // Build timeline data (1=ON, 0=OFF)
-      const buildTimeline = (events, currentState) => {
-        const data = [];
-        let lastState = false;
-        
-        if (!events || events.length === 0) {
-          // No events - show current state as flat line
-          data.push({ x: new Date(dayAgo), y: currentState });
-          data.push({ x: new Date(), y: currentState });
-          return data;
+      // Build bar data for each ON period
+      const buildBars = (events, label, color) => {
+        const bars = [];
+        for (let i = 0; i < events.length - 1; i++) {
+          if (events[i].final === true) {
+            const onStart = events[i].ts;
+            const onEnd = events[i + 1].ts;
+            const duration = (onEnd - onStart) / 1000;
+            
+            const durationHrs = Math.floor(duration / 3600);
+            const durationMins = Math.floor((duration % 3600) / 60);
+            const durationLabel = durationHrs > 0 ? `${durationHrs}h ${durationMins}m` : `${durationMins}m`;
+            
+            bars.push({
+              x: [onStart, onEnd],
+              y: label,
+              duration: durationLabel,
+              backgroundColor: color
+            });
+          }
         }
         
-        events.forEach(evt => {
-          const newState = evt.final; // Use 'final' field
-          data.push({
-            x: new Date(evt.ts),
-            y: newState ? 1 : 0
+        // Handle ongoing ON period
+        if (events.length > 0 && events[events.length - 1].final === true) {
+          const onStart = events[events.length - 1].ts;
+          const duration = (now - onStart) / 1000;
+          
+          const durationHrs = Math.floor(duration / 3600);
+          const durationMins = Math.floor((duration % 3600) / 60);
+          const durationLabel = durationHrs > 0 ? `${durationHrs}h ${durationMins}m` : `${durationMins}m`;
+          
+          bars.push({
+            x: [onStart, now],
+            y: label,
+            duration: durationLabel,
+            backgroundColor: color
           });
-          lastState = newState;
-        });
+        }
         
-        // Add current point
-        data.push({ x: new Date(), y: lastState ? 1 : 0 });
-        
-        return data;
+        return bars;
       };
+      
+      const mainBars = buildBars(mainFiltered, 'Main Pump', '#60a5fa');
+      const chillerBars = buildBars(chillerFiltered, 'Chiller Pump', '#22d3ee');
       
       const ctx = canvas.getContext('2d');
       
@@ -244,44 +259,33 @@
         timelineChart.destroy();
       }
       
-      const mainData = buildTimeline(mainFiltered, currentMainState);
-      const chillerData = buildTimeline(chillerFiltered, currentChillerState);
-      console.log('[Circulation] Timeline data - Main:', mainData.length, 'points, Chiller:', chillerData.length, 'points');
-      console.log('[Circulation] Sample main data:', mainData.slice(0, 3));
-      
       timelineChart = new Chart(ctx, {
-        type: 'line',
+        type: 'bar',
         data: {
           datasets: [
             {
               label: 'Main Pump',
-              data: mainData,
-              borderColor: '#60a5fa',
-              backgroundColor: 'rgba(96,165,250,0.1)',
-              borderWidth: 3,
-              stepped: true,
-              pointRadius: 4,
-              pointBorderColor: '#60a5fa',
-              pointBackgroundColor: '#60a5fa',
-              fill: false
+              data: mainBars,
+              backgroundColor: mainBars.map(b => b.backgroundColor),
+              barThickness: 20,
+              borderRadius: 4,
+              borderSkipped: false
             },
             {
               label: 'Chiller Pump',
-              data: chillerData,
-              borderColor: '#22d3ee',
-              backgroundColor: 'rgba(34,211,238,0.1)',
-              borderWidth: 3,
-              stepped: true,
-              pointRadius: 4,
-              pointBorderColor: '#22d3ee',
-              pointBackgroundColor: '#22d3ee',
-              fill: false
+              data: chillerBars,
+              backgroundColor: chillerBars.map(b => b.backgroundColor),
+              barThickness: 20,
+              borderRadius: 4,
+              borderSkipped: false
             }
           ]
         },
         options: {
+          indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
+          interaction: { mode: 'nearest', intersect: false },
           scales: {
             x: {
               type: 'time',
@@ -290,28 +294,25 @@
                 displayFormats: { hour: 'HH:mm' }
               },
               grid: { color: 'rgba(148,163,184,0.1)' },
-              ticks: { color: '#9ca3af', maxTicksLimit: 12 }
+              ticks: { color: '#9ca3af', maxTicksLimit: 12 },
+              min: dayAgo,
+              max: now
             },
             y: {
-              min: 0,
-              max: 1,
-              ticks: {
-                color: '#9ca3af',
-                stepSize: 1,
-                callback: (v) => v === 1 ? 'ON' : 'OFF'
-              },
-              grid: { color: 'rgba(148,163,184,0.1)' }
+              stacked: false,
+              grid: { display: false },
+              ticks: { color: '#9ca3af' }
             }
           },
           plugins: {
-            legend: {
-              display: true,
-              position: 'top',
-              labels: { color: '#e0e0e0', boxWidth: 12, padding: 10 }
-            },
+            legend: { display: false },
             tooltip: {
               callbacks: {
-                label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y === 1 ? 'ON' : 'OFF'}`
+                title: () => '',
+                label: (ctx) => {
+                  const bar = ctx.raw;
+                  return `${ctx.dataset.label}: ON for ${bar.duration}`;
+                }
               }
             }
           }
