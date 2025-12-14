@@ -290,18 +290,18 @@ def set_temperature_relay(desired_on: bool, reason: str = '') -> bool:
         True if relay was set, False if blocked
     """
     with _control_lock:
-        # Check RDWC coordination: require main_pump + temperature_pump
+        # Check RDWC coordination: require main_pump + chiller_pump
         if desired_on:
             relays = get_relay_status()
             main_pump_on = relays.get('main_pump', {}).get('state', False)
-            temperature_pump_on = relays.get('temperature_pump', {}).get('state', False)
+            chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
             
             if not main_pump_on:
                 log.warning('[temperature] Blocked: Main pump is OFF (RDWC circulation required)')
                 return False
             
-            if not temperature_pump_on:
-                log.warning('[temperature] Blocked: temperature pump is OFF (water circulation required)')
+            if not chiller_pump_on:
+                log.warning('[temperature] Blocked: chiller pump is OFF (water circulation required)')
                 return False
         
         # Check minimum OFF time (compressor protection)
