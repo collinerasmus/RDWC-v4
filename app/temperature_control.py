@@ -315,7 +315,7 @@ def set_temperature_relay(desired_on: bool, reason: str = '') -> bool:
             
             if time_since_off < min_off:
                 remaining = int(min_off - time_since_off)
-                log.info(f'[temperature] Blocked: In cooldown period ({remaining}s remaining)')
+                log.warning(f'[temperature] Blocked: In cooldown period ({remaining}s remaining)')
                 _temperature_state['in_cooldown'] = True
                 return False
             else:
@@ -361,7 +361,7 @@ def set_temperature_relay(desired_on: bool, reason: str = '') -> bool:
             return True
             
         except Exception as e:
-            log.error(f'[temperature] Relay set failed: {e}')
+            log.error(f'[temperature] Relay set failed: {e}', exc_info=True)
             return False
 
 
