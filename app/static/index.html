@@ -1387,6 +1387,7 @@ body{
       <div style="display:flex;align-items:center;gap:8px;">
         <h3 class="card-title" style="margin:0;">Lights Control</h3>
         <span id="lights-health-indicator" class="ui-status-chip neutral" title="Controller health">—</span>
+      <span id="lights-mode-indicator" class="ui-status-chip neutral" style="margin-left:auto;">—</span>
       </div>
     </div>
     <div class="card-body">
@@ -1403,6 +1404,20 @@ body{
         <div class="kpi">
           <div class="kpi-label">Window</div>
           <div class="kpi-value" id="lights-window-kpi">—</div>
+
+              <!-- Cooldown Display -->
+              <div id="lights-cooldown-display" style="display:none;padding:8px 12px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:6px;margin-bottom:12px;color:#fbbf24;font-size:var(--font-sm);">—</div>
+
+              <!-- Mode Control -->
+              <div style="margin-top:12px;">
+                <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">🔄 Mode Control</div>
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                  <button id="lights-mode-auto" class="btn-secondary" style="flex:1;">Auto</button>
+                  <button id="lights-mode-manual" class="btn-secondary" style="flex:1;">Manual</button>
+                  <button id="lights-mode-maintenance" class="btn-secondary" style="flex:1;">Maint</button>
+                </div>
+                <div class="muted" style="font-size:var(--font-xs);margin-top:8px;">Auto: schedule-driven. Manual: direct control. Maint: relay locked, no automation.</div>
+              </div>
         </div>
       </div>
 
@@ -1412,7 +1427,7 @@ body{
         <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
           <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Manual relay control. Honors Auto/Manual mode and cooldowns. In Auto mode, schedule controls lights automatically.</div>
           <button class="btn-secondary btn-full" id="btnLightsToggle">
-            <span class="relay-label" id="lights-label">Toggle Lights</span>
+            <span class="relay-label">Toggle Lights</span>
           </button>
         </div>
       </div>
@@ -1436,6 +1451,16 @@ body{
         </div>
       </div>
 
+      <!-- Event Log -->
+      <div style="margin-top:12px;">
+        <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">📊 Event Log</div>
+        <div style="margin-top:8px;max-height:200px;overflow-y:auto;border:1px solid rgba(75,85,99,0.5);border-radius:6px;background:rgba(15,23,42,0.5);">
+          <div id="lights-events-list" style="font-size:var(--font-xs);font-family:monospace;">
+            <div style="text-align:center;padding:16px;color:#94a3b8;">No events yet.</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Info -->
       <div style="margin-top:12px;">
         <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">ℹ️ Info</div>
@@ -1444,6 +1469,7 @@ body{
             <li>Edge-only scheduler sets two transitions per day (no periodic enforcement).</li>
             <li>Manual mode ignores schedule; Auto enforces window; Maintenance keeps relay state but suppresses auto edges.</li>
             <li>Cooldowns & anti-flap: ON min 10s, OFF min 5s.</li>
+                      <li>Mode changes are synchronized across controllers and persist in the backend.</li>
           </ul>
         </div>
       </div>
