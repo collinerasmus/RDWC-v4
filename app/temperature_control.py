@@ -24,9 +24,9 @@ def get_relay_status():
     from app.relays_core import get_relay_status as _get_relay_status
     return _get_relay_status()
 
-def relay_set(name: str, on: bool, reason: str = '', actor: str = 'temperature-ctl'):
+def relay_set(name: str, on: bool, reason: str = '', actor: str = 'temperature-ctl', force: bool = False):
     from app.relays_core import set_relay as _set_relay
-    return _set_relay(name, on, reason=reason, actor=actor)
+    return _set_relay(name, on, reason=reason, actor=actor, force=force)
 
 def get_setting(key: str, default: str = ""):
     from app.settings import get_all_settings
@@ -279,13 +279,14 @@ def get_temperature_state() -> Dict[str, Any]:
         return state
 
 
-def set_temperature_relay(desired_on: bool, reason: str = '') -> bool:
+def set_temperature_relay(desired_on: bool, reason: str = '', force: bool = False) -> bool:
     """
     Control temperature relay with safety checks.
     
     Args:
         desired_on: True to turn ON, False to turn OFF
         reason: Log message explaining the action
+        force: If True, bypass startup delay (for manual overrides)
     
     Returns:
         True if relay was set, False if blocked
@@ -308,7 +309,7 @@ def set_temperature_relay(desired_on: bool, reason: str = '') -> bool:
                 return False
         
         # Check minimum OFF time (compressor protection)
-        if desired_on and _temperature_state['last_off_time']:
+        if desired_on and _temperature_state['last_off_time'] and not force:
             now = time.time()
             min_off = int(get_setting('temperature.min_off_seconds', str(temperature_SPECS['min_off_seconds'])))
             time_since_off = now - _temperature_state['last_off_time']
@@ -323,7 +324,7 @@ def set_temperature_relay(desired_on: bool, reason: str = '') -> bool:
                 _temperature_state['in_cooldown'] = False
         
         # Check minimum ON time (don't short-cycle)
-        if not desired_on and _temperature_state['is_running'] and _temperature_state['last_on_time']:
+        if not desired_on and _temperature_state['is_running'] and _temperature_state['last_on_time'] and not force:
             now = time.time()
             min_on = int(get_setting('temperature.min_on_seconds', str(temperature_SPECS['min_on_seconds'])))
             runtime = now - _temperature_state['last_on_time']
@@ -336,9 +337,9 @@ def set_temperature_relay(desired_on: bool, reason: str = '') -> bool:
             else:
                 _temperature_state['min_runtime_active'] = False
         
-        # Set relay
+        # Set relay (pass force flag to bypass startup delay)
         try:
-            relay_set('chiller_power', desired_on, reason=reason, actor='temperature-ctl')
+            relay_set('chiller_power', desired_on, reason=reason, actor='temperature-ctl', force=force)
             
             # Update state
             now = time.time()
@@ -508,6 +509,7 @@ def stop_auto_control():
 def force_temperature_state(desired_on: bool, duration_minutes: Optional[int] = None) -> Dict[str, Any]:
     """
     Manually override temperature state (emergency/maintenance).
+    Bypasses startup delay to allow immediate testing.
     
     Args:
         desired_on: True to force ON, False to force OFF
@@ -524,8 +526,8 @@ def force_temperature_state(desired_on: bool, duration_minutes: Optional[int] = 
         with _control_lock:
             _temperature_state['override_until'] = None
     
-    # Apply override (this will acquire _control_lock internally)
-    success = set_temperature_relay(desired_on, f'Manual override (duration: {duration_minutes or "indefinite"} min)')
+    # Apply override with force=True to bypass startup delay
+    success = set_temperature_relay(desired_on, f'Manual override (duration: {duration_minutes or "indefinite"} min)', force=True)
     
     return {
         'success': success,
