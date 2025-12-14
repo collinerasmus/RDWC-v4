@@ -179,28 +179,34 @@ def get_temperature_events(limit: int = 200) -> list[dict]:
 def get_interlock_status() -> Dict[str, Any]:
     """
     Check current interlock conditions for temperature operation.
-    
-    Returns:
-        Dict with interlock_ok (bool) and interlock_details (dict)
+
+    NOTE: All three relays are active-low. `state=True` means the coil is
+    energized (OFF), and `state=False` means the circuit is closed (ON). We
+    normalize to *_on booleans that reflect the physical ON state.
     """
     try:
         relays = get_relay_status()
-        main_pump_on = relays.get('main_pump', {}).get('state', False)
-        chiller_pump_on = relays.get('chiller_pump', {}).get('state', False)
-        chiller_running = relays.get('chiller_power', {}).get('state', False)
-        
-        # NEW: Use unified auto-enable system
+
+        def _is_on_active_low(name: str) -> bool:
+            raw = relays.get(name, {})
+            # `state` is the canonical flag; `is_on` exists in some payloads
+            val = raw.get('state', raw.get('is_on', False))
+            return not bool(val)  # active-low: False => energized/ON
+
+        main_pump_on = _is_on_active_low('main_pump')
+        chiller_pump_on = _is_on_active_low('chiller_pump')
+        chiller_running = _is_on_active_low('chiller_power')
+
         auto_enabled = should_automate_temperature()
-        
-        # Determine violations
+
         violations = []
         if chiller_running and not main_pump_on:
             violations.append('main_pump_off')
         if chiller_running and not chiller_pump_on:
             violations.append('chiller_pump_off')
-        
+
         interlock_ok = len(violations) == 0
-        
+
         return {
             'interlock_ok': interlock_ok,
             'interlock_details': {
@@ -229,10 +235,11 @@ def get_temperature_state() -> Dict[str, Any]:
     """Get current temperature state for API/UI."""
     with _control_lock:
         state = _temperature_state.copy()
-        # Reconcile with actual relay state to avoid stale/is_running mismatches
+        # Reconcile with actual relay state (active-low: False means ON)
         try:
-            rel = get_relay_status().get('temperature_power', {})
-            relay_on = bool(rel.get('state')) or bool(rel.get('is_on'))  # support both key styles
+            rel = get_relay_status().get('chiller_power', {})
+            relay_raw = rel.get('state', rel.get('is_on', False))
+            relay_on = not bool(relay_raw)  # active-low normalized
         except Exception:
             relay_on = state.get('is_running', False)
         now_reconcile = time.time()
