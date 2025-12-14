@@ -1513,22 +1513,20 @@ body{
 
       <!-- Activity Timeline (uniform card like pH/EC) -->
       <div class="card" style="margin-bottom:20px;">
-        <div class="card-header">
-          <h3 class="card-title" style="margin:0;">Activity Timeline</h3>
-        </div>
         <div class="card-body">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-sm);">
-            <div class="muted" style="display:flex;align-items:center;gap:12px;">
-              <span class="pill-muted nowrap" style="display:flex;align-items:center;gap:6px;">
-                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#60a5fa;"></span>
-                Main Pump
-              </span>
-              <span class="pill-muted nowrap" style="display:flex;align-items:center;gap:6px;">
-                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22d3ee;"></span>
-                Chiller Pump
-              </span>
-            </div>
+            <div class="muted">Activity Timeline</div>
             <button id="circ-export" class="btn-secondary">Export CSV</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+            <span class="pill-muted nowrap" style="display:flex;align-items:center;gap:6px;">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#60a5fa;"></span>
+              Main Pump
+            </span>
+            <span class="pill-muted nowrap" style="display:flex;align-items:center;gap:6px;">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22d3ee;"></span>
+              Chiller Pump
+            </span>
           </div>
           <div id="circ-chart-wrap" class="chart-card">
             <canvas id="circTimelineChart"></canvas>
