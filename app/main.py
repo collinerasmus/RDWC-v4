@@ -527,9 +527,13 @@ async def _start_tasks():
         })
         from app.temperature_control import start_auto_control
         start_auto_control()
-    except Exception:
-        # Non-fatal: UI can still enable manually
-        pass
+    except Exception as e:
+        # Non-fatal: start control loop even if auto_enable fails
+        try:
+            from app.temperature_control import start_auto_control
+            start_auto_control()
+        except Exception as e2:
+            print(f"[Temperature] Failed to start control loop: {e2}")
 
     # Start relay watchdog (detect unexpected relay energization)
     async def relay_watchdog():
