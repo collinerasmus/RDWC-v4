@@ -1476,15 +1476,8 @@ body{
     </div>
 
     <div class="card-body">
-      <!-- KPI Row: 7 items (status + 3 per pump) - single source of truth -->
+      <!-- KPI Row: 7 items (3 main + status + 3 chiller) - single source of truth -->
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
-        <div class="kpi" style="min-width:160px;">
-          <div class="kpi-label">Pump Status</div>
-          <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">
-            <span class="bop-status-badge on" id="circ-main-pump" style="font-size:var(--font-xs);padding:4px 8px;">—</span>
-            <span class="bop-status-badge on" id="circ-temperature-pump" style="font-size:var(--font-xs);padding:4px 8px;">—</span>
-          </div>
-        </div>
         <div class="kpi">
           <div class="kpi-label">🔄 Main Runtime</div>
           <div class="kpi-value" id="main-runtime-today">—</div>
@@ -1496,6 +1489,13 @@ body{
         <div class="kpi">
           <div class="kpi-label">Main Cooldown</div>
           <div class="kpi-value" id="main-cooldown">—</div>
+        </div>
+        <div class="kpi" style="min-width:160px;">
+          <div class="kpi-label">Pump Status</div>
+          <div class="kpi-value" style="display:flex;gap:6px;flex-wrap:wrap;">
+            <span class="bop-status-badge on" id="circ-main-pump" style="font-size:var(--font-xs);padding:4px 8px;">Main</span>
+            <span class="bop-status-badge on" id="circ-temperature-pump" style="font-size:var(--font-xs);padding:4px 8px;">Chiller</span>
+          </div>
         </div>
         <div class="kpi">
           <div class="kpi-label">🌊 Chiller Runtime</div>
