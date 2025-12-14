@@ -329,76 +329,119 @@
         },
         
         onRender: (chart, data, timeWindow) => {
-          const buildTimeline = (events, currentState, startState, startTime, endTime) => {
+          // Build stepped timeline with event markers
+          const buildTimeline = (events, currentState, startState, startTime, endTime, yOffset = 0) => {
             const timeline = [];
+            const markers = [];
             const initialState = startState != null ? startState : currentState;
-            timeline.push({ x: new Date(startTime), y: initialState });
+            
+            // Start point
+            timeline.push({ x: new Date(startTime), y: initialState + yOffset });
 
             let lastState = initialState;
+            let lastTime = startTime;
 
             events.forEach(evt => {
-              const pointState = evt.final ? 1 : 0;
-              timeline.push({ x: new Date(evt.tsMs), y: pointState });
-              lastState = pointState;
+              const eventState = evt.final ? 1 : 0;
+              const eventTime = new Date(evt.tsMs);
+              
+              // Hold previous state until event
+              if (lastTime < evt.tsMs) {
+                timeline.push({ x: eventTime, y: lastState + yOffset });
+              }
+              
+              // Transition to new state
+              timeline.push({ x: eventTime, y: eventState + yOffset });
+              
+              // Add event marker
+              markers.push({
+                x: eventTime,
+                y: eventState + yOffset,
+                reason: evt.reason
+              });
+              
+              lastState = eventState;
+              lastTime = evt.tsMs;
             });
 
-            timeline.push({ x: new Date(endTime), y: lastState });
+            // End point
+            timeline.push({ x: new Date(endTime), y: lastState + yOffset });
 
-            return timeline;
+            return { timeline, markers };
           };
           
-          const mainTimeline = buildTimeline(
+          const mainData = buildTimeline(
             data.mainEvents,
             data.currentMainState,
             data.mainStartState,
             data.startMs,
-            data.endMs
+            data.endMs,
+            0
           );
-          const chillerTimeline = buildTimeline(
+          
+          const chillerData = buildTimeline(
             data.chillerEvents,
             data.currentChillerState,
             data.chillerStartState,
             data.startMs,
-            data.endMs
+            data.endMs,
+            2
           );
 
           chart.options.scales.y = {
             type: 'linear',
-            min: -0.1,
-            max: 1.1,
+            min: -0.5,
+            max: 3.5,
             ticks: {
               stepSize: 1,
-              callback: (value) => (value <= 0 ? 'OFF' : 'ON')
+              callback: (value) => {
+                if (value === 0) return 'Main OFF';
+                if (value === 1) return 'Main ON';
+                if (value === 2) return 'Chiller OFF';
+                if (value === 3) return 'Chiller ON';
+                return '';
+              },
+              font: { size: 11 },
+              color: '#94a3b8'
             },
-            grid: { color: 'rgba(148,163,184,0.15)' }
+            grid: { 
+              color: 'rgba(148,163,184,0.15)',
+              lineWidth: (context) => (context.tick.value % 1 === 0 ? 1 : 0)
+            }
           };
           
           return [
             {
               label: 'Main Pump',
-              data: mainTimeline,
-              borderColor: '#60a5fa',
-              backgroundColor: 'rgba(96,165,250,0.1)',
-              borderWidth: 2,
-              stepped: true,
-              pointRadius: 3,
-              pointBorderColor: '#60a5fa',
-              pointBackgroundColor: '#60a5fa',
-              fill: false,
-              tension: 0
+              data: mainData.timeline,
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59,130,246,0.15)',
+              borderWidth: 3,
+              stepped: 'before',
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              pointBorderColor: '#3b82f6',
+              pointBackgroundColor: '#3b82f6',
+              pointBorderWidth: 2,
+              fill: 'origin',
+              tension: 0,
+              order: 1
             },
             {
               label: 'Chiller Pump',
-              data: chillerTimeline,
-              borderColor: '#22d3ee',
-              backgroundColor: 'rgba(34,211,238,0.1)',
-              borderWidth: 2,
-              stepped: true,
-              pointRadius: 3,
-              pointBorderColor: '#22d3ee',
-              pointBackgroundColor: '#22d3ee',
-              fill: false,
-              tension: 0
+              data: chillerData.timeline,
+              borderColor: '#06b6d4',
+              backgroundColor: 'rgba(6,182,212,0.15)',
+              borderWidth: 3,
+              stepped: 'before',
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              pointBorderColor: '#06b6d4',
+              pointBackgroundColor: '#06b6d4',
+              pointBorderWidth: 2,
+              fill: 'origin',
+              tension: 0,
+              order: 2
             }
           ];
         }
