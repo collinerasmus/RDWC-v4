@@ -230,6 +230,9 @@ def _startup_seed_lights_events():
     try:
         from app.relays_core import _relay_event_logs
         from datetime import datetime, timedelta
+        import logging
+        
+        logger = logging.getLogger(__name__)
         
         # Clear any stale events on startup
         _relay_event_logs["lights"].clear()
@@ -271,12 +274,10 @@ def _startup_seed_lights_events():
             
             current_date += timedelta(days=1)
         
-        from app.logger import get_logger
-        logger = get_logger()
         logger.info(f"Seeded {event_count} lights events from Dec 1 to today")
     except Exception as e:
-        from app.logger import get_logger
-        logger = get_logger()
+        import logging
+        logger = logging.getLogger(__name__)
         logger.warning(f"Seed lights events failed (non-fatal): {e}")
 
 # --- Sensor LED state endpoints (persistent) ---
