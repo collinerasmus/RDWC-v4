@@ -224,6 +224,55 @@ def _startup_migrate_auto_control():
         logger = get_logger()
         logger.warning(f"Auto-control migration failed (non-fatal): {e}")
 
+@app.on_event("startup")
+def _startup_seed_lights_events():
+    """Seed lights event log with historical data on startup."""
+    try:
+        from app.relays_core import _relay_event_logs
+        from datetime import datetime, timedelta
+        
+        # Only seed if empty
+        if len(_relay_event_logs.get("lights", [])) > 0:
+            return
+        
+        start_date = datetime(2025, 12, 1, 0, 0, 0)
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        lights_on_time = "15:00"
+        lights_duration_hours = 16
+        
+        on_h, on_m = map(int, lights_on_time.split(':'))
+        
+        current_date = start_date
+        while current_date <= today:
+            on_datetime = current_date.replace(hour=on_h, minute=on_m, second=0)
+            _relay_event_logs["lights"].append({
+                "ts": on_datetime.isoformat(),
+                "requested": False,
+                "final": True,
+                "reason": "schedule",
+                "cooldown": 0,
+                "blocked": False,
+                "caller": "scheduler:edge"
+            })
+            
+            off_datetime = on_datetime + timedelta(hours=lights_duration_hours)
+            _relay_event_logs["lights"].append({
+                "ts": off_datetime.isoformat(),
+                "requested": False,
+                "final": False,
+                "reason": "schedule",
+                "cooldown": 0,
+                "blocked": False,
+                "caller": "scheduler:edge"
+            })
+            
+            current_date += timedelta(days=1)
+    except Exception as e:
+        from app.logger import get_logger
+        logger = get_logger()
+        logger.warning(f"Seed lights events failed (non-fatal): {e}")
+
 # --- Sensor LED state endpoints (persistent) ---
 @app.get("/api/sensors/leds")
 def api_sensors_leds():
