@@ -78,10 +78,10 @@ _temperature_state = {
     'is_running': False,       # current state
     'in_cooldown': False,      # true if in minimum OFF period
     'min_runtime_active': False,  # true if in minimum ON period
-    'auto_enabled': False,     # true if automation is active
     'override_until': None,    # timestamp for manual override expiry
     'total_runtime_today': 0,  # seconds of runtime today (for stats)
     'cycles_today': 0,         # number of on/off cycles today
+    # NOTE: 'auto_enabled' is computed dynamically from unified auto_control system (single source of truth)
 }
 
 _control_lock = threading.Lock()
@@ -462,8 +462,8 @@ def start_auto_control():
     """Start automated temperature control.
     
     NOTE: This starts the background control thread. The actual automation
-    will only run if should_automate("temperature") returns True (requires both
-    global_auto and temperature_auto to be enabled in the new auto-control system).
+    will only run if should_automate("chiller") returns True (requires both
+    global_auto and chiller_auto to be enabled in the unified auto-control system).
     """
     global _control_thread, _stop_control
     
@@ -475,12 +475,9 @@ def start_auto_control():
     _control_thread = threading.Thread(target=control_loop, daemon=True, name='temperatureControl')
     _control_thread.start()
     
-    with _control_lock:
-        _temperature_state['auto_enabled'] = True
-    
-    # NEW: Enable temperature auto in the unified system
+    # Enable chiller automation in the unified system (single source of truth)
     from app.auto_control import set_controller_auto_enabled
-    set_controller_auto_enabled("temperature", True)
+    set_controller_auto_enabled("chiller", True)
     log.info('[temperature] Automatic control started')
 
 
@@ -490,12 +487,9 @@ def stop_auto_control():
     
     _stop_control = True
     
-    with _control_lock:
-        _temperature_state['auto_enabled'] = False
-    
-    # NEW: Disable temperature auto in the unified system
+    # Disable chiller automation in the unified system (single source of truth)
     from app.auto_control import set_controller_auto_enabled
-    set_controller_auto_enabled("temperature", False)
+    set_controller_auto_enabled("chiller", False)
     log.info('[temperature] Automatic control stopped')
 
 
