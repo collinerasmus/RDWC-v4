@@ -405,7 +405,15 @@
 
       durationHours = parseFloat(settings.lights_duration_hours) || 0;
       console.log('[Lights] Duration hours:', durationHours);
-      upole.log('[Lights] Initializing lights controller');
+      updateLightsUI(settings);
+
+    } catch (e) {
+      console.error('[Lights] load settings failed:', e);
+    }
+  }
+
+  async function init() {
+    console.log('[Lights] Initializing lights controller');
     
     const toggleBtn = $('btnLightsToggle');
     if (toggleBtn) {
@@ -427,15 +435,7 @@
     setInterval(refreshLightsStatus, 30000);
     setInterval(refreshLightsChart, 60000);
     
-    console.log('[Lights] Initialization complete'('click', saveSettings);
-
-    await loadSettings();
-    initLightsChart();
-    createChartControls();
-    refreshLightsStatus();
-
-    setInterval(refreshLightsStatus, 30000);
-    setInterval(refreshLightsChart, 60000);
+    console.log('[Lights] Initialization complete');
   }
 
   if (document.readyState === 'loading') {
