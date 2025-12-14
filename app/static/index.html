@@ -1424,27 +1424,25 @@ body{
     <!-- Cooldown Display -->
     <div id="lights-cooldown-display" style="display:none;padding:8px 12px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:6px;margin-bottom:12px;color:#fbbf24;font-size:var(--font-sm);">—</div>
 
-    <!-- Activity Chart -->
+    <!-- Activity History Chart -->
     <hr class="separator" style="margin:20px 0;" />
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-      <div class="muted" style="font-weight:600;">Lights Activity (ON/OFF Timeline)</div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span class="muted" style="font-size:12px;">Total Runtime (window):</span>
-        <span id="lights-chart-total" style="font-size:16px;font-weight:700;color:#fbbf24;">0h 0m</span>
-      </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-sm);">
+      <div class="muted">Lights History</div>
+      <span id="lights-chart-total" class="kpi-pill" style="font-size:var(--font-sm);padding:2px 8px;border-radius:12px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);color:#fde047;">Total: 0h 0m</span>
     </div>
-    <div class="chart-card" style="margin-bottom:8px;">
-      <canvas id="lightsChart" style="height:240px;"></canvas>
+    <div id="lights-dose-chart-wrap" class="chart-card">
+      <canvas id="lightsChart"></canvas>
       <div id="lights-chart-empty" class="muted small" style="display:none;padding:8px 0;">
         No activity data for this period.
       </div>
     </div>
+    <!-- Unified controls (zoom + slider) -->
     <div id="lights-chart-controls"></div>
 
-    <!-- Event Log -->
+    <!-- Dose Log (Recent Events) -->
     <div style="margin-top:12px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);">
-      <div style="font-size:13px;color:#9ca3af;font-weight:600;margin-bottom:6px;">⏱️ Light ON Periods (with duration timers)</div>
-      <div id="lights-events-list" style="max-height:280px;overflow-y:auto;padding-right:6px;font-size:12px;"></div>
+      <div style="font-size:var(--font-sm);color:#9ca3af;font-weight:500;margin-bottom:6px;" id="lights-dose-log-header">Dose Log ▾</div>
+      <div id="lights-events-list" style="max-height:220px;overflow-y:auto;padding-right:6px;font-size:var(--font-xs);"></div>
     </div>
 
     <!-- Manual Control -->
