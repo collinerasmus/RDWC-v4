@@ -179,31 +179,17 @@ def get_temperature_events(limit: int = 200) -> list[dict]:
 def get_interlock_status() -> Dict[str, Any]:
     """
     Check current interlock conditions for temperature operation.
-
-    NOTE: main_pump and chiller_pump use NO contacts (active-low: state=False means ON).
-    chiller_power uses NC contact: state=True means chiller ON (coil de-energized, NC closed),
-    state=False means chiller OFF (coil energized, NC opens).
+    
+    Uses relay_guard shadow state which always represents logical ON/OFF,
+    accounting for NO/NC wiring.
     """
     try:
-        relays = get_relay_status()
-
-        def _is_on_no_contact(name: str) -> bool:
-            """For NO contact relays (pumps): is_on already reflects semantic state"""
-            raw = relays.get(name, {})
-            # is_on is the semantic state from relays_core; for active-low NO contacts,
-            # is_on=True already means pump is running (GPIO LOW)
-            return bool(raw.get('is_on', False))
-
-        def _is_on_nc_contact(name: str) -> bool:
-            """For NC contact relays (chiller): is_on already reflects semantic state"""
-            raw = relays.get(name, {})
-            # is_on is the semantic state from relays_core; for active-low NC contacts,
-            # is_on=True already means chiller is running (GPIO LOW, NC closed, coil de-energized)
-            return bool(raw.get('is_on', False))
-
-        main_pump_on = _is_on_no_contact('main_pump')
-        chiller_pump_on = _is_on_no_contact('chiller_pump')
-        chiller_running = _is_on_nc_contact('chiller_power')
+        from app.relay_guard import get_shadow_state, get_pin_levels, NC_RELAYS
+        shadow = get_shadow_state() or {}
+        
+        main_pump_on = bool(shadow.get('main_pump', False))
+        chiller_pump_on = bool(shadow.get('chiller_pump', False))
+        chiller_running = bool(shadow.get('chiller_power', False))
 
         auto_enabled = should_automate_temperature()
 
