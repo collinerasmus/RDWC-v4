@@ -302,9 +302,19 @@
     if (!lightsChart) return;
 
     try {
-      const now = Date.now();
-      const start = Math.floor((now - currentChartHours * 3600000) / 1000);
-      const end = Math.floor(now / 1000);
+      // Use custom time range if set (from pan slider), otherwise use current time
+      let startMs, endMs;
+      if (customTimeRange) {
+        startMs = customTimeRange.start;
+        endMs = customTimeRange.end;
+      } else {
+        const now = Date.now();
+        startMs = now - currentChartHours * 3600000;
+        endMs = now;
+      }
+      
+      const start = Math.floor(startMs / 1000);
+      const end = Math.floor(endMs / 1000);
 
       const events = await getJSON(`/api/relays/events?name=lights&start=${start}&end=${end}`);
       
@@ -329,9 +339,9 @@
           windowTotal += normalizedEvents[i + 1].ts - normalizedEvents[i].ts;
         }
       }
-      // If last is ON, add time to now
+      // If last is ON, add time to end of window (not necessarily now)
       if (normalizedEvents[normalizedEvents.length - 1].final === true) {
-        windowTotal += Math.floor(now / 1000) - normalizedEvents[normalizedEvents.length - 1].ts;
+        windowTotal += end - normalizedEvents[normalizedEvents.length - 1].ts;
       }
 
       // Update chart total display
@@ -354,13 +364,13 @@
         if (i < normalizedEvents.length - 1) {
           data.push({ x: normalizedEvents[i + 1].ts * 1000 - 1, y: state });
         } else {
-          data.push({ x: now, y: state });
+          data.push({ x: endMs, y: state });
         }
       }
 
       lightsChart.data.datasets[0].data = data;
-      lightsChart.options.scales.x.min = now - currentChartHours * 3600000;
-      lightsChart.options.scales.x.max = now;
+      lightsChart.options.scales.x.min = startMs;
+      lightsChart.options.scales.x.max = endMs;
       lightsChart.update('none');
 
     } catch (e) {
@@ -438,9 +448,16 @@
   }
 
   // Expose chart instance and updater for ChartControls integration
+  let customTimeRange = null; // Store custom time range for panning
+  
   window.lightsChart = null;
   window.setLightsChartHours = (hours) => {
     currentChartHours = hours;
+    customTimeRange = null; // Reset custom range when zoom changes
+    refreshLightsChart();
+  };
+  window.setLightsChartRange = (startMs, endMs) => {
+    customTimeRange = { start: startMs, end: endMs };
     refreshLightsChart();
   };
 

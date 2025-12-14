@@ -149,18 +149,15 @@
     }
 
     // ===== LIGHTS CHART =====
-    // lights_v2.js exposes window.lightsChart with refreshLightsChart and currentChartHours
+    // lights_v2.js exposes window.lightsChart with setLightsChartRange for panning
     if (document.getElementById('lights-chart-controls')) {
-      if (window.lightsChart) {
+      if (window.lightsChart && window.setLightsChartRange) {
         const lightsControls = new ChartControls({
           containerId: 'lights-chart-controls',
           onRangeChange: async (start, end) => {
             console.log('[Chart Adapter] Lights range changed:', start, end);
             try {
-              const hours = Math.ceil((end - start) / 3600000);
-              if (window.setLightsChartHours) {
-                window.setLightsChartHours(hours);
-              }
+              window.setLightsChartRange(start, end);
             } catch (e) {
               console.error('[Chart Adapter] Lights chart update failed:', e);
             }
