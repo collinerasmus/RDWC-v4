@@ -1390,17 +1390,17 @@ def api_chiller_status():
 @app.post("/api/temperature/auto/enable")
 def api_chiller_auto_enable():
     """Enable automatic chiller control based on temperature."""
-    from app.temperature_control import start_auto_control, get_temperature_status
+    from app.temperature_control import start_auto_control, get_temperature_state
     start_auto_control()
-    status = get_temperature_status()
+    status = get_temperature_state()
     return {"ok": True, "auto_enabled": status.get('auto_enabled', False)}
 
 @app.post("/api/temperature/auto/disable")
 def api_chiller_auto_disable():
     """Disable automatic chiller control."""
-    from app.temperature_control import stop_auto_control, get_temperature_status
+    from app.temperature_control import stop_auto_control, get_temperature_state
     stop_auto_control()
-    status = get_temperature_status()
+    status = get_temperature_state()
     return {"ok": True, "auto_enabled": status.get('auto_enabled', False)}
 
 @app.post("/api/temperature/force")
