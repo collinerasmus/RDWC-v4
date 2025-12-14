@@ -516,22 +516,23 @@ def force_temperature_state(desired_on: bool, duration_minutes: Optional[int] = 
     Returns:
         Status dict
     """
-    with _control_lock:
-        # Set override expiry
-        if duration_minutes:
+    # Set override expiry without holding lock (set_temperature_relay will acquire it)
+    if duration_minutes:
+        with _control_lock:
             _temperature_state['override_until'] = time.time() + (duration_minutes * 60)
-        else:
+    else:
+        with _control_lock:
             _temperature_state['override_until'] = None
-        
-        # Apply override
-        success = set_temperature_relay(desired_on, f'Manual override (duration: {duration_minutes or "indefinite"} min)')
-        
-        return {
-            'success': success,
-            'state': 'ON' if desired_on else 'OFF',
-            'override_until': _temperature_state['override_until'],
-            'reason': 'Manual override'
-        }
+    
+    # Apply override (this will acquire _control_lock internally)
+    success = set_temperature_relay(desired_on, f'Manual override (duration: {duration_minutes or "indefinite"} min)')
+    
+    return {
+        'success': success,
+        'state': 'ON' if desired_on else 'OFF',
+        'override_until': _temperature_state.get('override_until'),
+        'reason': 'Manual override'
+    }
 
 
 # Initialize defaults in settings if not present
