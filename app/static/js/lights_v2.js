@@ -398,21 +398,28 @@
           label: 'Lights State',
           data: [],
           stepped: 'before',
-          borderColor: '#fbbf24',
+          borderColor: '#22c55e',
           backgroundColor: (context) => {
-            const chart = context.chart;
-            const {ctx, chartArea} = chart;
-            if (!chartArea) return 'rgba(251,191,36,0.2)';
-            
-            const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-            gradient.addColorStop(0, 'rgba(34,197,94,0.05)');
-            gradient.addColorStop(0.5, 'rgba(251,191,36,0.2)');
-            gradient.addColorStop(1, 'rgba(251,191,36,0.4)');
-            return gradient;
+            const value = context.parsed?.y;
+            if (value === 1) {
+              return 'rgba(34,197,94,0.3)';
+            }
+            return 'rgba(148,163,184,0.05)';
           },
-          fill: true,
-          pointRadius: 0,
-          borderWidth: 2
+          segment: {
+            borderColor: ctx => {
+              return ctx.p0.parsed.y === 1 ? '#22c55e' : '#64748b';
+            },
+            borderWidth: ctx => {
+              return ctx.p0.parsed.y === 1 ? 3 : 1;
+            }
+          },
+          fill: {
+            target: 'origin',
+            above: 'rgba(34,197,94,0.25)',
+            below: 'rgba(148,163,184,0.03)'
+          },
+          pointRadius: 0
         }]
       },
       options: {
