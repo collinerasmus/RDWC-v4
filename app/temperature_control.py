@@ -400,6 +400,12 @@ def should_temperature_run() -> tuple[bool, str]:
     if not auto_enabled:
         return False, 'Auto control disabled'
     
+    # Check interlocks first
+    interlock_status = get_interlock_status()
+    if not interlock_status['interlock_ok']:
+        violations = interlock_status['interlock_details'].get('violations', [])
+        return False, f'Interlock violation(s): {violations}'
+    
     # Get current temp
     current_temp = get_current_water_temp()
     if current_temp is None:
@@ -437,9 +443,11 @@ def control_loop():
         try:
             # Check if we should run
             should_run, reason = should_temperature_run()
+            log.debug(f'[temperature] Control check: should_run={should_run}, reason={reason}')
             
             # Apply decision
             if should_run != _temperature_state['is_running']:
+                log.info(f'[temperature] State change: {_temperature_state["is_running"]} -> {should_run}, {reason}')
                 set_temperature_relay(should_run, reason)
             
             # Check for midnight reset (daily stats)
@@ -450,7 +458,7 @@ def control_loop():
                     _temperature_state['cycles_today'] = 0
             
         except Exception as e:
-            log.error(f'[temperature] Control loop error: {e}')
+            log.error(f'[temperature] Control loop error: {e}', exc_info=True)
         
         # Sleep for control interval (default 30 seconds)
         time.sleep(int(get_setting('temperature.control_interval_s', '30')))
