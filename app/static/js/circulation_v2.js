@@ -332,42 +332,26 @@
           // Build stepped timeline with event markers
           const buildTimeline = (events, currentState, startState, startTime, endTime, yOffset = 0) => {
             const timeline = [];
-            const markers = [];
             const initialState = startState != null ? startState : currentState;
             
-            // Start point
+            // Start point at window start
             timeline.push({ x: new Date(startTime), y: initialState + yOffset });
 
-            let lastState = initialState;
-            let lastTime = startTime;
-
+            // Add every single event as a point
             events.forEach(evt => {
               const eventState = evt.final ? 1 : 0;
-              const eventTime = new Date(evt.tsMs);
-              
-              // Hold previous state until event
-              if (lastTime < evt.tsMs) {
-                timeline.push({ x: eventTime, y: lastState + yOffset });
-              }
-              
-              // Transition to new state
-              timeline.push({ x: eventTime, y: eventState + yOffset });
-              
-              // Add event marker
-              markers.push({
-                x: eventTime,
+              timeline.push({ 
+                x: new Date(evt.tsMs), 
                 y: eventState + yOffset,
                 reason: evt.reason
               });
-              
-              lastState = eventState;
-              lastTime = evt.tsMs;
             });
 
-            // End point
+            // End point at window end
+            const lastState = events.length > 0 ? (events[events.length - 1].final ? 1 : 0) : initialState;
             timeline.push({ x: new Date(endTime), y: lastState + yOffset });
 
-            return { timeline, markers };
+            return { timeline };
           };
           
           const mainData = buildTimeline(
