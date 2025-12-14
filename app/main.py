@@ -525,8 +525,8 @@ async def _start_tasks():
             'chiller.control_interval_s': '30',
             'chiller.auto_enabled': '1'
         })
-        from app.temperature_control import start_auto_temperature_control
-        start_auto_temperature_control()
+        from app.temperature_control import start_auto_control
+        start_auto_control()
     except Exception:
         # Non-fatal: UI can still enable manually
         pass
@@ -1390,15 +1390,15 @@ def api_chiller_status():
 @app.post("/api/temperature/auto/enable")
 def api_chiller_auto_enable():
     """Enable automatic chiller control based on temperature."""
-    from app.temperature_control import start_auto_temperature_control
-    start_auto_temperature_control()
+    from app.temperature_control import start_auto_control
+    start_auto_control()
     return {"ok": True, "auto_enabled": True}
 
 @app.post("/api/temperature/auto/disable")
 def api_chiller_auto_disable():
     """Disable automatic chiller control."""
-    from app.temperature_control import stop_auto_temperature_control
-    stop_auto_temperature_control()
+    from app.temperature_control import stop_auto_control
+    stop_auto_control()
     return {"ok": True, "auto_enabled": False}
 
 @app.post("/api/temperature/force")
