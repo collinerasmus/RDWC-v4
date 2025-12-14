@@ -1478,37 +1478,31 @@ body{
     <div class="card-body">
       <!-- KPI Row (uniform across tabs) -->
       <!-- KPI Row: 6 items (3 per pump) - single source of truth -->
-      <div class="kpi-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:var(--space-md);">
-        <div class="kpi" style="padding:12px;border:1px solid rgba(96,165,250,0.2);border-radius:8px;background:rgba(96,165,250,0.05);">
-          <div class="muted" style="font-size:var(--font-xs);margin-bottom:4px;">🔄 Main Pump</div>
-          <div class="muted" style="font-size:var(--font-xs);margin-bottom:2px;opacity:0.7;">Runtime Today</div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
+        <div class="kpi">
+          <div class="kpi-label">🔄 Main Runtime</div>
           <div class="kpi-value" id="main-runtime-today">—</div>
         </div>
-        <div class="kpi" style="padding:12px;border:1px solid rgba(96,165,250,0.2);border-radius:8px;background:rgba(96,165,250,0.05);">
-          <div class="muted" style="font-size:var(--font-xs);margin-bottom:4px;opacity:0.7;">Cycles Today</div>
+        <div class="kpi">
+          <div class="kpi-label">Main Cycles</div>
           <div class="kpi-value" id="main-cycles-today">—</div>
-          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
-            <span class="bop-status-badge on" id="circ-main-pump" style="padding:2px 8px;font-size:var(--font-xs);">—</span>
-          </div>
+          <span class="bop-status-badge on" id="circ-main-pump" style="display:block;margin-top:4px;font-size:var(--font-xs);padding:2px 8px;">—</span>
         </div>
-        <div class="kpi" style="padding:12px;border:1px solid rgba(96,165,250,0.2);border-radius:8px;background:rgba(96,165,250,0.05);">
-          <div class="muted" style="font-size:var(--font-xs);margin-bottom:4px;opacity:0.7;">Cooldown</div>
+        <div class="kpi">
+          <div class="kpi-label">Main Cooldown</div>
           <div class="kpi-value" id="main-cooldown">—</div>
         </div>
-        <div class="kpi" style="padding:12px;border:1px solid rgba(34,211,238,0.2);border-radius:8px;background:rgba(34,211,238,0.05);">
-          <div class="muted" style="font-size:var(--font-xs);margin-bottom:4px;">🌊 Chiller Pump</div>
-          <div class="muted" style="font-size:var(--font-xs);margin-bottom:2px;opacity:0.7;">Runtime Today</div>
+        <div class="kpi">
+          <div class="kpi-label">🌊 Chiller Runtime</div>
           <div class="kpi-value" id="chiller-runtime-today">—</div>
         </div>
-        <div class="kpi" style="padding:12px;border:1px solid rgba(34,211,238,0.2);border-radius:8px;background:rgba(34,211,238,0.05);">
-          <div class="muted" style="font-size:var(--font-xs);margin-bottom:4px;opacity:0.7;">Cycles Today</div>
+        <div class="kpi">
+          <div class="kpi-label">Chiller Cycles</div>
           <div class="kpi-value" id="chiller-cycles-today">—</div>
-          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
-            <span class="bop-status-badge on" id="circ-temperature-pump" style="padding:2px 8px;font-size:var(--font-xs);">—</span>
-          </div>
+          <span class="bop-status-badge on" id="circ-temperature-pump" style="display:block;margin-top:4px;font-size:var(--font-xs);padding:2px 8px;">—</span>
         </div>
-        <div class="kpi" style="padding:12px;border:1px solid rgba(34,211,238,0.2);border-radius:8px;background:rgba(34,211,238,0.05);">
-          <div class="muted" style="font-size:var(--font-xs);margin-bottom:4px;opacity:0.7;">Cooldown</div>
+        <div class="kpi">
+          <div class="kpi-label">Chiller Cooldown</div>
           <div class="kpi-value" id="chiller-cooldown">—</div>
         </div>
       </div>
