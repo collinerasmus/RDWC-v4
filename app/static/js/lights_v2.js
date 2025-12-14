@@ -1,10 +1,12 @@
 /**
  * Intelligent Lights Control UI - Grow Light Scheduler (Edge-Only)
- * FastAPI integration with schedule, mode management, and relay protection
+ * Chart, duration display, midnight-safe window calculation
  */
 (() => {
   const UI_VERBOSE = false;
-  
+  let lightsChart = null;
+  let currentChartHours = 24;
+
   // API helpers
   async function getJSON(url) {
     const r = await fetch(url, { cache: 'no-store' });
@@ -22,11 +24,8 @@
     return r.json().catch(() => ({}));
   }
 
-  // DOM helpers
   const $ = (id) => document.getElementById(id);
-  const q = (s) => document.querySelector(s);
 
-  // Toast notifications
   function showToast(message, type = 'info') {
     const container = $('toast-container') || (() => {
       const div = document.createElement('div');
@@ -65,19 +64,17 @@
     }, 3000);
   }
 
-  // State tracking
   let lightsState = {
     is_on: false,
-    mode: 'manual',
     estop: false,
     cooldown_remaining: 0,
-    schedule_enabled: true,
   };
 
   let lightsEvents = [];
+  let durationHours = 0;
 
   function formatDuration(seconds) {
-    if (seconds === null || seconds === undefined || seconds <= 0) return '—';
+    if (!seconds || seconds <= 0) return '—';
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
@@ -97,13 +94,6 @@
       return;
     }
 
-    if (lightsState.mode === 'maintenance') {
-      chip.textContent = 'MAINT';
-      chip.className = 'ui-status-chip warning';
-      chip.title = 'Maintenance mode';
-      return;
-    }
-
     if (lightsState.cooldown_remaining > 0) {
       chip.textContent = 'WAITING';
       chip.className = 'ui-status-chip warning';
@@ -111,19 +101,12 @@
       return;
     }
 
-    if (lightsState.mode === 'auto' && lightsState.schedule_enabled) {
-      chip.textContent = 'RUNNING';
-      chip.className = 'ui-status-chip success';
-      chip.title = 'Schedule automation active';
-      return;
-    }
-
-    chip.textContent = 'MANUAL';
-    chip.className = 'ui-status-chip neutral';
-    chip.title = 'Manual control mode';
+    chip.textContent = 'RUNNING';
+    chip.className = 'ui-status-chip success';
+    chip.title = 'Schedule automation active';
   }
 
-  function updateLightsUI() {
+  function updateLightsUI(settings) {
     // State badge
     const badge = $('lights-status');
     if (badge) {
@@ -131,25 +114,28 @@
       badge.className = 'bop-status-badge ' + (lightsState.is_on ? 'on' : 'off');
     }
 
-    // Mode indicator
-    const modeEl = $('lights-mode-indicator');
-    if (modeEl) {
-      modeEl.textContent = lightsState.mode.toUpperCase();
-      modeEl.className = 'ui-status-chip ' + 
-        (lightsState.mode === 'auto' ? 'success' : lightsState.mode === 'maintenance' ? 'warning' : 'neutral');
+    // Duration KPI - show hours value
+    const durationEl = $('lights-sched-kpi');
+    if (durationEl && durationHours > 0) {
+      durationEl.textContent = `${durationHours}h`;
     }
 
-    // Schedule KPI
-    const schedEl = $('lights-sched-kpi');
-    if (schedEl) {
-      if (lightsState.mode === 'auto' && lightsState.schedule_enabled) {
-        schedEl.textContent = 'Following schedule';
-      } else if (lightsState.mode === 'auto' && !lightsState.schedule_enabled) {
-        schedEl.textContent = 'Schedule disabled';
-      } else if (lightsState.mode === 'maintenance') {
-        schedEl.textContent = 'Maintenance mode';
+    // Window KPI - calculate with midnight rollover
+    const windowEl = $('lights-window-kpi');
+    if (windowEl && settings) {
+      const onTime = settings.lights_on_time || '';
+      const hours = settings.lights_duration_hours || 0;
+      
+      if (onTime && hours > 0) {
+        const [onH, onM] = onTime.split(':').map(Number);
+        const onMinutes = onH * 60 + onM;
+        const offMinutes = (onMinutes + hours * 60) % 1440; // wrap at 24h
+        const offH = Math.floor(offMinutes / 60);
+        const offM = offMinutes % 60;
+        const offTime = `${String(offH).padStart(2, '0')}:${String(offM).padStart(2, '0')}`;
+        windowEl.textContent = `${onTime} → ${offTime}`;
       } else {
-        schedEl.textContent = 'Manual control';
+        windowEl.textContent = '—';
       }
     }
 
@@ -164,25 +150,12 @@
       }
     }
 
-    // Mode buttons
-    ['auto', 'manual', 'maintenance'].forEach(m => {
-      const btn = $(`lights-mode-${m}`);
-      if (btn) btn.classList.toggle('active', m === lightsState.mode);
-    });
-
-    // Toggle button state
+    // Toggle button
     const toggleBtn = $('btnLightsToggle');
     if (toggleBtn) {
-      const canToggle = !lightsState.estop && (lightsState.mode === 'manual' || 
-        (lightsState.mode === 'auto' && localStorage.getItem('safety.allow_force')));
-      toggleBtn.disabled = !canToggle;
-      toggleBtn.style.opacity = canToggle ? '1' : '0.6';
-      toggleBtn.style.cursor = canToggle ? 'pointer' : 'not-allowed';
-      toggleBtn.className = 'relay-btn ' + (lightsState.is_on ? 'relay-on' : 'relay-off');
-      const label = toggleBtn.querySelector('.relay-label');
-      if (label) {
-        label.textContent = (lightsState.is_on ? '● ' : '○ ') + 'Lights';
-      }
+      toggleBtn.disabled = lightsState.estop;
+      toggleBtn.style.opacity = lightsState.estop ? '0.6' : '1';
+      toggleBtn.style.cursor = lightsState.estop ? 'not-allowed' : 'pointer';
     }
 
     updateLightsHealth();
@@ -193,7 +166,7 @@
     if (!listEl) return;
 
     if (!events || events.length === 0) {
-      listEl.innerHTML = '<div style="text-align:center;padding:16px;color:#94a3b8;">No lights events yet.</div>';
+      listEl.innerHTML = '<div style="text-align:center;padding:16px;color:#94a3b8;">No events yet.</div>';
       return;
     }
 
@@ -203,15 +176,141 @@
       const state = evt.final ? '<span style="color:#22c55e;font-weight:600;">ON</span>' : '<span style="color:#ef4444;font-weight:600;">OFF</span>';
       const reason = evt.reason ? ` · ${evt.reason}` : '';
       return `
-        <div style="padding:6px 4px;border-bottom:1px solid rgba(148,163,184,0.12);display:flex;align-items:center;gap:8px;">
+        <div style="padding:6px 4px;border-bottom:1px solid rgba(148,163,184,0.12);display:flex;gap:8px;">
           <span style="font-weight:700;color:#e5e7eb;white-space:nowrap;">${tsStr}</span>
-          <span style="color:#9ca3af;">• Lights</span>
-          <span style="color:#9ca3af;">→</span>
-          <span>${state}</span>
-          <span style="color:#6b7280;margin-left:auto;">${reason}</span>
+          <span style="color:#9ca3af;">→ Lights ${state}${reason}</span>
         </div>
       `;
     }).join('');
+  }
+
+  async function refreshLightsChart() {
+    if (!lightsChart) return;
+
+    try {
+      const now = Date.now();
+      const hoursAgo = currentChartHours;
+      const start = Math.floor((now - hoursAgo * 3600000) / 1000);
+      const end = Math.floor(now / 1000);
+
+      const events = await getJSON(`/api/relays/events?name=lights&start=${start}&end=${end}`);
+      
+      if (!events || events.length === 0) {
+        lightsChart.data.datasets[0].data = [];
+        lightsChart.update('none');
+        return;
+      }
+
+      // Build timeline segments
+      const segments = [];
+      for (let i = 0; i < events.length - 1; i++) {
+        const evt = events[i];
+        const next = events[i + 1];
+        segments.push({
+          x: evt.ts * 1000,
+          y: evt.final ? 1 : 0,
+          next_x: next.ts * 1000
+        });
+      }
+
+      // Last segment extends to now
+      const last = events[events.length - 1];
+      segments.push({
+        x: last.ts * 1000,
+        y: last.final ? 1 : 0,
+        next_x: now
+      });
+
+      lightsChart.data.datasets[0].data = segments;
+      lightsChart.options.scales.x.min = now - hoursAgo * 3600000;
+      lightsChart.options.scales.x.max = now;
+      lightsChart.update('none');
+
+    } catch (e) {
+      if (UI_VERBOSE) console.error('[Lights] chart refresh failed:', e);
+    }
+  }
+
+  function initLightsChart() {
+    const canvas = $('lightsChart');
+    if (!canvas || !window.Chart) return;
+
+    const ctx = canvas.getContext('2d');
+    lightsChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: [{
+          label: 'Lights',
+          data: [],
+          stepped: 'before',
+          borderColor: '#fbbf24',
+          backgroundColor: 'rgba(251,191,36,0.15)',
+          fill: true,
+          pointRadius: 0,
+          borderWidth: 2,
+          segment: {
+            borderColor: ctx => ctx.p0.parsed.y === 1 ? '#22c55e' : '#ef4444',
+            backgroundColor: ctx => ctx.p0.parsed.y === 1 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.08)'
+          }
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'nearest', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ctx.parsed.y === 1 ? 'ON' : 'OFF'
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: { displayFormats: { hour: 'HH:mm', minute: 'HH:mm' } },
+            grid: { color: 'rgba(148,163,184,0.1)' },
+            ticks: { color: '#9ca3af' }
+          },
+          y: {
+            min: 0,
+            max: 1,
+            ticks: {
+              stepSize: 1,
+              color: '#9ca3af',
+              callback: (val) => val === 1 ? 'ON' : 'OFF'
+            },
+            grid: { color: 'rgba(148,163,184,0.1)' }
+          }
+        }
+      }
+    });
+
+    refreshLightsChart();
+  }
+
+  function createChartControls() {
+    const container = $('lights-chart-controls');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="display:flex;gap:8px;margin-top:12px;align-items:center;justify-content:center;flex-wrap:wrap;">
+        <button class="chart-zoom-btn" data-hours="6">6h</button>
+        <button class="chart-zoom-btn active" data-hours="24">24h</button>
+        <button class="chart-zoom-btn" data-hours="72">3d</button>
+        <button class="chart-zoom-btn" data-hours="168">7d</button>
+      </div>
+    `;
+
+    container.querySelectorAll('.chart-zoom-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentChartHours = parseInt(btn.dataset.hours);
+        container.querySelectorAll('.chart-zoom-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        refreshLightsChart();
+      });
+    });
   }
 
   async function refreshLightsStatus() {
@@ -219,90 +318,86 @@
       const [relays, events, settings] = await Promise.all([
         getJSON('/api/relays/status').catch(() => ({})),
         getJSON('/api/relays/events?name=lights&last=50').catch(() => []),
-        (() => {
-          if (window.PollingManager && window.PollingManager.getSettings) {
-            return window.PollingManager.getSettings().catch(() => ({}));
-          }
-          return getJSON('/api/settings').catch(() => ({}));
-        })()
+        getJSON('/api/settings').catch(() => ({}))
       ]);
 
       if (relays.relays && relays.relays.lights) {
         lightsState.is_on = !!relays.relays.lights.is_on;
+        lightsState.cooldown_remaining = relays.relays.lights.cooldown_remaining || 0;
       }
-      lightsState.mode = relays.mode || 'manual';
       lightsState.estop = !!relays.estop;
 
-      // Parse cooldown from relay info
-      if (relays.relays && relays.relays.lights) {
-        const info = relays.relays.lights;
-        lightsState.cooldown_remaining = (info.cooldown_remaining || info.cooldown || 0);
-      }
-
-      // Get schedule window
-      if (settings.today_window) {
-        const windowEl = $('lights-window-kpi');
-        if (windowEl) {
-          windowEl.textContent = `${settings.today_window.on_time} → ${settings.today_window.off_time}`;
-        }
-      }
+      durationHours = settings.lights_duration_hours || 0;
 
       lightsEvents = events;
-      updateLightsUI();
+      updateLightsUI(settings);
       renderLightsEventLog(lightsEvents);
+
     } catch (e) {
       if (UI_VERBOSE) console.error('[Lights] refresh failed:', e);
-    }
-  }
-
-  async function setMode(newMode) {
-    try {
-      await postJSON('/api/relays/mode', { mode: newMode });
-      lightsState.mode = newMode;
-      updateLightsUI();
-      showToast(`Mode changed to ${newMode}`, 'success');
-      setTimeout(() => refreshLightsStatus(), 300);
-    } catch (e) {
-      showToast('Failed to change mode: ' + e.message, 'error');
     }
   }
 
   async function toggleLights() {
     try {
       await postJSON('/api/relay/lights/toggle', {});
-      if (window.pollingManager && window.pollingManager.invalidate) {
-        window.pollingManager.invalidate('relays');
-      }
+      showToast('Lights toggled', 'success');
       setTimeout(() => refreshLightsStatus(), 300);
     } catch (e) {
       showToast('Failed to toggle lights: ' + e.message, 'error');
     }
   }
 
-  async function init() {
-    // Attach mode buttons
-    ['auto', 'manual', 'maintenance'].forEach(m => {
-      const btn = $(`lights-mode-${m}`);
-      if (btn) btn.addEventListener('click', () => setMode(m));
-    });
+  async function saveSettings() {
+    try {
+      const onTime = $('lightsOnTime').value;
+      
+      if (!onTime) {
+        showToast('Please enter lights on time', 'warning');
+        return;
+      }
 
-    // Attach toggle button
+      await postJSON('/api/settings', {
+        lights_on_time: onTime
+      });
+
+      showToast('Settings saved', 'success');
+      setTimeout(() => refreshLightsStatus(), 300);
+    } catch (e) {
+      showToast('Failed to save settings: ' + e.message, 'error');
+    }
+  }
+
+  async function loadSettings() {
+    try {
+      const settings = await getJSON('/api/settings');
+      
+      if (settings.lights_on_time) {
+        $('lightsOnTime').value = settings.lights_on_time;
+      }
+
+      durationHours = settings.lights_duration_hours || 0;
+      updateLightsUI(settings);
+
+    } catch (e) {
+      if (UI_VERBOSE) console.error('[Lights] load settings failed:', e);
+    }
+  }
+
+  async function init() {
     const toggleBtn = $('btnLightsToggle');
     if (toggleBtn) toggleBtn.addEventListener('click', toggleLights);
 
-    // Initial refresh and polling
-    refreshLightsStatus();
-    setInterval(refreshLightsStatus, 30000); // Poll every 30 seconds
+    const saveBtn = $('btnSaveLightsSettings');
+    if (saveBtn) saveBtn.addEventListener('click', saveSettings);
 
-    // Sync mode from backend every 5s
-    setInterval(async () => {
-      try {
-        const relays = await getJSON('/api/relays/status');
-        if (relays.mode) lightsState.mode = relays.mode;
-      } catch (e) {
-        if (UI_VERBOSE) console.warn('[Lights] mode sync failed:', e);
-      }
-    }, 5000);
+    await loadSettings();
+    initLightsChart();
+    createChartControls();
+    refreshLightsStatus();
+
+    setInterval(refreshLightsStatus, 30000);
+    setInterval(refreshLightsChart, 60000);
   }
 
   if (document.readyState === 'loading') {

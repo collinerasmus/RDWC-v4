@@ -1381,7 +1381,7 @@ body{
     </div>
   </section>
 
-  <!-- Light Control Tab (standardized header + mode + health) -->
+  <!-- Lights Control Tab -->
   <section id="lights-card" class="card card-wide tab-section" data-tab="lights" style="display:none;">
     <div class="card-header">
       <div style="display:flex;align-items:center;gap:8px;">
@@ -1389,79 +1389,71 @@ body{
         <span id="lights-health-indicator" class="ui-status-chip neutral" title="Controller health">—</span>
       </div>
     </div>
-    <div class="card-body">
-      <!-- Readings Section -->
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:var(--space-md);">
-        <div class="kpi">
-          <div class="kpi-label">State</div>
-          <div class="kpi-value"><span class="bop-status-badge" id="lights-status">—</span></div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-label">Duration</div>
-          <div class="kpi-value" id="lights-sched-kpi">—</div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-label">Window</div>
-          <div class="kpi-value" id="lights-window-kpi">—</div>
-        </div>
-      </div>
 
-      <!-- Cooldown Display -->
-      <div id="lights-cooldown-display" style="display:none;padding:8px 12px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:6px;margin-bottom:12px;color:#fbbf24;font-size:var(--font-sm);">—</div>
-
-      <!-- Manual Control -->
-      <div style="margin-top:12px;">
-        <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">🎮 Manual Control</div>
-        <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
-          <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Manual relay control honors cooldowns. System mode (System tab) controls schedule automation.</div>
-          <button class="btn-secondary btn-full" id="btnLightsToggle">
-            <span class="relay-label">Toggle Lights</span>
-          </button>
-        </div>
+    <!-- KPIs -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:var(--space-md);">
+      <div class="kpi">
+        <div class="kpi-label">State</div>
+        <div class="kpi-value"><span class="bop-status-badge" id="lights-status">—</span></div>
       </div>
-
-      <!-- Settings -->
-      <div style="margin-top:12px;">
-        <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">⚙️ Settings</div>
-        <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
-          <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure light schedule and timing. Edge-only scheduler: two transitions per day (lights on, lights off).</div>
-          <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
-            <div>
-              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Lights On Time</label>
-              <input type="time" id="lightsOnTime" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
-            </div>
-            <div>
-              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Lights Off Time</label>
-              <input type="time" id="lightsOffTime" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
-            </div>
-          </div>
-          <button id="btnSaveLightsSettings" class="btn-secondary btn-full">Save Light Settings</button>
-        </div>
+      <div class="kpi">
+        <div class="kpi-label">Duration</div>
+        <div class="kpi-value" id="lights-sched-kpi">—</div>
       </div>
-
-      <!-- Event Log -->
-      <div style="margin-top:12px;">
-        <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">📊 Event Log</div>
-        <div style="margin-top:8px;max-height:200px;overflow-y:auto;border:1px solid rgba(75,85,99,0.5);border-radius:6px;background:rgba(15,23,42,0.5);">
-          <div id="lights-events-list" style="font-size:var(--font-xs);font-family:monospace;">
-            <div style="text-align:center;padding:16px;color:#94a3b8;">No events yet.</div>
-          </div>
-        </div>
+      <div class="kpi">
+        <div class="kpi-label">Window</div>
+        <div class="kpi-value" id="lights-window-kpi">—</div>
       </div>
+    </div>
 
-      <!-- Info -->
-      <div style="margin-top:12px;">
-        <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">ℹ️ Info</div>
-        <div class="details-content" style="font-size:var(--font-base);">
-          <ul style="margin:0;padding-left:18px;line-height:1.4;">
-            <li>Edge-only scheduler: two transitions per day (no periodic enforcement).</li>
-            <li>Duration shows daily light hours (e.g., 18h for 18/6 veg, 12h for 12/12 flower).</li>
-            <li>Window shows today's ON → OFF times based on schedule settings.</li>
-            <li>Cooldowns & anti-flap: ON min 10s, OFF min 5s.</li>
-            <li>System mode (Auto/Manual/Maint) controlled globally via System tab.</li>
-          </ul>
-        </div>
+    <!-- Cooldown Display -->
+    <div id="lights-cooldown-display" style="display:none;padding:8px 12px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:6px;margin-bottom:12px;color:#fbbf24;font-size:var(--font-sm);">—</div>
+
+    <!-- Activity Chart -->
+    <hr class="separator" style="margin:20px 0;" />
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-sm);">
+      <div class="muted">Light Activity History</div>
+    </div>
+    <div class="chart-card" style="margin-bottom:20px;">
+      <canvas id="lightsChart" style="height:240px;"></canvas>
+      <div id="lights-chart-empty" class="muted small" style="display:none;padding:8px 0;">
+        No light activity data for this period.
       </div>
+    </div>
+    <!-- Unified controls (zoom + slider) -->
+    <div id="lights-chart-controls"></div>
+
+    <!-- Event Log -->
+    <div style="margin-top:12px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);">
+      <div style="font-size:var(--font-sm);color:#9ca3af;font-weight:500;margin-bottom:6px;" id="lights-events-header">Event Log ▾</div>
+      <div id="lights-events-list" style="max-height:220px;overflow-y:auto;padding-right:6px;font-size:var(--font-xs);"></div>
+    </div>
+
+    <!-- Manual Control -->
+    <div style="margin-top:20px;">
+      <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">🎮 Manual Control</div>
+      <div style="padding:12px;border-radius:12px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+        <div class="muted" style="font-size:var(--font-xs);margin-bottom:12px;">Manual relay control. Honors Auto/Manual mode, E‑STOP, and cooldowns. In Auto mode, schedule controls lights.</div>
+        <button class="btn-secondary btn-full" id="btnLightsToggle">Toggle Lights</button>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div style="margin-top:20px;">
+      <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">⚙️ Light Schedule Settings</div>
+      <div style="padding:12px;border-radius:12px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+        <div class="muted" style="font-size:var(--font-xs);margin-bottom:12px;">Set lights on time. Duration (lights_duration_hours) is set via Settings tab. Edge-only scheduler: two transitions per day.</div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Lights On Time</label>
+          <input type="time" id="lightsOnTime" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+        </div>
+        <button id="btnSaveLightsSettings" class="btn-secondary btn-full">Save Light Settings</button>
+      </div>
+    </div>
+
+    <!-- Info -->
+    <div class="muted" style="font-size:var(--font-sm);margin-top:12px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
+      <strong>Edge-only scheduler:</strong> Two transitions/day (lights on, lights off) • Duration from settings (e.g., 18h for 18/6 veg, 12h for 12/12 flower) • Window calculated with midnight rollover support • Cooldowns: ON min 10s, OFF min 5s • System mode controlled globally (System tab)
     </div>
   </section>
 
