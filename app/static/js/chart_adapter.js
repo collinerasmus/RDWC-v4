@@ -148,6 +148,31 @@
       }
     }
 
+    // ===== LIGHTS CHART =====
+    // lights_v2.js exposes window.lightsChart with refreshLightsChart and currentChartHours
+    if (document.getElementById('lights-chart-controls')) {
+      if (window.lightsChart) {
+        const lightsControls = new ChartControls({
+          containerId: 'lights-chart-controls',
+          onRangeChange: async (start, end) => {
+            console.log('[Chart Adapter] Lights range changed:', start, end);
+            try {
+              const hours = Math.ceil((end - start) / 3600000);
+              if (window.setLightsChartHours) {
+                window.setLightsChartHours(hours);
+              }
+            } catch (e) {
+              console.error('[Chart Adapter] Lights chart update failed:', e);
+            }
+          },
+          getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
+        });
+        console.log('[Chart Adapter] Lights controls initialized');
+      } else {
+        console.warn('[Chart Adapter] Lights chart controls div found but window.lightsChart not ready');
+      }
+    }
+
     // ===== CIRCULATION CHART =====
     // circulation_v2.js initializes window.circChart (RDWCChart instance)
     // Note: Circulation chart may initialize after chart_adapter, so we retry aggressively

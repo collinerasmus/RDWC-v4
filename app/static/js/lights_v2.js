@@ -432,31 +432,17 @@
       }
     });
 
+    // Expose chart to window for ChartControls integration
+    window.lightsChart = lightsChart;
     refreshLightsChart();
   }
 
-  function createChartControls() {
-    const container = $('lights-chart-controls');
-    if (!container) return;
-
-    container.innerHTML = `
-      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
-        <button class="chart-zoom-btn" data-hours="6">6h</button>
-        <button class="chart-zoom-btn active" data-hours="24">24h</button>
-        <button class="chart-zoom-btn" data-hours="72">3d</button>
-        <button class="chart-zoom-btn" data-hours="168">7d</button>
-      </div>
-    `;
-
-    container.querySelectorAll('.chart-zoom-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        currentChartHours = parseInt(btn.dataset.hours);
-        container.querySelectorAll('.chart-zoom-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        refreshLightsChart();
-      });
-    });
-  }
+  // Expose chart instance and updater for ChartControls integration
+  window.lightsChart = null;
+  window.setLightsChartHours = (hours) => {
+    currentChartHours = hours;
+    refreshLightsChart();
+  };
 
   async function refreshLightsStatus() {
     try {
@@ -558,7 +544,7 @@
     await refreshLightsStatus();
     
     initLightsChart();
-    createChartControls();
+    // Note: Chart controls now managed by chart_adapter.js (unified ChartControls)
     startTotalizerUpdates();
 
     // Periodic refresh
