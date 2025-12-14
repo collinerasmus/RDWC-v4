@@ -1,16 +1,20 @@
 /**
- * Intelligent Lights Control UI - Grow Light Scheduler (Edge-Only)
- * Chart, duration display, midnight-safe window calculation
+ * Lights Control UI - Grow Light Automation
+ * Features: ON/OFF chart, totalizer (current/daily), schedule management
  */
 (() => {
-  const UI_VERBOSE = false;
+  'use strict';
+
   let lightsChart = null;
   let currentChartHours = 24;
+  let currentOnStart = null;
+  let todayTotalSeconds = 0;
+  let totalizerInterval = null;
 
   // API helpers
   async function getJSON(url) {
     const r = await fetch(url, { cache: 'no-store' });
-    if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   }
 
@@ -20,7 +24,7 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json().catch(() => ({}));
   }
 
@@ -70,17 +74,14 @@
     cooldown_remaining: 0,
   };
 
-  let lightsEvents = [];
   let durationHours = 0;
 
   function formatDuration(seconds) {
-    if (!seconds || seconds <= 0) return '—';
+    if (!seconds || seconds <= 0) return '0m';
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
     if (h > 0) return `${h}h ${m}m`;
-    if (m > 0) return `${m}m ${s}s`;
-    return `${s}s`;
+    return `${m}m`;
   }
 
   function updateLightsHealth() {
@@ -90,7 +91,7 @@
     if (lightsState.estop) {
       chip.textContent = 'BLOCKED';
       chip.className = 'ui-status-chip error';
-      chip.title = 'E-STOP is active';
+      chip.title = 'E-STOP active';
       return;
     }
 
@@ -103,178 +104,193 @@
 
     chip.textContent = 'RUNNING';
     chip.className = 'ui-status-chip success';
-    chip.title = 'Schedule automation active';
+    chip.title = 'Schedule active';
+  }
+
+  function updateTotalizer() {
+    const currentEl = $('lights-current-duration');
+    const todayEl = $('lights-today-total');
+
+    if (!currentEl || !todayEl) return;
+
+    if (lightsState.is_on && currentOnStart) {
+      const elapsed = Math.floor((Date.now() - currentOnStart) / 1000);
+      currentEl.textContent = formatDuration(elapsed);
+    } else {
+      currentEl.textContent = '—';
+    }
+
+    todayEl.textContent = formatDuration(todayTotalSeconds);
+  }
+
+  function startTotalizerUpdates() {
+    if (totalizerInterval) clearInterval(totalizerInterval);
+    totalizerInterval = setInterval(updateTotalizer, 1000);
+  }
+
+  function calculateTodayTotal(events) {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayStartTs = todayStart.getTime() / 1000;
+
+    const todayEvents = events.filter(e => e.ts >= todayStartTs);
+    let total = 0;
+    let lastOn = null;
+
+    for (const evt of todayEvents) {
+      if (evt.final) {
+        lastOn = evt.ts;
+      } else if (lastOn) {
+        total += evt.ts - lastOn;
+        lastOn = null;
+      }
+    }
+
+    // If still ON, add time to now
+    if (lastOn) {
+      total += Math.floor(Date.now() / 1000) - lastOn;
+    }
+
+    todayTotalSeconds = total;
   }
 
   function updateLightsUI(settings) {
-    console.log('[Lights] updateLightsUI called with settings:', settings);
-    
-    // State badge
     const badge = $('lights-status');
     if (badge) {
       badge.textContent = lightsState.is_on ? 'ON' : 'OFF';
       badge.className = 'bop-status-badge ' + (lightsState.is_on ? 'on' : 'off');
     }
 
-    // Duration KPI - show hours value
-    const durationEl = $('lights-sched-kpi');
+    const durationEl = $('lights-duration-kpi');
     if (durationEl) {
-      if (durationHours > 0) {
-        durationEl.textContent = `${durationHours}h`;
-        console.log('[Lights] Duration displayed:', durationEl.textContent);
-      } else {
-        durationEl.textContent = '—';
-      }
+      durationEl.textContent = durationHours > 0 ? `${durationHours}h` : '—';
     }
 
-    // Window KPI - calculate with midnight rollover
     const windowEl = $('lights-window-kpi');
-    if (windowEl && settings) {
-      const onTime = settings.lights_on_time || '';
-      const hours = parseFloat(settings.lights_duration_hours) || 0;
+    if (windowEl && settings?.root) {
+      const onTime = settings.root.lights_on_time || '';
+      const hours = parseFloat(settings.root.lights_duration_hours) || 0;
       
       if (onTime && hours > 0) {
         const [onH, onM] = onTime.split(':').map(Number);
         const onMinutes = onH * 60 + onM;
-        const offMinutes = (onMinutes + hours * 60) % 1440; // wrap at 24h
+        const offMinutes = (onMinutes + hours * 60) % 1440;
         const offH = Math.floor(offMinutes / 60);
         const offM = offMinutes % 60;
         const offTime = `${String(offH).padStart(2, '0')}:${String(offM).padStart(2, '0')}`;
         windowEl.textContent = `${onTime} → ${offTime}`;
-        console.log('[Lights] Window displayed:', windowEl.textContent);
       } else {
         windowEl.textContent = '—';
       }
     }
 
-    // Cooldown display
     const cooldownEl = $('lights-cooldown-display');
     if (cooldownEl) {
       if (lightsState.cooldown_remaining > 0) {
+        cooldownEl.textContent = `⏱️ Cooldown: ${Math.ceil(lightsState.cooldown_remaining)}s remaining`;
         cooldownEl.style.display = 'block';
-        cooldownEl.textContent = `Cooldown: ${formatDuration(lightsState.cooldown_remaining)}`;
       } else {
         cooldownEl.style.display = 'none';
       }
     }
 
-    // Toggle button
-    const toggleBtn = $('btnLightsToggle');
-    if (toggleBtn) {
-      toggleBtn.disabled = lightsState.estop;
-      toggleBtn.style.opacity = lightsState.estop ? '0.6' : '1';
-      toggleBtn.style.cursor = lightsState.estop ? 'not-allowed' : 'pointer';
-    }
-
     updateLightsHealth();
+    updateTotalizer();
   }
 
   function renderLightsEventLog(events) {
-    const listEl = $('lights-events-list');
-    if (!listEl) return;
+    const container = $('lights-events-list');
+    if (!container) return;
 
     if (!events || events.length === 0) {
-      listEl.innerHTML = '<div style="text-align:center;padding:16px;color:#94a3b8;">No events yet.</div>';
+      container.innerHTML = '<div class="muted" style="padding:8px;">No events</div>';
       return;
     }
 
-    listEl.innerHTML = events.slice(-20).reverse().map(evt => {
-      const ts = new Date(evt.ts * 1000);
-      const tsStr = ts.toISOString().replace('T', ' ').split('.')[0];
-      const state = evt.final ? '<span style="color:#22c55e;font-weight:600;">ON</span>' : '<span style="color:#ef4444;font-weight:600;">OFF</span>';
-      const reason = evt.reason ? ` · ${evt.reason}` : '';
-      return `
-        <div style="padding:6px 4px;border-bottom:1px solid rgba(148,163,184,0.12);display:flex;gap:8px;">
-          <span style="font-weight:700;color:#e5e7eb;white-space:nowrap;">${tsStr}</span>
-          <span style="color:#9ca3af;">→ Lights ${state}${reason}</span>
-        </div>
-      `;
+    const recent = events.slice(0, 20);
+    container.innerHTML = recent.map(evt => {
+      const d = new Date(evt.ts * 1000);
+      const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const state = evt.final ? 'ON' : 'OFF';
+      const color = evt.final ? '#22c55e' : '#ef4444';
+      const reason = evt.reason || 'unknown';
+      return `<div style="padding:4px 0;border-bottom:1px solid rgba(148,163,184,0.1);display:flex;justify-content:space-between;">
+        <span style="color:${color};font-weight:600;">${state}</span>
+        <span>${time}</span>
+        <span class="muted">${reason}</span>
+      </div>`;
     }).join('');
   }
 
   async function refreshLightsChart() {
-    if (!lightsChart) {
-      console.warn('[Lights] Chart not initialized, skipping refresh');
-      return;
-    }
+    if (!lightsChart) return;
 
     try {
       const now = Date.now();
-      const hoursAgo = currentChartHours;
-      const start = Math.floor((now - hoursAgo * 3600000) / 1000);
+      const start = Math.floor((now - currentChartHours * 3600000) / 1000);
       const end = Math.floor(now / 1000);
 
-      console.log('[Lights] Fetching chart data:', {start, end, hours: hoursAgo});
       const events = await getJSON(`/api/relays/events?name=lights&start=${start}&end=${end}`);
-      console.log('[Lights] Fetched events:', events.length);
       
       if (!events || events.length === 0) {
         lightsChart.data.datasets[0].data = [];
         lightsChart.update('none');
-        console.log('[Lights] No events, chart cleared');
         return;
       }
 
-      // Build timeline segments
-      const segments = [];
-      for (let i = 0; i < events.length - 1; i++) {
+      // Build step chart data
+      const data = [];
+      for (let i = 0; i < events.length; i++) {
         const evt = events[i];
-        const next = events[i + 1];
-        segments.push({
-          x: evt.ts * 1000,
-          y: evt.final ? 1 : 0,
-          next_x: next.ts * 1000
-        });
+        const state = evt.final ? 1 : 0;
+        const ts = evt.ts * 1000;
+        
+        data.push({ x: ts, y: state });
+        
+        // Add next point if not last
+        if (i < events.length - 1) {
+          data.push({ x: events[i + 1].ts * 1000 - 1, y: state });
+        } else {
+          data.push({ x: now, y: state });
+        }
       }
 
-      // Last segment extends to now
-      const last = events[events.length - 1];
-      segments.push({
-        x: last.ts * 1000,
-        y: last.final ? 1 : 0,
-        next_x: now
-      });
-
-      lightsChart.data.datasets[0].data = segments;
-      lightsChart.options.scales.x.min = now - hoursAgo * 3600000;
+      lightsChart.data.datasets[0].data = data;
+      lightsChart.options.scales.x.min = now - currentChartHours * 3600000;
       lightsChart.options.scales.x.max = now;
       lightsChart.update('none');
-      console.log('[Lights] Chart updated with', segments.length, 'segments');
 
     } catch (e) {
-      console.error('[Lights] chart refresh failed:', e);
+      console.error('[Lights] Chart refresh failed:', e);
     }
   }
 
   function initLightsChart() {
     const canvas = $('lightsChart');
-    if (!canvas) {
-      console.warn('[Lights] Chart canvas not found');
-      return;
-    }
-    
-    if (!window.Chart) {
-      console.error('[Lights] Chart.js not loaded');
-      return;
-    }
+    if (!canvas || !window.Chart) return;
 
-    console.log('[Lights] Initializing chart');
     const ctx = canvas.getContext('2d');
     lightsChart = new Chart(ctx, {
       type: 'line',
       data: {
         datasets: [{
-          label: 'Lights',
+          label: 'Lights State',
           data: [],
-          stepped: 'before',
+          stepped: false,
           borderColor: '#fbbf24',
-          backgroundColor: 'rgba(251,191,36,0.15)',
+          backgroundColor: 'rgba(251,191,36,0.2)',
           fill: true,
           pointRadius: 0,
           borderWidth: 2,
           segment: {
-            borderColor: ctx => ctx.p0.parsed.y === 1 ? '#22c55e' : '#ef4444',
-            backgroundColor: ctx => ctx.p0.parsed.y === 1 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.08)'
+            borderColor: ctx => {
+              const y = ctx.p0.parsed.y;
+              return y === 1 ? '#22c55e' : '#ef4444';
+            },
+            backgroundColor: ctx => {
+              const y = ctx.p0.parsed.y;
+              return y === 1 ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.1)';
+            }
           }
         }]
       },
@@ -286,14 +302,16 @@
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: (ctx) => ctx.parsed.y === 1 ? 'ON' : 'OFF'
+              label: ctx => ctx.parsed.y === 1 ? '● ON' : '○ OFF'
             }
           }
         },
         scales: {
           x: {
             type: 'time',
-            time: { displayFormats: { hour: 'HH:mm', minute: 'HH:mm' } },
+            time: {
+              displayFormats: { hour: 'HH:mm', minute: 'HH:mm' }
+            },
             grid: { color: 'rgba(148,163,184,0.1)' },
             ticks: { color: '#9ca3af' }
           },
@@ -303,7 +321,7 @@
             ticks: {
               stepSize: 1,
               color: '#9ca3af',
-              callback: (val) => val === 1 ? 'ON' : 'OFF'
+              callback: val => val === 1 ? 'ON' : 'OFF'
             },
             grid: { color: 'rgba(148,163,184,0.1)' }
           }
@@ -311,7 +329,6 @@
       }
     });
 
-    console.log('[Lights] Chart created');
     refreshLightsChart();
   }
 
@@ -320,7 +337,7 @@
     if (!container) return;
 
     container.innerHTML = `
-      <div style="display:flex;gap:8px;margin-top:12px;align-items:center;justify-content:center;flex-wrap:wrap;">
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
         <button class="chart-zoom-btn" data-hours="6">6h</button>
         <button class="chart-zoom-btn active" data-hours="24">24h</button>
         <button class="chart-zoom-btn" data-hours="72">3d</button>
@@ -342,24 +359,33 @@
     try {
       const [relays, events, settings] = await Promise.all([
         getJSON('/api/relays/status').catch(() => ({})),
-        getJSON('/api/relays/events?name=lights&last=50').catch(() => []),
+        getJSON('/api/relays/events?name=lights&last=100').catch(() => []),
         getJSON('/api/settings').catch(() => ({}))
       ]);
 
-      if (relays.relays && relays.relays.lights) {
+      if (relays.relays?.lights) {
+        const wasOn = lightsState.is_on;
         lightsState.is_on = !!relays.relays.lights.is_on;
         lightsState.cooldown_remaining = relays.relays.lights.cooldown_remaining || 0;
+        
+        // Track ON start time
+        if (lightsState.is_on && !wasOn && events.length > 0) {
+          const lastOn = events.find(e => e.final);
+          if (lastOn) currentOnStart = lastOn.ts * 1000;
+        } else if (!lightsState.is_on) {
+          currentOnStart = null;
+        }
       }
+
       lightsState.estop = !!relays.estop;
+      durationHours = parseFloat(settings.root?.lights_duration_hours) || 0;
 
-      durationHours = settings.lights_duration_hours || 0;
-
-      lightsEvents = events;
+      calculateTodayTotal(events);
       updateLightsUI(settings);
-      renderLightsEventLog(lightsEvents);
+      renderLightsEventLog(events);
 
     } catch (e) {
-      if (UI_VERBOSE) console.error('[Lights] refresh failed:', e);
+      console.error('[Lights] Refresh failed:', e);
     }
   }
 
@@ -369,71 +395,63 @@
       showToast('Lights toggled', 'success');
       setTimeout(() => refreshLightsStatus(), 300);
     } catch (e) {
-      showToast('Failed to toggle lights: ' + e.message, 'error');
+      showToast('Toggle failed: ' + e.message, 'error');
     }
   }
 
   async function saveSettings() {
     try {
-      const onTime = $('lightsOnTime').value;
-      
+      const onTime = $('lightsOnTime')?.value;
       if (!onTime) {
-        showToast('Please enter lights on time', 'warning');
+        showToast('Enter lights on time', 'warning');
         return;
       }
 
-      await postJSON('/api/settings', {
-        lights_on_time: onTime
-      });
-
+      await postJSON('/api/settings', { lights_on_time: onTime });
       showToast('Settings saved', 'success');
       setTimeout(() => refreshLightsStatus(), 300);
     } catch (e) {
-      showToast('Failed to save settings: ' + e.message, 'error');
+      showToast('Save failed: ' + e.message, 'error');
     }
   }
 
   async function loadSettings() {
     try {
       const settings = await getJSON('/api/settings');
-      
       const onTimeInput = $('lightsOnTime');
-      if (onTimeInput && settings.root?.lights_on_time) {
-        onTimeInput.value = settings.root.lights_on_time;
+      
+      if (onTimeInput) {
+        // Default to sunset (18:55 for Pretoria) if not set
+        onTimeInput.value = settings.root?.lights_on_time || '18:55';
       }
 
       durationHours = parseFloat(settings.root?.lights_duration_hours) || 0;
       updateLightsUI(settings);
 
     } catch (e) {
-      console.error('[Lights] load settings failed:', e);
+      console.error('[Lights] Load failed:', e);
     }
   }
 
   async function init() {
-    console.log('[Lights] Initializing lights controller');
-    
     const toggleBtn = $('btnLightsToggle');
-    if (toggleBtn) {
-      toggleBtn.addEventListener('click', toggleLights);
-      console.log('[Lights] Toggle button wired');
-    }
+    if (toggleBtn) toggleBtn.addEventListener('click', toggleLights);
 
     const saveBtn = $('btnSaveLightsSettings');
-    if (saveBtn) {
-      saveBtn.addEventListener('click', saveSettings);
-      console.log('[Lights] Save button wired');
-    }
+    if (saveBtn) saveBtn.addEventListener('click', saveSettings);
 
     await loadSettings();
+    await refreshLightsStatus();
+    
     initLightsChart();
     createChartControls();
-    await refreshLightsStatus();
+    startTotalizerUpdates();
 
-    setInterval(refreshLightsStatus, 30000);
-    setInterval(refreshLightsChart, 60000);
-    
-    console.log('[Lights] Initialization complete');
+    // Periodic refresh
+    setInterval(() => {
+      refreshLightsStatus();
+      refreshLightsChart();
+    }, 10000);
   }
 
   if (document.readyState === 'loading') {
