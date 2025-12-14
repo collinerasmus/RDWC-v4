@@ -51,6 +51,8 @@ DEFAULTS: Dict[str, str] = {
     "general.timezone": "Africa/Johannesburg",
     "general.reservoir_liters": "25",
     "general.grow_start_date": "",  # YYYY-MM-DD or empty string
+    "general.lights_on_time": "15:00",  # HH:MM format
+    "general.lights_duration_hours": "16",  # 1-24 hours
 
     # targets
     # WARNING: These are STATIC defaults. In production, targets MUST be set based on grow stage from scheduler.
@@ -513,17 +515,26 @@ def set_setting_key(key: str, value: str) -> None:
 
 
 def _load_settings_from_db() -> Settings:
-    """Load settings from database"""
+    """Load settings from database.
+    Reads from namespaced keys (general.*) with fallback to legacy flat keys for backwards compatibility.
+    """
     _init_settings_table()
+    _ensure_table_seed_defaults()  # Ensure namespaced defaults exist
     
     from app.db_pool import get_conn
     conn = get_conn(readonly=True)
     rows = conn.execute("SELECT key, value FROM settings").fetchall()
     settings_dict = {key: value for key, value in rows}
+    
+    # Read from namespaced keys with fallback to legacy
+    reservoir = settings_dict.get('general.reservoir_liters') or settings_dict.get('system_volume_liters', '25.0')
+    lights_on = settings_dict.get('general.lights_on_time') or settings_dict.get('lights_on_time', '15:00')
+    lights_dur = settings_dict.get('general.lights_duration_hours') or settings_dict.get('lights_duration_hours', '16')
+    
     return Settings(
-        system_volume_liters=float(settings_dict.get('system_volume_liters', '25.0')),
-        lights_on_time=settings_dict.get('lights_on_time', '20:00'),
-        lights_duration_hours=int(settings_dict.get('lights_duration_hours', '16'))
+        system_volume_liters=float(reservoir),
+        lights_on_time=lights_on,
+        lights_duration_hours=int(lights_dur)
     )
 
 
@@ -542,7 +553,8 @@ def update_settings(
     lights_on_time: Optional[str] = None,
     lights_duration_hours: Optional[int] = None
 ) -> Settings:
-    """Update settings in database and refresh cache"""
+    """Update settings in database and refresh cache.
+    Writes to BOTH namespaced and legacy keys for backwards compatibility."""
     global _settings_cache
     
     # Get current settings
@@ -557,7 +569,33 @@ def update_settings(
     
     # Validation happens in __post_init__
     
-    # Save to database
+    # Save to BOTH namespaced and legacy keys for backwards compatibility
+    _init_settings_table()
+    from app.db_pool import get_conn
+    conn = get_conn()
+    
+    # Legacy keys (will be deprecated eventually)
+    conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('system_volume_liters', ?)", 
+                 (str(new_settings.system_volume_liters),))
+    conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('lights_on_time', ?)", 
+                 (new_settings.lights_on_time,))
+    conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('lights_duration_hours', ?)", 
+                 (str(new_settings.lights_duration_hours),))
+    
+    # Namespaced keys (preferred going forward)
+    conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('general.reservoir_liters', ?)", 
+                 (str(new_settings.system_volume_liters),))
+    conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('general.lights_on_time', ?)", 
+                 (new_settings.lights_on_time,))
+    conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('general.lights_duration_hours', ?)", 
+                 (str(new_settings.lights_duration_hours),))
+    
+    conn.commit()
+    
+    # Update cache
+    _settings_cache = new_settings
+    
+    return new_settings
     from app.db_pool import get_conn
     conn = get_conn()
     updates = {}

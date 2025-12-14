@@ -471,16 +471,22 @@
         lightsState.is_on = !!relays.relays.lights.is_on;
         lightsState.cooldown_remaining = relays.relays.lights.cooldown_remaining || 0;
         
-        // Track ON start time from most recent ON event
-        if (lightsState.is_on && !wasOn) {
-          const lastOnEvent = events.find(e => e.final === true);
-          if (lastOnEvent) {
-            const ts = typeof lastOnEvent.ts === 'string' 
-              ? new Date(lastOnEvent.ts).getTime() 
-              : lastOnEvent.ts * 1000;
-            currentOnStart = ts;
+        // Track ON start time: if lights are ON, find the most recent ON event timestamp
+        if (lightsState.is_on) {
+          // Only update currentOnStart if not already set or if transitioning from OFF to ON
+          if (!currentOnStart || !wasOn) {
+            const lastOnEvent = events.find(e => e.final === true);
+            if (lastOnEvent) {
+              const ts = typeof lastOnEvent.ts === 'string' 
+                ? new Date(lastOnEvent.ts).getTime() 
+                : lastOnEvent.ts * 1000;
+              currentOnStart = ts;
+            } else if (!currentOnStart) {
+              // No ON event found but lights are ON - use current time as fallback
+              currentOnStart = Date.now();
+            }
           }
-        } else if (!lightsState.is_on) {
+        } else {
           currentOnStart = null;
         }
       }

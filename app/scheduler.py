@@ -72,9 +72,11 @@ class Scheduler:
         if self.thread and self.thread.is_alive():
             return
         self.stop.clear()
-        # Initialize lights schedule - NO MORE CATCHUP
+        # Initialize lights schedule
         self._update_lights_schedule()
-        # CATCHUP DISABLED: No periodic enforcement - pure edge-only control
+        # STARTUP CATCHUP: Set lights to correct state based on current time (power failure recovery)
+        self._startup_catchup()
+        # Start edge-only scheduler loop
         self.thread = threading.Thread(target=self._loop, name="rdwc_scheduler", daemon=True)
         self.thread.start()
 
@@ -138,9 +140,62 @@ class Scheduler:
         else:  # wrap across midnight
             return now_min >= on_min or now_min < off_min
 
-    def _handle_lights_catchup(self):
-        """DISABLED: No more catchup enforcement - pure edge-only control"""
-        log_event({"kind": "catchup_disabled", "message": "Periodic catchup enforcement disabled - pure edge-only scheduling"})
+    def _startup_catchup(self):
+        """Run ONCE at startup to set lights to correct state based on current time.
+        Critical for power failure recovery - ensures lights are ON if within window."""
+        try:
+            from app.auto_control import should_automate
+            from app.relays_core import set_lights, REASON_SCHEDULE_ON, REASON_SCHEDULE_OFF, get_relay_status
+            
+            lights_auto = should_automate("lights")
+            if not lights_auto or not self._current_lights_on_time or not self._current_lights_off_time:
+                log_event({"kind": "startup_catchup_skip", "reason": "automation disabled or schedule not set"})
+                return
+            
+            # Parse schedule times
+            on_h, on_m = map(int, self._current_lights_on_time.split(":"))
+            off_h, off_m = map(int, self._current_lights_off_time.split(":"))
+            
+            # Get current time in minutes since midnight
+            wday, h, m, s = _now_tuple()
+            now_min = h * 60 + m
+            on_min = on_h * 60 + on_m
+            off_min = off_h * 60 + off_m
+            
+            # Determine if lights should be ON right now
+            should_be_on = self.is_within_window(now_min, on_min, off_min)
+            
+            # Get current actual state
+            status = get_relay_status()
+            current_state = status.get("lights", {}).get("is_on", False)
+            
+            # Set lights if state doesn't match schedule
+            if should_be_on and not current_state:
+                result = set_lights(True, REASON_SCHEDULE_ON)
+                log_event({
+                    "kind": "startup_catchup_lights_on",
+                    "time": f"{h:02d}:{m:02d}",
+                    "window": f"{self._current_lights_on_time}-{self._current_lights_off_time}",
+                    "changed": result["changed"]
+                })
+            elif not should_be_on and current_state:
+                result = set_lights(False, REASON_SCHEDULE_OFF)
+                log_event({
+                    "kind": "startup_catchup_lights_off",
+                    "time": f"{h:02d}:{m:02d}",
+                    "window": f"{self._current_lights_on_time}-{self._current_lights_off_time}",
+                    "changed": result["changed"]
+                })
+            else:
+                log_event({
+                    "kind": "startup_catchup_no_change",
+                    "should_be_on": should_be_on,
+                    "current_state": current_state,
+                    "time": f"{h:02d}:{m:02d}"
+                })
+                
+        except Exception as e:
+            log_event({"kind": "startup_catchup_error", "error": str(e)})
 
     def _loop(self):
         while not self.stop.is_set():
