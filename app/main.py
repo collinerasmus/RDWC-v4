@@ -231,9 +231,8 @@ def _startup_seed_lights_events():
         from app.relays_core import _relay_event_logs
         from datetime import datetime, timedelta
         
-        # Only seed if empty
-        if len(_relay_event_logs.get("lights", [])) > 0:
-            return
+        # Clear any stale events on startup
+        _relay_event_logs["lights"].clear()
         
         start_date = datetime(2025, 12, 1, 0, 0, 0)
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -244,6 +243,7 @@ def _startup_seed_lights_events():
         on_h, on_m = map(int, lights_on_time.split(':'))
         
         current_date = start_date
+        event_count = 0
         while current_date <= today:
             on_datetime = current_date.replace(hour=on_h, minute=on_m, second=0)
             _relay_event_logs["lights"].append({
@@ -255,6 +255,7 @@ def _startup_seed_lights_events():
                 "blocked": False,
                 "caller": "scheduler:edge"
             })
+            event_count += 1
             
             off_datetime = on_datetime + timedelta(hours=lights_duration_hours)
             _relay_event_logs["lights"].append({
@@ -266,8 +267,13 @@ def _startup_seed_lights_events():
                 "blocked": False,
                 "caller": "scheduler:edge"
             })
+            event_count += 1
             
             current_date += timedelta(days=1)
+        
+        from app.logger import get_logger
+        logger = get_logger()
+        logger.info(f"Seeded {event_count} lights events from Dec 1 to today")
     except Exception as e:
         from app.logger import get_logger
         logger = get_logger()
