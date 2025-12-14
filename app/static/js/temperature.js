@@ -18,15 +18,16 @@
       return;
     }
 
-    if (temperatureState.in_cooldown || temperatureState.min_runtime_active) {
-      chip.textContent = 'WAITING';
-      chip.className = 'ui-status-chip warning';
-      return;
-    }
-
+    // Prefer live running state; cooldown guards only matter when OFF
     if (temperatureState.is_running) {
       chip.textContent = 'COOLING';
       chip.className = 'ui-status-chip success';
+      return;
+    }
+
+    if (temperatureState.in_cooldown || temperatureState.min_runtime_active) {
+      chip.textContent = 'WAITING';
+      chip.className = 'ui-status-chip warning';
       return;
     }
 
@@ -230,12 +231,12 @@
     if (statusMsg) {
       if (state.auto_enabled) {
         let msg = '';
-        if (state.in_cooldown) {
+        if (state.is_running) {
+          msg = state.min_runtime_active ? '❄️ Cooling (min runtime guard)' : '❄️ Actively cooling';
+        } else if (state.in_cooldown) {
           msg = '🕒 In cooldown period';
         } else if (state.min_runtime_active) {
           msg = '⏱️ Minimum runtime active';
-        } else if (state.is_running) {
-          msg = '❄️ Actively cooling';
         } else {
           msg = '✓ Monitoring temperature';
         }
@@ -251,8 +252,8 @@
     if (stateLabel) {
       let label = 'IDLE';
       if (state.estop) label = 'BLOCKED';
-      else if (state.in_cooldown || state.min_runtime_active) label = 'WAITING';
       else if (state.is_running) label = 'COOLING';
+      else if (state.in_cooldown || state.min_runtime_active) label = 'WAITING';
       else if (!state.auto_enabled) label = 'MANUAL';
       stateLabel.textContent = label;
     }

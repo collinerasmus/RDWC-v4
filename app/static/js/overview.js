@@ -130,7 +130,7 @@
         const chiller = controllers.chiller;
         // Use will_automate for accurate status (combines global + controller auto)
         const chillerAuto = chiller.will_automate;
-        // Update health/status chips
+        // Update health/status chips (prefer chiller.is_on; fallback to temperature status later)
         setChip('#ov-chiller-health', chiller.is_on ? 'RUNNING' : 'IDLE', chiller.is_on ? 'success' : 'neutral');
         setChip('#ov-chiller-status', chillerAuto ? 'AUTO' : 'MANUAL', chillerAuto ? 'success' : 'neutral');
       }
@@ -156,11 +156,13 @@
         setChip('#ov-main-pump-status', circAuto ? 'AUTO' : 'MANUAL', circAuto ? 'success' : 'neutral');
       }
       
-      // Update chiller power badge (from relay status - need to keep for now)
+      // Update chiller power badge from relays (active-low normalization handled in backend payload)
       try {
         const relayStatus = await getRelays();
         const rel = relayStatus.relays || {};
-        setBadge('#ov-chiller', !!(rel.chiller_power && rel.chiller_power.is_on));
+        const raw = rel.chiller_power && (rel.chiller_power.state ?? rel.chiller_power.is_on);
+        const isOn = raw !== undefined ? !raw : !!(rel.chiller_power && rel.chiller_power.is_on);
+        setBadge('#ov-chiller', isOn);
       } catch(e) { /* ignore */ }
       
       last.consolidated = Date.now();

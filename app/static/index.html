@@ -952,22 +952,24 @@ body{
           mainPumpChip.className = 'ui-status-chip ' + (willAuto ? 'success':'neutral'); 
         }
         
-        // Temperature status
+        // Temperature (chiller) status — use unified controller key 'chiller' to avoid drift
         try {
           const ch = await fetch('/api/temperature/status',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(r.status));
-          var chChip = document.getElementById('ov-temperature-status');
+          const chCtrl = controllers && controllers.chiller;
+          const willAuto = chCtrl && chCtrl.will_automate;
+          const chChip = document.getElementById('ov-temperature-status');
           if (chChip) {
-            var willAuto = controllers.temperature && controllers.temperature.will_automate;
             chChip.textContent = willAuto ? 'AUTO' : 'MANUAL';
             chChip.className = 'ui-status-chip ' + (willAuto ? 'success':'neutral');
           }
-          var chHealthChip = document.getElementById('ov-temperature-health');
+          const chHealthChip = document.getElementById('ov-temperature-health');
           if (chHealthChip && ch) {
-            chHealthChip.textContent = ch.is_on ? 'RUNNING' : 'IDLE';
-            chHealthChip.className = 'ui-status-chip ' + (ch.is_on ? 'success':'neutral');
+            const running = !!ch.is_running;
+            chHealthChip.textContent = running ? 'RUNNING' : 'IDLE';
+            chHealthChip.className = 'ui-status-chip ' + (running ? 'success':'neutral');
           }
         } catch(e){
-          var chChip2 = document.getElementById('ov-temperature-status');
+          const chChip2 = document.getElementById('ov-temperature-status');
           if (chChip2) { chChip2.textContent = 'MANUAL'; chChip2.className = 'ui-status-chip neutral'; }
         }
         
