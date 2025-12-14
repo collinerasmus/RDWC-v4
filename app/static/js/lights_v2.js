@@ -133,12 +133,23 @@
     todayStart.setHours(0, 0, 0, 0);
     const todayStartTs = todayStart.getTime() / 1000;
 
-    const todayEvents = events.filter(e => e.ts >= todayStartTs);
+    const todayEvents = events
+      .filter(e => {
+        const ts = typeof e.ts === 'string' 
+          ? new Date(e.ts).getTime() / 1000 
+          : e.ts;
+        return ts >= todayStartTs;
+      })
+      .map(e => ({
+        ts: typeof e.ts === 'string' ? new Date(e.ts).getTime() / 1000 : e.ts,
+        final: e.final
+      }));
+
     let total = 0;
     let lastOn = null;
 
     for (const evt of todayEvents) {
-      if (evt.final) {
+      if (evt.final === true) {
         lastOn = evt.ts;
       } else if (lastOn) {
         total += evt.ts - lastOn;
@@ -146,7 +157,6 @@
       }
     }
 
-    // If still ON, add time to now
     if (lastOn) {
       total += Math.floor(Date.now() / 1000) - lastOn;
     }
@@ -209,15 +219,18 @@
 
     const recent = events.slice(0, 20);
     container.innerHTML = recent.map(evt => {
-      const d = new Date(evt.ts * 1000);
+      const ts = typeof evt.ts === 'string' 
+        ? new Date(evt.ts).getTime() 
+        : evt.ts * 1000;
+      const d = new Date(ts);
       const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       const state = evt.final ? 'ON' : 'OFF';
       const color = evt.final ? '#22c55e' : '#ef4444';
       const reason = evt.reason || 'unknown';
-      return `<div style="padding:4px 0;border-bottom:1px solid rgba(148,163,184,0.1);display:flex;justify-content:space-between;">
-        <span style="color:${color};font-weight:600;">${state}</span>
-        <span>${time}</span>
-        <span class="muted">${reason}</span>
+      return `<div style="padding:4px 0;border-bottom:1px solid rgba(148,163,184,0.1);display:flex;justify-content:space-between;font-size:12px;">
+        <span style="color:${color};font-weight:600;min-width:30px;">${state}</span>
+        <span style="flex:1;text-align:right;padding:0 8px;">${time}</span>
+        <span class="muted" style="min-width:80px;text-align:right;">${reason}</span>
       </div>`;
     }).join('');
   }
@@ -238,18 +251,23 @@
         return;
       }
 
-      // Build step chart data
+      // Convert to unix timestamps if needed
+      const normalizedEvents = events.map(e => ({
+        ts: typeof e.ts === 'string' ? new Date(e.ts).getTime() / 1000 : e.ts,
+        final: e.final
+      }));
+
+      // Build step chart data - only ON/OFF transitions matter
       const data = [];
-      for (let i = 0; i < events.length; i++) {
-        const evt = events[i];
+      for (let i = 0; i < normalizedEvents.length; i++) {
+        const evt = normalizedEvents[i];
         const state = evt.final ? 1 : 0;
         const ts = evt.ts * 1000;
         
         data.push({ x: ts, y: state });
         
-        // Add next point if not last
-        if (i < events.length - 1) {
-          data.push({ x: events[i + 1].ts * 1000 - 1, y: state });
+        if (i < normalizedEvents.length - 1) {
+          data.push({ x: normalizedEvents[i + 1].ts * 1000 - 1, y: state });
         } else {
           data.push({ x: now, y: state });
         }
@@ -368,10 +386,15 @@
         lightsState.is_on = !!relays.relays.lights.is_on;
         lightsState.cooldown_remaining = relays.relays.lights.cooldown_remaining || 0;
         
-        // Track ON start time
-        if (lightsState.is_on && !wasOn && events.length > 0) {
-          const lastOn = events.find(e => e.final);
-          if (lastOn) currentOnStart = lastOn.ts * 1000;
+        // Track ON start time from most recent ON event
+        if (lightsState.is_on && !wasOn) {
+          const lastOnEvent = events.find(e => e.final === true);
+          if (lastOnEvent) {
+            const ts = typeof lastOnEvent.ts === 'string' 
+              ? new Date(lastOnEvent.ts).getTime() 
+              : lastOnEvent.ts * 1000;
+            currentOnStart = ts;
+          }
         } else if (!lightsState.is_on) {
           currentOnStart = null;
         }
