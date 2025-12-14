@@ -1476,88 +1476,86 @@ body{
     </div>
 
     <div class="card-body">
-      <!-- Pump Status Cards Grid -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:20px;">
-        <!-- Main Pump Card -->
-        <div style="background:linear-gradient(135deg,rgba(59,130,246,0.1) 0%,rgba(37,99,235,0.05) 100%);border:1px solid rgba(59,130,246,0.3);border-radius:12px;padding:16px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:24px;">🔄</span>
-              <span style="font-weight:600;font-size:var(--font-base);color:#93c5fd;">Main Pump</span>
-            </div>
+      <!-- KPI Row (uniform across tabs) -->
+      <div class="kpi-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:var(--space-md);">
+        <div class="kpi" style="padding:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div class="kpi-label" style="display:flex;align-items:center;gap:8px;">🔄 Main Pump</div>
             <span class="bop-status-badge on" id="circ-main-pump">—</span>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:var(--font-xs);">
             <div>
               <div class="muted">Runtime Today</div>
-              <div style="font-weight:600;color:#60a5fa;" id="main-runtime-today">—</div>
+              <div class="kpi-value" id="main-runtime-today">—</div>
             </div>
             <div>
               <div class="muted">Cycles Today</div>
-              <div style="font-weight:600;color:#60a5fa;" id="main-cycles-today">—</div>
+              <div class="kpi-value" id="main-cycles-today">—</div>
             </div>
             <div>
               <div class="muted">Cooldown</div>
-              <div style="font-weight:600;color:#fbbf24;" id="main-cooldown">—</div>
+              <div class="kpi-value" id="main-cooldown">—</div>
             </div>
             <div>
               <div class="muted">Last Change</div>
-              <div style="font-weight:600;color:#94a3b8;" id="main-last-change">—</div>
+              <div class="kpi-value" id="main-last-change">—</div>
             </div>
           </div>
         </div>
-
-        <!-- Chiller Pump Card -->
-        <div style="background:linear-gradient(135deg,rgba(34,211,238,0.1) 0%,rgba(6,182,212,0.05) 100%);border:1px solid rgba(34,211,238,0.3);border-radius:12px;padding:16px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:24px;">🌊</span>
-              <span style="font-weight:600;font-size:var(--font-base);color:#67e8f9;">Chiller Pump</span>
-            </div>
+        <div class="kpi" style="padding:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div class="kpi-label" style="display:flex;align-items:center;gap:8px;">🌊 Chiller Pump</div>
             <span class="bop-status-badge on" id="circ-temperature-pump">—</span>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:var(--font-xs);">
             <div>
               <div class="muted">Runtime Today</div>
-              <div style="font-weight:600;color:#22d3ee;" id="chiller-runtime-today">—</div>
+              <div class="kpi-value" id="chiller-runtime-today">—</div>
             </div>
             <div>
               <div class="muted">Cycles Today</div>
-              <div style="font-weight:600;color:#22d3ee;" id="chiller-cycles-today">—</div>
+              <div class="kpi-value" id="chiller-cycles-today">—</div>
             </div>
             <div>
               <div class="muted">Cooldown</div>
-              <div style="font-weight:600;color:#fbbf24;" id="chiller-cooldown">—</div>
+              <div class="kpi-value" id="chiller-cooldown">—</div>
             </div>
             <div>
               <div class="muted">Last Change</div>
-              <div style="font-weight:600;color:#94a3b8;" id="chiller-last-change">—</div>
+              <div class="kpi-value" id="chiller-last-change">—</div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Pump Activity Timeline -->
-      <div class="chart-card" style="margin-bottom:20px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <div class="muted" style="font-weight:600;">📊 Activity Timeline</div>
+      <!-- Activity Timeline (uniform card) -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-header">
+          <h3 class="card-title" style="margin:0;">Activity Timeline</h3>
+          <div id="circ-chart-controls" style="display:flex;gap:8px;align-items:center;"></div>
         </div>
-        <canvas id="circTimelineChart"></canvas>
-        <div id="circ-chart-empty" class="muted small" style="display:none;padding:8px 0;">No circulation activity in this window.</div>
-      </div>
-      <!-- Unified controls (zoom + slider) -->
-      <div id="circ-chart-controls"></div>
-
-      <!-- Event Log (match dose log styling) -->
-      <div style="margin-top:12px;padding:8px;border-radius:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);">
-        <div style="font-size:var(--font-sm);color:#9ca3af;font-weight:500;margin-bottom:6px;" id="circ-events-header">Event Log ▾</div>
-        <div id="circ-events-list" style="max-height:220px;overflow-y:auto;padding-right:6px;font-size:var(--font-xs);"></div>
+        <div class="card-body">
+          <canvas id="circTimelineChart"></canvas>
+          <div id="circ-chart-empty" class="muted small" style="display:none;padding:8px 0;">No circulation activity in this window.</div>
+        </div>
       </div>
 
-      <!-- Manual Control -->
-      <div style="margin-bottom:20px;">
-        <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">🎮 Manual Control</div>
-        <div style="padding:12px;border-radius:12px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+      <!-- Event Log (uniform card) -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-header">
+          <h3 class="card-title" style="margin:0;">Event Log</h3>
+        </div>
+        <div class="card-body">
+          <div id="circ-events-list" style="max-height:220px;overflow-y:auto;padding-right:6px;font-size:var(--font-xs);"></div>
+        </div>
+      </div>
+
+      <!-- Manual Control (uniform card) -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-header">
+          <h3 class="card-title" style="margin:0;">Manual Control</h3>
+        </div>
+        <div class="card-body">
           <div class="muted" style="font-size:var(--font-xs);margin-bottom:12px;">Manual relay control. Honors Auto/Manual mode and E‑STOP protections. Cooldowns enforced.</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <button class="btn-secondary btn-full" id="btnMainPump">Toggle Main Pump</button>
@@ -1566,10 +1564,12 @@ body{
         </div>
       </div>
 
-      <!-- Settings -->
-      <div>
-        <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">⚙️ Settings</div>
-        <div style="padding:12px;border-radius:12px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+      <!-- Settings (uniform card) -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title" style="margin:0;">Settings</h3>
+        </div>
+        <div class="card-body">
           <div class="muted" style="font-size:var(--font-xs);margin-bottom:12px;">Configure minimum off times to prevent rapid cycling and extend pump lifespan.</div>
           <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:12px;align-items:end;">
             <div>
