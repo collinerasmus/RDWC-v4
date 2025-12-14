@@ -40,10 +40,10 @@
   async function updateRuntimeStats() {
     console.log('[Circulation] Updating runtime stats...');
     try {
-      // Fetch relay event logs for both pumps
+      // Fetch relay event logs for both pumps (no limit to capture all transitions)
       const [mainResp, chillerResp] = await Promise.all([
-        fetch('/api/relays/events?name=main_pump&last=200', {cache: 'no-store'}),
-        fetch('/api/relays/events?name=chiller_pump&last=200', {cache: 'no-store'})
+        fetch('/api/relays/events?name=main_pump', {cache: 'no-store'}),
+        fetch('/api/relays/events?name=chiller_pump', {cache: 'no-store'})
       ]);
       
       const mainEvents = mainResp.ok ? await mainResp.json() : [];
@@ -124,10 +124,10 @@
   async function updateEventsLog() {
     console.log('[Circulation] Updating events log...');
     try {
-      // Fetch recent events for both pumps
+      // Fetch recent events for both pumps (expanded to 50 to show recent activity)
       const [mainResp, chillerResp] = await Promise.all([
-        fetch('/api/relays/events?name=main_pump&last=10', {cache: 'no-store'}),
-        fetch('/api/relays/events?name=chiller_pump&last=10', {cache: 'no-store'})
+        fetch('/api/relays/events?name=main_pump&last=50', {cache: 'no-store'}),
+        fetch('/api/relays/events?name=chiller_pump&last=50', {cache: 'no-store'})
       ]);
       
       const mainEvents = mainResp.ok ? await mainResp.json() : [];
@@ -137,7 +137,7 @@
       const allEvents = [
         ...mainEvents.map(e => ({...e, pump: 'main_pump', label: 'Main'})),
         ...chillerEvents.map(e => ({...e, pump: 'chiller_pump', label: 'Chiller'}))
-      ].sort((a,b) => new Date(b.ts) - new Date(a.ts)).slice(0, 10);
+      ].sort((a,b) => new Date(b.ts) - new Date(a.ts)).slice(0, 30);
       
       const listEl = document.getElementById('circ-events-list');
       if (!listEl) return;
@@ -180,10 +180,10 @@
         return;
       }
       
-      // Fetch 24h of events
+      // Fetch all events within 24h window (no artificial limit)
       const [mainResp, chillerResp] = await Promise.all([
-        fetch('/api/relays/events?name=main_pump&last=200', {cache: 'no-store'}),
-        fetch('/api/relays/events?name=chiller_pump&last=200', {cache: 'no-store'})
+        fetch('/api/relays/events?name=main_pump', {cache: 'no-store'}),
+        fetch('/api/relays/events?name=chiller_pump', {cache: 'no-store'})
       ]);
       
       const mainEvents = mainResp.ok ? await mainResp.json() : [];
