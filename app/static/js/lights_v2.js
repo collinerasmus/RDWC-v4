@@ -420,10 +420,32 @@
         maintainAspectRatio: false,
         interaction: { mode: 'nearest', intersect: false },
         plugins: {
-          legend: { display: false },
+          legend: {
+            display: true,
+            position: 'top',
+            align: 'end',
+            labels: {
+              color: '#9ca3af',
+              font: { size: 11 },
+              generateLabels: () => [
+                {
+                  text: '■ ON',
+                  fillStyle: '#22c55e',
+                  hidden: false,
+                  lineWidth: 0
+                },
+                {
+                  text: '■ OFF',
+                  fillStyle: '#374151',
+                  hidden: false,
+                  lineWidth: 0
+                }
+              ]
+            }
+          },
           tooltip: {
             callbacks: {
-              label: ctx => ctx.parsed.y === 1 ? '● ON' : '○ OFF'
+              label: ctx => ctx.parsed.y === 1 ? '● Lights ON' : '○ Lights OFF'
             }
           }
         },
@@ -442,7 +464,8 @@
             ticks: {
               stepSize: 1,
               color: '#9ca3af',
-              callback: val => val === 1 ? 'ON' : 'OFF'
+              font: { size: 12, weight: 'bold' },
+              callback: val => val === 1 ? '💡 ON' : '⚫ OFF'
             },
             grid: { color: 'rgba(148,163,184,0.1)' }
           }
