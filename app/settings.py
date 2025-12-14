@@ -219,6 +219,9 @@ def get_settings_grouped() -> Dict[str, Dict[str, Any]]:
     grouped: Dict[str, Dict[str, Any]] = {}
     if flat:
         for k, v in flat.items():
+            # Skip None keys (database corruption)
+            if not k or not isinstance(k, str):
+                continue
             if "." in k:
                 ns, leaf = k.split(".", 1)
             else:

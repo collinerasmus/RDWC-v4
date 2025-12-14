@@ -716,14 +716,25 @@ body{
           
           // Update tab dots with M/A indicator
           var controllers = data.controllers || {};
-          ['ph', 'ec', 'temp', 'circulation', 'lights', 'schedule', 'settings'].forEach(function(ctrl){
-            var dot = document.querySelector('[data-controller="' + ctrl + '"]');
-            if (dot && controllers[ctrl]) {
-              var info = controllers[ctrl];
+          // Map display names to controller keys (temp button uses 'chiller' backend key)
+          var controllerMap = {
+            'ph': 'ph',
+            'ec': 'ec',
+            'temp': 'chiller',  // Temperature tab uses 'chiller' controller backend
+            'circulation': 'circulation',
+            'lights': 'lights',
+            'schedule': 'lights',  // Schedule uses lights auto status
+            'settings': 'ph'  // Settings uses pH as fallback
+          };
+          Object.keys(controllerMap).forEach(function(displayKey){
+            var backendKey = controllerMap[displayKey];
+            var dot = document.querySelector('[data-controller="' + displayKey + '"]');
+            if (dot && controllers[backendKey]) {
+              var info = controllers[backendKey];
               var willAuto = info.will_automate;
               // Set M or A text inside dot
               dot.textContent = willAuto ? 'A' : 'M';
-              dot.title = (ctrl.charAt(0).toUpperCase() + ctrl.slice(1)) + ': ' + (willAuto ? 'Auto' : 'Manual');
+              dot.title = (displayKey.charAt(0).toUpperCase() + displayKey.slice(1)) + ': ' + (willAuto ? 'Auto' : 'Manual');
             }
           });
         })
