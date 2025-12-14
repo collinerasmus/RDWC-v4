@@ -102,23 +102,19 @@
       const chillerStats = calcStats(chillerEvents);
       console.log('[Circulation] Main stats:', mainStats, 'Chiller stats:', chillerStats);
       
-      // Update main pump stats
+      // Update main pump stats (single source of truth: 3 KPIs)
       const mainRuntimeEl = document.getElementById('main-runtime-today');
       const mainCyclesEl = document.getElementById('main-cycles-today');
-      const mainLastChangeEl = document.getElementById('main-last-change');
       
       if (mainRuntimeEl) mainRuntimeEl.textContent = formatDuration(mainStats.runtime);
       if (mainCyclesEl) mainCyclesEl.textContent = String(mainStats.cycles);
-      if (mainLastChangeEl) mainLastChangeEl.textContent = formatTimeAgo(mainStats.lastChange);
       
-      // Update chiller pump stats
+      // Update chiller pump stats (single source of truth: 3 KPIs)
       const chillerRuntimeEl = document.getElementById('chiller-runtime-today');
       const chillerCyclesEl = document.getElementById('chiller-cycles-today');
-      const chillerLastChangeEl = document.getElementById('chiller-last-change');
       
       if (chillerRuntimeEl) chillerRuntimeEl.textContent = formatDuration(chillerStats.runtime);
       if (chillerCyclesEl) chillerCyclesEl.textContent = String(chillerStats.cycles);
-      if (chillerLastChangeEl) chillerLastChangeEl.textContent = formatTimeAgo(chillerStats.lastChange);
       
     } catch (e) {
       console.error('[Circulation] Stats update error:', e);
