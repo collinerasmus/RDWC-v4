@@ -179,7 +179,7 @@
 
     // Chart area
     const chartDiv = document.createElement('div');
-    chartDiv.style.cssText = 'position:relative;height:400px;margin-bottom:12px;background:#0d1117;border:1px solid #333;border-radius:8px;padding:10px;';
+    chartDiv.style.cssText = 'position:relative;height:100%;min-height:320px;margin-bottom:12px;background:#0d1117;border:1px solid #333;border-radius:8px;padding:10px;';
     chartDiv.innerHTML = '<canvas id="sys-metrics-canvas"></canvas>';
     container.appendChild(chartDiv);
 

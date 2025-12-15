@@ -830,9 +830,6 @@ body{
     <span class="ctrl-label">🛠️ System</span>
     <span class="ctrl-health-dot" data-controller="settings" aria-label="System status"></span>
   </button>
-  <button class="btn-chip" data-tab="trends" aria-label="Trends">
-    <span class="ctrl-label">📈 Trends</span>
-  </button>
   </nav>
 
   <!-- Schedule Controller Tab -->
@@ -1082,7 +1079,7 @@ body{
     // Optional: log when charts first requested
     document.addEventListener('click', function(e){
       var tab = e.target && e.target.closest('[data-tab]');
-      if (tab && ['ph','ec','trends'].includes(tab.getAttribute('data-tab')) && !window.__chartsFirstClick){
+      if (tab && ['ph','ec'].includes(tab.getAttribute('data-tab')) && !window.__chartsFirstClick){
         window.__chartsFirstClick = performance.now();
         console.log('[Perf] first chart tab click at ~'+window.__chartsFirstClick.toFixed(0)+'ms');
       }
@@ -1765,16 +1762,6 @@ body{
     </div>
   </section>
 
-  <!-- Trends Tab - now dedicated to system metrics history -->
-  <section id="trends-card" class="card card-wide tab-section" data-tab="trends" style="display:none;">
-    <div class="card-header">
-      <h3 class="card-title">📈 System Metrics</h3>
-    </div>
-    <div class="card-body">
-      <!-- System metrics - single chart with metric selector -->
-      <div id="system-metrics-container"></div>
-    </div>
-  </section>
 
   <!-- 4. pH Control Card -->
   <section id="ph-card" class="card card-wide tab-section" data-tab="ph" style="display:none;">
@@ -2174,7 +2161,17 @@ body{
       </div>
     </div>
     <div class="card-body">
-      
+
+      <!-- System Metrics (moved from Trends) -->
+      <div class="system-card" style="margin-bottom:20px;">
+        <div class="system-card-header" style="align-items:center;">
+          <span class="system-card-icon">📈</span>
+          <h4 class="system-card-title" style="margin-right:8px;">System Metrics</h4>
+          <span class="muted" style="font-size:var(--font-sm);">60s cadence · 7d retention</span>
+        </div>
+        <div id="system-metrics-container" class="chart-card" style="padding:12px; height: var(--h-trends); min-height: var(--h-trends); max-height: var(--h-trends);"></div>
+      </div>
+
       <!-- 1. Pi Information Card -->
       <div class="system-card" style="margin-bottom:20px;">
         <div class="system-card-header">
