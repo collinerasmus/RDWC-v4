@@ -468,8 +468,9 @@ def ph_status():
     initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
     max_est_change = _settings_get_float("dosing.ph_max_predicted_delta_ph", _settings_get_float("safety.max_estimated_ph_change", 0.5))
     est_guard = (_settings_get("safety.estimated_change_guard", "true").lower() == "true")  # guard key retained in safety.* namespace
-    stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 300))
-    stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", _settings_get_float("dosing.stability_delta", 0.02))
+    # Relaxed defaults: shorter stabilization window and wider delta tolerance
+    stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 180))
+    stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", _settings_get_float("dosing.stability_delta", 0.05))
     stability_samples = _settings_get_int("dosing.stability_samples", 3)
     return {
         "ph": ph_val,
