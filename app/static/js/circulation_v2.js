@@ -200,17 +200,25 @@
     ]).catch(e => console.error('[Circulation] Parallel refresh error:', e));
   }
 
+  let statsInterval = null;
+  let logInterval = null;
+
   function initCirculation() {
     console.log('[Circulation] Initializing circulation controller');
+    
+    // Clear existing intervals to prevent duplicates
+    if (statsInterval) clearInterval(statsInterval);
+    if (logInterval) clearInterval(logInterval);
+    
     refreshAll();
     
     // Setup refreshes
-    setInterval(() => {
+    statsInterval = setInterval(() => {
       refreshCirc();
       updateRuntimeStats();
     }, 5000);
     
-    setInterval(updateEventsLog, 30000);
+    logInterval = setInterval(updateEventsLog, 30000);
   }
 
   function setupCirculation() {

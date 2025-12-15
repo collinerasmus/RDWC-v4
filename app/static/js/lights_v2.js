@@ -9,6 +9,7 @@
   let currentOnStart = null;
   let todayTotalSeconds = 0;
   let totalizerInterval = null;
+  let statusInterval = null;
 
   // API helpers
   async function getJSON(url) {
@@ -408,7 +409,8 @@
     startTotalizerUpdates();
 
     // Periodic refresh (status only - chart auto-refreshes)
-    setInterval(refreshLightsStatus, 10000);
+    if (statusInterval) clearInterval(statusInterval);
+    statusInterval = setInterval(refreshLightsStatus, 10000);
   }
 
   if (document.readyState === 'loading') {
