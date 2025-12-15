@@ -20,8 +20,7 @@
   const TIME_RANGES = [
     { id: '1h', label: '1h', hours: 1 },
     { id: '24h', label: '24h', hours: 24 },
-    { id: '7d', label: '7d', hours: 168 },
-    { id: '30d', label: '30d', hours: 720 }
+    { id: '7d', label: '7d', hours: 168 }
   ];
 
   let chartInstance = null;
@@ -229,6 +228,15 @@
     });
   }
 
+  // Auto-refresh handling (align with 60s sampling cadence)
+  let _refreshHandle = null;
+  function startAutoRefresh() {
+    if (_refreshHandle) clearInterval(_refreshHandle);
+    _refreshHandle = setInterval(() => {
+      loadChart();
+    }, 60 * 1000);
+  }
+
   // Export CSV
   function exportCSV() {
     if (!chartInstance || !chartInstance.data || chartInstance.data.datasets.length === 0) {
@@ -266,6 +274,7 @@
   function boot() {
     buildUI();
     loadChart();
+    startAutoRefresh();
   }
 
   if (document.readyState === 'loading') {
