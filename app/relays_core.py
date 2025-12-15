@@ -712,10 +712,6 @@ def get_relay_event_log(name: str = "lights", last: int = 100) -> List[Dict[str,
                 (name, last),
             )
             rows = cursor.fetchall()
-            try:
-                conn.close()
-            except Exception:
-                pass
 
             if rows:
                 events = []
