@@ -416,13 +416,13 @@ def should_temperature_run() -> tuple[bool, str]:
     if current_temp is None:
         return False, 'Temperature sensor unavailable'
     
-    # Get target and hysteresis from settings (scheduler-controlled target)
-    target_temp = float(get_setting('targets.temp_target_c', '20.0'))
+    # Get target from scheduler and hysteresis from settings
+    target_temp = float(get_setting('targets.temp_target_c', '20.0'))  # From scheduler ONLY
     hysteresis = float(get_setting('temperature.hysteresis', '0.5'))
     
-    # Calculate thresholds using hysteresis band
-    turn_on_temp = target_temp + (hysteresis / 2.0)    # e.g., 20.25°C with 0.5°C hysteresis
-    turn_off_temp = target_temp - (hysteresis / 2.0)   # e.g., 19.75°C with 0.5°C hysteresis
+    # Calculate thresholds: target ± hysteresis (e.g., 20°C ± 0.5°C = 19.5-20.5°C band)
+    turn_on_temp = target_temp + hysteresis    # e.g., 20.5°C
+    turn_off_temp = target_temp - hysteresis   # e.g., 19.5°C
     
     # Hysteresis logic
     if _temperature_state['is_running']:

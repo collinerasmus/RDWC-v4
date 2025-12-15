@@ -143,8 +143,8 @@ DEFAULTS: Dict[str, str] = {
     "safety.allow_stale_on_override": "false",
 
     # temperature (Hailea HS-52A intelligent control)
-    "temperature.target_temp": "19.0",           # °C - optimal for cannabis DWC/RDWC
-    "temperature.hysteresis": "0.5",             # °C - deadband (turn on at 19.5, off at 18.5)
+    # NOTE: target comes from scheduler via targets.temp_target_c setting
+    "temperature.hysteresis": "0.5",             # °C - deadband (with target 20°C: on at 20.5, off at 19.5)
     "temperature.min_on_seconds": "300",         # 5 min minimum runtime (compressor protection)
     "temperature.min_off_seconds": "600",        # 10 min minimum off time (cooldown)
     # NOTE: temperature.auto_enabled is DEPRECATED - use controls.temperature_auto via auto_control.py
@@ -360,12 +360,7 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
             if v is None or not (0.0 <= v <= 60.0):
                 return False, {"field": "safety.min_off_window_sec", "message": "Must be 0–60 seconds"}
     
-    # Temperature control (14–26°C safe range for cannabis)
-    if "temperature.target_temp" in final or "chiller.target_temp" in final:  # Support legacy chiller.target_temp
-        key = "temperature.target_temp" if "temperature.target_temp" in final else "chiller.target_temp"
-        v = f(final[key])
-        if v is None or not (14.0 <= v <= 26.0):
-            return False, {"field": key, "message": "Must be 14.0–26.0°C"}
+    # Temperature target is set by scheduler via targets.temp_target_c validation (above)
     
     if "temperature.hysteresis" in final or "chiller.hysteresis" in final:  # Support legacy
         key = "temperature.hysteresis" if "temperature.hysteresis" in final else "chiller.hysteresis"
