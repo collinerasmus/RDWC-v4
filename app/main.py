@@ -1250,43 +1250,6 @@ def get_system_info():
     
     return info
 
-@app.get("/api/system/metrics/history")
-def get_system_metrics_history(
-    metrics: str = Query("cpu_percent,memory_percent", description="Comma-separated metric names"),
-    hours: int = Query(24, description="Lookback period in hours", ge=1, le=168)
-):
-    """
-    Retrieve system metrics history for charting.
-    
-    Query parameters:
-    - metrics: comma-separated list of metric names (cpu_percent, memory_percent, disk_percent, 
-               core_voltage_v, load_1m, load_5m, load_15m, net_rx_bytes, net_tx_bytes)
-    - hours: lookback period in hours (1-168, default 24)
-    
-    Returns:
-        List of dicts with ts and requested metric values
-    """
-    try:
-        from app.system_metrics import get_metrics_history
-        
-        # Parse metric names
-        metric_list = [m.strip() for m in metrics.split(",")]
-        
-        # Get data
-        history = get_metrics_history(metric_list, hours=hours)
-        
-        return {
-            "metrics": metric_list,
-            "hours": hours,
-            "count": len(history),
-            "data": history
-        }
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Failed to retrieve metrics history: {str(e)}"}
-        )
-
 @app.get("/health/db")
 def health_db():
     """Database health check with freshness validation"""

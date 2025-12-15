@@ -220,7 +220,6 @@ def poll_once() -> Dict[str, Any]:
     """
     Execute one sensor poll cycle.
     Skips reading if calibration lock is held to avoid I²C bus contention.
-    Also samples system metrics (CPU, memory, voltage) every POLL_INTERVAL_SEC.
     
     Returns:
         Dict containing sensor readings and metadata
@@ -230,13 +229,6 @@ def poll_once() -> Dict[str, Any]:
     # NOTE: Sensor polling should always run regardless of auto-enable state.
     # Sensors provide data for monitoring, alerting, and manual dosing.
     # The auto-enable system only controls whether controllers ACT on sensor data.
-
-    # Sample system metrics (CPU, memory, disk, voltage, network, load)
-    try:
-        from app.system_metrics import sample_and_store
-        sample_and_store()
-    except Exception as e:
-        logger.debug(f"System metrics sampling failed (non-critical): {e}")
 
     # Check for calibration activity - skip polling if calibration is in progress
     if _calib_lock_held():
