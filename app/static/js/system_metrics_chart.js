@@ -82,6 +82,35 @@
     if (!container) return;
     container.innerHTML = '';
 
+    // Build group selector buttons in the KPI row at top of page
+    const groupRow = document.getElementById('sys-metrics-groups');
+    if (groupRow) {
+      groupRow.innerHTML = '';
+      Object.entries(GROUPS).forEach(([key, group]) => {
+        const btn = document.createElement('div');
+        btn.className = 'kpi';
+        btn.style.cssText = 'cursor:pointer;transition:all 0.2s;' + (key === activeGroup ? 'border-color:#4ECDC4;' : '');
+        btn.dataset.groupKey = key;
+        btn.onclick = () => {
+          activeGroup = key;
+          selectedMetrics = [...group.metrics];
+          syncCheckboxes();
+          highlightGroups();
+          loadChart();
+        };
+        const label = document.createElement('div');
+        label.className = 'kpi-label';
+        label.textContent = group.label;
+        const value = document.createElement('div');
+        value.className = 'kpi-value';
+        value.style.cssText = 'font-size:14px;color:#9ca3af;';
+        value.textContent = group.metrics.map(m => METRICS[m].label).join(', ');
+        btn.appendChild(label);
+        btn.appendChild(value);
+        groupRow.appendChild(btn);
+      });
+    }
+
     // Chart area first
     const chartDiv = document.createElement('div');
     chartDiv.style.cssText = 'position:relative;height:100%;min-height:320px;margin-bottom:12px;background:#0d1117;border:1px solid #333;border-radius:8px;padding:10px;';
@@ -94,23 +123,6 @@
 
     const topRow = document.createElement('div');
     topRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;';
-
-    // Group selector buttons
-    Object.entries(GROUPS).forEach(([key, group]) => {
-      const btn = document.createElement('button');
-      btn.className = 'btn-chip';
-      btn.dataset.groupKey = key;
-      btn.textContent = group.label;
-      btn.style.cssText = key === activeGroup ? 'background:#4ECDC4;color:#000;' : 'background:#333;color:#e0e0e0;';
-      btn.onclick = () => {
-        activeGroup = key;
-        selectedMetrics = [...group.metrics];
-        syncCheckboxes();
-        highlightGroups();
-        loadChart();
-      };
-      topRow.appendChild(btn);
-    });
 
     // Time range buttons
     const timeButtons = document.createElement('div');
@@ -194,10 +206,14 @@
   }
 
   function highlightGroups() {
-    document.querySelectorAll('button[data-group-key]').forEach(btn => {
+    document.querySelectorAll('[data-group-key]').forEach(btn => {
       const isActive = btn.dataset.groupKey === activeGroup;
-      btn.style.background = isActive ? '#4ECDC4' : '#333';
-      btn.style.color = isActive ? '#000' : '#e0e0e0';
+      if (btn.classList.contains('kpi')) {
+        btn.style.borderColor = isActive ? '#4ECDC4' : '';
+      } else {
+        btn.style.background = isActive ? '#4ECDC4' : '#333';
+        btn.style.color = isActive ? '#000' : '#e0e0e0';
+      }
     });
   }
 

@@ -2162,7 +2162,21 @@ body{
     </div>
     <div class="card-body">
 
-      <!-- 1. Pi Information Card (KPI row first) -->
+      <!-- Group Selector (KPI-style row) -->
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;" id="sys-metrics-groups"></div>
+
+      <hr class="separator" style="margin:20px 0;" />
+
+      <!-- System Metrics Chart Section -->
+      <div style="margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <h4 style="margin:0;font-size:18px;font-weight:600;color:#e0e0e0;">📈 System Metrics</h4>
+          <span class="muted" style="font-size:var(--font-sm);">60s cadence · 7d retention</span>
+        </div>
+        <div id="system-metrics-container" style="height: var(--h-trends); min-height: var(--h-trends); max-height: var(--h-trends);"></div>
+      </div>
+
+      <!-- 1. Pi Information Card -->
       <div class="system-card" style="margin-bottom:20px;">
         <div class="system-card-header">
           <span class="system-card-icon">🍓</span>
@@ -2236,11 +2250,6 @@ body{
             <div id="pi-throttle-badges" class="muted" style="font-size:var(--font-xs);margin-top:4px;"></div>
           </div>
         </div>
-      </div>
-
-      <!-- System Metrics (chart) -->
-      <div style="margin-bottom:20px;">
-        <div id="system-metrics-container" style="height: var(--h-trends); min-height: var(--h-trends); max-height: var(--h-trends);"></div>
       </div>
 
       <!-- 2. Software Information Card -->
