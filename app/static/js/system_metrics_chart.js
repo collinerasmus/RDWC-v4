@@ -113,13 +113,13 @@
 
     // Chart area first
     const chartDiv = document.createElement('div');
-    chartDiv.style.cssText = 'position:relative;height:100%;min-height:320px;margin-bottom:12px;background:#0d1117;border:1px solid #333;border-radius:8px;padding:10px;';
+    chartDiv.style.cssText = 'position:relative;height:420px;margin-bottom:16px;background:#0d1117;border:1px solid #333;border-radius:8px;padding:10px;';
     chartDiv.innerHTML = '<canvas id="sys-metrics-canvas"></canvas>';
     container.appendChild(chartDiv);
 
     // Controls under the chart
     const controls = document.createElement('div');
-    controls.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+    controls.style.cssText = 'display:flex;flex-direction:column;gap:12px;margin-bottom:16px;';
 
     const topRow = document.createElement('div');
     topRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;';
