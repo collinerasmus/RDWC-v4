@@ -211,7 +211,9 @@
       window.dispatchEvent(new CustomEvent('settings:ui', {detail:{poll: window.APP_POLL}}));
       // Update Sensors header if grow_start_date changed
       if (changes['general.grow_start_date'] !== undefined) {
-        updateSensorsHeaderDayN();
+        if (typeof updateSensorsHeaderDayN === 'function') {
+          updateSensorsHeaderDayN();
+        }
         if (window.scheduleModule?.refresh) {
           window.scheduleModule.refresh();
         }
@@ -292,7 +294,6 @@
       await fetchSettings();
       renderAll();
       bindTabs();
-      updateDayNBadge();
       updateSensorsHeaderDayN();
       bindActions();
       markDirty();
