@@ -559,8 +559,8 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
     try:
         # Configuration
         # Use canonical stabilization keys with fallback to legacy duplicates
-        stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 300))
-        stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", _settings_get_float("dosing.stability_delta", 0.02))
+        stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 180))
+        stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", _settings_get_float("dosing.stability_delta", 0.05))
         stability_samples = _settings_get_int("dosing.stability_samples", 3)  # sample count remained unchanged
         poll_interval = 10.0  # Poll every 10 seconds
         
@@ -1197,7 +1197,7 @@ def ph_auto_reset_to_safe_defaults():
             "dosing.ph_up_initial_ml": "0.01",        # Ultra-conservative 0.01ml initial dose
             "dosing.ph_min_interval_s": "900",         # 15 minutes between doses
             "dosing.ph_up_ml_per_pH_default": "1.0",   # 1ml per 1 pH unit (will be learned)
-            "dosing.ph_stabilization_window_s": "300", # 5 minutes to stabilize
+            "dosing.ph_stabilization_window_s": "180", # 3 minutes to stabilize
             "dosing.ph_max_predicted_delta_ph": "0.3", # Max 0.3 pH change per dose
         }
         

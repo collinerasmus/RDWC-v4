@@ -1075,8 +1075,8 @@
         ['phMinInterval', 'dosing.ph_min_interval_s', '900'],
         ['phMaxPressSeconds', 'safety.max_seconds_per_press', '1.5'],
         ['phDailyCapMl', 'dosing.ph_up_max_ml_per_day', '50'],
-        ['phStabilizationWindow', 'dosing.ph_stabilization_window_s', '300'],
-        ['phStableDeltaThreshold', 'dosing.ph_stabilization_delta_threshold', '0.02'],
+        ['phStabilizationWindow', 'dosing.ph_stabilization_window_s', '180'],
+        ['phStableDeltaThreshold', 'dosing.ph_stabilization_delta_threshold', '0.05'],
         ['phMaxPredictedDelta', 'dosing.ph_max_predicted_delta_ph', '0.5']
       ];
       for(const [elemId, settingKey, fallback] of settingsMap){
