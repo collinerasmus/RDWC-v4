@@ -196,8 +196,7 @@
     await Promise.all([
       refreshCirc(),
       updateRuntimeStats(),
-      updateEventsLog(),
-      window.circChart?.refresh(true)
+      updateEventsLog()
     ]).catch(e => console.error('[Circulation] Parallel refresh error:', e));
   }
 
