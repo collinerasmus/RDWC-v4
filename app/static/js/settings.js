@@ -42,6 +42,13 @@
         'ui.relays_poll_ms': {label:'Relays poll (ms)', type:'number', min:250, max:10000, step:50},
         'ui.sensors_poll_ms': {label:'Sensors poll (ms)', type:'number', min:1000, max:60000, step:250}
       }
+    },
+    electrical: {
+      title: 'Electrical',
+      fields: {
+        // Supply voltage; relay wattage fields are added dynamically based on environment_info.relay_pins
+        'electrical.voltage_v': {label:'Supply voltage (V)', type:'number', min:100, max:260, step:1, tooltip:'Mains supply voltage used for current calculation'}
+      }
     }
   };
 
@@ -163,6 +170,27 @@
     Object.entries(defaults).forEach(([k,v])=>{ if (!(k in flat)) flat[k] = v; });
     original = {...flat};
     current = {...flat};
+
+    // Dynamically extend Electrical group with per‑relay watt fields
+    try {
+      const sysRes = await fetch('/api/system/info?t='+Date.now(), {cache:'no-store'});
+      const sys = await sysRes.json();
+      const pins = sys?.environment_info?.relay_pins || {};
+      const elFields = GROUP_DEF.electrical.fields;
+      Object.keys(pins).forEach(name => {
+        const key = `electrical.watts.${name}`;
+        if (!elFields[key]) {
+          elFields[key] = {label:`Watts: ${name.replace(/_/g,' ')}`, type:'number', min:0, max:5000, step:1, tooltip:`Configured wattage for relay '${name}'`};
+        }
+        // Seed current with existing value if present; otherwise keep blank
+        if (flat[key] !== undefined) {
+          current[key] = flat[key];
+        }
+      });
+    } catch (e) {
+      // Non‑fatal; UI will still render voltage
+      console.warn('Failed to extend Electrical fields from system info', e);
+    }
   }
 
   async function save(){

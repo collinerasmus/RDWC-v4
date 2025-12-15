@@ -63,6 +63,12 @@
     el('pi-cpu', data.cpu_percent !== null && data.cpu_percent !== undefined ? `${data.cpu_percent.toFixed(1)}%` : '—');
     el('pi-cpu-freq', data.cpu_freq_mhz ? `${data.cpu_freq_mhz.toFixed(0)} MHz` : '—');
     el('pi-cpu-temp', data.temperature_c ? `${data.temperature_c.toFixed(1)}°C` : '—');
+    if (data.load_avg && Array.isArray(data.load_avg)) {
+      el('pi-load', data.load_avg.map(v => v.toFixed(2)).join(' / '));
+    } else {
+      el('pi-load', '—');
+    }
+    el('pi-gov', data.cpu_governor || '—');
     
     // Memory from direct properties (not nested) - split into 3 blocks
     if (data.memory_total_mb) {
@@ -93,6 +99,30 @@
     }
     
     el('pi-uptime', data.uptime_seconds ? formatUptime(data.uptime_seconds) : '—');
+
+    // Measured power/voltage/throttle
+    if (data.core_voltage_v !== undefined) {
+      el('pi-voltage', (data.core_voltage_v || data.core_voltage_v === 0) ? `${Number(data.core_voltage_v).toFixed(2)} V` : '—');
+    }
+    const yn = (b) => (b === true ? 'Yes' : (b === false ? 'No' : '—'));
+    el('pi-undervolt', yn(data.under_voltage));
+    if (data.under_voltage === true) {
+      const badge = document.getElementById('pi-undervolt-badge');
+      if (badge) badge.innerHTML = '<span style="color:#ef4444;font-weight:600;">⚠ Active</span>';
+    }
+    el('pi-freq', yn(data.freq_capped));
+    el('pi-throttled', yn(data.throttled));
+    
+    // Throttle history badges
+    const tbadges = document.getElementById('pi-throttle-badges');
+    if (tbadges) {
+      const badges = [];
+      if (data.under_voltage_has_occurred) badges.push('<span style="color:#fca5a5;">⚠ UV</span>');
+      if (data.freq_capped_has_occurred) badges.push('<span style="color:#fbbf24;">⚡ Freq</span>');
+      if (data.throttled_has_occurred) badges.push('<span style="color:#f87171;">🔥 Throttled</span>');
+      if (data.soft_temp_limit_has_occurred) badges.push('<span style="color:#fb923c;">🌡 TempLim</span>');
+      tbadges.innerHTML = badges.length > 0 ? 'Seen since boot: ' + badges.join(', ') : '';
+    }
   }
 
   // Populate Software Information section
@@ -229,6 +259,31 @@
 
     // DB size in MB
     el('db-size', data.size_mb ? `${data.size_mb.toFixed(2)} MB` : '—');
+    el('db-free', (data.disk_free_gb || data.disk_free_gb === 0) ? `${data.disk_free_gb.toFixed(2)} GB` : '—');
+    
+    // Disk free with severity badge
+    if (data.disk_free_percent || data.disk_free_percent === 0) {
+      el('db-free-pct', `${data.disk_free_percent.toFixed(1)}%`);
+      const fbadge = document.getElementById('db-free-badge');
+      if (fbadge) {
+        let color = '#10b981';
+        let text = '';
+        if (data.disk_free_percent < 5) {
+          color = '#ef4444';
+          text = '🔴 CRITICAL';
+        } else if (data.disk_free_percent < 10) {
+          color = '#f97316';
+          text = '🟠 LOW';
+        } else if (data.disk_free_percent < 20) {
+          color = '#eab308';
+          text = '🟡 WARN';
+        }
+        fbadge.innerHTML = text ? `<span style="color:${color};font-weight:600;">${text}</span>` : '';
+      }
+    } else {
+      el('db-free-pct', '—');
+    }
+    el('db-health', data.smart_health || '—');
     
     // Record counts from tables object
     if (data.tables) {
@@ -257,6 +312,8 @@
   function populateNetworkInfo(data) {
     const hostnameEl = document.getElementById('net-hostname');
     const ipsContainer = document.getElementById('net-ips-container');
+    const wifiEl = document.getElementById('net-wifi');
+    const ifstatsEl = document.getElementById('net-ifstats');
 
     if (hostnameEl) {
       hostnameEl.textContent = data.hostname || '—';
@@ -290,6 +347,50 @@
         ipsContainer.appendChild(msg);
       }
     }
+
+    if (wifiEl) {
+      if (data.wifi) {
+        const parts = [];
+        if (data.wifi.ssid) parts.push(`SSID: ${data.wifi.ssid}`);
+        if (data.wifi.signal_dbm !== null && data.wifi.signal_dbm !== undefined) parts.push(`Signal: ${data.wifi.signal_dbm} dBm`);
+        if (data.wifi.quality_pct !== null && data.wifi.quality_pct !== undefined) parts.push(`Quality: ${data.wifi.quality_pct}%`);
+        if (data.wifi.bitrate) parts.push(`Bitrate: ${data.wifi.bitrate}`);
+        wifiEl.textContent = parts.join(' • ') || 'WiFi detected';
+      } else {
+        wifiEl.textContent = '';
+      }
+    }
+
+    if (ifstatsEl) {
+      if (data.iface_stats) {
+        const lines = Object.entries(data.iface_stats).map(([name, st]) => {
+          const err = (st.errin || st.errout || st.dropin || st.dropout) ? ` err:${st.errin||0}/${st.errout||0} drop:${st.dropin||0}/${st.dropout||0}` : '';
+          return `${name}: rx ${(st.bytes_recv/1e6).toFixed(1)}MB tx ${(st.bytes_sent/1e6).toFixed(1)}MB${err}`;
+        });
+        ifstatsEl.textContent = lines.join(' • ');
+      } else {
+        ifstatsEl.textContent = '';
+      }
+    }
+  }
+
+  // Populate Electrical breakdown (optional); Pi KPIs handled in populatePiInfo
+  function populateElectricalInfo(data) {
+    const br = document.getElementById('el-breakdown');
+    const hint = document.getElementById('el-hint');
+
+    if (!br || !hint) return;
+
+    if (data.breakdown && data.breakdown.length > 0) {
+      const label = data.computed_from_config ? 'Configured loads (not measured)' : 'Loads';
+      br.innerHTML = `<div style="margin-bottom:6px;">${label}:</div>` + data.breakdown
+        .map(item => `• ${item.relay.replace(/_/g,' ')} — ${Number(item.watts).toFixed(1)} W`)
+        .join('<br/>');
+      hint.style.display = 'none';
+    } else {
+      br.textContent = 'No configured loads or relays currently ON';
+      hint.style.display = 'block';
+    }
   }
 
   // Populate Process Information section
@@ -316,20 +417,37 @@
         userCell.style.cssText = 'padding:8px 10px;';
         userCell.textContent = proc.user || proc.username || '—';
 
+        const cpuCell = document.createElement('td');
+        cpuCell.style.cssText = 'padding:8px 10px;text-align:right;';
+        cpuCell.textContent = proc.cpu_percent !== null && proc.cpu_percent !== undefined ? `${proc.cpu_percent.toFixed(1)}%` : '—';
+
         const memCell = document.createElement('td');
         memCell.style.cssText = 'padding:8px 10px;text-align:right;';
         memCell.textContent = proc.memory_percent !== null && proc.memory_percent !== undefined ? `${proc.memory_percent.toFixed(2)}%` : '—';
 
+        const rtCell = document.createElement('td');
+        rtCell.style.cssText = 'padding:8px 10px;text-align:right;';
+        if (proc.runtime_seconds !== null && proc.runtime_seconds !== undefined) {
+          const mins = Math.floor(proc.runtime_seconds / 60);
+          const hours = Math.floor(mins / 60);
+          const remMins = mins % 60;
+          rtCell.textContent = hours > 0 ? `${hours}h ${remMins}m` : `${remMins}m`;
+        } else {
+          rtCell.textContent = '—';
+        }
+
         row.appendChild(pidCell);
         row.appendChild(nameCell);
         row.appendChild(userCell);
+        row.appendChild(cpuCell);
         row.appendChild(memCell);
+        row.appendChild(rtCell);
         tbody.appendChild(row);
       });
     } else {
       const row = document.createElement('tr');
       const cell = document.createElement('td');
-      cell.colSpan = 4;
+      cell.colSpan = 6;
       cell.style.cssText = 'padding:12px;text-align:center;color:#9ca3af;';
       cell.textContent = 'No RDWC processes found';
       row.appendChild(cell);
@@ -358,6 +476,7 @@
       if (data.database_info) populateDatabaseInfo(data.database_info);
       if (data.network_info) populateNetworkInfo(data.network_info);
       if (data.process_info) populateProcessInfo(data.process_info);
+      if (data.electrical_info) populateElectricalInfo(data.electrical_info);
 
       updateRefreshIndicator(true);
     } catch (error) {

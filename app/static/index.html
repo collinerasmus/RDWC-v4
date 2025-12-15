@@ -2197,6 +2197,14 @@ body{
             <div class="kpi-value" id="pi-cpu-temp">—</div>
           </div>
           <div class="kpi">
+            <div class="kpi-label">Load (1/5/15)</div>
+            <div class="kpi-value" id="pi-load">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">CPU Governor</div>
+            <div class="kpi-value" id="pi-gov">—</div>
+          </div>
+          <div class="kpi">
             <div class="kpi-label">Memory Used</div>
             <div class="kpi-value" id="pi-memory-used">—</div>
           </div>
@@ -2223,6 +2231,24 @@ body{
           <div class="kpi">
             <div class="kpi-label">Uptime</div>
             <div class="kpi-value" id="pi-uptime">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Core Voltage</div>
+            <div class="kpi-value" id="pi-voltage">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Under-Voltage</div>
+            <div class="kpi-value" id="pi-undervolt">—</div>
+            <div id="pi-undervolt-badge" style="font-size:var(--font-xs);margin-top:4px;"></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Freq Capped</div>
+            <div class="kpi-value" id="pi-freq">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Throttled</div>
+            <div class="kpi-value" id="pi-throttled">—</div>
+            <div id="pi-throttle-badges" class="muted" style="font-size:var(--font-xs);margin-top:4px;"></div>
           </div>
         </div>
       </div>
@@ -2286,6 +2312,19 @@ body{
         </div>
       </div>
 
+      <!-- 3a. Electrical Breakdown (Optional; KPIs moved to Raspberry Pi card) -->
+      <div class="system-card" style="margin-bottom:20px;">
+        <div class="system-card-header">
+          <span class="system-card-icon">⚡</span>
+          <h4 class="system-card-title">Electrical</h4>
+        </div>
+        <hr class="separator" style="margin:16px 0;" />
+        <div id="el-breakdown" class="muted" style="font-size:var(--font-sm);"></div>
+        <div id="el-hint" class="muted" style="margin-top:8px;font-size:var(--font-xs);color:#9ca3af;">
+          Optional, user-configured loads. Values are NOT measured.
+        </div>
+      </div>
+
       <!-- 4. Database Information Card -->
       <div class="system-card" style="margin-bottom:20px;">
         <div class="system-card-header">
@@ -2317,6 +2356,19 @@ body{
             <div class="kpi-label">Newest Reading</div>
             <div class="kpi-value" id="db-newest">—</div>
           </div>
+          <div class="kpi">
+            <div class="kpi-label">Disk Free</div>
+            <div class="kpi-value" id="db-free">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Disk Free %</div>
+            <div class="kpi-value" id="db-free-pct">—</div>
+            <div id="db-free-badge" style="font-size:var(--font-xs);margin-top:4px;"></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Disk Health</div>
+            <div class="kpi-value" id="db-health">—</div>
+          </div>
         </div>
       </div>
 
@@ -2335,6 +2387,8 @@ body{
             <!-- Individual IP interface blocks populated dynamically -->
           </div>
         </div>
+        <div id="net-wifi" class="muted" style="margin-top:10px;font-size:var(--font-sm);"></div>
+        <div id="net-ifstats" class="muted" style="margin-top:10px;font-size:var(--font-xs);"></div>
       </div>
 
       <!-- 6. Process Information Card -->
@@ -2350,7 +2404,9 @@ body{
                 <th style="padding:8px 10px;text-align:left;color:#9ca3af;font-size:var(--font-sm);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">PID</th>
                 <th style="padding:8px 10px;text-align:left;color:#9ca3af;font-size:var(--font-sm);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Name</th>
                 <th style="padding:8px 10px;text-align:left;color:#9ca3af;font-size:var(--font-sm);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">User</th>
+                <th style="padding:8px 10px;text-align:right;color:#9ca3af;font-size:var(--font-sm);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">CPU</th>
                 <th style="padding:8px 10px;text-align:right;color:#9ca3af;font-size:var(--font-sm);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Memory</th>
+                <th style="padding:8px 10px;text-align:right;color:#9ca3af;font-size:var(--font-sm);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Runtime</th>
               </tr>
             </thead>
             <tbody id="proc-table" style="color:#d1d5db;">
@@ -2405,6 +2461,21 @@ body{
             <div id="settings-alerts">
               <!-- Populated by settings.js -->
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9a. Electrical Settings -->
+      <div class="system-card" style="margin-bottom:20px;">
+        <div class="system-card-header">
+          <span class="system-card-icon">⚡</span>
+          <h4 class="system-card-title">Electrical Settings</h4>
+        </div>
+        <div style="margin-top:12px;">
+          <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">Electrical</div>
+          <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+            <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure supply voltage and per‑relay wattage for load estimates. Read‑only; does not change relay states.</div>
+            <div id="settings-electrical"></div>
           </div>
         </div>
       </div>

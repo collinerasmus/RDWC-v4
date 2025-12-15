@@ -804,6 +804,7 @@ def get_system_info():
             "cpu_freq_mhz": round(cpu_freq.current, 0) if cpu_freq else None,
             "cpu_count": psutil.cpu_count(),
             "temperature_c": pi_temp,
+            "load_avg": os.getloadavg() if hasattr(os, "getloadavg") else None,
             "memory_total_mb": round(mem.total / 1024 / 1024, 0),
             "memory_used_mb": round(mem.used / 1024 / 1024, 0),
             "memory_percent": round(mem.percent, 1),
@@ -814,6 +815,59 @@ def get_system_info():
             "uptime_human": uptime_str,
             "platform": platform.platform()
         }
+
+        # Pi power/voltage/throttle (measured via vcgencmd when available)
+        try:
+            # Core voltage
+            vres = subprocess.run(["vcgencmd", "measure_volts"], capture_output=True, text=True, timeout=2)
+            core_v = None
+            if vres.returncode == 0 and "volt=" in vres.stdout:
+                # Example: volt=0.86V
+                out = vres.stdout.strip()
+                try:
+                    core_v = float(out.split("=")[1].replace("V", ""))
+                except Exception:
+                    core_v = None
+
+            # Throttled flags
+            tres = subprocess.run(["vcgencmd", "get_throttled"], capture_output=True, text=True, timeout=2)
+            throttled_raw = None
+            flags = 0
+            if tres.returncode == 0 and "throttled=" in tres.stdout:
+                raw = tres.stdout.strip().split("=")[1]
+                throttled_raw = raw
+                try:
+                    flags = int(raw, 16) if raw.startswith("0x") else int(raw)
+                except Exception:
+                    flags = 0
+
+            # Interpret flags per Raspberry Pi docs
+            def has(bit):
+                return bool(flags & (1 << bit))
+
+            info["pi_info"].update({
+                "core_voltage_v": core_v,
+                "throttled_raw": throttled_raw,
+                "under_voltage": has(0),
+                "freq_capped": has(1),
+                "throttled": has(2),
+                "soft_temp_limit": has(3),
+                "under_voltage_has_occurred": has(16),
+                "freq_capped_has_occurred": has(17),
+                "throttled_has_occurred": has(18),
+                "soft_temp_limit_has_occurred": has(19),
+            })
+        except Exception:
+            # vcgencmd not available or failed; skip gracefully
+            pass
+
+        # CPU governor (best-effort)
+        try:
+            gov_path = Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")
+            if gov_path.exists():
+                info["pi_info"]["cpu_governor"] = gov_path.read_text().strip()
+        except Exception:
+            pass
     except Exception as e:
         info["pi_info"] = {"error": str(e)}
     
@@ -918,6 +972,76 @@ def get_system_info():
         }
     except Exception as e:
         info["environment_info"] = {"error": str(e)}
+
+    # ===== ELECTRICAL INFO (optional, computed; single source from settings + relay states) =====
+    try:
+        electrical = {
+            "voltage_v": None,
+            "total_watts": None,
+            "total_amps": None,
+            "breakdown": [],
+            "configured_watts": {},
+        }
+
+        # Read namespaced settings for voltage and per-relay wattage
+        try:
+            from app.settings import get_all_settings
+            s = get_all_settings()
+        except Exception:
+            s = {}
+
+        # Voltage (optional)
+        try:
+            v_str = s.get("electrical.voltage_v")
+            voltage_v = float(v_str) if v_str else None
+        except Exception:
+            voltage_v = None
+
+        electrical["voltage_v"] = voltage_v
+
+        # Per-relay wattage mapping: keys like electrical.watts.main_pump = 35
+        watts_map = {}
+        for k, v in s.items():
+            if k.startswith("electrical.watts."):
+                name = k.split(".", 2)[2]
+                try:
+                    watts_map[name] = float(v)
+                except Exception:
+                    continue
+        electrical["configured_watts"] = watts_map
+
+        # Current relay states (read-only)
+        try:
+            from app.relays_core import get_relay_status
+            relay_status = get_relay_status()  # {name: {state: bool, ...}}
+        except Exception:
+            relay_status = {}
+
+        # Compute totals from active relays that have configured wattage
+        total_watts = 0.0
+        breakdown = []
+        for name, st in (relay_status or {}).items():
+            is_on = bool(st.get("state", False))
+            if not is_on:
+                continue
+            w = watts_map.get(name)
+            if w is None:
+                # Skip relays without configured wattage
+                continue
+            total_watts += w
+            breakdown.append({
+                "relay": name,
+                "watts": w
+            })
+
+        electrical["breakdown"] = breakdown
+        electrical["total_watts"] = round(total_watts, 1) if breakdown else None
+        electrical["total_amps"] = (round(total_watts / voltage_v, 2) if (voltage_v and total_watts and total_watts > 0) else None)
+        electrical["computed_from_config"] = bool(breakdown)
+
+        info["electrical_info"] = electrical
+    except Exception as e:
+        info["electrical_info"] = {"error": str(e)}
     
     # ===== DATABASE INFO =====
     try:
@@ -926,6 +1050,33 @@ def get_system_info():
         
         if db_path.exists():
             db_size_mb = round(db_path.stat().st_size / 1024 / 1024, 2)
+
+            # Disk free/health
+            disk_free_gb = None
+            disk_free_percent = None
+            smart_health = None
+            try:
+                disk_usage = psutil.disk_usage('/')
+                disk_free_gb = round(disk_usage.free / 1024 / 1024 / 1024, 2)
+                disk_free_percent = round(100 - disk_usage.percent, 1)
+            except Exception:
+                pass
+
+            # SMART overall health (best-effort; skips if smartctl missing)
+            try:
+                candidates = ["/dev/mmcblk0", "/dev/sda", "/dev/sdb"]
+                for dev in candidates:
+                    if Path(dev).exists():
+                        res = subprocess.run(["smartctl", "-H", dev], capture_output=True, text=True, timeout=3)
+                        if res.returncode == 0 and "overall-health" in res.stdout:
+                            for ln in res.stdout.splitlines():
+                                if "overall-health" in ln.lower():
+                                    smart_health = ln.split(":")[-1].strip()
+                                    break
+                        if smart_health:
+                            break
+            except Exception:
+                smart_health = None
             
             # Get record counts
             conn = sqlite3.connect(DB_PATH)
@@ -956,7 +1107,10 @@ def get_system_info():
                 "size_mb": db_size_mb,
                 "tables": tables,
                 "oldest_reading": oldest,
-                "newest_reading": newest
+                "newest_reading": newest,
+                "disk_free_gb": disk_free_gb,
+                "disk_free_percent": disk_free_percent,
+                "smart_health": smart_health
             }
         else:
             info["database_info"] = {"error": "Database file not found"}
@@ -977,10 +1131,87 @@ def get_system_info():
                         "address": addr.address,
                         "netmask": addr.netmask
                     })
+
+        # Interface stats (rx/tx/errors)
+        iface_stats = {}
+        try:
+            stats = psutil.net_io_counters(pernic=True)
+            for name, st in stats.items():
+                iface_stats[name] = {
+                    "bytes_sent": st.bytes_sent,
+                    "bytes_recv": st.bytes_recv,
+                    "errin": st.errin,
+                    "errout": st.errout,
+                    "dropin": st.dropin,
+                    "dropout": st.dropout
+                }
+        except Exception:
+            iface_stats = {}
+
+        # WLAN signal/quality (measured via iwconfig/iwgetid when available)
+        wifi = None
+        try:
+            # Get SSID
+            ssid = None
+            try:
+                ssid_res = subprocess.run(["iwgetid", "-r"], capture_output=True, text=True, timeout=2)
+                if ssid_res.returncode == 0:
+                    ssid = ssid_res.stdout.strip() or None
+            except Exception:
+                ssid = None
+
+            # Parse iwconfig for signal/bitrate
+            iw_res = subprocess.run(["iwconfig"], capture_output=True, text=True, timeout=2)
+            if iw_res.returncode == 0:
+                lines = iw_res.stdout.splitlines()
+                cur_if = None
+                signal_dbm = None
+                bitrate = None
+                quality = None
+                for ln in lines:
+                    if not ln.strip():
+                        continue
+                    if not ln.startswith(' '):
+                        cur_if = ln.split()[0]
+                    if 'Signal level=' in ln:
+                        try:
+                            part = ln.split('Signal level=')[1].split()[0]
+                            if 'dBm' in part:
+                                part = part.replace('dBm','')
+                            signal_dbm = float(part)
+                        except Exception:
+                            signal_dbm = None
+                    if 'Bit Rate=' in ln:
+                        try:
+                            bitrate = ln.split('Bit Rate=')[1].split()[0]
+                        except Exception:
+                            bitrate = None
+                    if 'Link Quality=' in ln:
+                        try:
+                            qpart = ln.split('Link Quality=')[1].split()[0]  # e.g., 70/70
+                            if '/' in qpart:
+                                num, den = qpart.split('/')
+                                quality = round((float(num)/float(den))*100,1)
+                        except Exception:
+                            quality = None
+                    # Stop once we have a wifi interface with signal
+                    if signal_dbm is not None and cur_if:
+                        wifi = {
+                            "interface": cur_if,
+                            "ssid": ssid,
+                            "signal_dbm": signal_dbm,
+                            "bitrate": bitrate,
+                            "quality_pct": quality
+                        }
+                        break
+        except Exception:
+            wifi = None
         
         info["network_info"] = {
             "hostname": hostname,
-            "ip_addresses": ip_addresses
+            "ip_addresses": ip_addresses,
+            "wifi": wifi,
+            "iface_stats": iface_stats
         }
     except Exception as e:
         info["network_info"] = {"error": str(e)}
@@ -988,16 +1219,25 @@ def get_system_info():
     # ===== PROCESS INFO =====
     try:
         processes = []
-        for proc in psutil.process_iter(['pid', 'name', 'username', 'memory_percent']):
+        for proc in psutil.process_iter(['pid', 'name', 'username', 'memory_percent', 'cpu_percent', 'create_time']):
             try:
                 pinfo = proc.info
                 # Only include RDWC-related processes
                 if 'rdwc' in pinfo['name'].lower() or 'uvicorn' in pinfo['name'].lower() or 'python' in pinfo['name'].lower():
+                    # Runtime in seconds
+                    runtime = None
+                    try:
+                        if pinfo.get('create_time'):
+                            runtime = int(time.time() - pinfo['create_time'])
+                    except Exception:
+                        runtime = None
                     processes.append({
                         "pid": pinfo['pid'],
                         "name": pinfo['name'],
                         "user": pinfo['username'],
-                        "memory_percent": round(pinfo['memory_percent'], 2) if pinfo['memory_percent'] else 0
+                        "memory_percent": round(pinfo['memory_percent'], 2) if pinfo['memory_percent'] else 0,
+                        "cpu_percent": round(pinfo['cpu_percent'], 1) if pinfo.get('cpu_percent') is not None else 0,
+                        "runtime_seconds": runtime
                     })
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
