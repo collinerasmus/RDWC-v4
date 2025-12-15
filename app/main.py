@@ -632,27 +632,14 @@ async def _start_tasks():
     except Exception:
         pass
 
-    # Finalize and activate chiller automatic control with safe defaults
+    # Start chiller automatic control
+    # NOTE: Temperature settings now come ONLY from temperature.* namespace and targets.temp_target_c from scheduler
+    # Legacy chiller.* settings are cleaned up on settings init
     try:
-        from app.settings import upsert_settings
-        # Ensure compressor safety and a slightly wider deadband to reduce cycling
-        upsert_settings({
-            'chiller.target_temp': '19.0',
-            'chiller.hysteresis': '0.7',
-            'chiller.min_on_seconds': '300',
-            'chiller.min_off_seconds': '600',
-            'chiller.control_interval_s': '30',
-            'chiller.auto_enabled': '1'
-        })
         from app.temperature_control import start_auto_control
         start_auto_control()
     except Exception as e:
-        # Non-fatal: start control loop even if auto_enable fails
-        try:
-            from app.temperature_control import start_auto_control
-            start_auto_control()
-        except Exception as e2:
-            print(f"[Temperature] Failed to start control loop: {e2}")
+        print(f"[Temperature] Failed to start control loop: {e}")
 
     # Start relay watchdog (detect unexpected relay energization)
     async def relay_watchdog():
