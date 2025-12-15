@@ -170,7 +170,6 @@
     }
 
     const currentWeek = sched.current_week || 1;
-    if(!selectedWeek) selectedWeek = currentWeek;
 
     // Calendar-style grid layout (4 columns x 3 rows for 12 weeks)
     let html = '<div style="padding:16px 0;">';
@@ -179,7 +178,6 @@
     sched.weeks.forEach(w => {
       const phase = w.phase || 'week';
       const isCurrent = w.week === currentWeek;
-      const isSelected = w.week === selectedWeek;
       const phaseColors = {
         seedling:'rgba(147,197,253,0.15)',
         veg:'rgba(34,197,94,0.15)',
@@ -207,7 +205,7 @@
       
       const boxStyle = `
         padding:14px 12px;
-        border:2px solid ${isSelected?bd.replace('0.40','0.85'):bd};
+        border:2px solid ${bd};
         border-radius:10px;
         background:${bg};
         cursor:pointer;
