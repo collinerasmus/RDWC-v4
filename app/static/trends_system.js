@@ -139,7 +139,10 @@ function removeMetric(metric) {
 function showMetricDropdown(triggerBtn) {
     // Remove any existing dropdown
     const existing = document.getElementById("metric-dropdown");
-    if (existing) existing.remove();
+    if (existing) {
+        existing.remove();
+        return;  // Toggle: close if already open
+    }
 
     // Get available metrics (not yet selected)
     const available = Object.entries(AVAILABLE_METRICS).filter(
@@ -147,25 +150,27 @@ function showMetricDropdown(triggerBtn) {
     );
 
     if (available.length === 0) {
-        alert("All metrics already selected");
+        alert("All metrics already selected!");
         return;
     }
 
-    // Create dropdown
+    // Create dropdown positioned absolutely relative to viewport
     const dropdown = document.createElement("div");
     dropdown.id = "metric-dropdown";
     dropdown.style.cssText = `
-        position: absolute;
-        top: 100%;
-        left: 0;
+        position: fixed;
         background: #1a1a1a;
         border: 1px solid #444;
         border-radius: 6px;
         min-width: 200px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-        z-index: 1000;
-        margin-top: 4px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        z-index: 10000;
     `;
+
+    // Position dropdown below the trigger button
+    const rect = triggerBtn.getBoundingClientRect();
+    dropdown.style.left = (rect.left) + "px";
+    dropdown.style.top = (rect.bottom + 4) + "px";
 
     available.forEach(([key, meta]) => {
         const option = document.createElement("div");
@@ -175,6 +180,7 @@ function showMetricDropdown(triggerBtn) {
             color: #e0e0e0;
             border-bottom: 1px solid #2a2a2a;
             transition: background 0.2s;
+            user-select: none;
         `;
         option.textContent = meta.label;
         option.addEventListener("mouseenter", () => {
@@ -188,12 +194,21 @@ function showMetricDropdown(triggerBtn) {
             renderSelectedMetrics();
             loadMetricsHistory();
             dropdown.remove();
+            document.removeEventListener("click", closeDropdown);
         });
         dropdown.appendChild(option);
     });
 
-    triggerBtn.style.position = "relative";
-    triggerBtn.parentElement.appendChild(dropdown);
+    // Close dropdown when clicking outside
+    const closeDropdown = (e) => {
+        if (!dropdown.contains(e.target) && !triggerBtn.contains(e.target)) {
+            dropdown.remove();
+            document.removeEventListener("click", closeDropdown);
+        }
+    };
+    document.addEventListener("click", closeDropdown);
+
+    document.body.appendChild(dropdown);
 }
 
 function updateTimeRange() {
