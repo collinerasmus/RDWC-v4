@@ -41,21 +41,23 @@
         q.set('max', String(max));
 
         const trendsUrl = '/api/trends?' + q.toString();
-        
-        // Fetch dose events
-        const doseHours = Math.min(Math.ceil(hours), 168);
-        const doseUrl = `/api/dose/recent?hours=${doseHours}`;
+
+        // Fetch pH dose events and summary (volume_ml available)
+        const doseLogUrl = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`;
+        const doseSummaryUrl = `/api/ph/dose_summary?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
 
         try {
-          const [trendsRes, doseRes, settingsRes, scheduleRes] = await Promise.all([
+          const [trendsRes, doseLogRes, doseSummaryRes, settingsRes, scheduleRes] = await Promise.all([
             fetch(trendsUrl, { cache: 'no-store' }),
-            fetch(doseUrl, { cache: 'no-store' }),
+            fetch(doseLogUrl, { cache: 'no-store' }),
+            fetch(doseSummaryUrl, { cache: 'no-store' }),
             fetch('/api/settings', { cache: 'no-store' }),
             fetch('/api/schedule/current_week', { cache: 'no-store' })
           ]);
 
           const trendsData = trendsRes.ok ? await trendsRes.json() : { series: { ph: [] } };
-          const doseData = doseRes.ok ? await doseRes.json() : { events: [] };
+          const doseLog = doseLogRes.ok ? await doseLogRes.json() : [];
+          const doseSummary = doseSummaryRes.ok ? await doseSummaryRes.json() : [];
           const settingsData = settingsRes.ok ? await settingsRes.json() : {};
           const scheduleData = scheduleRes.ok ? await scheduleRes.json() : {};
           const targets = settingsData?.targets || {};
@@ -63,19 +65,19 @@
 
           console.log('[pH Chart] Fetched:', {
             ph: trendsData?.series?.ph?.length || 0,
-            doses: doseData?.events?.length || 0,
+            doses: doseLog?.length || 0,
             targets: targets
           });
 
-          return { trendsData, doseData, targets, phSetpoint };
+          return { trendsData, doseLog, doseSummary, targets, phSetpoint };
         } catch (e) {
           console.error('[pH Chart] Fetch failed:', e);
-          return { trendsData: { series: { ph: [] } }, doseData: { events: [] }, targets: {}, phSetpoint: null };
+          return { trendsData: { series: { ph: [] } }, doseLog: [], doseSummary: [], targets: {}, phSetpoint: null };
         }
       },
 
       onRender: (chart, data, window) => {
-        const { trendsData, doseData, targets, phSetpoint } = data;
+        const { trendsData, doseLog, doseSummary, targets, phSetpoint } = data;
 
         // Parse pH readings
         const ph = (trendsData?.series?.ph || []).map(p => ({
@@ -83,21 +85,31 @@
           y: Number(p.value)
         }));
 
-        // Parse dose events (pH Up only)
-        const doseEvents = (doseData?.events || [])
-          .filter(e => e.pump === 'ph_up' && !e.blocked_by)
-          .filter(e => {
-            const ts = e.ts * 1000;
-            return ts >= window.start && ts <= window.end;
-          });
+        // Parse dose events from /api/ph/dose_log (volume_ml preferred)
+        const doseEvents = (doseLog || [])
+          .map(e => ({
+            ts: new Date(e.ts).getTime(),
+            volume_ml: (e.volume_ml != null) ? Number(e.volume_ml) : null,
+            seconds: (e.seconds != null) ? Number(e.seconds) : null,
+            ph_before: (e.ph_before != null) ? Number(e.ph_before) : null,
+            ph_after: (e.ph_after != null) ? Number(e.ph_after) : null
+          }))
+          .filter(ev => ev.ts >= window.start && ev.ts <= window.end);
 
-        // Calculate total dosed
-        totalDosed = doseEvents.reduce((sum, e) => sum + (e.ml || 0), 0);
+        // Calculate total dosed (prefer summary rows if available)
+        if (Array.isArray(doseSummary) && doseSummary.length > 0) {
+          try {
+            totalDosed = doseSummary.reduce((sum, r) => sum + (Number(r.total_ml || 0)), 0);
+          } catch(_) { totalDosed = 0; }
+        } else {
+          totalDosed = doseEvents.reduce((sum, e) => sum + (Number(e.volume_ml || 0)), 0);
+        }
 
         // Update total dosed display
         const totalEl = document.getElementById('ph-total-dosed');
         if (totalEl) {
-          totalEl.textContent = `${totalDosed.toFixed(1)} ml`;
+          totalEl.textContent = 'Total: ' + (Number(totalDosed || 0).toFixed(1)) + ' ml';
+          totalEl.style.display = 'inline-block';
         }
 
         // Get targets from settings (convert strings to floats)
@@ -173,13 +185,13 @@
           });
         }
 
-        // 4. Dose events as triangles
+        // 4. Dose events as triangles (use event ts; place near top of band)
         if (doseEvents.length) {
-          const doseY = phHigh + 0.3; // Place above target band
+          const doseY = (phHigh != null && !Number.isNaN(phHigh)) ? (phHigh + 0.3) : 6.6;
           datasets.push({
             type: 'scatter',
             label: `pH Up Doses (${doseEvents.length})`,
-            data: doseEvents.map(e => ({ x: e.ts * 1000, y: doseY })),
+            data: doseEvents.map(e => ({ x: e.ts, y: doseY })),
             pointRadius: 5,
             pointStyle: 'triangle',
             pointBackgroundColor: window.CHART_COLORS?.phUp || '#fbbf24',
