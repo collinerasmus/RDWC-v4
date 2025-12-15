@@ -692,13 +692,14 @@ def get_relay_event_log(name: str = "lights", last: int = 100) -> List[Dict[str,
     """Get recent event log for a relay from database with fallback to in-memory.
     
     Returns the most recent `last` events in chronological order (oldest first).
+    Tries database first, falls back to in-memory if unavailable or empty.
     """
+    # Try database first
     try:
         from app.db_pool import get_conn
         conn = get_conn(readonly=True)
         cursor = conn.cursor()
         
-        # Query database for recent events, ordered by ts DESC (newest first)
         cursor.execute("""
             SELECT ts, requested, final, reason, cooldown, blocked, caller
             FROM relay_events
@@ -709,7 +710,7 @@ def get_relay_event_log(name: str = "lights", last: int = 100) -> List[Dict[str,
         
         rows = cursor.fetchall()
         
-        # If database has events, use them; otherwise fall back to in-memory
+        # If database has events, convert and return them
         if rows:
             events = []
             for row in rows:
@@ -722,17 +723,18 @@ def get_relay_event_log(name: str = "lights", last: int = 100) -> List[Dict[str,
                     "blocked": bool(row[5]),
                     "caller": row[6]
                 })
-            # Return in chronological order (oldest first) for chart processing
+            # Return in chronological order (oldest first for chart processing)
             return list(reversed(events))
-        else:
-            # Fall back to in-memory if database is empty
-            raise Exception("No events in database, using in-memory cache")
-            
     except Exception as e:
-        # Fall back to in-memory log if database unavailable or empty
-        logger.debug(f"Using in-memory event cache for {name}: {e}")
+        logger.debug(f"Database unavailable for {name}: {e}, using in-memory cache")
+    
+    # Fallback: return in-memory events
+    try:
         events = list(_relay_event_logs.get(name, []))
         return events[-last:] if events else []
+    except Exception as e:
+        logger.error(f"Failed to get event log for {name}: {e}")
+        return []
 
 def allowed_lights_reasons() -> List[str]:
     """Get list of allowed reasons for lights control."""
