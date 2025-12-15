@@ -253,12 +253,8 @@
       try {
         const settings = await fetchSettingsSafe();
         
-        if (settings.targets && settings.targets.temp_target_c !== undefined) {
-          document.getElementById('tempTarget').value = parseFloat(settings.targets.temp_target_c);
-        }
         if (settings.temperature) {
           if (settings.temperature.hysteresis !== undefined) document.getElementById('temperatureHysteresis').value = parseFloat(settings.temperature.hysteresis);
-          if (settings.temperature.stage !== undefined) document.getElementById('temperatureStage').value = settings.temperature.stage;
         }
         if (settings.alerts) {
           if (settings.alerts.temp_lo_alert !== undefined) document.getElementById('tempAlertLow').value = parseFloat(settings.alerts.temp_lo_alert);
@@ -277,14 +273,10 @@
       const btn = document.getElementById('btnSaveTempSettings');
       if (!btn) return;
       
-      const tempTarget = parseFloat(document.getElementById('tempTarget').value) || 19;
       const hysteresis = parseFloat(document.getElementById('temperatureHysteresis').value) || 0.5;
-      const stage = document.getElementById('temperatureStage').value || 'default';
       
       const updates = {
-        'targets.temp_target_c': tempTarget,
         'temperature.hysteresis': hysteresis,
-        'temperature.stage': stage,
         'alerts.temp_lo_alert': parseFloat(document.getElementById('tempAlertLow').value) || 0,
         'alerts.temp_hi_alert': parseFloat(document.getElementById('tempAlertHigh').value) || 0,
         'safety.temperature_min_off_s': parseInt(document.getElementById('temperatureMinOff').value) || 300,

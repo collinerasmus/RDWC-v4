@@ -1311,22 +1311,11 @@ body{
         <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure temperature targets, alert thresholds, and chiller compressor protection timings.</div>
         <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
           <div>
-            <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Target (°C)</label>
-            <input type="number" id="tempTarget" step="0.1" min="14" max="26" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
-          </div>
-          <div>
             <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Hysteresis (°C)</label>
             <input type="number" id="temperatureHysteresis" step="0.1" min="0.1" max="3.0" value="0.5" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
           </div>
         </div>
-        <div style="margin-bottom:var(--space-md);">
-          <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Growth Stage</label>
-          <select id="temperatureStage" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid#374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
-            <option value="default">Default (18-20°C optimal)</option>
-            <option value="veg">Vegetative (18-20°C)</option>
-            <option value="flower">Flowering (18-20°C)</option>
-          </select>
-        </div>
+
         <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;padding-top:12px;border-top:1px solid rgba(148,163,184,0.2);">
           <div>
             <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Low Alert (°C)</label>
