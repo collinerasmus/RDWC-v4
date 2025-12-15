@@ -107,7 +107,7 @@
         }
 
         // Get temperature target and hysteresis from settings
-        const tempTarget = settingsData?.['targets.temp_target'] ?? 21.0;
+        const tempTarget = settingsData?.['targets.temp_target_c'] ?? 20.0;
         const tempHysteresis = settingsData?.['temperature.hysteresis'] ?? 0.5;
         const tempLow = tempTarget - tempHysteresis;
         const tempHigh = tempTarget + tempHysteresis;

@@ -265,8 +265,8 @@
           if (settings.alerts.temp_hi_alert !== undefined) document.getElementById('tempAlertHigh').value = parseFloat(settings.alerts.temp_hi_alert);
         }
         if (settings.safety) {
-          if (settings.safety.chiller_min_off_s !== undefined) document.getElementById('temperatureMinOff').value = parseInt(settings.safety.chiller_min_off_s);
-          if (settings.safety.chiller_min_on_s !== undefined) document.getElementById('temperatureMinOn').value = parseInt(settings.safety.chiller_min_on_s);
+          if (settings.safety.temperature_min_off_s !== undefined) document.getElementById('temperatureMinOff').value = parseInt(settings.safety.temperature_min_off_s);
+          if (settings.safety.temperature_min_on_s !== undefined) document.getElementById('temperatureMinOn').value = parseInt(settings.safety.temperature_min_on_s);
         }
       } catch(e) {
         console.error('Failed to load temperature settings:', e);
@@ -283,13 +283,12 @@
       
       const updates = {
         'targets.temp_target_c': tempTarget,
-        'temperature.target_temp': tempTarget,  // Keep both target fields consistent for legacy compatibility
         'temperature.hysteresis': hysteresis,
         'temperature.stage': stage,
         'alerts.temp_lo_alert': parseFloat(document.getElementById('tempAlertLow').value) || 0,
         'alerts.temp_hi_alert': parseFloat(document.getElementById('tempAlertHigh').value) || 0,
-        'safety.chiller_min_off_s': parseInt(document.getElementById('temperatureMinOff').value) || 300,
-        'safety.chiller_min_on_s': parseInt(document.getElementById('temperatureMinOn').value) || 60
+        'safety.temperature_min_off_s': parseInt(document.getElementById('temperatureMinOff').value) || 300,
+        'safety.temperature_min_on_s': parseInt(document.getElementById('temperatureMinOn').value) || 60
       };
       
       btn.classList.add('btn-loading');
