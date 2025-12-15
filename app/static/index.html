@@ -1765,23 +1765,14 @@ body{
     </div>
   </section>
 
-  <!-- Trends Tab - Historical sensor data with zoom + slider controls -->
+  <!-- Trends Tab - now dedicated to system metrics history -->
   <section id="trends-card" class="card card-wide tab-section" data-tab="trends" style="display:none;">
     <div class="card-header">
-      <h3 class="card-title">📈 Sensor Trends</h3>
+      <h3 class="card-title">📈 System Metrics</h3>
     </div>
     <div class="card-body">
-      <!-- Chart -->
-      <div id="trends-chart-wrap" class="chart-card">
-        <canvas id="trendsChart"></canvas>
-        <div id="trendsEmpty" class="muted small" style="display:none;padding:8px 0;">No data for selected period.</div>
-      </div>
-      
-      <!-- Unified controls (zoom + slider) -->
-      <div id="trends-controls"></div>
-
       <!-- System metrics - single chart with metric selector -->
-      <div id="system-metrics-container" style="margin-top:20px;"></div>
+      <div id="system-metrics-container"></div>
     </div>
   </section>
 
@@ -3113,11 +3104,11 @@ window.CircControl = (function(){
             // Reordered: range.js immediately after core to satisfy rdwcRange dependency for pH & EC charts before sensors/ph/ec modules run.
           // Instrumented loader: log each script as it begins loading (sequence is synchronous via promises)
           window.BUILD_COMMIT = '1764522441';
-          return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','temperature.js','controller_settings.js','settings.js','circulation_v2.js','chart_adapter.js'], window.__app_version);
+            return seq(['polling_manager.js','range.js','chart_base.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','temperature.js','controller_settings.js','settings.js','circulation_v2.js','chart_adapter.js'], window.__app_version);
       })
       .catch(function(){
         window.__app_version = (new Date()).toISOString().slice(0,10);
-  return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','temperature.js','controller_settings.js','settings.js','circulation_v2.js','chart_adapter.js'], window.__app_version);
+          return seq(['polling_manager.js','range.js','chart_base.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','temperature.js','controller_settings.js','settings.js','circulation_v2.js','chart_adapter.js'], window.__app_version);
       })
       .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();
