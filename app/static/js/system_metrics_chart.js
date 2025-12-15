@@ -17,6 +17,21 @@
     net_tx_bytes: { label: 'TX Bytes', color: '#FFB7B2', unit: 'B' }
   };
 
+  const GROUPS = {
+    performance: {
+      label: 'Performance',
+      metrics: ['cpu_percent', 'memory_percent', 'disk_percent']
+    },
+    load_power: {
+      label: 'Load & Power',
+      metrics: ['core_voltage_v', 'load_1m', 'load_5m', 'load_15m']
+    },
+    network: {
+      label: 'Network',
+      metrics: ['net_rx_bytes', 'net_tx_bytes']
+    }
+  };
+
   const TIME_RANGES = [
     { id: '1h', label: '1h', hours: 1 },
     { id: '24h', label: '24h', hours: 24 },
@@ -24,8 +39,9 @@
   ];
 
   let chartInstance = null;
-  let selectedMetrics = ['cpu_percent', 'memory_percent'];
+  let selectedMetrics = [...GROUPS.performance.metrics];
   let currentTimeRange = 24;
+  let activeGroup = 'performance';
 
   // Fetch history data
   async function fetchHistory(hours, metrics) {
@@ -102,6 +118,26 @@
     const selectorDiv = document.createElement('div');
     selectorDiv.style.cssText = 'background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:12px;margin-bottom:12px;';
 
+    // Group selector row
+    const groupRow = document.createElement('div');
+    groupRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;';
+    Object.entries(GROUPS).forEach(([key, group]) => {
+      const btn = document.createElement('button');
+      btn.className = 'btn-chip';
+      btn.dataset.groupKey = key;
+      btn.textContent = group.label;
+      btn.style.cssText = key === activeGroup ? 'background:#4ECDC4;color:#000;' : 'background:#333;color:#e0e0e0;';
+      btn.onclick = () => {
+        activeGroup = key;
+        selectedMetrics = [...group.metrics];
+        syncCheckboxes();
+        highlightGroups();
+        loadChart();
+      };
+      groupRow.appendChild(btn);
+    });
+    selectorDiv.appendChild(groupRow);
+
     const selectorLabel = document.createElement('div');
     selectorLabel.style.cssText = 'font-weight:600;color:#e0e0e0;margin-bottom:8px;font-size:13px;';
     selectorLabel.textContent = 'Select metrics:';
@@ -119,12 +155,16 @@
       cb.checked = selectedMetrics.includes(key);
       cb.value = key;
       cb.style.cssText = 'cursor:pointer;';
+      cb.setAttribute('data-metric-cb', key);
       cb.onchange = () => {
         if (cb.checked && !selectedMetrics.includes(key)) {
           selectedMetrics.push(key);
         } else {
           selectedMetrics = selectedMetrics.filter(m => m !== key);
         }
+        // Custom mix cancels active group highlight
+        activeGroup = null;
+        highlightGroups();
         loadChart();
       };
 
@@ -150,6 +190,20 @@
     exportBtn.textContent = '📥 Export CSV';
     exportBtn.onclick = exportCSV;
     container.appendChild(exportBtn);
+  }
+
+  function highlightGroups() {
+    document.querySelectorAll('button[data-group-key]').forEach(btn => {
+      const isActive = btn.dataset.groupKey === activeGroup;
+      btn.style.background = isActive ? '#4ECDC4' : '#333';
+      btn.style.color = isActive ? '#000' : '#e0e0e0';
+    });
+  }
+
+  function syncCheckboxes() {
+    document.querySelectorAll('input[data-metric-cb]').forEach(cb => {
+      cb.checked = selectedMetrics.includes(cb.dataset.metricCb || cb.value);
+    });
   }
 
   // Render chart
@@ -275,6 +329,7 @@
     buildUI();
     loadChart();
     startAutoRefresh();
+    highlightGroups();
   }
 
   if (document.readyState === 'loading') {
