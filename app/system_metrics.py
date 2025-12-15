@@ -7,6 +7,7 @@ import time
 import sqlite3
 import os
 import psutil
+from typing import Optional
 import subprocess
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -131,13 +132,20 @@ def store_metrics(metrics):
     except Exception as e:
         pass  # Graceful; don't crash on store failure
 
+_last_sample_ts = None  # type: Optional[float]
+
 def sample_and_store():
-    """Collect metrics and store; called periodically."""
+    """Collect metrics and store; enforce SAMPLE_INTERVAL_S cadence."""
+    global _last_sample_ts
+    now = time.time()
+    if _last_sample_ts is not None and (now - _last_sample_ts) < SAMPLE_INTERVAL_S:
+        return
     metrics = collect_metrics()
     if metrics:
         store_metrics(metrics)
-    # Purge old data every 1000 samples (every ~17 hours) to avoid constant DB churn
-    if metrics and metrics.get("ts", 0) % 1000 == 0:
+        _last_sample_ts = now
+    # Purge old data periodically (~ every 1000 seconds)
+    if int(now) % 1000 == 0:
         purge_old_metrics()
 
 def get_metrics_history(metric_names, hours=24):
