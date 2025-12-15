@@ -254,11 +254,7 @@
       const phSetpoint = ((w.ph_low + w.ph_high) / 2).toFixed(2);
       html += `<div><span style="color:#94a3b8;">pH:</span> ${phSetpoint}</div>`;
       html += `<div><span style="color:#94a3b8;">🌡:</span> ${w.temp_target}°C</div>`;
-      // Calculate lights hours per week from lights format (e.g., 18/6 = 18h/day * 7 = 126h/week)
-      const lightsMatch = w.lights.match(/^(\d+)/);
-      const hoursPerDay = lightsMatch ? parseInt(lightsMatch[1]) : 0;
-      const hoursPerWeek = hoursPerDay * 7;
-      html += `<div><span style="color:#94a3b8;">💡:</span> ${hoursPerWeek}h/wk</div>`;
+      html += `<div><span style="color:#94a3b8;">💡:</span> ${w.lights}</div>`;
       html += `</div>`;
       
       // Current week indicator
