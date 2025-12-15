@@ -874,26 +874,6 @@ body{
       </div>
       <div id="schedule-week-selector" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px;"></div>
 
-      <!-- Current Week Targets -->
-      <hr class="separator" />
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <div class="muted" style="font-weight:600;">This Week Targets</div>
-        <span id="schedule-phase-pill" class="muted" style="padding:3px 8px;border-radius:6px;background:rgba(148,163,184,0.10);border:1px solid rgba(148,163,184,0.25);font-size:var(--font-xs);">—</span>
-      </div>
-      <div id="schedule-targets-body" style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);min-height:100px;">
-        <div class="muted" style="font-size:var(--font-base);opacity:.7;">Select a week…</div>
-      </div>
-
-      <!-- Next 48h Plan -->
-      <hr class="separator" />
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <div class="muted" style="font-weight:600;">Next 48h Plan</div>
-        <div class="muted" id="schedule-plan-updated" style="font-size:var(--font-xs);opacity:.7;">—</div>
-      </div>
-      <div id="schedule-plan-list" style="margin-bottom:12px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.05);border:1px solid rgba(148,163,184,0.15);max-height:200px;overflow:auto;font-size:var(--font-base);line-height:1.4;">
-        <div class="muted" style="opacity:.6;">Loading plan…</div>
-      </div>
-
       <!-- Settings -->
       <div style="margin-top:12px;">
         <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">⚙️ Schedule Settings</div>
@@ -902,8 +882,6 @@ body{
             <button id="scheduleSeedBtn" class="btn-secondary" title="Seed default 12-week schedule (non-destructive)">Seed Defaults</button>
           </div>
           
-          <div id="schedule-status-badges" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--space-lg);"></div>
-
           <div style="margin-bottom:var(--space-lg);padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
             <div class="muted" style="font-weight:600;font-size:var(--font-base);margin-bottom:8px;">Grow &amp; General Settings</div>
             <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Manage grow name, timezone, reservoir size, and grow start date here. These values feed schedule KPIs and automation.</div>

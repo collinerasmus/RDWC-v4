@@ -79,7 +79,6 @@
   // ===== SCHEDULE DISPLAY LOGIC =====
 
   let scheduleCache = null;
-  let selectedWeek = null;
   let pollTimer = null;
 
   function el(id){ return document.getElementById(id); }
@@ -253,8 +252,15 @@
       // Target values
       html += `<div style="flex:1;display:flex;flex-direction:column;gap:3px;font-size:0.75rem;color:#cbd5e1;">`;
       html += `<div><span style="color:#94a3b8;">EC:</span> <strong>${w.ec_target}</strong></div>`;
-      html += `<div><span style="color:#94a3b8;">pH:</span> ${w.ph_low}-${w.ph_high}</div>`;
+      // Calculate pH setpoint as midpoint of range
+      const phSetpoint = ((w.ph_low + w.ph_high) / 2).toFixed(2);
+      html += `<div><span style="color:#94a3b8;">pH:</span> ${phSetpoint}</div>`;
       html += `<div><span style="color:#94a3b8;">🌡:</span> ${w.temp_target}°C</div>`;
+      // Calculate lights hours per week from lights format (e.g., 18/6 = 18h/day * 7 = 126h/week)
+      const lightsMatch = w.lights.match(/^(\d+)/);
+      const hoursPerDay = lightsMatch ? parseInt(lightsMatch[1]) : 0;
+      const hoursPerWeek = hoursPerDay * 7;
+      html += `<div><span style="color:#94a3b8;">💡:</span> ${hoursPerWeek}h/wk</div>`;
       html += `</div>`;
       
       // Current week indicator
@@ -268,213 +274,11 @@
     html += '</div></div>';
     timeline.innerHTML = html;
 
-    // Week selector buttons
+    // Remove week selector buttons - not needed without targets panel
     const weekSel = el('schedule-week-selector');
-    if(weekSel){
-      let selHtml='';
-      sched.weeks.forEach(w=>{
-        selHtml += `<button data-week="${w.week}" class="${w.week===selectedWeek?'active':''}">W${w.week}</button>`;
-      });
-      weekSel.innerHTML = selHtml;
-      weekSel.querySelectorAll('button').forEach(btn=>{
-        btn.addEventListener('click',()=>{
-          selectedWeek = parseInt(btn.getAttribute('data-week'));
-          renderTimeline();
-          renderTargets(selectedWeek);
-        });
-      });
-    }
+    if(weekSel) weekSel.innerHTML = '';
 
-    // Click handlers for blocks
-    document.querySelectorAll('.week-block').forEach(block => {
-      block.addEventListener('click', ()=>{
-        const week = parseInt(block.getAttribute('data-week'));
-        selectedWeek = week;
-        renderTimeline();
-        renderTargets(week);
-      });
-    });
-
-    renderTargets(selectedWeek);
     updateKpis();
-  }
-
-  function renderTargets(weekNum){
-    const card = el('schedule-targets-body');
-    if(!card) return;
-
-    const sched = scheduleCache;
-    const week = sched?.weeks?.find(w => w.week === weekNum);
-    
-    if(!week){
-      card.innerHTML = '<div class="muted" style="padding:12px;">Select a week from timeline</div>';
-      return;
-    }
-
-    const html = `
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
-        <div>
-          <div style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">Phase</div>
-          <div style="font-size:1.1rem;font-weight:600;text-transform:capitalize;">${week.phase}</div>
-        </div>
-        <div>
-          <div style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">EC Target</div>
-          <div style="font-size:1.1rem;font-weight:600;">${week.ec_target} mS/cm</div>
-        </div>
-        <div>
-          <div style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">pH Band</div>
-          <div style="font-size:1.1rem;font-weight:600;">${week.ph_low} – ${week.ph_high}</div>
-        </div>
-        <div>
-          <div style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">Lights</div>
-          <div style="font-size:1.1rem;font-weight:600;">${week.lights}</div>
-        </div>
-      </div>
-      <div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(148,163,184,0.1);">
-        <div style="font-size:0.85rem;font-weight:600;margin-bottom:8px;">EHG 3-Part (ml per 10L)</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
-          <div style="padding:12px;border:1px solid rgba(148,163,184,0.2);border-radius:8px;background:rgba(34,197,94,0.05);">
-            <div style="font-size:0.75rem;color:#94a3b8;">Grow</div>
-            <div style="font-size:1.3rem;font-weight:700;color:#22c55e;">${week.grow_ml10}</div>
-          </div>
-          <div style="padding:12px;border:1px solid rgba(148,163,184,0.2);border-radius:8px;background:rgba(59,130,246,0.05);">
-            <div style="font-size:0.75rem;color:#94a3b8;">Micro</div>
-            <div style="font-size:1.3rem;font-weight:700;color:#3b82f6;">${week.micro_ml10}</div>
-          </div>
-          <div style="padding:12px;border:1px solid rgba(148,163,184,0.2);border-radius:8px;background:rgba(251,191,36,0.05);">
-            <div style="font-size:0.75rem;color:#94a3b8;">Bloom</div>
-            <div style="font-size:1.3rem;font-weight:700;color:#fbbf24;">${week.bloom_ml10}</div>
-          </div>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:16px;">
-        <button id="btnEditWeek" class="btn-secondary">Edit Selected Week…</button>
-        <button id="btnResetSchedule" class="btn-secondary">Reset Schedule to Defaults</button>
-      </div>
-      ${week.notes ? `<div style="margin-top:12px;padding:10px;border-radius:6px;background:rgba(59,130,246,0.08);font-size:0.85rem;color:#93c5fd;"><strong>Notes:</strong> ${week.notes}</div>` : ''}
-    `;
-    
-    card.innerHTML = html;
-
-    // Wire up actions
-    const btnEdit = document.getElementById('btnEditWeek');
-    btnEdit?.addEventListener('click', async ()=>{
-      // Simple prompt-based editor for now
-      const nextEc = prompt('EC target (mS/cm):', String(week.ec_target));
-      if(nextEc === null) return;
-      const nextPhLow = prompt('pH low:', String(week.ph_low ?? 5.8));
-      if(nextPhLow === null) return;
-      const nextPhHigh = prompt('pH high:', String(week.ph_high ?? 6.2));
-      if(nextPhHigh === null) return;
-      const nextTemp = prompt('Temp target (°C):', String(week.temp_target ?? 20));
-      if(nextTemp === null) return;
-
-      const payload = {
-        ec_target: parseFloat(nextEc),
-        ph_low: parseFloat(nextPhLow),
-        ph_high: parseFloat(nextPhHigh),
-        temp_target: parseFloat(nextTemp)
-      };
-      try{
-        const r = await fetch(`/api/nutrient_schedule/week/${week.week}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-        const data = await r.json();
-        if(r.ok && data.ok){
-          showToast(`Week ${week.week} updated`, 'success');
-          await fetchSchedule();
-          renderTargets(week.week);
-          renderTimeline();
-        } else {
-          showToast(data.error || 'Update failed', 'error');
-        }
-      }catch(e){
-        showToast('Update error: '+e.message, 'error');
-      }
-    });
-
-    const btnReset = document.getElementById('btnResetSchedule');
-    btnReset?.addEventListener('click', async ()=>{
-      if(!confirm('Reset entire schedule to defaults? This overwrites all weeks.')) return;
-      try{
-        const r = await fetch('/api/nutrient_schedule/reset', {method:'POST'});
-        const data = await r.json();
-        if(r.ok && data.ok){
-          showToast('Schedule reset to defaults', 'success');
-          await fetchSchedule();
-          renderTimeline();
-          renderTargets(selectedWeek);
-        } else {
-          showToast(data.error || 'Reset failed', 'error');
-        }
-      }catch(e){
-        showToast('Reset error: '+e.message, 'error');
-      }
-    });
-  }
-
-  async function renderPlan(){
-    const planCard = el('schedule-plan-list');
-    if(!planCard) return;
-
-    const data = await fetchPlan(48);
-    const items = data.plan || [];
-
-    if(items.length === 0){
-      planCard.innerHTML = '<div class="muted" style="padding:16px;text-align:center;font-size:0.9rem;">✅ Nothing planned in the next 48 hours</div>';
-      return;
-    }
-
-    let html = '<div style="display:flex;flex-direction:column;gap:8px;">';
-    items.forEach(item => {
-      const ts = new Date(item.ts).toLocaleString();
-      const reason = item.reason || 'unknown';
-      const type = item.type || 'unknown';
-      
-      html += `<div style="padding:12px;border:1px solid rgba(148,163,184,0.2);border-radius:8px;background:rgba(59,130,246,0.05);">`;
-      html += `<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">`;
-      html += `<div style="font-weight:600;font-size:0.9rem;">${ts}</div>`;
-      html += `<span style="padding:2px 8px;border-radius:10px;background:rgba(59,130,246,0.2);font-size:0.7rem;font-weight:600;text-transform:uppercase;">${type}</span>`;
-      html += `</div>`;
-      
-      if(type === 'ec_dose'){
-        html += `<div style="font-size:0.85rem;color:#cbd5e1;">`;
-        html += `<strong>${item.pump?.toUpperCase()}</strong> • ${item.seconds}s • `;
-        html += `${item.from_ec?.toFixed(2)} → ${item.to_ec_est?.toFixed(2)} mS/cm`;
-        html += `</div>`;
-        html += `<div style="font-size:0.75rem;color:#94a3b8;margin-top:4px;">Reason: ${reason}</div>`;
-      }
-      
-      html += `</div>`;
-    });
-    html += '</div>';
-    
-    planCard.innerHTML = html;
-  }
-
-  async function renderStatus(){
-    const statusCard = el('schedule-status-badges');
-    if(!statusCard) return;
-
-    try{
-      const settings = window.rdwcSettings?.getAll() || {};
-      const minInterval = parseInt(settings['ec.min_interval_sec'] || '300');
-      const waterOnly = (settings['safety.water_only'] || 'true').toLowerCase() === 'true';
-      const ecMode = settings['ec.mode'] || 'off';
-
-      let html = '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">';
-      
-      if(waterOnly){
-        html += `<span style="padding:6px 12px;border-radius:10px;background:rgba(251,191,36,0.2);border:1px solid rgba(251,191,36,0.4);font-size:0.8rem;font-weight:600;">💧 Water-Only Mode</span>`;
-      }
-      
-      html += `<span style="padding:6px 12px;border-radius:10px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.3);font-size:0.8rem;font-weight:600;">Automation: ${ecMode.toUpperCase()}</span>`;
-      html += `<span style="padding:6px 12px;border-radius:10px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.3);font-size:0.8rem;font-weight:600;">EC Interval: ${minInterval}s</span>`;
-      
-      html += '</div>';
-
-      statusCard.innerHTML = html;
-    }catch(e){
-      statusCard.innerHTML = '<div class="muted">Status unavailable</div>';
-    }
   }
 
   function showToast(msg, type){
@@ -528,27 +332,25 @@
     if(data){
       updateKpis();
       await renderTimeline();
-      await renderPlan();
-      await renderStatus();
     } else {
       // Still wire seed defaults button if present
       const seedBtn = el('scheduleSeedBtn');
       if(seedBtn && !seedBtn._wired){
         seedBtn._wired = true;
         seedBtn.addEventListener('click', async ()=>{
-          seedBtn.disabled = true; await seedSchedule(); seedBtn.disabled=false; await fetchSchedule(); renderTimeline(); renderPlan(); renderStatus(); });
+          seedBtn.disabled = true; await seedSchedule(); seedBtn.disabled=false; await fetchSchedule(); renderTimeline(); });
       }
     }
   }
 
-  // Poll plan every 60s while tab visible
+  // Poll timeline every 60s while tab visible
   function startPoll(){
     if(pollTimer) return;
     pollTimer = setInterval(async ()=>{
       const tab = el('tab-schedule');
       if(tab && tab.style.display !== 'none'){
-        await renderPlan();
-        await renderStatus();
+        await fetchSchedule();
+        await renderTimeline();
       }
     }, 60000);
   }
@@ -557,7 +359,7 @@
   // Backwards-compatible global hooks used by tabs.js
   window.scheduleModule = {
     init,
-    refresh: async ()=>{ await fetchSchedule(); await renderTimeline(); await renderPlan(); await renderStatus(); }
+    refresh: async ()=>{ await fetchSchedule(); await renderTimeline(); }
   };
   window.scheduleInit = window.scheduleModule.init;
   window.scheduleRefresh = window.scheduleModule.refresh;
