@@ -214,6 +214,15 @@ def _startup_leds_apply():
         pass
 
 @app.on_event("startup")
+def _startup_system_metrics():
+    """Initialize system metrics table on startup"""
+    try:
+        from app.system_metrics import init_system_metrics_table
+        init_system_metrics_table()
+    except Exception as e:
+        logger.debug(f"System metrics table init skipped or failed: {e}")
+
+@app.on_event("startup")
 def _startup_migrate_auto_control():
     """Migrate old mode systems to new clean auto_control system (one-time)"""
     try:
@@ -358,7 +367,7 @@ app.include_router(ec_router)
 app.include_router(schedule_router)
 app.include_router(progress_router)
 
-# --- System metrics (current snapshot only; history intentionally disabled) ---
+# --- System metrics (current snapshot + history) ---
 @app.get('/api/system/metrics/current')
 def api_system_metrics_current():
     try:
@@ -370,9 +379,47 @@ def api_system_metrics_current():
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 @app.get('/api/system/metrics/history')
-def api_system_metrics_history_disabled():
-    # Placeholder to keep frontend simple; history will be enabled in a later phase
-    return {"ok": False, "enabled": False, "reason": "history-not-enabled"}
+def api_system_metrics_history(
+    start_hours: int = Query(24, ge=1, le=168),
+    metrics: str = Query("cpu_percent,memory_percent,disk_percent,core_voltage_v,load_1m,load_5m,load_15m,net_rx_bytes,net_tx_bytes")
+):
+    """Query system metrics history.
+    
+    Args:
+        start_hours: How many hours back (1-168, default 24)
+        metrics: Comma-separated metric names
+    
+    Returns:
+        List of samples with requested metrics.
+    """
+    try:
+        from app.system_metrics import get_metrics_history  # lazy import
+        import time
+        
+        end_ts = int(time.time())
+        start_ts = end_ts - (start_hours * 3600)
+        
+        # Validate and filter metric names
+        allowed = {
+            "ts", "cpu_percent", "memory_percent", "disk_percent", "core_voltage_v",
+            "load_1m", "load_5m", "load_15m", "net_rx_bytes", "net_tx_bytes"
+        }
+        requested = {m.strip() for m in metrics.split(",")}
+        valid_metrics = [m for m in requested if m in allowed]
+        
+        data = get_metrics_history(start_ts, end_ts, valid_metrics)
+        return {
+            "ok": True,
+            "count": len(data),
+            "start_ts": start_ts,
+            "end_ts": end_ts,
+            "hours": start_hours,
+            "metrics": valid_metrics,
+            "data": data
+        }
+    except Exception as e:
+        logger.exception("system metrics history failure")
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 # --- Server-Sent Events (SSE) sensor stream ---
 # Provides a lightweight continuous feed of consolidated sensor payloads.

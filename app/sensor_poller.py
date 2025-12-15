@@ -263,6 +263,13 @@ def poll_once() -> Dict[str, Any]:
     # Log to database (NULLs allowed for offline sensors)
     _log_reading(readings["temp_c"], readings["ph"], readings["ec_ms_cm"])
     
+    # Sample system metrics (60s cadence guard built-in)
+    try:
+        from app.system_metrics import sample_and_store
+        sample_and_store()
+    except Exception as e:
+        logger.debug(f"System metrics sample_and_store skipped or failed: {e}")
+    
     # Update timestamps
     _last_sample_ts = now
     _last_heartbeat_ts = now

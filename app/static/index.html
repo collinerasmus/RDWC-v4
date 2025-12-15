@@ -689,8 +689,10 @@ body{
 <script src="/static/js/overview_dashboard.js"></script>
   <!-- Chart Controls: unified zoom + slider interface for all charts -->
   <script src="/static/js/chart_controls.js"></script>
-  <!-- Safe System Metrics Panel (does not affect existing charts) -->
-  <script src="/static/js/system_metrics_panel.js"></script>
+  <!-- System Metrics Chart: unified single chart with metric selector -->
+  <script src="/static/js/system_metrics_chart.js"></script>
+  <!-- System Metrics Panel (legacy, deprecated) - now replaced by system_metrics_chart.js -->
+
 </head>
 <body>
 <main id="rdwc-root" class="container">
@@ -1778,8 +1780,8 @@ body{
       <!-- Unified controls (zoom + slider) -->
       <div id="trends-controls"></div>
 
-      <!-- Safe, isolated system metrics panel (current snapshot only) -->
-      <div id="system-metrics-panel" style="margin-top:12px;"></div>
+      <!-- System metrics - single chart with metric selector -->
+      <div id="system-metrics-container" style="margin-top:20px;"></div>
     </div>
   </section>
 

@@ -1,13 +1,19 @@
 import os
 import time
+import sqlite3
 import subprocess
-from typing import Dict, Any
+from typing import Dict, Any, List
+from datetime import datetime, timedelta
 
 try:
     import psutil  # type: ignore
 except Exception:  # pragma: no cover
     psutil = None  # fallback handled at call site
 
+DB_PATH = os.environ.get("RDWC_DB", os.path.join(os.path.dirname(__file__), "..", "data", "rdwc.db"))
+DB_PATH = os.path.abspath(DB_PATH)
+
+_last_sample_ts = 0.0  # Guard 60s cadence
 
 def _read_core_voltage() -> float | None:
     """Read Raspberry Pi core voltage via vcgencmd if available.
@@ -76,3 +82,115 @@ def collect_current_metrics() -> Dict[str, Any]:
         data["core_voltage_v"] = v
 
     return data
+
+
+def init_system_metrics_table():
+    """Create system_metrics table if it doesn't exist."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS system_metrics (
+                ts INTEGER PRIMARY KEY,
+                cpu_percent REAL,
+                memory_percent REAL,
+                disk_percent REAL,
+                core_voltage_v REAL,
+                load_1m REAL,
+                load_5m REAL,
+                load_15m REAL,
+                net_rx_bytes INTEGER,
+                net_tx_bytes INTEGER
+            )
+        """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[system_metrics] init_system_metrics_table error: {e}")
+
+
+def store_metrics(data: Dict[str, Any]):
+    """Insert metrics snapshot into database."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("""
+            INSERT INTO system_metrics
+            (ts, cpu_percent, memory_percent, disk_percent, core_voltage_v,
+             load_1m, load_5m, load_15m, net_rx_bytes, net_tx_bytes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            data.get("ts"),
+            data.get("cpu_percent"),
+            data.get("memory_percent"),
+            data.get("disk_percent"),
+            data.get("core_voltage_v"),
+            data.get("load_1m"),
+            data.get("load_5m"),
+            data.get("load_15m"),
+            data.get("net_rx_bytes"),
+            data.get("net_tx_bytes"),
+        ))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[system_metrics] store_metrics error: {e}")
+
+
+def sample_and_store() -> bool:
+    """Collect and store metrics if 60s have passed since last sample.
+    Returns True if stored, False if skipped (cadence guard).
+    """
+    global _last_sample_ts
+    now = time.time()
+    if now - _last_sample_ts < 60:
+        return False
+    _last_sample_ts = now
+    data = collect_current_metrics()
+    store_metrics(data)
+    return True
+
+
+def purge_old_metrics(days: int = 7):
+    """Delete metrics older than N days."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cutoff_ts = int(time.time()) - (days * 86400)
+        conn.execute("DELETE FROM system_metrics WHERE ts < ?", (cutoff_ts,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[system_metrics] purge_old_metrics error: {e}")
+
+
+def get_metrics_history(start_ts: int, end_ts: int, metrics: List[str] | None = None) -> List[Dict[str, Any]]:
+    """Query metrics within time range.
+    
+    Args:
+        start_ts: Unix timestamp (seconds)
+        end_ts: Unix timestamp (seconds)
+        metrics: List of metric names to include; if None, all are included.
+    
+    Returns:
+        List of dicts with selected metrics + ts.
+    """
+    if metrics is None:
+        metrics = [
+            "ts", "cpu_percent", "memory_percent", "disk_percent", "core_voltage_v",
+            "load_1m", "load_5m", "load_15m", "net_rx_bytes", "net_tx_bytes"
+        ]
+    
+    # Always include ts
+    if "ts" not in metrics:
+        metrics = ["ts"] + metrics
+    
+    cols = ", ".join(metrics)
+    
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(f"SELECT {cols} FROM system_metrics WHERE ts BETWEEN ? AND ? ORDER BY ts ASC",
+                           (start_ts, end_ts)).fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+    except Exception as e:
+        print(f"[system_metrics] get_metrics_history error: {e}")
+        return []
