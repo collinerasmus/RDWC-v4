@@ -176,8 +176,8 @@
     }
 
     // ===== CIRCULATION CHART =====
-    // circulation_v2.js initializes window.circChart (RDWCChart instance)
-    // Note: Circulation chart may initialize after chart_adapter, so we retry aggressively
+    // circulation_v2.js initializes window.circChart (direct Chart.js, like lights)
+    // Exposes: window.setCircChartHours(hours) and window.setCircChartRange(start, end)
     function initCirculationControls(attempts = 0) {
       const container = document.getElementById('circ-chart-controls');
       if (!container) {
@@ -185,30 +185,28 @@
         return;
       }
       
-      if (window.circChart && typeof window.circChart.setTimeRange === 'function') {
+      if (typeof window.setCircChartRange === 'function') {
         try {
           const circControls = new window.ChartControls({
             containerId: 'circ-chart-controls',
             onRangeChange: async (start, end, isLive) => {
               console.log('[Chart Adapter] Circulation range changed:', start, end);
               try {
-                window.circChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
-                window.circChart.isLiveMode = !!isLive;
-                window.circChart.selectedRange = isLive ? 'live' : 'custom';
-                await window.circChart.refresh(true);
+                window.setCircChartRange(start, end);
               } catch (e) {
                 console.error('[Chart Adapter] Circulation chart update failed:', e);
               }
             },
             getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
           });
+          console.log('[Chart Adapter] Circulation controls initialized');
         } catch (e) {
           console.error('[Chart Adapter] Failed to create ChartControls for circulation:', e.message);
         }
       } else if (attempts < 50) {
         setTimeout(() => initCirculationControls(attempts + 1), 200);
       } else {
-        console.error('[Chart Adapter] Circulation chart not ready after retries');
+        console.error('[Chart Adapter] Circulation chart functions not ready after retries');
       }
     }
     initCirculationControls();

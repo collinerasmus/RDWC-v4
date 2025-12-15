@@ -253,187 +253,237 @@
 })();
 
 /**
- * Circulation Timeline Chart - Uses unified RDWCChart
- * Initializes after chart_base.js is loaded
+ * Circulation Timeline Chart - Direct Chart.js implementation (matches lights_v2 pattern)
  */
 (function() {
   'use strict';
 
+  let circChart = null;
+  let currentChartHours = 6;
+  let customTimeRange = null;
+
   function initCirculationChart() {
     console.log('[CirculationChart] Initializing');
 
-    if (typeof RDWCChart === 'undefined') {
-      console.warn('[CirculationChart] RDWCChart not loaded, retrying...');
+    const canvas = document.getElementById('circTimelineChart');
+    if (!canvas || !window.Chart) {
+      console.warn('[CirculationChart] Canvas or Chart.js not ready, retrying...');
       setTimeout(initCirculationChart, 500);
       return;
     }
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initChart);
-    } else {
-      initChart();
-    }
-
-    function initChart() {
-      window.circChart = new RDWCChart({
-        canvasId: 'circTimelineChart',
-        emptyMessageId: 'circ-chart-empty',
-        type: 'circulation',
-        title: 'Pump Activity Timeline',
-        
-        onDataFetch: async (start, end) => {
-          // Fetch events for both pumps
-          const [mainResp, chillerResp] = await Promise.all([
-            fetch(`/api/relays/events?name=main_pump&last=200`, {cache: 'no-store'}),
-            fetch(`/api/relays/events?name=chiller_pump&last=200`, {cache: 'no-store'})
-          ]);
-          
-          const startMs = new Date(start).getTime();
-          const endMs = new Date(end).getTime();
-
-          const normalizeEvents = (events) => ([...events]
-            .map(e => ({ ...e, tsMs: new Date(e.ts).getTime() }))
-            .sort((a, b) => a.tsMs - b.tsMs));
-
-          const mainEvents = mainResp.ok ? normalizeEvents(await mainResp.json()) : [];
-          const chillerEvents = chillerResp.ok ? normalizeEvents(await chillerResp.json()) : [];
-
-          const stateAtWindowStart = (events, currentState) => {
-            for (let i = events.length - 1; i >= 0; i -= 1) {
-              if (events[i].tsMs <= startMs) return events[i].final ? 1 : 0;
+    const ctx = canvas.getContext('2d');
+    circChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        datasets: [
+          {
+            label: 'Main Pump',
+            data: [],
+            backgroundColor: '#3b82f6',
+            barThickness: 35,
+            borderRadius: 4,
+            borderSkipped: false
+          },
+          {
+            label: 'Chiller Pump',
+            data: [],
+            backgroundColor: '#06b6d4',
+            barThickness: 35,
+            borderRadius: 4,
+            borderSkipped: false
+          }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'nearest', intersect: false },
+        plugins: {
+          legend: { 
+            display: true,
+            position: 'top',
+            labels: {
+              color: '#9ca3af',
+              font: { size: 12 },
+              padding: 15,
+              usePointStyle: true,
+              pointStyle: 'rect'
             }
-            return currentState;
-          };
-
-          const filterEvents = (events) => events.filter(e => e.tsMs >= startMs && e.tsMs <= endMs);
-
-          const mainFiltered = filterEvents(mainEvents);
-          const chillerFiltered = filterEvents(chillerEvents);
-          
-          // Get current states
-          const statusResp = await fetch('/api/relays/status', {cache: 'no-store'});
-          const statusData = statusResp.ok ? await statusResp.json() : {};
-          const currentMainState = statusData.relays?.main_pump?.is_on ? 1 : 0;
-          const currentChillerState = statusData.relays?.chiller_pump?.is_on ? 1 : 0;
-          
-          return {
-            mainEvents: mainFiltered,
-            chillerEvents: chillerFiltered,
-            mainStartState: stateAtWindowStart(mainEvents, currentMainState),
-            chillerStartState: stateAtWindowStart(chillerEvents, currentChillerState),
-            currentMainState,
-            currentChillerState,
-            startMs,
-            endMs
-          };
+          },
+          tooltip: {
+            callbacks: {
+              title: () => '',
+              label: (ctx) => {
+                const bar = ctx.raw;
+                return `${ctx.dataset.label} ON for ${bar.duration}`;
+              }
+            }
+          }
         },
-        
-        onRender: (chart, data, timeWindow) => {
-          // Build stepped timeline with event markers
-          const buildTimeline = (events, currentState, startState, startTime, endTime, yOffset = 0) => {
-            const timeline = [];
-            const initialState = startState != null ? startState : currentState;
-            
-            // Start point at window start
-            timeline.push({ x: new Date(startTime), y: initialState + yOffset });
-
-            // Add every single event as a point
-            events.forEach(evt => {
-              const eventState = evt.final ? 1 : 0;
-              timeline.push({ 
-                x: new Date(evt.tsMs), 
-                y: eventState + yOffset,
-                reason: evt.reason
-              });
-            });
-
-            // End point at window end
-            const lastState = events.length > 0 ? (events[events.length - 1].final ? 1 : 0) : initialState;
-            timeline.push({ x: new Date(endTime), y: lastState + yOffset });
-
-            return { timeline };
-          };
-          
-          const mainData = buildTimeline(
-            data.mainEvents,
-            data.currentMainState,
-            data.mainStartState,
-            data.startMs,
-            data.endMs,
-            0
-          );
-          
-          const chillerData = buildTimeline(
-            data.chillerEvents,
-            data.currentChillerState,
-            data.chillerStartState,
-            data.startMs,
-            data.endMs,
-            2
-          );
-
-          chart.options.scales.y = {
-            type: 'linear',
-            min: -0.5,
-            max: 3.5,
-            ticks: {
-              stepSize: 1,
-              callback: (value) => {
-                if (value === 0) return 'Main OFF';
-                if (value === 1) return 'Main ON';
-                if (value === 2) return 'Chiller OFF';
-                if (value === 3) return 'Chiller ON';
-                return '';
-              },
-              font: { size: 11 },
-              color: '#94a3b8'
+        scales: {
+          x: {
+            type: 'time',
+            time: {
+              displayFormats: { hour: 'HH:mm', minute: 'HH:mm' }
             },
-            grid: { 
-              color: 'rgba(148,163,184,0.15)',
-              lineWidth: (context) => (context.tick.value % 1 === 0 ? 1 : 0)
-            }
-          };
-          
-          return [
-            {
-              label: 'Main Pump',
-              data: mainData.timeline,
-              borderColor: '#3b82f6',
-              backgroundColor: 'rgba(59,130,246,0.15)',
-              borderWidth: 3,
-              stepped: 'before',
-              pointRadius: 5,
-              pointHoverRadius: 7,
-              pointBorderColor: '#3b82f6',
-              pointBackgroundColor: '#3b82f6',
-              pointBorderWidth: 2,
-              fill: 'origin',
-              tension: 0,
-              order: 1
-            },
-            {
-              label: 'Chiller Pump',
-              data: chillerData.timeline,
-              borderColor: '#06b6d4',
-              backgroundColor: 'rgba(6,182,212,0.15)',
-              borderWidth: 3,
-              stepped: 'before',
-              pointRadius: 5,
-              pointHoverRadius: 7,
-              pointBorderColor: '#06b6d4',
-              pointBackgroundColor: '#06b6d4',
-              pointBorderWidth: 2,
-              fill: 'origin',
-              tension: 0,
-              order: 2
-            }
-          ];
+            grid: { color: 'rgba(148,163,184,0.1)' },
+            ticks: { color: '#9ca3af' }
+          },
+          y: {
+            stacked: false,
+            grid: { display: false },
+            ticks: { display: false }
+          }
         }
-      });
-      
-      console.log('[CirculationChart] Initialized');
+      }
+    });
+
+    // Expose chart to window for ChartControls integration
+    window.circChart = circChart;
+    refreshCirculationChart();
+  }
+
+  function formatDurationShort(seconds) {
+    if (!seconds || seconds < 0) return '—';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m`;
+    return `${Math.floor(seconds)}s`;
+  }
+
+  async function refreshCirculationChart() {
+    if (!circChart) return;
+
+    try {
+      const now = Date.now();
+      let startMs, endMs;
+
+      if (customTimeRange) {
+        startMs = customTimeRange.start;
+        endMs = customTimeRange.end;
+      } else {
+        endMs = now;
+        startMs = now - (currentChartHours * 3600 * 1000);
+      }
+
+      // Fetch events for both pumps
+      const [mainResp, chillerResp, statusResp] = await Promise.all([
+        fetch('/api/relays/events?name=main_pump&last=200', {cache: 'no-store'}),
+        fetch('/api/relays/events?name=chiller_pump&last=200', {cache: 'no-store'}),
+        fetch('/api/relays/status', {cache: 'no-store'})
+      ]);
+
+      const mainEvents = mainResp.ok ? await mainResp.json() : [];
+      const chillerEvents = chillerResp.ok ? await chillerResp.json() : [];
+      const statusData = statusResp.ok ? await statusResp.json() : {};
+
+      const currentMainOn = statusData.relays?.main_pump?.is_on || false;
+      const currentChillerOn = statusData.relays?.chiller_pump?.is_on || false;
+
+      // Convert events to bars (ON periods only)
+      const convertToBars = (events, currentlyOn, yLabel) => {
+        const bars = [];
+
+        // Sort events chronologically
+        const sorted = [...events]
+          .map(e => ({ ...e, tsMs: new Date(e.ts).getTime() }))
+          .sort((a, b) => a.tsMs - b.tsMs);
+
+        // Filter to events in window
+        const inWindow = sorted.filter(e => e.tsMs >= startMs && e.tsMs <= endMs);
+
+        // Build bars from consecutive ON/OFF pairs
+        for (let i = 0; i < inWindow.length - 1; i++) {
+          if (inWindow[i].final === true) {
+            const onStart = inWindow[i].tsMs;
+            const onEnd = inWindow[i + 1].tsMs;
+            const duration = (onEnd - onStart) / 1000;
+            
+            bars.push({
+              x: [onStart, onEnd],
+              y: yLabel,
+              duration: formatDurationShort(duration)
+            });
+          }
+        }
+
+        // Handle ongoing ON period at window end
+        if (inWindow.length > 0 && inWindow[inWindow.length - 1].final === true) {
+          const onStart = inWindow[inWindow.length - 1].tsMs;
+          const duration = (endMs - onStart) / 1000;
+          
+          bars.push({
+            x: [onStart, endMs],
+            y: yLabel,
+            duration: formatDurationShort(duration)
+          });
+        }
+
+        // Handle case where pump was already ON at window start
+        if (inWindow.length > 0 && inWindow[0].final === false) {
+          // Pump was ON before window, find the OFF event
+          const onEnd = inWindow[0].tsMs;
+          const duration = (onEnd - startMs) / 1000;
+          
+          bars.unshift({
+            x: [startMs, onEnd],
+            y: yLabel,
+            duration: formatDurationShort(duration)
+          });
+        } else if (inWindow.length === 0 && currentlyOn) {
+          // No events in window but pump is currently ON
+          const duration = (endMs - startMs) / 1000;
+          bars.push({
+            x: [startMs, endMs],
+            y: yLabel,
+            duration: formatDurationShort(duration)
+          });
+        }
+
+        return bars;
+      };
+
+      const mainBars = convertToBars(mainEvents, currentMainOn, 'Main');
+      const chillerBars = convertToBars(chillerEvents, currentChillerOn, 'Chiller');
+
+      circChart.data.datasets[0].data = mainBars;
+      circChart.data.datasets[1].data = chillerBars;
+
+      circChart.options.scales.x.min = startMs;
+      circChart.options.scales.x.max = endMs;
+      circChart.update('none');
+
+      // Hide/show empty message
+      const emptyMsg = document.getElementById('circ-chart-empty');
+      if (emptyMsg) {
+        emptyMsg.style.display = (mainBars.length === 0 && chillerBars.length === 0) ? 'block' : 'none';
+      }
+
+    } catch (e) {
+      console.error('[CirculationChart] Refresh failed:', e);
     }
   }
+
+  // Expose functions for ChartControls integration
+  window.circChart = null;
+  window.setCircChartHours = (hours) => {
+    currentChartHours = hours;
+    customTimeRange = null;
+    refreshCirculationChart();
+  };
+  window.setCircChartRange = (startMs, endMs) => {
+    customTimeRange = { start: startMs, end: endMs };
+    refreshCirculationChart();
+  };
+
+  // Add refresh method for backward compatibility
+  Object.defineProperty(window, 'circChart', {
+    get: () => ({ refresh: refreshCirculationChart, chart: circChart }),
+    set: (val) => { circChart = val; }
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initCirculationChart);
