@@ -1,12 +1,11 @@
 /**
  * Lights Control UI - Grow Light Automation
- * Features: ON/OFF chart, totalizer (current/daily), schedule management
+ * Features: status updates, totalizer (current/daily), schedule management
+ * Chart is handled by lights_chart.js
  */
 (() => {
   'use strict';
 
-  let lightsChart = null;
-  let currentChartHours = 24;
   let currentOnStart = null;
   let todayTotalSeconds = 0;
   let totalizerInterval = null;
@@ -306,166 +305,6 @@
     }
   }
 
-  async function refreshLightsChart() {
-    if (!lightsChart) return;
-
-    try {
-      let startMs, endMs;
-      if (customTimeRange) {
-        startMs = customTimeRange.start;
-        endMs = customTimeRange.end;
-      } else {
-        const now = Date.now();
-        startMs = now - currentChartHours * 3600000;
-        endMs = now;
-      }
-      
-      const start = Math.floor(startMs / 1000);
-      const end = Math.floor(endMs / 1000);
-
-      const events = await getJSON(`/api/relays/events?name=lights&start=${start}&end=${end}`);
-      
-      if (!events || events.length === 0) {
-        lightsChart.data.datasets[0].data = [];
-        lightsChart.update('none');
-        const totalEl = $('lights-chart-total');
-        if (totalEl) totalEl.textContent = 'Total: 0h 0m';
-        return;
-      }
-
-      const normalizedEvents = events.map(e => ({
-        ts: typeof e.ts === 'string' ? new Date(e.ts).getTime() / 1000 : e.ts,
-        final: e.final
-      })).sort((a, b) => a.ts - b.ts);
-
-      // Build bar data for each ON period
-      const bars = [];
-      let windowTotal = 0;
-      
-      for (let i = 0; i < normalizedEvents.length - 1; i++) {
-        if (normalizedEvents[i].final === true) {
-          const onStart = normalizedEvents[i].ts * 1000;
-          const onEnd = normalizedEvents[i + 1].ts * 1000;
-          const duration = (onEnd - onStart) / 1000;
-          windowTotal += duration;
-          
-          const durationHrs = Math.floor(duration / 3600);
-          const durationMins = Math.floor((duration % 3600) / 60);
-          const label = durationHrs > 0 ? `${durationHrs}h ${durationMins}m` : `${durationMins}m`;
-          
-          bars.push({
-            x: [onStart, onEnd],
-            y: 'ON',
-            duration: label
-          });
-        }
-      }
-      
-      // Handle ongoing ON period
-      if (normalizedEvents[normalizedEvents.length - 1].final === true) {
-        const onStart = normalizedEvents[normalizedEvents.length - 1].ts * 1000;
-        const duration = (endMs - onStart) / 1000;
-        windowTotal += duration;
-        
-        const durationHrs = Math.floor(duration / 3600);
-        const durationMins = Math.floor((duration % 3600) / 60);
-        const label = durationHrs > 0 ? `${durationHrs}h ${durationMins}m` : `${durationMins}m`;
-        
-        bars.push({
-          x: [onStart, endMs],
-          y: 'ON',
-          duration: label
-        });
-      }
-
-      // Update chart total display
-      const totalEl = $('lights-chart-total');
-      if (totalEl) {
-        const hours = Math.floor(windowTotal / 3600);
-        const mins = Math.floor((windowTotal % 3600) / 60);
-        totalEl.textContent = `Total: ${hours}h ${mins}m`;
-      }
-
-      lightsChart.data.datasets[0].data = bars;
-      lightsChart.options.scales.x.min = startMs;
-      lightsChart.options.scales.x.max = endMs;
-      lightsChart.update('none');
-
-    } catch (e) {
-      console.error('[Lights] Chart refresh failed:', e);
-    }
-  }
-
-  function initLightsChart() {
-    const canvas = $('lightsChart');
-    if (!canvas || !window.Chart) return;
-
-    const ctx = canvas.getContext('2d');
-    lightsChart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        datasets: [{
-          label: 'Lights ON',
-          data: [],
-          backgroundColor: '#22c55e',
-          barThickness: 40,
-          borderRadius: 4,
-          borderSkipped: false
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'nearest', intersect: false },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: () => '',
-              label: (ctx) => {
-                const bar = ctx.raw;
-                return `ON for ${bar.duration}`;
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            type: 'time',
-            time: {
-              displayFormats: { hour: 'HH:mm', minute: 'HH:mm' }
-            },
-            grid: { color: 'rgba(148,163,184,0.1)' },
-            ticks: { color: '#9ca3af' }
-          },
-          y: {
-            display: false,
-            grid: { display: false }
-          }
-        }
-      }
-    });
-
-    // Expose chart to window for ChartControls integration
-    window.lightsChart = lightsChart;
-    refreshLightsChart();
-  }
-
-  // Expose chart instance and updater for ChartControls integration
-  let customTimeRange = null; // Store custom time range for panning
-  
-  window.lightsChart = null;
-  window.setLightsChartHours = (hours) => {
-    currentChartHours = hours;
-    customTimeRange = null; // Reset custom range when zoom changes
-    refreshLightsChart();
-  };
-  window.setLightsChartRange = (startMs, endMs) => {
-    customTimeRange = { start: startMs, end: endMs };
-    refreshLightsChart();
-  };
-
   async function refreshLightsStatus() {
     try {
       const [relays, events, settings] = await Promise.all([
@@ -565,15 +404,11 @@
     await loadSettings();
     await refreshLightsStatus();
     
-    initLightsChart();
-    // Note: Chart controls now managed by chart_adapter.js (unified ChartControls)
+    // Note: Chart now managed by lights_chart.js
     startTotalizerUpdates();
 
-    // Periodic refresh
-    setInterval(() => {
-      refreshLightsStatus();
-      refreshLightsChart();
-    }, 10000);
+    // Periodic refresh (status only - chart auto-refreshes)
+    setInterval(refreshLightsStatus, 10000);
   }
 
   if (document.readyState === 'loading') {
