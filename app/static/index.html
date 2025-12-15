@@ -687,6 +687,8 @@ body{
 <script src="/static/system_info.js"></script>
 <!-- Overview Dashboard Controller: unified KPI display for System tab -->
 <script src="/static/js/overview_dashboard.js"></script>
+<!-- Trends System Metrics Controller: multi-metric charting with time-series -->
+<script src="/static/trends_system.js"></script>
 <!-- Chart Controls: unified zoom + slider interface for all charts -->
 <script src="/static/js/chart_controls.js"></script>
 </head>
@@ -1764,17 +1766,11 @@ body{
   <!-- Trends Tab - Historical sensor data with zoom + slider controls -->
   <section id="trends-card" class="card card-wide tab-section" data-tab="trends" style="display:none;">
     <div class="card-header">
-      <h3 class="card-title">📈 Sensor Trends</h3>
+      <h3 class="card-title">📈 System Metrics Trends</h3>
     </div>
     <div class="card-body">
-      <!-- Chart -->
-      <div id="trends-chart-wrap" class="chart-card">
-        <canvas id="trendsChart"></canvas>
-        <div id="trendsEmpty" class="muted small" style="display:none;padding:8px 0;">No data for selected period.</div>
-      </div>
-      
-      <!-- Unified controls (zoom + slider) -->
-      <div id="trends-controls"></div>
+      <!-- System metrics trends container -->
+      <div id="trends-container"></div>
     </div>
   </section>
 
