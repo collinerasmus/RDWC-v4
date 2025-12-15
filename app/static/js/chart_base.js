@@ -44,6 +44,7 @@
       this.chart = null;
       this.timeWindow = { start: null, end: null };
       this.selectedRange = '24h';
+      this.isLiveMode = false;
       this.autoRefreshInterval = null;
       this.lastRefreshTime = 0;
       this.MIN_REFRESH_INTERVAL = 5000; // 5 seconds minimum between refreshes
@@ -283,8 +284,8 @@
       // Refresh every 60 seconds
       this.autoRefreshInterval = setInterval(() => {
         if (!document.hidden) {
-          // Update end time to now for rolling window
-          if (this.selectedRange !== 'custom') {
+          // Slide window when on non-custom ranges or when explicitly in live mode
+          if (this.selectedRange !== 'custom' || this.isLiveMode) {
             const now = Date.now();
             const span = this.timeWindow.end - this.timeWindow.start;
             this.timeWindow.start = now - span;

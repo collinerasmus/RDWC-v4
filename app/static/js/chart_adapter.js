@@ -34,11 +34,12 @@
       if (window.sensorsChart && typeof window.sensorsChart.setTimeRange === 'function') {
         const sensorsControls = new ChartControls({
           containerId: 'sensors-chart-controls',
-          onRangeChange: async (start, end) => {
+          onRangeChange: async (start, end, isLive) => {
             console.log('[Chart Adapter] Sensors range changed:', start, end);
             try {
               window.sensorsChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
-              window.sensorsChart.selectedRange = 'custom';
+              window.sensorsChart.isLiveMode = !!isLive;
+              window.sensorsChart.selectedRange = isLive ? 'live' : 'custom';
               await window.sensorsChart.refresh(true);
             } catch (e) {
               console.error('[Chart Adapter] Sensors chart update failed:', e);
@@ -58,11 +59,12 @@
       if (window.trendsChart && typeof window.trendsChart.setTimeRange === 'function') {
         const trendsControls = new ChartControls({
           containerId: 'trends-controls',
-          onRangeChange: async (start, end) => {
+          onRangeChange: async (start, end, isLive) => {
             console.log('[Chart Adapter] Trends range changed:', start, end);
             try {
               window.trendsChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
-              window.trendsChart.selectedRange = 'custom';
+              window.trendsChart.isLiveMode = !!isLive;
+              window.trendsChart.selectedRange = isLive ? 'live' : 'custom';
               await window.trendsChart.refresh(true);
             } catch (e) {
               console.error('[Chart Adapter] Trends chart update failed:', e);
@@ -82,11 +84,12 @@
       if (window.phChart && typeof window.phChart.setTimeRange === 'function') {
         const phControls = new ChartControls({
           containerId: 'ph-chart-controls',
-          onRangeChange: async (start, end) => {
+          onRangeChange: async (start, end, isLive) => {
             console.log('[Chart Adapter] pH range changed:', start, end);
             try {
               window.phChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
-              window.phChart.selectedRange = 'custom';
+              window.phChart.isLiveMode = !!isLive;
+              window.phChart.selectedRange = isLive ? 'live' : 'custom';
               await window.phChart.refresh(true);
             } catch (e) {
               console.error('[Chart Adapter] pH chart update failed:', e);
@@ -106,11 +109,12 @@
       if (window.ecChart && typeof window.ecChart.setTimeRange === 'function') {
         const ecControls = new ChartControls({
           containerId: 'ec-chart-controls',
-          onRangeChange: async (start, end) => {
+          onRangeChange: async (start, end, isLive) => {
             console.log('[Chart Adapter] EC range changed:', start, end);
             try {
               window.ecChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
-              window.ecChart.selectedRange = 'custom';
+              window.ecChart.isLiveMode = !!isLive;
+              window.ecChart.selectedRange = isLive ? 'live' : 'custom';
               await window.ecChart.refresh(true);
             } catch (e) {
               console.error('[Chart Adapter] EC chart update failed:', e);
@@ -130,11 +134,12 @@
       if (window.temperatureChart && typeof window.temperatureChart.setTimeRange === 'function') {
         const tempControls = new ChartControls({
           containerId: 'temperature-chart-controls',
-          onRangeChange: async (start, end) => {
+          onRangeChange: async (start, end, isLive) => {
             console.log('[Chart Adapter] Temperature range changed:', start, end);
             try {
               window.temperatureChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
-              window.temperatureChart.selectedRange = 'custom';
+              window.temperatureChart.isLiveMode = !!isLive;
+              window.temperatureChart.selectedRange = isLive ? 'live' : 'custom';
               await window.temperatureChart.refresh(true);
             } catch (e) {
               console.error('[Chart Adapter] Temperature chart update failed:', e);
@@ -184,11 +189,12 @@
         try {
           const circControls = new window.ChartControls({
             containerId: 'circ-chart-controls',
-            onRangeChange: async (start, end) => {
+            onRangeChange: async (start, end, isLive) => {
               console.log('[Chart Adapter] Circulation range changed:', start, end);
               try {
                 window.circChart.timeWindow = { start: new Date(start).getTime(), end: new Date(end).getTime() };
-                window.circChart.selectedRange = 'custom';
+                window.circChart.isLiveMode = !!isLive;
+                window.circChart.selectedRange = isLive ? 'live' : 'custom';
                 await window.circChart.refresh(true);
               } catch (e) {
                 console.error('[Chart Adapter] Circulation chart update failed:', e);
