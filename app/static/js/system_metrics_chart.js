@@ -117,40 +117,109 @@
     chartDiv.innerHTML = '<canvas id="sys-metrics-canvas"></canvas>';
     container.appendChild(chartDiv);
 
-    // Controls under the chart
+    // Controls under the chart - toolbar style
     const controls = document.createElement('div');
     controls.style.cssText = 'display:flex;flex-direction:column;gap:12px;margin-bottom:16px;';
 
-    const topRow = document.createElement('div');
-    topRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;';
+    // Top toolbar row - Zoom, Time Display, Pan, Export
+    const toolbar = document.createElement('div');
+    toolbar.style.cssText = 'display:flex;gap:12px;align-items:center;background:#1a1a1a;padding:8px 12px;border-radius:8px;';
 
-    // Time range buttons
-    const timeButtons = document.createElement('div');
-    timeButtons.style.cssText = 'display:flex;gap:6px;';
-    TIME_RANGES.forEach(range => {
-      const btn = document.createElement('button');
-      btn.className = 'btn-chip';
-      btn.textContent = range.label;
-      btn.style.cssText = range.hours === currentTimeRange
-        ? 'background:#4ECDC4;color:#000;'
-        : 'background:#333;color:#e0e0e0;';
-      btn.onclick = () => {
-        currentTimeRange = range.hours;
-        document.querySelectorAll('[data-range-btn]').forEach(b => {
-          b.style.background = b.dataset.hours == range.hours ? '#4ECDC4' : '#333';
-          b.style.color = b.dataset.hours == range.hours ? '#000' : '#e0e0e0';
-        });
+    // Zoom section
+    const zoomSection = document.createElement('div');
+    zoomSection.style.cssText = 'display:flex;gap:8px;align-items:center;';
+    
+    const zoomLabel = document.createElement('span');
+    zoomLabel.textContent = 'Zoom:';
+    zoomLabel.style.cssText = 'color:#9ca3af;font-size:14px;';
+    zoomSection.appendChild(zoomLabel);
+
+    const zoomOut = document.createElement('button');
+    zoomOut.textContent = '−';
+    zoomOut.style.cssText = 'background:#374151;color:#e0e0e0;border:none;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:16px;';
+    zoomOut.onclick = () => {
+      const idx = TIME_RANGES.findIndex(r => r.hours === currentTimeRange);
+      if (idx < TIME_RANGES.length - 1) {
+        currentTimeRange = TIME_RANGES[idx + 1].hours;
+        updateToolbar();
         loadChart();
-      };
-      btn.dataset.rangeBtn = '';
-      btn.dataset.hours = range.hours;
-      timeButtons.appendChild(btn);
-    });
-    topRow.appendChild(timeButtons);
+      }
+    };
+    zoomSection.appendChild(zoomOut);
 
-    controls.appendChild(topRow);
+    // Current time range display
+    const timeDisplay = document.createElement('button');
+    timeDisplay.style.cssText = 'background:#374151;color:#e0e0e0;border:none;border-radius:6px;padding:6px 16px;font-size:14px;min-width:80px;';
+    timeDisplay.id = 'sys-time-display';
+    zoomSection.appendChild(timeDisplay);
 
-    // Metric selector (checkboxes) below controls
+    const zoomIn = document.createElement('button');
+    zoomIn.textContent = '+';
+    zoomIn.style.cssText = 'background:#374151;color:#e0e0e0;border:none;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:16px;';
+    zoomIn.onclick = () => {
+      const idx = TIME_RANGES.findIndex(r => r.hours === currentTimeRange);
+      if (idx > 0) {
+        currentTimeRange = TIME_RANGES[idx - 1].hours;
+        updateToolbar();
+        loadChart();
+      }
+    };
+    zoomSection.appendChild(zoomIn);
+    toolbar.appendChild(zoomSection);
+
+    // Pan section
+    const panSection = document.createElement('div');
+    panSection.style.cssText = 'display:flex;gap:8px;align-items:center;';
+    
+    const panLabel = document.createElement('span');
+    panLabel.textContent = 'Pan:';
+    panLabel.style.cssText = 'color:#9ca3af;font-size:14px;';
+    panSection.appendChild(panLabel);
+
+    const panLeft = document.createElement('button');
+    panLeft.textContent = '←';
+    panLeft.style.cssText = 'background:#374151;color:#e0e0e0;border:none;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:16px;';
+    panLeft.onclick = () => { /* Pan functionality can be added */ };
+    panSection.appendChild(panLeft);
+
+    const panRight = document.createElement('button');
+    panRight.textContent = '→';
+    panRight.style.cssText = 'background:#374151;color:#e0e0e0;border:none;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:16px;';
+    panRight.onclick = () => { /* Pan functionality can be added */ };
+    panSection.appendChild(panRight);
+
+    const nowBtn = document.createElement('button');
+    nowBtn.textContent = 'Now';
+    nowBtn.style.cssText = 'background:#374151;color:#9ca3af;border:none;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:14px;';
+    nowBtn.onclick = () => loadChart();
+    panSection.appendChild(nowBtn);
+    toolbar.appendChild(panSection);
+
+    // Spacer
+    const spacer = document.createElement('div');
+    spacer.style.cssText = 'flex:1;';
+    toolbar.appendChild(spacer);
+
+    // Export button
+    const exportBtn = document.createElement('button');
+    exportBtn.style.cssText = 'background:#4ECDC4;color:#000;border:none;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:14px;font-weight:500;';
+    exportBtn.textContent = 'Export CSV';
+    exportBtn.onclick = exportCSV;
+    toolbar.appendChild(exportBtn);
+
+    controls.appendChild(toolbar);
+
+    // Update toolbar display helper
+    function updateToolbar() {
+      const display = document.getElementById('sys-time-display');
+      if (display) {
+        const range = TIME_RANGES.find(r => r.hours === currentTimeRange);
+        display.textContent = range ? range.label : '1 Day';
+      }
+    }
+    updateToolbar();
+
+    // Metric selector (checkboxes) below toolbar
     const selectorDiv = document.createElement('div');
     selectorDiv.style.cssText = 'background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:12px;';
 
@@ -193,14 +262,6 @@
     selectorDiv.appendChild(checkboxGrid);
 
     controls.appendChild(selectorDiv);
-
-    // Export button
-    const exportBtn = document.createElement('button');
-    exportBtn.className = 'btn-chip';
-    exportBtn.style.cssText = 'background:#4ECDC4;color:#000;cursor:pointer;align-self:flex-start;';
-    exportBtn.textContent = '📥 Export CSV';
-    exportBtn.onclick = exportCSV;
-    controls.appendChild(exportBtn);
 
     container.appendChild(controls);
   }
