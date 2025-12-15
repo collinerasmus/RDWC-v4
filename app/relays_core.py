@@ -689,9 +689,9 @@ def set(name: str, on: bool, reason: str, force: bool = False) -> Dict[str, Any]
 
 # Debug and monitoring functions
 def get_relay_event_log(name: str = "lights", last: int = 100) -> List[Dict[str, Any]]:
-    """Get recent event log for a relay from database (or fallback to in-memory if DB unavailable).
+    """Get recent event log for a relay from database with fallback to in-memory.
     
-    Returns the most recent `last` events in reverse chronological order (newest first).
+    Returns the most recent `last` events in chronological order (oldest first).
     """
     try:
         from app.db_pool import get_conn
@@ -708,23 +708,29 @@ def get_relay_event_log(name: str = "lights", last: int = 100) -> List[Dict[str,
         """, (name, last))
         
         rows = cursor.fetchall()
-        events = []
-        for row in rows:
-            events.append({
-                "ts": row[0],
-                "requested": bool(row[1]),
-                "final": bool(row[2]),
-                "reason": row[3],
-                "cooldown": row[4],
-                "blocked": bool(row[5]),
-                "caller": row[6]
-            })
         
-        # Return in chronological order (oldest first) for chart processing
-        return list(reversed(events))
+        # If database has events, use them; otherwise fall back to in-memory
+        if rows:
+            events = []
+            for row in rows:
+                events.append({
+                    "ts": row[0],
+                    "requested": bool(row[1]),
+                    "final": bool(row[2]),
+                    "reason": row[3],
+                    "cooldown": row[4],
+                    "blocked": bool(row[5]),
+                    "caller": row[6]
+                })
+            # Return in chronological order (oldest first) for chart processing
+            return list(reversed(events))
+        else:
+            # Fall back to in-memory if database is empty
+            raise Exception("No events in database, using in-memory cache")
+            
     except Exception as e:
-        logger.warning(f"Failed to read relay events from database: {e}, falling back to in-memory")
-        # Fallback to in-memory log if database unavailable
+        # Fall back to in-memory log if database unavailable or empty
+        logger.debug(f"Using in-memory event cache for {name}: {e}")
         events = list(_relay_event_logs.get(name, []))
         return events[-last:] if events else []
 
