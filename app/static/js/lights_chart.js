@@ -78,6 +78,9 @@
   window.setLightsChartHours = (h) => { chartHours = h; customRange = null; refresh(); };
   window.setLightsChartRange = (s, e) => { customRange = { start: s, end: e }; refresh(); };
 
+  // Auto-refresh every 5 seconds to keep chart live
+  setInterval(refresh, 5000);
+
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initChart);
   else setTimeout(initChart, 500);
 })();
