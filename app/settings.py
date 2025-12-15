@@ -189,6 +189,12 @@ def _ensure_table_seed_defaults() -> None:
     cur = conn.cursor()
     for key, val in DEFAULTS.items():
         cur.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (key, val))
+    
+    # Clean up legacy/conflicting settings that should not exist
+    legacy_keys = ["temperature.target_temp", "chiller.target_temp"]
+    for key in legacy_keys:
+        cur.execute("DELETE FROM settings WHERE key=?", (key,))
+    
     conn.commit()
     _defaults_seeded = True
 
