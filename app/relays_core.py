@@ -167,6 +167,7 @@ _antiflap_until: Dict[str, float] = {}
 _relay_event_logs: Dict[str, deque] = defaultdict(lambda: deque(maxlen=200))
 _hold_until: Dict[str, float] = {}  # Temporary holds for debugging
 _estop_active: bool = False  # Global emergency stop (latching)
+_last_events_cache: Dict[str, List[Dict[str, Any]]] = {}  # Stable cache to avoid jitter on transient read failures
 
 # Reasons that should NOT persist to storage (do not overwrite last-known-good)
 # - boot_safe_off: safe-off initialization at service start
@@ -735,7 +736,12 @@ def get_relay_event_log(name: str = "lights", last: int = 100) -> List[Dict[str,
                 if len(db_events) < 10:
                     mem_events = list(_relay_event_logs.get(name, []))
                     if len(mem_events) > len(db_events):
-                        return mem_events[-last:] if mem_events else db_events
+                        chosen = mem_events[-last:] if mem_events else db_events
+                        _last_events_cache[name] = chosen
+                        return chosen
+                # Update stable cache with healthy dataset
+                if len(db_events) >= 10:
+                    _last_events_cache[name] = db_events
                 return db_events
             # If no rows returned from DB, don't immediately fall back on first attempt; retry once
             if attempt == 2:
@@ -749,6 +755,10 @@ def get_relay_event_log(name: str = "lights", last: int = 100) -> List[Dict[str,
     # Fallback: return in-memory events
     try:
         events = list(_relay_event_logs.get(name, []))
+        # If in-memory is thin, use last stable cache if available
+        if len(events) < 10 and name in _last_events_cache:
+            cached = _last_events_cache[name]
+            return cached[-last:] if cached else events
         return events[-last:] if events else []
     except Exception as e:
         logger.error(f"Failed to get event log for {name}: {e}")
