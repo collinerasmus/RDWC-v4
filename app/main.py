@@ -1547,6 +1547,15 @@ def api_relay_events(name: str = Query("main_pump", description="Relay name (e.g
     """Get recent relay state change events for timeline/analytics."""
     try:
         events = get_relay_event_log(name, last=last)
+        # Endpoint-level guard: if we get an unusually small set, prefer the last healthy cached dataset
+        if not events or len(events) < 10:
+            try:
+                from app.relays_core import get_last_events_cached
+                cached = get_last_events_cached(name, last=last)
+                if cached:
+                    return cached
+            except Exception:
+                pass
         return events
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})

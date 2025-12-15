@@ -768,6 +768,15 @@ def allowed_lights_reasons() -> List[str]:
     """Get list of allowed reasons for lights control."""
     return sorted(list(WHITELIST_LIGHTS))
 
+def get_last_events_cached(name: str, last: int = 100) -> List[Dict[str, Any]]:
+    """Return last healthy cached events for a relay, if available."""
+    cached = _last_events_cache.get(name)
+    if not cached:
+        return []
+    if last and last > 0:
+        return cached[-last:]
+    return cached
+
 def set_relay_hold(name: str, seconds: int):
     """Set temporary hold on relay for debugging."""
     _hold_until[name] = time.monotonic() + seconds
