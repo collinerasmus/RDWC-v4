@@ -37,7 +37,38 @@ except Exception:  # pragma: no cover - fallback path
 
 logger = logging.getLogger(__name__)
 
-# Relay registry: name -> BCM pin
+# Initialize relay events table on module load
+def _init_relay_events_table():
+    """Create relay_events table if it doesn't exist."""
+    try:
+        from app.db_pool import get_conn
+        conn = get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS relay_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                relay_name TEXT NOT NULL,
+                ts TEXT NOT NULL,
+                requested INTEGER NOT NULL,
+                final INTEGER NOT NULL,
+                reason TEXT NOT NULL,
+                cooldown INTEGER DEFAULT 0,
+                blocked INTEGER DEFAULT 0,
+                caller TEXT DEFAULT 'unknown'
+            )
+        """)
+        # Create index for faster lookups by relay_name and ts
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_relay_events_name_ts 
+            ON relay_events(relay_name, ts DESC)
+        """)
+        conn.commit()
+        logger.info("Relay events table initialized")
+    except Exception as e:
+        logger.warning(f"Failed to initialize relay_events table: {e}")
+
+_init_relay_events_table()
+
 RELAY_PINS = {
     "lights": 21,
     "chiller_pump": 16,
@@ -343,7 +374,7 @@ def _get_caller_info() -> str:
 
 def _log_relay_event(relay_name: str, requested: bool, final_state: bool, reason: str, 
                     cooldown: int = 0, blocked: bool = False):
-    """Log relay event for debugging."""
+    """Log relay event for debugging (both in-memory and database)."""
     try:
         now_iso = datetime.now().isoformat()
         caller = _get_caller_info()
@@ -358,7 +389,22 @@ def _log_relay_event(relay_name: str, requested: bool, final_state: bool, reason
             "caller": caller
         }
         
+        # Store in-memory (for fast UI access during uptime)
         _relay_event_logs[relay_name].append(event)
+        
+        # Persist to database (survives restarts)
+        try:
+            from app.db_pool import get_conn
+            conn = get_conn()
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO relay_events 
+                (relay_name, ts, requested, final, reason, cooldown, blocked, caller)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (relay_name, now_iso, int(requested), int(final_state), reason, cooldown, int(blocked), caller))
+            conn.commit()
+        except Exception as db_error:
+            logger.warning(f"Failed to persist relay event to database: {db_error}")
     except Exception as e:
         logger.error(f"Failed to log relay event: {e}")
 
@@ -643,9 +689,44 @@ def set(name: str, on: bool, reason: str, force: bool = False) -> Dict[str, Any]
 
 # Debug and monitoring functions
 def get_relay_event_log(name: str = "lights", last: int = 100) -> List[Dict[str, Any]]:
-    """Get recent event log for a relay."""
-    events = list(_relay_event_logs.get(name, []))
-    return events[-last:] if events else []
+    """Get recent event log for a relay from database (or fallback to in-memory if DB unavailable).
+    
+    Returns the most recent `last` events in reverse chronological order (newest first).
+    """
+    try:
+        from app.db_pool import get_conn
+        conn = get_conn(readonly=True)
+        cursor = conn.cursor()
+        
+        # Query database for recent events, ordered by ts DESC (newest first)
+        cursor.execute("""
+            SELECT ts, requested, final, reason, cooldown, blocked, caller
+            FROM relay_events
+            WHERE relay_name = ?
+            ORDER BY ts DESC
+            LIMIT ?
+        """, (name, last))
+        
+        rows = cursor.fetchall()
+        events = []
+        for row in rows:
+            events.append({
+                "ts": row[0],
+                "requested": bool(row[1]),
+                "final": bool(row[2]),
+                "reason": row[3],
+                "cooldown": row[4],
+                "blocked": bool(row[5]),
+                "caller": row[6]
+            })
+        
+        # Return in chronological order (oldest first) for chart processing
+        return list(reversed(events))
+    except Exception as e:
+        logger.warning(f"Failed to read relay events from database: {e}, falling back to in-memory")
+        # Fallback to in-memory log if database unavailable
+        events = list(_relay_event_logs.get(name, []))
+        return events[-last:] if events else []
 
 def allowed_lights_reasons() -> List[str]:
     """Get list of allowed reasons for lights control."""
