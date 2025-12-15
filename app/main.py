@@ -1269,24 +1269,14 @@ def get_system_metrics_history(
     try:
         from app.system_metrics import get_metrics_history
         
-        # Validate metric names
-        allowed_metrics = {
-            'cpu_percent', 'memory_percent', 'disk_percent', 'core_voltage_v',
-            'load_1m', 'load_5m', 'load_15m', 'net_rx_bytes', 'net_tx_bytes'
-        }
-        
-        # Parse and validate metric names
+        # Parse metric names
         metric_list = [m.strip() for m in metrics.split(",")]
-        safe_metrics = [m for m in metric_list if m in allowed_metrics]
-        
-        if not safe_metrics:
-            safe_metrics = ["cpu_percent", "memory_percent"]  # Default fallback
         
         # Get data
-        history = get_metrics_history(safe_metrics, hours=hours)
+        history = get_metrics_history(metric_list, hours=hours)
         
         return {
-            "metrics": safe_metrics,
+            "metrics": metric_list,
             "hours": hours,
             "count": len(history),
             "data": history
