@@ -42,16 +42,32 @@
   let selectedMetrics = [...GROUPS.performance.metrics];
   let currentTimeRange = 24;
   let activeGroup = 'performance';
+  let timeOffsetHours = 0; // 0 = now, positive = hours back in time
 
   // Fetch history data
   async function fetchHistory(hours, metrics) {
     try {
+      // Account for pan offset: if we're panned back 12 hours and want 24h of data,
+      // we need to fetch from 36h ago to 12h ago
+      const effectiveStart = hours + timeOffsetHours;
+      const effectiveEnd = timeOffsetHours;
+      
       const metricsStr = metrics.join(',');
-      const r = await fetch(`/api/system/metrics/history?start_hours=${hours}&metrics=${encodeURIComponent(metricsStr)}`, {
+      const r = await fetch(`/api/system/metrics/history?start_hours=${effectiveStart}&metrics=${encodeURIComponent(metricsStr)}`, {
         cache: 'no-store'
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return await r.json();
+      const result = await r.json();
+      
+      // If we have an offset, filter the data to only show the window we want
+      if (timeOffsetHours > 0 && result.ok && result.data) {
+        const nowTs = Math.floor(Date.now() / 1000);
+        const endTs = nowTs - (timeOffsetHours * 3600);
+        const startTs = endTs - (hours * 3600);
+        result.data = result.data.filter(row => row.ts >= startTs && row.ts <= endTs);
+      }
+      
+      return result;
     } catch (e) {
       console.warn('[SysMetricsChart] fetch failed', e);
       return null;
@@ -179,19 +195,32 @@
     const panLeft = document.createElement('button');
     panLeft.textContent = '←';
     panLeft.style.cssText = 'background:#374151;color:#e0e0e0;border:none;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:16px;';
-    panLeft.onclick = () => { /* Pan functionality can be added */ };
+    panLeft.onclick = () => {
+      // Pan back in time by 25% of current range
+      timeOffsetHours += Math.ceil(currentTimeRange * 0.25);
+      if (timeOffsetHours > 168) timeOffsetHours = 168; // Max 7 days
+      loadChart();
+    };
     panSection.appendChild(panLeft);
 
     const panRight = document.createElement('button');
     panRight.textContent = '→';
     panRight.style.cssText = 'background:#374151;color:#e0e0e0;border:none;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:16px;';
-    panRight.onclick = () => { /* Pan functionality can be added */ };
+    panRight.onclick = () => {
+      // Pan forward in time by 25% of current range
+      timeOffsetHours -= Math.ceil(currentTimeRange * 0.25);
+      if (timeOffsetHours < 0) timeOffsetHours = 0; // Can't go beyond now
+      loadChart();
+    };
     panSection.appendChild(panRight);
 
     const nowBtn = document.createElement('button');
     nowBtn.textContent = 'Now';
     nowBtn.style.cssText = 'background:#374151;color:#9ca3af;border:none;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:14px;';
-    nowBtn.onclick = () => loadChart();
+    nowBtn.onclick = () => {
+      timeOffsetHours = 0;
+      loadChart();
+    };
     panSection.appendChild(nowBtn);
     toolbar.appendChild(panSection);
 
