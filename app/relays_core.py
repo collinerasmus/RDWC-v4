@@ -730,7 +730,13 @@ def get_relay_event_log(name: str = "lights", last: int = 100) -> List[Dict[str,
                             "caller": row[6],
                         }
                     )
-                return list(reversed(events))
+                db_events = list(reversed(events))
+                # Guard: if DB returns unusually few events, compare with in-memory and prefer the larger set
+                if len(db_events) < 10:
+                    mem_events = list(_relay_event_logs.get(name, []))
+                    if len(mem_events) > len(db_events):
+                        return mem_events[-last:] if mem_events else db_events
+                return db_events
             # If no rows returned from DB, don't immediately fall back on first attempt; retry once
             if attempt == 2:
                 break
