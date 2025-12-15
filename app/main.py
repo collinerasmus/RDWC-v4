@@ -358,6 +358,22 @@ app.include_router(ec_router)
 app.include_router(schedule_router)
 app.include_router(progress_router)
 
+# --- System metrics (current snapshot only; history intentionally disabled) ---
+@app.get('/api/system/metrics/current')
+def api_system_metrics_current():
+    try:
+        from app.system_metrics import collect_current_metrics  # lazy import
+        data = collect_current_metrics()
+        return {"ok": True, "data": data}
+    except Exception as e:
+        logger.exception("system metrics current failure")
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+@app.get('/api/system/metrics/history')
+def api_system_metrics_history_disabled():
+    # Placeholder to keep frontend simple; history will be enabled in a later phase
+    return {"ok": False, "enabled": False, "reason": "history-not-enabled"}
+
 # --- Server-Sent Events (SSE) sensor stream ---
 # Provides a lightweight continuous feed of consolidated sensor payloads.
 # Frontend subscribes via EventSource("/api/sensors/stream") and updates KPI elements

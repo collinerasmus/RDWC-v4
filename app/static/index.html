@@ -687,8 +687,10 @@ body{
 <script src="/static/system_info.js"></script>
 <!-- Overview Dashboard Controller: unified KPI display for System tab -->
 <script src="/static/js/overview_dashboard.js"></script>
-<!-- Chart Controls: unified zoom + slider interface for all charts -->
-<script src="/static/js/chart_controls.js"></script>
+  <!-- Chart Controls: unified zoom + slider interface for all charts -->
+  <script src="/static/js/chart_controls.js"></script>
+  <!-- Safe System Metrics Panel (does not affect existing charts) -->
+  <script src="/static/js/system_metrics_panel.js"></script>
 </head>
 <body>
 <main id="rdwc-root" class="container">
@@ -1775,6 +1777,9 @@ body{
       
       <!-- Unified controls (zoom + slider) -->
       <div id="trends-controls"></div>
+
+      <!-- Safe, isolated system metrics panel (current snapshot only) -->
+      <div id="system-metrics-panel" style="margin-top:12px;"></div>
     </div>
   </section>
 

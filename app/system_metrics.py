@@ -1,0 +1,78 @@
+import os
+import time
+import subprocess
+from typing import Dict, Any
+
+try:
+    import psutil  # type: ignore
+except Exception:  # pragma: no cover
+    psutil = None  # fallback handled at call site
+
+
+def _read_core_voltage() -> float | None:
+    """Read Raspberry Pi core voltage via vcgencmd if available.
+    Returns volts as float or None if unavailable.
+    """
+    try:
+        proc = subprocess.run(["vcgencmd", "measure_volts", "core"], capture_output=True, text=True, check=False)
+        out = (proc.stdout or "").strip()
+        # Example: "volt=0.8625V"
+        if "volt=" in out and out.endswith("V"):
+            val = out.split("volt=")[-1].rstrip("V").strip()
+            return float(val)
+    except Exception:
+        return None
+    return None
+
+
+def collect_current_metrics() -> Dict[str, Any]:
+    """Collect a single snapshot of system metrics.
+    Safe: all calls wrapped and tolerant to missing psutil/vcgencmd.
+    """
+    ts = int(time.time())
+    data: Dict[str, Any] = {
+        "ts": ts,
+        "cpu_percent": None,
+        "memory_percent": None,
+        "disk_percent": None,
+        "core_voltage_v": None,
+        "load_1m": None,
+        "load_5m": None,
+        "load_15m": None,
+        "net_rx_bytes": None,
+        "net_tx_bytes": None,
+    }
+
+    if psutil is not None:
+        try:
+            data["cpu_percent"] = float(psutil.cpu_percent(interval=None))
+        except Exception:
+            pass
+        try:
+            vm = psutil.virtual_memory()
+            data["memory_percent"] = float(vm.percent)
+        except Exception:
+            pass
+        try:
+            du = psutil.disk_usage("/")
+            data["disk_percent"] = float(du.percent)
+        except Exception:
+            pass
+        try:
+            nic = psutil.net_io_counters(pernic=False)
+            data["net_rx_bytes"] = int(getattr(nic, "bytes_recv", 0))
+            data["net_tx_bytes"] = int(getattr(nic, "bytes_sent", 0))
+        except Exception:
+            pass
+    # Load averages (Linux)
+    try:
+        load1, load5, load15 = os.getloadavg()  # type: ignore[attr-defined]
+        data["load_1m"], data["load_5m"], data["load_15m"] = float(load1), float(load5), float(load15)
+    except Exception:
+        pass
+    # Core voltage
+    v = _read_core_voltage()
+    if v is not None:
+        data["core_voltage_v"] = v
+
+    return data
