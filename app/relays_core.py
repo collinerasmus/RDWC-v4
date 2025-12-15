@@ -694,39 +694,51 @@ def get_relay_event_log(name: str = "lights", last: int = 100) -> List[Dict[str,
     Returns the most recent `last` events in chronological order (oldest first).
     Tries database first, falls back to in-memory if unavailable or empty.
     """
-    # Try database first
-    try:
-        from app.db_pool import get_conn
-        conn = get_conn(readonly=True)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT ts, requested, final, reason, cooldown, blocked, caller
-            FROM relay_events
-            WHERE relay_name = ?
-            ORDER BY ts DESC
-            LIMIT ?
-        """, (name, last))
-        
-        rows = cursor.fetchall()
-        
-        # If database has events, convert and return them
-        if rows:
-            events = []
-            for row in rows:
-                events.append({
-                    "ts": row[0],
-                    "requested": bool(row[1]),
-                    "final": bool(row[2]),
-                    "reason": row[3],
-                    "cooldown": row[4],
-                    "blocked": bool(row[5]),
-                    "caller": row[6]
-                })
-            # Return in chronological order (oldest first for chart processing)
-            return list(reversed(events))
-    except Exception as e:
-        logger.debug(f"Database unavailable for {name}: {e}, using in-memory cache")
+    # Try database first (with a light retry on transient errors)
+    for attempt in (1, 2):
+        try:
+            from app.db_pool import get_conn
+            conn = get_conn(readonly=True)
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT ts, requested, final, reason, cooldown, blocked, caller
+                FROM relay_events
+                WHERE relay_name = ?
+                ORDER BY ts DESC
+                LIMIT ?
+                """,
+                (name, last),
+            )
+            rows = cursor.fetchall()
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+            if rows:
+                events = []
+                for row in rows:
+                    events.append(
+                        {
+                            "ts": row[0],
+                            "requested": bool(row[1]),
+                            "final": bool(row[2]),
+                            "reason": row[3],
+                            "cooldown": row[4],
+                            "blocked": bool(row[5]),
+                            "caller": row[6],
+                        }
+                    )
+                return list(reversed(events))
+            # If no rows returned from DB, don't immediately fall back on first attempt; retry once
+            if attempt == 2:
+                break
+        except Exception as e:
+            if attempt == 2:
+                logger.warning(f"DB read failed for {name} after retry: {e}")
+            else:
+                logger.debug(f"DB read attempt {attempt} failed for {name}: {e}, retrying")
     
     # Fallback: return in-memory events
     try:

@@ -45,6 +45,9 @@
         fetch('/api/relays/events?name=chiller_pump&last=200', {cache: 'no-store'})
       ]);
       
+      if (!mainResp.ok) console.warn('[Circulation] Main pump fetch failed:', mainResp.status);
+      if (!chillerResp.ok) console.warn('[Circulation] Chiller pump fetch failed:', chillerResp.status);
+      
       const mainEvents = mainResp.ok ? await mainResp.json() : [];
       const chillerEvents = chillerResp.ok ? await chillerResp.json() : [];
       console.log('[Circulation] Fetched events - Main:', mainEvents.length, 'Chiller:', chillerEvents.length);
