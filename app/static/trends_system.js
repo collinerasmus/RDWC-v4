@@ -428,31 +428,9 @@ function exportMetricsCSV() {
     link.click();
 }
 
-// Init on page load with error handling
-try {
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", () => {
-            try { 
-                initTrendsTab(); 
-            } catch(e) { 
-                console.error('[trends_system.js] Error in initTrendsTab:', e);
-                const container = document.getElementById("trends-container");
-                if (container) {
-                    container.innerHTML = `<div style="padding: 20px; color: #ff6b6b; background: #0d1117; border-radius: 8px;"><p>Error loading Trends: ${e.message}</p></div>`;
-                }
-            }
-        });
-    } else {
-        try { 
-            initTrendsTab(); 
-        } catch(e) { 
-            console.error('[trends_system.js] Error in initTrendsTab:', e);
-            const container = document.getElementById("trends-container");
-            if (container) {
-                container.innerHTML = `<div style="padding: 20px; color: #ff6b6b; background: #0d1117; border-radius: 8px;"><p>Error loading Trends: ${e.message}</p></div>`;
-            }
-        }
-    }
-} catch(e) { 
-    console.error('[trends_system.js] Module load error:', e); 
+// Init on page load
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initTrendsTab);
+} else {
+    initTrendsTab();
 }
