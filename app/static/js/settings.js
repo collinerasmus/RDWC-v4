@@ -123,15 +123,7 @@
         }
         
         wrap.appendChild(inp);
-        
-        // Add Day N badge after grow_start_date input
-        if (key === 'general.grow_start_date') {
-          const badge = document.createElement('div');
-          badge.id = 'grow-day-n-badge';
-          badge.style.cssText = 'margin-top:6px;padding:6px 10px;border-radius:8px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;font-size:0.85rem;font-weight:500;display:none;';
-          wrap.appendChild(badge);
-        }
-        
+
         grid.appendChild(wrap);
       });
       
@@ -217,9 +209,8 @@
       if (uiRel) window.APP_POLL.relays = parseInt(uiRel,10)||1000;
       if (uiSen) window.APP_POLL.sensors = parseInt(uiSen,10)||5000;
       window.dispatchEvent(new CustomEvent('settings:ui', {detail:{poll: window.APP_POLL}}));
-      // Update Day N badge and Sensors header if grow_start_date changed
+      // Update Sensors header if grow_start_date changed
       if (changes['general.grow_start_date'] !== undefined) {
-        updateDayNBadge();
         updateSensorsHeaderDayN();
         if (window.scheduleModule?.refresh) {
           window.scheduleModule.refresh();
@@ -227,23 +218,6 @@
       }
       window.dispatchEvent(new CustomEvent('settings:saved', { detail: { changes } }));
       markDirty();
-    }
-  }
-  
-  function updateDayNBadge() {
-    const badge = q('#grow-day-n-badge');
-    if (!badge) return;
-    const startDate = current['general.grow_start_date'];
-    if (!startDate) {
-      badge.style.display = 'none';
-      return;
-    }
-    const dayN = calculateDayN(startDate, current['general.timezone']);
-    if (dayN !== null) {
-      badge.textContent = `Day ${dayN}`;
-      badge.style.display = 'inline-block';
-    } else {
-      badge.style.display = 'none';
     }
   }
   
