@@ -6,6 +6,23 @@ Automated RDWC (Recirculating Deep Water Culture) hydroponic controller with pH/
 **Software**: FastAPI + SQLite + Python 3.9+  
 **Safety-First**: Active-low relays (HIGH=OFF), safe-off on boot, guard rails, alerts
 
+---
+
+## 🟢 Status: Construction Complete, 90% Commissioning
+
+**As of Dec 15, 2025**: System fully integrated and running 24/7 in unattended AUTO mode with live plants. All core systems operational:
+- ✅ pH/EC auto-dosing with safety guards
+- ✅ Temperature-based chiller control
+- ✅ Scheduled lighting (two edges/day)
+- ✅ Real-time sensor polling (RTD, pH, EC)
+- ✅ Dose event logging with blocked-by tracking
+- ✅ Chart KPI aggregation + relay event log
+- ✅ React HMI with responsive tabs
+
+**Next Phase**: Post-overnight validation → field calibrations → production hardening
+
+See [COMMISSIONING_STATUS_DEC15.md](COMMISSIONING_STATUS_DEC15.md) and [SYSTEM_HANDOFF_DEC15.md](SYSTEM_HANDOFF_DEC15.md) for details.
+
 ## 📚 Documentation
 - **[Quick Answers](QUICK_ANSWERS.md)** - Fast answers to project management questions ⚡
 - **[Contributing Guide](CONTRIBUTING.md)** - How to contribute safely and effectively

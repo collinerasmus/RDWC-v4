@@ -106,10 +106,11 @@
           totalEl.textContent = `${hours}h ${mins}m`;
         }
 
-        // Get temperature target from settings
+        // Get temperature target and hysteresis from settings
         const tempTarget = settingsData?.['targets.temp_target'] ?? 21.0;
-        const tempLow = tempTarget - 0.5;
-        const tempHigh = tempTarget + 0.5;
+        const tempHysteresis = settingsData?.['temperature.hysteresis'] ?? 0.5;
+        const tempLow = tempTarget - tempHysteresis;
+        const tempHigh = tempTarget + tempHysteresis;
 
         // Get current temp
         const currentTemp = temp.length > 0 ? temp[temp.length - 1].y : null;
