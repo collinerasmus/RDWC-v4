@@ -80,16 +80,39 @@
   function buildUI() {
     const container = document.getElementById('system-metrics-container');
     if (!container) return;
+    container.innerHTML = '';
 
-    // Title + time range buttons
-    const header = document.createElement('div');
-    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;';
+    // Chart area first
+    const chartDiv = document.createElement('div');
+    chartDiv.style.cssText = 'position:relative;height:100%;min-height:320px;margin-bottom:12px;background:#0d1117;border:1px solid #333;border-radius:8px;padding:10px;';
+    chartDiv.innerHTML = '<canvas id="sys-metrics-canvas"></canvas>';
+    container.appendChild(chartDiv);
 
-    const title = document.createElement('h3');
-    title.style.cssText = 'margin:0;font-size:18px;font-weight:600;color:#e0e0e0;';
-    title.textContent = 'System Metrics';
-    header.appendChild(title);
+    // Controls under the chart
+    const controls = document.createElement('div');
+    controls.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
 
+    const topRow = document.createElement('div');
+    topRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;';
+
+    // Group selector buttons
+    Object.entries(GROUPS).forEach(([key, group]) => {
+      const btn = document.createElement('button');
+      btn.className = 'btn-chip';
+      btn.dataset.groupKey = key;
+      btn.textContent = group.label;
+      btn.style.cssText = key === activeGroup ? 'background:#4ECDC4;color:#000;' : 'background:#333;color:#e0e0e0;';
+      btn.onclick = () => {
+        activeGroup = key;
+        selectedMetrics = [...group.metrics];
+        syncCheckboxes();
+        highlightGroups();
+        loadChart();
+      };
+      topRow.appendChild(btn);
+    });
+
+    // Time range buttons
     const timeButtons = document.createElement('div');
     timeButtons.style.cssText = 'display:flex;gap:6px;';
     TIME_RANGES.forEach(range => {
@@ -107,36 +130,17 @@
         });
         loadChart();
       };
-      btn.dataset.rangBtn = '';
+      btn.dataset.rangeBtn = '';
       btn.dataset.hours = range.hours;
       timeButtons.appendChild(btn);
     });
-    header.appendChild(timeButtons);
-    container.appendChild(header);
+    topRow.appendChild(timeButtons);
 
-    // Metric selector (checkboxes)
+    controls.appendChild(topRow);
+
+    // Metric selector (checkboxes) below controls
     const selectorDiv = document.createElement('div');
-    selectorDiv.style.cssText = 'background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:12px;margin-bottom:12px;';
-
-    // Group selector row
-    const groupRow = document.createElement('div');
-    groupRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;';
-    Object.entries(GROUPS).forEach(([key, group]) => {
-      const btn = document.createElement('button');
-      btn.className = 'btn-chip';
-      btn.dataset.groupKey = key;
-      btn.textContent = group.label;
-      btn.style.cssText = key === activeGroup ? 'background:#4ECDC4;color:#000;' : 'background:#333;color:#e0e0e0;';
-      btn.onclick = () => {
-        activeGroup = key;
-        selectedMetrics = [...group.metrics];
-        syncCheckboxes();
-        highlightGroups();
-        loadChart();
-      };
-      groupRow.appendChild(btn);
-    });
-    selectorDiv.appendChild(groupRow);
+    selectorDiv.style.cssText = 'background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:12px;';
 
     const selectorLabel = document.createElement('div');
     selectorLabel.style.cssText = 'font-weight:600;color:#e0e0e0;margin-bottom:8px;font-size:13px;';
@@ -175,21 +179,18 @@
       checkboxGrid.appendChild(label);
     });
     selectorDiv.appendChild(checkboxGrid);
-    container.appendChild(selectorDiv);
 
-    // Chart area
-    const chartDiv = document.createElement('div');
-    chartDiv.style.cssText = 'position:relative;height:100%;min-height:320px;margin-bottom:12px;background:#0d1117;border:1px solid #333;border-radius:8px;padding:10px;';
-    chartDiv.innerHTML = '<canvas id="sys-metrics-canvas"></canvas>';
-    container.appendChild(chartDiv);
+    controls.appendChild(selectorDiv);
 
     // Export button
     const exportBtn = document.createElement('button');
     exportBtn.className = 'btn-chip';
-    exportBtn.style.cssText = 'background:#4ECDC4;color:#000;cursor:pointer;';
+    exportBtn.style.cssText = 'background:#4ECDC4;color:#000;cursor:pointer;align-self:flex-start;';
     exportBtn.textContent = '📥 Export CSV';
     exportBtn.onclick = exportCSV;
-    container.appendChild(exportBtn);
+    controls.appendChild(exportBtn);
+
+    container.appendChild(controls);
   }
 
   function highlightGroups() {
