@@ -1056,6 +1056,7 @@
         if(window.showToast) showToast('pH settings saved', 'success');
         updateParamChips(); // Refresh live chips
         tick(); // Refresh status to pick up new targets
+        await loadPhSettingsForm(); // Reload form with fresh DB values
       }catch(e){
         if(window.showToast) showToast('Failed to save pH settings', 'error');
         console.error('[pH] Save settings failed:', e);
@@ -1064,28 +1065,45 @@
       }
     });
 
-    // Load current settings into form fields
-    try{
-      const settingsMap = [
-        ['phBand', 'targets.ph_band', '0.2'],
-        ['phAlertLow', 'alerts.ph_low', '5.5'],
-        ['phAlertHigh', 'alerts.ph_high', '6.5'],
-        ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec', '1.0'],
-        ['phInitialMl', 'dosing.ph_up_initial_ml', '0.01'],
-        ['phMinInterval', 'dosing.ph_min_interval_s', '900'],
-        ['phMaxPressSeconds', 'safety.max_seconds_per_press', '1.5'],
-        ['phDailyCapMl', 'dosing.ph_up_max_ml_per_day', '50'],
-        ['phStabilizationWindow', 'dosing.ph_stabilization_window_s', '180'],
-        ['phStableDeltaThreshold', 'dosing.ph_stabilization_delta_threshold', '0.05'],
-        ['phMaxPredictedDelta', 'dosing.ph_max_predicted_delta_ph', '0.5']
-      ];
-      for(const [elemId, settingKey, fallback] of settingsMap){
-        const elem = el(elemId);
-        const val = window.rdwcSettings?.get(settingKey);
-        if(elem && (val || fallback)) elem.value = val || fallback;
-      }
-      updateParamChips(); // Update live status chips
-    }catch(e){ console.warn('[pH] Failed to load settings into form:', e); }
+    // Load current settings into form fields (always from API, never cached)
+    async function loadPhSettingsForm(){
+      try{
+        const settingsMap = [
+          ['phBand', 'targets.ph_band', '0.2'],
+          ['phAlertLow', 'alerts.ph_low', '5.5'],
+          ['phAlertHigh', 'alerts.ph_high', '6.5'],
+          ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec', '1.0'],
+          ['phInitialMl', 'dosing.ph_up_initial_ml', '0.1'],
+          ['phMinInterval', 'dosing.ph_min_interval_s', '300'],
+          ['phMaxPressSeconds', 'safety.max_seconds_per_press', '1.5'],
+          ['phDailyCapMl', 'dosing.ph_up_max_ml_per_day', '50'],
+          ['phStabilizationWindow', 'dosing.ph_stabilization_window_s', '300'],
+          ['phStableDeltaThreshold', 'dosing.ph_stabilization_delta_threshold', '0.02'],
+          ['phMaxPredictedDelta', 'dosing.ph_max_predicted_delta_ph', '0.5']
+        ];
+        
+        // Fetch fresh settings from API
+        const resp = await fetch('/api/settings');
+        if(!resp.ok) throw new Error('Failed to fetch settings');
+        const allSettings = await resp.json();
+        
+        // Apply to form fields using actual DB values
+        for(const [elemId, settingKey, fallback] of settingsMap){
+          const elem = el(elemId);
+          if(!elem) continue;
+          
+          // Navigate nested object (e.g., 'targets.ph_band' -> allSettings.targets.ph_band)
+          const parts = settingKey.split('.');
+          let val = allSettings;
+          for(const part of parts) val = val?.[part];
+          
+          elem.value = (val !== undefined && val !== null && val !== '') ? val : fallback;
+        }
+        updateParamChips(); // Update live status chips
+      }catch(e){ console.warn('[pH] Failed to load settings from API:', e); }
+    }
+    
+    await loadPhSettingsForm();
 
     // listen for settings UI updates to ui.sensors_poll_ms
     window.addEventListener('settings:ui', (ev)=>{
