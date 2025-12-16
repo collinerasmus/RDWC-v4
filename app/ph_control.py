@@ -1135,29 +1135,28 @@ def _auto_loop():
             try:
                 with sqlite3.connect(str(DB_PATH)) as conn:
                     cur = conn.cursor()
-                    cur.execute("SELECT id FROM ph_dose_log WHERE result='pending_retry' LIMIT 1")
+                    cur.execute("SELECT id FROM ph_dose_log WHERE result='pending_retry' ORDER BY id ASC LIMIT 1")
                     retry_row = cur.fetchone()
                     if retry_row:
                         retry_id = retry_row[0]
                         # Mark as executing retry
                         conn.execute("UPDATE ph_dose_log SET result='executing_retry' WHERE id=?", (retry_id,))
                         conn.commit()
-                        print(f"[pH Auto] Processing pending retry for dose id={retry_id}")
-                        # Attempt the retry dose (same parameters as original)
+                        print(f"[pH Auto] Processing pending retry for dose id={retry_id} (bypassing interval guard)")
+                        # Execute via shared performer to ensure consistent logging/locking
                         try:
-                            dose_result = _actuate_ph_up(_dose_ms_from_ml(0.009)[0])
-                            if dose_result.get("ok"):
+                            res = _perform_dose({"ml": 0.009, "reason": f"retry_for_faulty_dose_id_{retry_id}", "nonblocking": True})
+                            if res.get("ok"):
                                 print(f"[pH Auto] Retry dose executed successfully for id={retry_id}")
-                                # Log retry success and schedule stabilization
+                                # Mark retry success and schedule stabilization
                                 with sqlite3.connect(str(DB_PATH)) as conn2:
                                     now_utc = datetime.now(timezone.utc).isoformat()
                                     conn2.execute("UPDATE ph_dose_log SET result='ok', ts_utc=? WHERE id=?", (now_utc, retry_id))
                                     conn2.commit()
-                                # Schedule observation for the retry dose
                                 observe_s = _settings_get_int("dosing.observe_s_after_dose", 900)
                                 threading.Thread(target=_background_observe_and_update, args=(retry_id, int(time.time()), observe_s), daemon=True).start()
                             else:
-                                print(f"[pH Auto] Retry dose FAILED for id={retry_id}")
+                                print(f"[pH Auto] Retry dose FAILED for id={retry_id}: {res}")
                                 with sqlite3.connect(str(DB_PATH)) as conn2:
                                     conn2.execute("UPDATE ph_dose_log SET result='retry_failed' WHERE id=?", (retry_id,))
                                     conn2.commit()
