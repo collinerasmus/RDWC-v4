@@ -105,6 +105,39 @@ def _update_post_ph(rowid: int, post_ph: Optional[float]) -> None:
         conn.execute("UPDATE ph_dose_log SET post_ph=? WHERE id=?", (post_ph, rowid))
         conn.commit()
 
+def _is_dose_effective(pre_ph: Optional[float], post_ph: Optional[float], min_delta: float = 0.02) -> bool:
+    """Check if dose produced measurable pH change. 
+    Returns True if pH changed by at least min_delta (default 0.02).
+    Used to detect failed doses due to air bubbles in dosing line.
+    """
+    if pre_ph is None or post_ph is None:
+        return False  # Can't verify without both readings
+    delta = abs(post_ph - pre_ph)
+    return delta >= min_delta
+
+def _mark_dose_faulty_and_retry(rowid: int, pre_ph: float, post_ph: float) -> None:
+    """Mark dose as faulty (no measurable pH change) and queue a retry.
+    Called when dose didn't produce expected pH spike (likely air bubble in line).
+    """
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            # Mark original dose as faulty in notes/reason field
+            conn.execute(
+                "UPDATE ph_dose_log SET reason = reason || ' [FAULTY: no_ph_delta]' WHERE id=?",
+                (rowid,)
+            )
+            # Create a retry dose entry (mark as 'retry_attempt')
+            now_utc = datetime.now(timezone.utc).isoformat()
+            conn.execute(
+                """INSERT INTO ph_dose_log(ts_utc, action, volume_ml, result, reason)
+                   VALUES(?, ?, ?, ?, ?)""",
+                (now_utc, "dose", 0.009, "pending_retry", f"retry_for_faulty_dose_id_{rowid}")
+            )
+            conn.commit()
+        print(f"[pH Dose Validation] rowid={rowid} marked FAULTY (delta={abs(post_ph - pre_ph):.4f}), retry queued")
+    except Exception as e:
+        print(f"[pH Dose Validation] Error marking dose faulty: {e}")
+
 def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
     """Return recent complete dose log entries (post_ph must not be NULL).
     Filters incomplete entries where stabilization hasn't finished yet.
@@ -549,12 +582,14 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
     """Wait for pH stabilization after dosing, then record the stable post_ph value.
     
     Stability criteria (configurable):
-    - Wait at least 5 minutes for mixing and sensor response
-    - Check last N samples for low range (max - min < 0.02 over N readings)
+    - Wait at least 180 seconds for mixing and sensor response
+    - Check last N samples for low range (max - min < 0.05 over N readings)
     - If stable within max_wait_s, record post_ph with stable=True
+    - Validate dose effectiveness: if pH change < 0.02, mark as faulty and queue retry
     - If not stable, record last observed value with stable=False (unsettled)
     
-    This fixes the issue where immediate readings don't reflect the true pH effect.
+    This fixes the issue where immediate readings don't reflect the true pH effect,
+    and detects failed doses (e.g., air bubbles in dosing line).
     """
     try:
         # Configuration
@@ -562,16 +597,25 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
         stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 180))
         stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", _settings_get_float("dosing.stability_delta", 0.05))
         stability_samples = _settings_get_int("dosing.stability_samples", 3)  # sample count remained unchanged
+        dose_effectiveness_threshold = _settings_get_float("dosing.dose_effectiveness_threshold", 0.02)  # Min pH change to consider dose effective
         poll_interval = 10.0  # Poll every 10 seconds
         
         deadline = time.time() + max(0, max_wait_s)
         stabilize_deadline = time.time() + stabilize_wait_s
         last_seen_ts = baseline_ts_unix or 0
         
+        # Get pre-dose pH for validation
+        pre_dose_row = None
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT pre_ph FROM ph_dose_log WHERE id=?", (rowid,))
+            pre_dose_row = cur.fetchone()
+        pre_ph = pre_dose_row[0] if pre_dose_row else None
+        
         # Collect pH samples for stability check
         samples = []
         
-        print(f"[pH Stabilization] Starting observation for rowid={rowid}, waiting {stabilize_wait_s}s for stabilization")
+        print(f"[pH Stabilization] Starting observation for rowid={rowid}, waiting {stabilize_wait_s}s for stabilization (pre_ph={pre_ph})")
         
         while time.time() < deadline:
             ph_val, ts = _get_latest_ph()
@@ -600,6 +644,11 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
                             stable_ph = sum(recent) / len(recent)
                             print(f"[pH Stabilization] rowid={rowid} STABLE: ph={stable_ph:.3f}, range={sample_range:.4f}")
                             _update_post_ph_with_flag(rowid, round(stable_ph, 3), stable=True)
+                            
+                            # Validate dose effectiveness: check if pH changed sufficiently
+                            if pre_ph is not None and not _is_dose_effective(pre_ph, stable_ph, dose_effectiveness_threshold):
+                                print(f"[pH Dose Validation] rowid={rowid} INEFFECTIVE: delta={abs(stable_ph - pre_ph):.4f} < {dose_effectiveness_threshold}")
+                                _mark_dose_faulty_and_retry(rowid, pre_ph, stable_ph)
                             return
                         else:
                             print(f"[pH Stabilization] rowid={rowid} still settling: range={sample_range:.4f} > {stability_delta}")
@@ -1066,6 +1115,47 @@ def _auto_loop():
                     time.sleep(poll_s)
                     continue
                 warmup_done = True
+            
+            # Check for pending retries (failed doses due to air bubbles, etc.)
+            try:
+                with sqlite3.connect(str(DB_PATH)) as conn:
+                    cur = conn.cursor()
+                    cur.execute("SELECT id FROM ph_dose_log WHERE result='pending_retry' LIMIT 1")
+                    retry_row = cur.fetchone()
+                    if retry_row:
+                        retry_id = retry_row[0]
+                        # Mark as executing retry
+                        conn.execute("UPDATE ph_dose_log SET result='executing_retry' WHERE id=?", (retry_id,))
+                        conn.commit()
+                        print(f"[pH Auto] Processing pending retry for dose id={retry_id}")
+                        # Attempt the retry dose (same parameters as original)
+                        try:
+                            dose_result = _actuate_ph_up(_dose_ms_from_ml(0.009)[0])
+                            if dose_result.get("ok"):
+                                print(f"[pH Auto] Retry dose executed successfully for id={retry_id}")
+                                # Log retry success and schedule stabilization
+                                with sqlite3.connect(str(DB_PATH)) as conn2:
+                                    now_utc = datetime.now(timezone.utc).isoformat()
+                                    conn2.execute("UPDATE ph_dose_log SET result='ok', ts_utc=? WHERE id=?", (now_utc, retry_id))
+                                    conn2.commit()
+                                # Schedule observation for the retry dose
+                                observe_s = _settings_get_int("dosing.observe_s_after_dose", 900)
+                                threading.Thread(target=_background_observe_and_update, args=(retry_id, int(time.time()), observe_s), daemon=True).start()
+                            else:
+                                print(f"[pH Auto] Retry dose FAILED for id={retry_id}")
+                                with sqlite3.connect(str(DB_PATH)) as conn2:
+                                    conn2.execute("UPDATE ph_dose_log SET result='retry_failed' WHERE id=?", (retry_id,))
+                                    conn2.commit()
+                        except Exception as e:
+                            print(f"[pH Auto] Exception during retry: {e}")
+                            with sqlite3.connect(str(DB_PATH)) as conn2:
+                                conn2.execute("UPDATE ph_dose_log SET result='retry_error' WHERE id=?", (retry_id,))
+                                conn2.commit()
+                        time.sleep(poll_s)
+                        continue
+            except Exception as e:
+                print(f"[pH Auto] Error checking retries: {e}")
+            
             # Only act when below band
             if ph_val < targets["low"]:
                 # Guarded holds
