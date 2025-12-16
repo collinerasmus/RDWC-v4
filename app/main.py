@@ -234,6 +234,17 @@ def _startup_migrate_auto_control():
         logger.warning(f"Auto-control migration failed (non-fatal): {e}")
 
 @app.on_event("startup")
+def _startup_ph_auto():
+    """Start pH auto loop if enabled in settings."""
+    try:
+        from app.ph_control import start_ph_auto_if_enabled
+        start_ph_auto_if_enabled()
+    except Exception as e:
+        from app.logger import get_logger
+        logger = get_logger()
+        logger.warning(f"pH auto startup failed (non-fatal): {e}")
+
+@app.on_event("startup")
 def _startup_seed_lights_events():
     """Seed lights event log with historical data on startup."""
     try:

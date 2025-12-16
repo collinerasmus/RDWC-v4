@@ -1127,6 +1127,21 @@ def ph_auto(body: Dict[str, Any] = Body(...)):
         pass
     return {"ok": True, "enabled": bool(enable)}
 
+
+def start_ph_auto_if_enabled():
+    """Start pH auto loop on app startup if enabled in settings.
+    Called from main.py startup event."""
+    try:
+        from app.auto_control import should_automate
+        if should_automate("ph"):
+            _auto_enable(True)
+            print("[pH Auto] Started automation loop (enabled in settings)")
+        else:
+            print("[pH Auto] Not starting (disabled in settings)")
+    except Exception as e:
+        print(f"[pH Auto] Failed to auto-start: {e}")
+
+
 @router.get("/api/ph/auto/enable")
 def ph_auto_enable(on: int = Query(0)):
     """Non-blocking GET toggle for UI fallback when POST hangs.
