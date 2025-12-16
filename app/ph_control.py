@@ -136,15 +136,16 @@ def _mark_dose_faulty_and_retry(rowid: int, pre_ph: float, post_ph: float) -> No
                 "UPDATE ph_dose_log SET reason = reason || ' [FAULTY: no_ph_delta]' WHERE id=?",
                 (rowid,)
             )
-            # Create a retry dose entry (mark as 'retry_attempt')
+            # Create a retry dose entry (mark as 'retry_attempt'), using configured initial ml
+            retry_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
             now_utc = datetime.now(timezone.utc).isoformat()
             conn.execute(
                 """INSERT INTO ph_dose_log(ts_utc, action, volume_ml, result, reason)
                    VALUES(?, ?, ?, ?, ?)""",
-                (now_utc, "dose", 0.009, "pending_retry", f"retry_for_faulty_dose_id_{rowid}")
+                (now_utc, "dose", retry_ml, "pending_retry", f"retry_for_faulty_dose_id_{rowid}")
             )
             conn.commit()
-        print(f"[pH Dose Validation] rowid={rowid} marked FAULTY (delta={abs(post_ph - pre_ph):.4f}), retry queued")
+        print(f"[pH Dose Validation] rowid={rowid} marked FAULTY (delta={abs(post_ph - pre_ph):.4f}), retry queued with {retry_ml} ml")
     except Exception as e:
         print(f"[pH Dose Validation] Error marking dose faulty: {e}")
 
@@ -1047,8 +1048,8 @@ def _auto_loop():
     global _auto_stop_evt, _auto_enabled_at, _auto_last_holding_reason, _auto_last_block, _auto_last_block_count
     poll_s = _settings_get_int("dosing.poll_interval_s", 30)
     margin = _settings_get_float("ph_auto.margin", 0.05)  # aim to stop slightly inside band
-    step_min = _settings_get_float("dosing.ph_up_step_min_ml", 0.5)
-    step_max = _settings_get_float("dosing.ph_up_step_max_ml", 5.0)
+    step_min = _settings_get_float("dosing.ph_up_step_min_ml", 0.05)
+    step_max = _settings_get_float("dosing.ph_up_step_max_ml", 10.0)
     safety = _settings_get_float("dosing.ph_up_safety_factor", 0.6)  # under-dose fraction
     warmup_done = False
     skip_next_poll = False  # For backoff
@@ -1133,28 +1134,41 @@ def _auto_loop():
             
             # Check for pending retries (failed doses due to air bubbles, etc.)
             try:
-                with sqlite3.connect(str(DB_PATH)) as conn:
-                    cur = conn.cursor()
-                    cur.execute("SELECT id FROM ph_dose_log WHERE result='pending_retry' ORDER BY id ASC LIMIT 1")
-                    retry_row = cur.fetchone()
-                    if retry_row:
+                max_retry_attempts = _settings_get_int("dosing.ph_retry_max_attempts", 10)
+                retry_spacing_s = _settings_get_int("dosing.ph_retry_spacing_s", 60)
+                retry_observe_s = _settings_get_int("dosing.observe_s_after_retry", 60)
+                attempts = 0
+
+                while attempts < max_retry_attempts:
+                    with sqlite3.connect(str(DB_PATH)) as conn:
+                        cur = conn.cursor()
+                        cur.execute("SELECT id FROM ph_dose_log WHERE result='pending_retry' ORDER BY id ASC LIMIT 1")
+                        retry_row = cur.fetchone()
+                        if not retry_row:
+                            break
+
                         retry_id = retry_row[0]
                         # Mark as executing retry
                         conn.execute("UPDATE ph_dose_log SET result='executing_retry' WHERE id=?", (retry_id,))
                         conn.commit()
                         print(f"[pH Auto] Processing pending retry for dose id={retry_id} (bypassing interval guard)")
+
                         # Execute via shared performer to ensure consistent logging/locking
                         try:
-                            res = _perform_dose({"ml": 0.009, "reason": f"retry_for_faulty_dose_id_{retry_id}", "nonblocking": True})
+                            retry_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
+                            res = _perform_dose({"ml": retry_ml, "reason": f"retry_for_faulty_dose_id_{retry_id}", "nonblocking": True})
                             if res.get("ok"):
                                 print(f"[pH Auto] Retry dose executed successfully for id={retry_id}")
-                                # Mark retry success and schedule stabilization
+                                # Mark retry success and schedule stabilization with tighter window for fast re-eval
                                 with sqlite3.connect(str(DB_PATH)) as conn2:
                                     now_utc = datetime.now(timezone.utc).isoformat()
                                     conn2.execute("UPDATE ph_dose_log SET result='ok', ts_utc=? WHERE id=?", (now_utc, retry_id))
                                     conn2.commit()
-                                observe_s = _settings_get_int("dosing.observe_s_after_dose", 900)
-                                threading.Thread(target=_background_observe_and_update, args=(retry_id, int(time.time()), observe_s), daemon=True).start()
+                                threading.Thread(
+                                    target=_background_observe_and_update,
+                                    args=(retry_id, int(time.time()), retry_observe_s),
+                                    daemon=True,
+                                ).start()
                             else:
                                 print(f"[pH Auto] Retry dose FAILED for id={retry_id}: {res}")
                                 with sqlite3.connect(str(DB_PATH)) as conn2:
@@ -1165,8 +1179,13 @@ def _auto_loop():
                             with sqlite3.connect(str(DB_PATH)) as conn2:
                                 conn2.execute("UPDATE ph_dose_log SET result='retry_error' WHERE id=?", (retry_id,))
                                 conn2.commit()
-                        time.sleep(poll_s)
-                        continue
+
+                        attempts += 1
+                        # Short spacing for this scenario to recheck quickly (override longer polls)
+                        time.sleep(retry_spacing_s)
+
+                if attempts:
+                    continue
             except Exception as e:
                 print(f"[pH Auto] Error checking retries: {e}")
             
