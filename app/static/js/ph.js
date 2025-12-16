@@ -1074,7 +1074,7 @@
           ['phAlertHigh', 'alerts.ph_high', '6.5'],
           ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec', '1.0'],
           ['phInitialMl', 'dosing.ph_up_initial_ml', '0.1'],
-          ['phMinInterval', 'dosing.ph_min_interval_s', '300'],
+          ['phMinInterval', 'dosing.ph_min_interval_s', '600'],
           ['phMaxPressSeconds', 'safety.max_seconds_per_press', '1.5'],
           ['phDailyCapMl', 'dosing.ph_up_max_ml_per_day', '50'],
           ['phStabilizationWindow', 'dosing.ph_stabilization_window_s', '300'],

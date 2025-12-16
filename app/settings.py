@@ -92,10 +92,10 @@ DEFAULTS: Dict[str, str] = {
     # Max single pH Up dose (ml)
     "dosing.ph_up_max_single_ml": "5",
     # Minimum interval between pH Up doses (seconds)
-    # Min interval between auto doses (originally 900s/15min for settling; reduced to 300s/5min for faster feedback)
-    # If pH overshoots, increase this. If dosing too slowly, decrease.
-    "dosing.ph_min_interval_s": "300",
-    # Post‑dose stabilization observation window (seconds) before recording final reading
+    # Min interval between auto doses (cooldown period after settling completes)
+    # Timing: 60s spike detection → 300s settling → 600s cooldown before next dose
+    "dosing.ph_min_interval_s": "600",
+    # Post‑dose stabilization observation window (settling time until pH reaches final value)
     # This is the window used to check if a dose worked (samples collected within this period)
     "dosing.ph_stabilization_window_s": "300",
     # Delta threshold for considering pH stable (absolute change over final window)
@@ -106,6 +106,9 @@ DEFAULTS: Dict[str, str] = {
     # Observe window after dose (7 hours based on real-world stabilization data, kept for learner training)
     # Does NOT block next dose; only used for long-term effectiveness analysis
     "dosing.observe_s_after_dose": "25200",
+    # Fast observe window for retries (spike detection to validate pump flow)
+    # 60s is enough to see pH spike indicating dose was delivered
+    "dosing.observe_s_after_retry": "60",
 
     # pH Up automation (production defaults)
     # NOTE: ph.auto_enabled is DEPRECATED - use controls.ph_auto via auto_control.py
