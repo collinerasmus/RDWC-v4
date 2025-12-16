@@ -105,15 +105,25 @@ def _update_post_ph(rowid: int, post_ph: Optional[float]) -> None:
         conn.execute("UPDATE ph_dose_log SET post_ph=? WHERE id=?", (post_ph, rowid))
         conn.commit()
 
-def _is_dose_effective(pre_ph: Optional[float], post_ph: Optional[float], min_delta: float = 0.02) -> bool:
-    """Check if dose produced measurable pH change. 
-    Returns True if pH changed by at least min_delta (default 0.02).
-    Used to detect failed doses due to air bubbles in dosing line.
+def _is_dose_effective(pre_ph: Optional[float], post_ph: Optional[float], min_delta: float = 0.02, direction: str = "up") -> bool:
+    """Check if dose produced measurable pH change in the correct direction. 
+    For pH up dosing: post_ph must be > pre_ph by at least min_delta.
+    For pH down dosing: post_ph must be < pre_ph by at least min_delta.
+    Returns False if pH moved in wrong direction (indicates failed dose due to air bubble).
     """
     if pre_ph is None or post_ph is None:
         return False  # Can't verify without both readings
-    delta = abs(post_ph - pre_ph)
-    return delta >= min_delta
+    delta = post_ph - pre_ph
+    
+    if direction.lower() == "up":
+        # For pH up: pH should increase
+        return delta >= min_delta
+    elif direction.lower() == "down":
+        # For pH down: pH should decrease  
+        return delta <= -min_delta
+    else:
+        # Fallback: check absolute change
+        return abs(delta) >= min_delta
 
 def _mark_dose_faulty_and_retry(rowid: int, pre_ph: float, post_ph: float) -> None:
     """Mark dose as faulty (no measurable pH change) and queue a retry.
@@ -645,10 +655,15 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
                             print(f"[pH Stabilization] rowid={rowid} STABLE: ph={stable_ph:.3f}, range={sample_range:.4f}")
                             _update_post_ph_with_flag(rowid, round(stable_ph, 3), stable=True)
                             
-                            # Validate dose effectiveness: check if pH changed sufficiently
-                            if pre_ph is not None and not _is_dose_effective(pre_ph, stable_ph, dose_effectiveness_threshold):
-                                print(f"[pH Dose Validation] rowid={rowid} INEFFECTIVE: delta={abs(stable_ph - pre_ph):.4f} < {dose_effectiveness_threshold}")
-                                _mark_dose_faulty_and_retry(rowid, pre_ph, stable_ph)
+                            # Validate dose effectiveness: check if pH changed sufficiently in correct direction (up)
+                            if pre_ph is not None:
+                                delta = stable_ph - pre_ph
+                                is_effective = _is_dose_effective(pre_ph, stable_ph, dose_effectiveness_threshold, direction="up")
+                                if not is_effective:
+                                    print(f"[pH Dose Validation] rowid={rowid} INEFFECTIVE: delta={delta:.4f} (expected >= {dose_effectiveness_threshold}), pre={pre_ph:.3f}, post={stable_ph:.3f}")
+                                    _mark_dose_faulty_and_retry(rowid, pre_ph, stable_ph)
+                                else:
+                                    print(f"[pH Dose Validation] rowid={rowid} EFFECTIVE: delta={delta:.4f}")
                             return
                         else:
                             print(f"[pH Stabilization] rowid={rowid} still settling: range={sample_range:.4f} > {stability_delta}")
