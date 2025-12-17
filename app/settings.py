@@ -106,6 +106,9 @@ DEFAULTS: Dict[str, str] = {
     # Observe window after dose (7 hours based on real-world stabilization data, kept for learner training)
     # Does NOT block next dose; only used for long-term effectiveness analysis
     "dosing.observe_s_after_dose": "25200",
+    # EC-specific observe window (settling/mixing) before post-read; overrides generic if set
+    # Default 600s provides adequate mix + sampling without delaying UI feedback
+    "dosing.ec_observe_s_after_dose": "600",
     # Fast observe window for retries (spike detection to validate pump flow)
     # 60s is enough to see pH spike indicating dose was delivered
     "dosing.observe_s_after_retry": "60",

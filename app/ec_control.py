@@ -24,6 +24,11 @@ from pathlib import Path
 router = APIRouter()
 
 DB_PATH = Path(__file__).parent.parent / "data" / "rdwc.db"
+try:
+    # Unified dose events logger (used for UI totals and cross-controller history)
+    from app.dosing import log_dose_event
+except Exception:
+    log_dose_event = None  # Fallback if module import fails during tooling
 
 # --- Automation state --------------------------------------------------------
 _auto_thread: Optional[threading.Thread] = None
@@ -783,12 +788,28 @@ def dose_ec(body: dict = Body(...)):
         })
         
         # Schedule post-read after settling time (async)
-        observe_s = _i("dosing.observe_s_after_dose", 900)
+        # Use EC-specific observe window if configured; fallback to 600s sensible default
+        observe_s = _i("dosing.ec_observe_s_after_dose", _i("dosing.observe_s_after_dose", 600))
         threading.Thread(
             target=_read_post_ec_async,
             args=(rowid, observe_s),
             daemon=True
         ).start()
+
+        # Also log to unified dose_events for UI totals (if available)
+        try:
+            if log_dose_event is not None:
+                # Record a single-pump event for dashboard totals
+                log_dose_event(
+                    pump=pump,
+                    seconds=seconds,
+                    reason=reason or "manual",
+                    actor="controller",
+                    ec_before=ec_before,
+                    ec_after=None,
+                )
+        except Exception:
+            pass
         
         ec_after = None
         
@@ -887,7 +908,7 @@ def dose_ec(body: dict = Body(...)):
     })
     
     # Schedule post-read after settling time (async)
-    observe_s = _i("dosing.observe_s_after_dose", 900)
+    observe_s = _i("dosing.ec_observe_s_after_dose", _i("dosing.observe_s_after_dose", 600))
     threading.Thread(
         target=_read_post_ec_async,
         args=(rowid, observe_s),
@@ -895,6 +916,37 @@ def dose_ec(body: dict = Body(...)):
     ).start()
     
     ec_after = None
+
+    # Also log to unified dose_events for UI totals (split per pump)
+    try:
+        if log_dose_event is not None:
+            # Compute seconds per pump from ml and configured rates
+            def _rate(key: str, default: float) -> float:
+                try:
+                    return max(0.1, min(50.0, _f(key, default)))
+                except Exception:
+                    return default
+            r_g = _rate("dosing.grow_ml_per_sec", 1.02)
+            r_m = _rate("dosing.micro_ml_per_sec", 1.02)
+            r_b = _rate("dosing.bloom_ml_per_sec", 1.02)
+            parts: List[Tuple[str, float, float]] = [
+                ("grow", grow_ml, r_g),
+                ("micro", micro_ml, r_m),
+                ("bloom", bloom_ml, r_b),
+            ]
+            for name, ml_part, rate_part in parts:
+                if ml_part and ml_part > 0:
+                    sec = ml_part / rate_part
+                    log_dose_event(
+                        pump=name,
+                        seconds=sec,
+                        reason=reason or "manual",
+                        actor="controller",
+                        ec_before=ec_before,
+                        ec_after=None,
+                    )
+    except Exception:
+        pass
     
     return {
         "ok": True,
