@@ -222,10 +222,11 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
         start_iso = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     
     with sqlite3.connect(str(DB_PATH)) as conn:
+        conn.row_factory = sqlite3.Row  # Enable column access by name
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT ts, pump, seconds, reason, pre_ec, post_ec, blocked_by
+            SELECT ts, pump, seconds, reason, ec_before, ec_after, blocked_by
             FROM dose_events
             WHERE pump IN ('grow', 'micro', 'bloom')
               AND ts BETWEEN ? AND ?
@@ -236,19 +237,48 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
         )
         rows = cur.fetchall()
     
-    # Group by pump and timestamp to aggregate multi-pump events
+    # Group by timestamp to aggregate multi-pump events
     from collections import defaultdict
-    events_by_ts = defaultdict(lambda: {"pumps": {}, "ec_before": None, "ec_after": None, "reasons": []})
+    events_by_ts = defaultdict(lambda: {
+        "ts": None,
+        "pumps": {},
+        "ec_before": None, 
+        "ec_after": None, 
+        "reasons": [],
+        "total_seconds": 0,
+        "total_volume_ml": 0
+    })
     
-    for ts, pump, seconds, reason, pre_ec, post_ec, blocked_by in rows:
+    # Pump calibration rates (ml/sec)
+    calibration = {
+        "grow": _f("dosing.grow_ml_per_sec", 1.02) / 1000.0,  # Convert ml/sec to sec
+        "micro": _f("dosing.micro_ml_per_sec", 1.02) / 1000.0,
+        "bloom": _f("dosing.bloom_ml_per_sec", 1.02) / 1000.0,
+    }
+    
+    for row in rows:
+        ts = row["ts"]
+        pump = row["pump"]
+        seconds = row["seconds"] or 0
+        reason = row["reason"]
+        ec_before = row["ec_before"]
+        ec_after = row["ec_after"]
+        
         key = ts
-        if pump:
-            ml = (seconds / 1000.0) if seconds else 0  # Assume calibrated to seconds
-            events_by_ts[key]["pumps"][pump] = {"seconds": seconds, "ml": ml}
-        if pre_ec is not None:
-            events_by_ts[key]["ec_before"] = pre_ec
-        if post_ec is not None:
-            events_by_ts[key]["ec_after"] = post_ec
+        events_by_ts[key]["ts"] = ts
+        
+        if pump and pump in calibration:
+            # Compute volume from seconds
+            ml = seconds * (calibration[pump] * 1000.0)  # calibration is ml/1000sec
+            events_by_ts[key]["pumps"][pump] = ml
+            events_by_ts[key]["total_volume_ml"] += ml
+        
+        events_by_ts[key]["total_seconds"] += seconds
+        
+        if ec_before is not None:
+            events_by_ts[key]["ec_before"] = ec_before
+        if ec_after is not None:
+            events_by_ts[key]["ec_after"] = ec_after
         if reason and reason not in events_by_ts[key]["reasons"]:
             events_by_ts[key]["reasons"].append(reason)
     
@@ -256,22 +286,16 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
     result = []
     for ts in sorted(events_by_ts.keys(), reverse=True):  # Newest first
         event = events_by_ts[ts]
-        total_ml = sum(p.get("ml", 0) for p in event["pumps"].values())
-        
-        # Parse pumps for detail
-        pumps_detail = {}
-        for pump, data in event["pumps"].items():
-            pumps_detail[pump] = data.get("ml", 0)
         
         ec_before = event["ec_before"]
         ec_after = event["ec_after"]
         delta = (ec_after - ec_before) if (ec_before is not None and ec_after is not None) else None
         
         result.append({
-            "ts": ts,
-            "seconds": sum(p.get("seconds", 0) for p in event["pumps"].values()),
-            "volume_ml": total_ml,
-            "pumps": pumps_detail if pumps_detail else None,
+            "ts": event["ts"],
+            "seconds": event["total_seconds"],
+            "volume_ml": event["total_volume_ml"],
+            "pumps": event["pumps"] if event["pumps"] else None,
             "detail": " + ".join(event["reasons"]) if event["reasons"] else "dose",
             "ec_before": ec_before,
             "ec_after": ec_after,
