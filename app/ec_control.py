@@ -204,8 +204,8 @@ def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
     return out
 
 def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = None, hours: Optional[int] = None, limit: int = 2000) -> List[Dict[str, Any]]:
-    """Read EC doses from unified dose_events table (immediate logging, post-read filled in later).
-    Returns list ordered descending by ts (newest first for UI).
+    """Read EC doses from both ec_dose_log (historical) and dose_events (new immediate logging).
+    Returns merged list ordered descending by ts (newest first for UI).
     """
     _ensure_tables()
     start_iso = None
@@ -221,9 +221,12 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
         end_iso = datetime.now(timezone.utc).isoformat()
         start_iso = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     
+    # First, try dose_events (new immediate logging)
     with sqlite3.connect(str(DB_PATH)) as conn:
-        conn.row_factory = sqlite3.Row  # Enable column access by name
+        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
+        
+        # Get from dose_events
         cur.execute(
             """
             SELECT ts, pump, seconds, reason, ec_before, ec_after, blocked_by
@@ -235,15 +238,16 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
             """,
             (start_iso, end_iso, int(limit))
         )
-        rows = cur.fetchall()
+        dose_event_rows = cur.fetchall()
     
-    # Group by timestamp to aggregate multi-pump events
+    # Group dose_events by timestamp
     from collections import defaultdict
     events_by_ts = defaultdict(lambda: {
         "ts": None,
+        "source": "dose_events",
         "pumps": {},
-        "ec_before": None, 
-        "ec_after": None, 
+        "ec_before": None,
+        "ec_after": None,
         "reasons": [],
         "total_seconds": 0,
         "total_volume_ml": 0
@@ -251,12 +255,12 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
     
     # Pump calibration rates (ml/sec)
     calibration = {
-        "grow": _f("dosing.grow_ml_per_sec", 1.02) / 1000.0,  # Convert ml/sec to sec
+        "grow": _f("dosing.grow_ml_per_sec", 1.02) / 1000.0,
         "micro": _f("dosing.micro_ml_per_sec", 1.02) / 1000.0,
         "bloom": _f("dosing.bloom_ml_per_sec", 1.02) / 1000.0,
     }
     
-    for row in rows:
+    for row in dose_event_rows:
         ts = row["ts"]
         pump = row["pump"]
         seconds = row["seconds"] or 0
@@ -268,8 +272,7 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
         events_by_ts[key]["ts"] = ts
         
         if pump and pump in calibration:
-            # Compute volume from seconds
-            ml = seconds * (calibration[pump] * 1000.0)  # calibration is ml/1000sec
+            ml = seconds * (calibration[pump] * 1000.0)
             events_by_ts[key]["pumps"][pump] = ml
             events_by_ts[key]["total_volume_ml"] += ml
         
@@ -281,6 +284,54 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
             events_by_ts[key]["ec_after"] = ec_after
         if reason and reason not in events_by_ts[key]["reasons"]:
             events_by_ts[key]["reasons"].append(reason)
+    
+    # Now fallback: get from ec_dose_log (historical data before dose_events was implemented)
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT ts_utc, action, volume_ml, duration_ms, pre_ec, post_ec, result, reason, mix_ratio
+            FROM ec_dose_log
+            WHERE ts_utc BETWEEN ? AND ?
+            ORDER BY ts_utc DESC
+            LIMIT ?
+            """,
+            (start_iso, end_iso, int(limit))
+        )
+        ec_log_rows = cur.fetchall()
+    
+    # Parse mix_ratio from ec_dose_log and add to merged dict (if not already in dose_events)
+    for ts_utc, action, volume_ml, duration_ms, pre_ec, post_ec, result, reason, mix_ratio in ec_log_rows:
+        # Skip if already in dose_events
+        if ts_utc in events_by_ts:
+            continue
+        
+        key = ts_utc
+        pumps = {"grow": None, "micro": None, "bloom": None}
+        mix_ratio_str = mix_ratio or ""
+        
+        if mix_ratio_str:
+            import re
+            g_match = re.search(r'G([\d.]+)', mix_ratio_str)
+            m_match = re.search(r'M([\d.]+)', mix_ratio_str)
+            b_match = re.search(r'B([\d.]+)', mix_ratio_str)
+            if g_match:
+                pumps["grow"] = float(g_match.group(1))
+            if m_match:
+                pumps["micro"] = float(m_match.group(1))
+            if b_match:
+                pumps["bloom"] = float(b_match.group(1))
+        
+        events_by_ts[key] = {
+            "ts": ts_utc,
+            "source": "ec_dose_log",
+            "pumps": {k: v for k, v in pumps.items() if v is not None},
+            "ec_before": float(pre_ec) if pre_ec is not None else None,
+            "ec_after": float(post_ec) if post_ec is not None else None,
+            "reasons": [reason] if reason else [action] if action else [],
+            "total_volume_ml": float(volume_ml) if volume_ml is not None else 0,
+            "total_seconds": (float(duration_ms) / 1000.0) if duration_ms is not None else 0
+        }
     
     # Format as API response
     result = []
@@ -300,7 +351,7 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
             "ec_before": ec_before,
             "ec_after": ec_after,
             "delta_ec": delta,
-            "guard_triggered": False  # dose_events doesn't track this
+            "guard_triggered": False
         })
     
     return result
