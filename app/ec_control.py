@@ -203,6 +203,84 @@ def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
         })
     return out
 
+def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = None, hours: Optional[int] = None, limit: int = 2000) -> List[Dict[str, Any]]:
+    """Read EC doses from unified dose_events table (immediate logging, post-read filled in later).
+    Returns list ordered descending by ts (newest first for UI).
+    """
+    _ensure_tables()
+    start_iso = None
+    end_iso = None
+    if start and end:
+        start_iso = start
+        end_iso = end
+    elif hours:
+        end_iso = datetime.now(timezone.utc).isoformat()
+        start_iso = (datetime.now(timezone.utc) - timedelta(hours=int(hours))).isoformat()
+    else:
+        # Default last 24h
+        end_iso = datetime.now(timezone.utc).isoformat()
+        start_iso = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT ts, pump, seconds, reason, pre_ec, post_ec, blocked_by
+            FROM dose_events
+            WHERE pump IN ('grow', 'micro', 'bloom')
+              AND ts BETWEEN ? AND ?
+            ORDER BY ts DESC
+            LIMIT ?
+            """,
+            (start_iso, end_iso, int(limit))
+        )
+        rows = cur.fetchall()
+    
+    # Group by pump and timestamp to aggregate multi-pump events
+    from collections import defaultdict
+    events_by_ts = defaultdict(lambda: {"pumps": {}, "ec_before": None, "ec_after": None, "reasons": []})
+    
+    for ts, pump, seconds, reason, pre_ec, post_ec, blocked_by in rows:
+        key = ts
+        if pump:
+            ml = (seconds / 1000.0) if seconds else 0  # Assume calibrated to seconds
+            events_by_ts[key]["pumps"][pump] = {"seconds": seconds, "ml": ml}
+        if pre_ec is not None:
+            events_by_ts[key]["ec_before"] = pre_ec
+        if post_ec is not None:
+            events_by_ts[key]["ec_after"] = post_ec
+        if reason and reason not in events_by_ts[key]["reasons"]:
+            events_by_ts[key]["reasons"].append(reason)
+    
+    # Format as API response
+    result = []
+    for ts in sorted(events_by_ts.keys(), reverse=True):  # Newest first
+        event = events_by_ts[ts]
+        total_ml = sum(p.get("ml", 0) for p in event["pumps"].values())
+        
+        # Parse pumps for detail
+        pumps_detail = {}
+        for pump, data in event["pumps"].items():
+            pumps_detail[pump] = data.get("ml", 0)
+        
+        ec_before = event["ec_before"]
+        ec_after = event["ec_after"]
+        delta = (ec_after - ec_before) if (ec_before is not None and ec_after is not None) else None
+        
+        result.append({
+            "ts": ts,
+            "seconds": sum(p.get("seconds", 0) for p in event["pumps"].values()),
+            "volume_ml": total_ml,
+            "pumps": pumps_detail if pumps_detail else None,
+            "detail": " + ".join(event["reasons"]) if event["reasons"] else "dose",
+            "ec_before": ec_before,
+            "ec_after": ec_after,
+            "delta_ec": delta,
+            "guard_triggered": False  # dose_events doesn't track this
+        })
+    
+    return result
+
 def _dose_events_range(start: Optional[str] = None, end: Optional[str] = None, hours: Optional[int] = None, limit: int = 2000) -> List[Dict[str, Any]]:
     """Return dose events within a time range ordered ascending by ts_utc.
     Each row: {ts, seconds, volume_ml, detail, pumps, ec_before, ec_after, guard_triggered}
@@ -227,7 +305,7 @@ def _dose_events_range(start: Optional[str] = None, end: Optional[str] = None, h
             """
             SELECT ts_utc, action, volume_ml, duration_ms, pre_ec, post_ec, result, reason, mix_ratio
             FROM ec_dose_log
-            WHERE ts_utc BETWEEN ? AND ? AND post_ec IS NOT NULL
+            WHERE ts_utc BETWEEN ? AND ?
             ORDER BY ts_utc ASC
             LIMIT ?
             """,
@@ -1214,7 +1292,8 @@ def ec_dose_log(
                     local_dt = naive_dt.replace(tzinfo=timezone.utc)
                 start = local_dt.astimezone(timezone.utc).isoformat()
                 end = datetime.now(timezone.utc).isoformat()
-        return _dose_events_range(start=start, end=end, hours=hours, limit=limit)
+        # Read from unified dose_events table (immediate logging)
+        return _dose_events_from_unified(start=start, end=end, hours=hours, limit=limit)
     except ValueError as ve:
         return JSONResponse(status_code=422, content={"ok": False, "error": str(ve)})
 
