@@ -227,7 +227,7 @@ def _dose_events_range(start: Optional[str] = None, end: Optional[str] = None, h
             """
             SELECT ts_utc, action, volume_ml, duration_ms, pre_ec, post_ec, result, reason, mix_ratio
             FROM ec_dose_log
-            WHERE ts_utc BETWEEN ? AND ?
+            WHERE ts_utc BETWEEN ? AND ? AND post_ec IS NOT NULL
             ORDER BY ts_utc ASC
             LIMIT ?
             """,
