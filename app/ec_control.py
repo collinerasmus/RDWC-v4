@@ -91,23 +91,30 @@ def _update_post_ec(rowid: int, post_ec: Optional[float]) -> None:
         conn.execute("UPDATE ec_dose_log SET post_ec=? WHERE id=?", (post_ec, rowid))
         conn.commit()
 
-def _read_post_ec_async(rowid: int, observe_s: int) -> None:
-    """
-    Background thread: wait observe_s seconds, then read EC and update post_ec.
-    Also calculates learning from successful doses.
-    """
-    time.sleep(observe_s)
-    
-    # Read EC after settling
-    ec_after, _ = _get_latest_ec()
+def _read_post_ec_async(rowid: int, observe_s: int, baseline_ts_unix: Optional[int] = None) -> None:
+    """Poll for a settled EC sample after dosing and record post_ec.
+    Uses best available sample within observe_s to avoid missing values in the log."""
+    deadline = time.time() + max(observe_s, 1)
+    poll_interval = 15.0
+    last_seen_ts = baseline_ts_unix or 0
+    ec_after = None
+
+    while time.time() < deadline:
+        ec_val, ec_ts = _get_latest_ec()
+        if ec_val is not None:
+            if ec_ts is None or ec_ts >= last_seen_ts:
+                ec_after = ec_val
+                break
+        time.sleep(poll_interval)
+
+    # Final best-effort read even if no fresh sample arrived
     if ec_after is None:
-        return
-    
-    # Update post_ec in database
+        ec_after, _ = _get_latest_ec()
+
     _update_post_ec(rowid, ec_after)
-    
-    # Learn from this dose
-    _update_learning(rowid, ec_after)
+
+    if ec_after is not None:
+        _update_learning(rowid, ec_after)
 
 def _update_learning(rowid: int, ec_after: Optional[float]) -> None:
     """
@@ -185,6 +192,78 @@ def _compute_learning_from_db(limit: int = 50) -> Optional[float]:
     except Exception:
         return None
 
+
+def _nearest_ec_sample(target_ts_unix: float, prefer_after: bool, window_s: int = 1800) -> Optional[float]:
+    """Return closest EC sample to target_ts_unix within window_s."""
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            if prefer_after:
+                cur.execute(
+                    "SELECT ec_ms_cm, ts FROM readings WHERE ec_ms_cm IS NOT NULL AND ts >= ? ORDER BY ts ASC LIMIT 1",
+                    (int(target_ts_unix),)
+                )
+            else:
+                cur.execute(
+                    "SELECT ec_ms_cm, ts FROM readings WHERE ec_ms_cm IS NOT NULL AND ts <= ? ORDER BY ts DESC LIMIT 1",
+                    (int(target_ts_unix),)
+                )
+            row = cur.fetchone()
+            if not row:
+                return None
+            ec_val, ts_val = row
+            if ec_val is None or ts_val is None:
+                return None
+            if abs(int(ts_val) - int(target_ts_unix)) > window_s:
+                return None
+            return float(ec_val)
+    except Exception:
+        return None
+
+
+def _backfill_missing_ec_fields(max_rows: int = 50, window_s: int = 1800) -> int:
+    """Fill missing pre_ec/post_ec using nearest readings to reduce UI dashes."""
+    _ensure_tables()
+    updates = 0
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, ts_utc, pre_ec, post_ec FROM ec_dose_log WHERE (pre_ec IS NULL OR post_ec IS NULL) ORDER BY id DESC LIMIT ?",
+                (int(max_rows),)
+            )
+            rows = cur.fetchall()
+
+        for rid, ts_iso, pre_ec, post_ec in rows:
+            try:
+                target_ts = datetime.fromisoformat(ts_iso).replace(tzinfo=timezone.utc).timestamp()
+            except Exception:
+                continue
+            pre_val = pre_ec
+            post_val = post_ec
+            if pre_val is None:
+                pre_val = _nearest_ec_sample(target_ts, prefer_after=False, window_s=window_s)
+            if post_val is None:
+                post_val = _nearest_ec_sample(target_ts, prefer_after=True, window_s=window_s) or _nearest_ec_sample(target_ts, prefer_after=False, window_s=window_s)
+
+            if pre_val is not None or post_val is not None:
+                with sqlite3.connect(str(DB_PATH)) as conn:
+                    conn.execute(
+                        "UPDATE ec_dose_log SET pre_ec=COALESCE(pre_ec, ?), post_ec=COALESCE(post_ec, ?) WHERE id=?",
+                        (pre_val, post_val, rid),
+                    )
+                    conn.commit()
+                updates += 1
+
+        if updates:
+            learned = _compute_learning_from_db()
+            if learned is not None:
+                global _learned_ml_per_mScm
+                _learned_ml_per_mScm = learned
+        return updates
+    except Exception:
+        return 0
+
 def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
     _ensure_tables()
     with sqlite3.connect(str(DB_PATH)) as conn:
@@ -220,6 +299,9 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
         # Default last 24h
         end_iso = datetime.now(timezone.utc).isoformat()
         start_iso = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+
+    # Opportunistically backfill missing pre/post values to avoid UI dashes
+    _backfill_missing_ec_fields(max_rows=100, window_s=1800)
     
     # First, try dose_events (new immediate logging)
     with sqlite3.connect(str(DB_PATH)) as conn:
@@ -884,7 +966,7 @@ def dose_ec(body: dict = Body(...)):
         ml = seconds * rate
         
         # Pre-read EC
-        ec_before, _ = _get_latest_ec()
+        ec_before, ec_ts_before = _get_latest_ec()
         # Hard guardrail: disallow nutrient if EC already above target band
         try:
             # Prefer target±tolerance if present
@@ -945,7 +1027,7 @@ def dose_ec(body: dict = Body(...)):
         observe_s = _i("dosing.ec_observe_s_after_dose", _i("dosing.observe_s_after_dose", 600))
         threading.Thread(
             target=_read_post_ec_async,
-            args=(rowid, observe_s),
+            args=(rowid, observe_s, ec_ts_before),
             daemon=True
         ).start()
 
@@ -1041,7 +1123,7 @@ def dose_ec(body: dict = Body(...)):
             bloom_ml = ml * (b / total)
     
     # Pre-read
-    ec_before, _ = _get_latest_ec()
+    ec_before, ec_ts_before = _get_latest_ec()
     
     # Dose with lock
     with _dose_lock:
@@ -1064,7 +1146,7 @@ def dose_ec(body: dict = Body(...)):
     observe_s = _i("dosing.ec_observe_s_after_dose", _i("dosing.observe_s_after_dose", 600))
     threading.Thread(
         target=_read_post_ec_async,
-        args=(rowid, observe_s),
+        args=(rowid, observe_s, ec_ts_before),
         daemon=True
     ).start()
     

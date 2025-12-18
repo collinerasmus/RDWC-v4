@@ -400,6 +400,27 @@ def _compute_guards(now: float) -> Dict[str, Any]:
     ec_baseline_min = _settings_get_float("dosing.ec_baseline_min", 0.2)
     ec_baseline_low = (ec_val is None) or (ec_val < ec_baseline_min)
 
+    # Recent EC dose guard: wait for EC-induced pH drift to settle before dosing/learning
+    def _last_ec_dose_ts() -> Optional[datetime]:
+        try:
+            with sqlite3.connect(str(DB_PATH)) as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT ts_utc FROM ec_dose_log WHERE result='ok' ORDER BY id DESC LIMIT 1")
+                row = cur.fetchone()
+                if not row or not row[0]:
+                    return None
+                return datetime.fromisoformat(row[0]).astimezone(timezone.utc)
+        except Exception:
+            return None
+
+    ec_wait = _settings_get_int("dosing.ph_wait_after_ec_s", 900)
+    last_ec = _last_ec_dose_ts()
+    since_last_ec = None
+    ec_settle = False
+    if last_ec:
+        since_last_ec = int(datetime.now(timezone.utc).timestamp() - last_ec.timestamp())
+        ec_settle = since_last_ec < ec_wait
+
     # Min interval guard - 15min default for 2× hydraulic residence time (100L @ 20 LPM)
     last_ok = _last_ok_ts()
     min_interval = _settings_get_int("dosing.ph_min_interval_s", 900)
@@ -426,7 +447,9 @@ def _compute_guards(now: float) -> Dict[str, Any]:
         "daily_cap": bool(daily_guard),
         "reservoir": bool(res_guard),
         "ec_baseline_low": bool(ec_baseline_low),
+        "ec_settle": bool(ec_settle),
         "since_last_ok_s": since_last_ok,
+        "since_last_ec_s": since_last_ec,
         "today_total_ml": today_ml,
         "min_interval_s": min_interval,
         "daily_cap_ml": daily_cap,
@@ -994,6 +1017,8 @@ def _derive_holding_reason(ph_val: Optional[float], guards: Dict[str, Any], targ
         return "stale"
     if g.get("ec_baseline_low"):
         return "ec_baseline_low"
+    if g.get("ec_settle"):
+        return "ec_settle"
     if g.get("daily_cap"):
         return "daily_cap"
     if g.get("interval"):
@@ -1206,6 +1231,10 @@ def _auto_loop():
                         skip_next_poll = True
                 elif g.get("ec_baseline_low"):
                     _set_auto_block("ec_baseline_low")
+                    if _auto_last_block_count == 3:
+                        skip_next_poll = True
+                elif g.get("ec_settle"):
+                    _set_auto_block("ec_settle")
                     if _auto_last_block_count == 3:
                         skip_next_poll = True
                 elif g.get("daily_cap"):
