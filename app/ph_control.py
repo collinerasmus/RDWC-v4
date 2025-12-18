@@ -445,7 +445,7 @@ def _compute_guards(now: float) -> Dict[str, Any]:
         except Exception:
             return None
 
-    ec_wait = _settings_get_int("dosing.ph_wait_after_ec_s", 900)
+    ec_wait = _settings_get_int("dosing.ph_wait_after_ec_s", 300)  # Wait 5min after EC dose (1 pH interval), not 15min
     last_ec = _last_ec_dose_ts()
     since_last_ec = None
     ec_settle = False
