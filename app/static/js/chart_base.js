@@ -19,6 +19,14 @@
     '1m': 30 * 24 * 3600 * 1000
   };
 
+  // Base units for multiplier feature
+  const TIME_UNITS = {
+    'hour': 3600 * 1000,
+    'day': 24 * 3600 * 1000,
+    'week': 7 * 24 * 3600 * 1000,
+    'month': 30 * 24 * 3600 * 1000
+  };
+
   // Chart color palette
   const COLORS = {
     ph: '#3b82f6',      // blue
@@ -44,6 +52,8 @@
       this.chart = null;
       this.timeWindow = { start: null, end: null };
       this.selectedRange = '24h';
+      this.selectedUnit = 'day'; // hour, day, week, month, grow
+      this.multiplier = 1; // Number of units to show
       this.isLiveMode = false;
       this.autoRefreshInterval = null;
       this.lastRefreshTime = 0;
@@ -146,9 +156,20 @@
     /**
      * Set time range and update window
      */
-    async setTimeRange(range) {
+    async setTimeRange(range, multiplier = 1) {
       this.selectedRange = range;
+      this.multiplier = Math.max(1, Math.floor(multiplier));
       const now = Date.now();
+
+      // Map range to unit
+      const unitMap = {
+        '1h': 'hour',
+        '24h': 'day',
+        '1w': 'week',
+        '1m': 'month',
+        'grow': 'grow'
+      };
+      this.selectedUnit = unitMap[range] || 'day';
 
       if (range === 'grow') {
         // Fetch grow start date
@@ -165,7 +186,9 @@
         // Custom range set via setCustomRange()
         return;
       } else {
-        const spanMs = TIME_RANGES[range] || TIME_RANGES['24h'];
+        // Apply multiplier to base unit
+        const baseMs = TIME_UNITS[this.selectedUnit] || TIME_RANGES[range] || TIME_RANGES['24h'];
+        const spanMs = baseMs * this.multiplier;
         this.timeWindow.start = now - spanMs;
         this.timeWindow.end = now;
       }
@@ -353,18 +376,83 @@
   }
 
   /**
-   * Create standard time range selector
+   * Create standard time range selector with multiplier controls
    */
-  function createTimeRangeSelector(selectId, chartInstance) {
+  function createTimeRangeSelector(selectId, chartInstance, containerId = null) {
     const select = document.getElementById(selectId);
     if (!select) return;
 
+    // Create container for controls if containerId provided
+    let controlsContainer = null;
+    if (containerId) {
+      controlsContainer = document.getElementById(containerId);
+      if (controlsContainer) {
+        controlsContainer.innerHTML = '';
+        controlsContainer.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap;';
+      }
+    }
+
+    // Handle select change
     select.addEventListener('change', async () => {
       const value = select.value;
       if (value !== 'custom') {
-        await chartInstance.setTimeRange(value);
+        chartInstance.multiplier = 1;
+        await chartInstance.setTimeRange(value, 1);
+        updateMultiplierDisplay();
       }
     });
+
+    // Create multiplier controls
+    function updateMultiplierDisplay() {
+      if (!controlsContainer) return;
+
+      const unit = chartInstance.selectedUnit;
+      const mult = chartInstance.multiplier;
+
+      // Don't show multiplier for custom or grow
+      if (chartInstance.selectedRange === 'custom' || chartInstance.selectedRange === 'grow') {
+        controlsContainer.innerHTML = '';
+        return;
+      }
+
+      const unitLabel = unit === 'hour' ? (mult === 1 ? 'Hour' : 'Hours') :
+                        unit === 'day' ? (mult === 1 ? 'Day' : 'Days') :
+                        unit === 'week' ? (mult === 1 ? 'Week' : 'Weeks') :
+                        unit === 'month' ? (mult === 1 ? 'Month' : 'Months') : '';
+
+      controlsContainer.innerHTML = `
+        <button id="chart-mult-minus" style="padding:4px 10px;background:#374151;border:1px solid #4b5563;color:#e0e0e0;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;">−</button>
+        <span style="min-width:80px;text-align:center;font-size:14px;color:#e0e0e0;font-weight:500;">${mult} ${unitLabel}</span>
+        <button id="chart-mult-plus" style="padding:4px 10px;background:#374151;border:1px solid #4b5563;color:#e0e0e0;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;">+</button>
+      `;
+
+      // Wire up buttons
+      const minusBtn = document.getElementById('chart-mult-minus');
+      const plusBtn = document.getElementById('chart-mult-plus');
+
+      if (minusBtn) {
+        minusBtn.addEventListener('click', async () => {
+          if (chartInstance.multiplier > 1) {
+            await chartInstance.setTimeRange(chartInstance.selectedRange, chartInstance.multiplier - 1);
+            updateMultiplierDisplay();
+          }
+        });
+      }
+
+      if (plusBtn) {
+        plusBtn.addEventListener('click', async () => {
+          // Set reasonable maximums
+          const maxMult = unit === 'hour' ? 24 : unit === 'day' ? 30 : unit === 'week' ? 12 : unit === 'month' ? 12 : 10;
+          if (chartInstance.multiplier < maxMult) {
+            await chartInstance.setTimeRange(chartInstance.selectedRange, chartInstance.multiplier + 1);
+            updateMultiplierDisplay();
+          }
+        });
+      }
+    }
+
+    // Initial display
+    updateMultiplierDisplay();
 
     return select;
   }

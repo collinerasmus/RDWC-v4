@@ -247,7 +247,7 @@
     });
 
     // Hook up controls
-    window.createTimeRangeSelector('ecDoseRangeSelect', chart);
+    window.createTimeRangeSelector('ecDoseRangeSelect', chart, 'ec-chart-controls');
     window.createCustomRangeInputs('ecDoseFrom', 'ecDoseTo', 'ecDoseApply', chart);
 
     // Expose for external access

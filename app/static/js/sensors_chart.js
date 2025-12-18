@@ -191,7 +191,7 @@
     });
 
     // Hook up time range selector
-    window.createTimeRangeSelector('trendRangeSelect', chart);
+    window.createTimeRangeSelector('trendRangeSelect', chart, 'sensors-chart-controls');
     window.createCustomRangeInputs('trendFrom', 'trendTo', 'trendApply', chart);
 
     // Expose for external access

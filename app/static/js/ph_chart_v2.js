@@ -221,7 +221,7 @@
     });
 
     // Hook up controls
-    window.createTimeRangeSelector('phDoseRangeSelect', chart);
+    window.createTimeRangeSelector('phDoseRangeSelect', chart, 'ph-chart-controls');
     window.createCustomRangeInputs('phDoseFrom', 'phDoseTo', 'phDoseApply', chart);
 
     // Expose for external access
