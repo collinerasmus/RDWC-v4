@@ -7,11 +7,11 @@
   'use strict';
 
   const ZOOM_LEVELS = [
-    { id: '1h', label: '1 Hour', ms: 60 * 60 * 1000 },
-    { id: '1d', label: '1 Day', ms: 24 * 60 * 60 * 1000 },
-    { id: '1w', label: '1 Week', ms: 7 * 24 * 60 * 60 * 1000 },
-    { id: '1m', label: '1 Month', ms: 30 * 24 * 60 * 60 * 1000 },
-    { id: 'grow', label: 'Entire Grow', ms: null } // null = special handling
+    { id: '1h', label: 'Hour', ms: 60 * 60 * 1000, maxMult: 24 },
+    { id: '1d', label: 'Day', ms: 24 * 60 * 60 * 1000, maxMult: 30 },
+    { id: '1w', label: 'Week', ms: 7 * 24 * 60 * 60 * 1000, maxMult: 12 },
+    { id: '1m', label: 'Month', ms: 30 * 24 * 60 * 60 * 1000, maxMult: 12 },
+    { id: 'grow', label: 'Entire Grow', ms: null, maxMult: 1 } // null = special handling
   ];
 
   /**
@@ -26,6 +26,7 @@
       this.getDataExtent = options.getDataExtent || (() => ({ first: null, last: null }));
       
       this.currentZoomIndex = 1; // default to 1d
+      this.zoomMultiplier = 1; // multiplier for current zoom level
       this.sliderPosition = 100; // 0-100, 100 = latest data
       this.isLiveMode = true; // true when slider at 100%
       this.currentStart = null; // last computed start ts
@@ -44,7 +45,10 @@
 
     render() {
       const zoom = ZOOM_LEVELS[this.currentZoomIndex];
-      console.log('[ChartControls] render() called for container:', this.containerId, 'with zoom level:', zoom.label);
+      const mult = this.zoomMultiplier;
+      const pluralLabel = mult === 1 ? zoom.label : zoom.label + 's';
+      const displayLabel = `${mult} ${pluralLabel}`;
+      console.log('[ChartControls] render() called for container:', this.containerId, 'with zoom level:', displayLabel);
       
       this.container.innerHTML = `
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;">
@@ -54,9 +58,19 @@
             <button class="chart-zoom-out btn-secondary btn-compact" style="background:#334155;color:#e2e8f0;border:1px solid #1f2937;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;display:inline-block;" title="Zoom out (wider time range)">
               <span style="font-size:16px;font-weight:bold;">−</span>
             </button>
-            <span class="chart-zoom-label" style="min-width:90px;text-align:center;font-size:var(--font-sm);font-weight:600;color:#cbd5e1;">${zoom.label}</span>
+            <span class="chart-zoom-label" style="min-width:120px;text-align:center;font-size:var(--font-sm);font-weight:600;color:#cbd5e1;">${displayLabel}</span>
             <button class="chart-zoom-in btn-secondary btn-compact" style="background:#334155;color:#e2e8f0;border:1px solid #1f2937;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;display:inline-block;" title="Zoom in (narrower time range)">
               <span style="font-size:16px;font-weight:bold;">+</span>
+            </button>
+          </div>
+          
+          <!-- Multiplier controls -->
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button class="chart-mult-dec btn-secondary btn-compact" style="background:#334155;color:#e2e8f0;border:1px solid #1f2937;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;display:inline-block;${mult === 1 ? 'opacity:0.5;cursor:not-allowed;' : ''}" title="Decrease multiplier" ${mult === 1 ? 'disabled' : ''}>
+              <span style="font-size:16px;font-weight:bold;">×−</span>
+            </button>
+            <button class="chart-mult-inc btn-secondary btn-compact" style="background:#334155;color:#e2e8f0;border:1px solid #1f2937;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;display:inline-block;${mult >= zoom.maxMult ? 'opacity:0.5;cursor:not-allowed;' : ''}" title="Increase multiplier" ${mult >= zoom.maxMult ? 'disabled' : ''}>
+              <span style="font-size:16px;font-weight:bold;">×+</span>
             </button>
           </div>
           
@@ -85,6 +99,8 @@
       // Wire up event listeners
       const zoomOut = this.container.querySelector('.chart-zoom-out');
       const zoomIn = this.container.querySelector('.chart-zoom-in');
+      const multDec = this.container.querySelector('.chart-mult-dec');
+      const multInc = this.container.querySelector('.chart-mult-inc');
       const panLeft = this.container.querySelector('.chart-pan-left');
       const panRight = this.container.querySelector('.chart-pan-right');
       const nowBtn = this.container.querySelector('.chart-now-btn');
@@ -92,18 +108,36 @@
       
       if (zoomOut) zoomOut.addEventListener('click', () => this.zoomOut());
       if (zoomIn) zoomIn.addEventListener('click', () => this.zoomIn());
+      if (multDec) multDec.addEventListener('click', () => this.decreaseMultiplier());
+      if (multInc) multInc.addEventListener('click', () => this.increaseMultiplier());
       if (panLeft) panLeft.addEventListener('click', () => this.panLeft());
       if (panRight) panRight.addEventListener('click', () => this.panRight());
       if (nowBtn) nowBtn.addEventListener('click', () => this.jumpToNow());
       if (exportBtn) exportBtn.addEventListener('click', () => this.onExport());
       
-      this.elements = { zoomOut, zoomIn, panLeft, panRight, nowBtn, exportBtn };
+      this.elements = { zoomOut, zoomIn, multDec, multInc, panLeft, panRight, nowBtn, exportBtn };
       this.updateUI();
+    }
+
+    increaseMultiplier() {
+      const zoom = ZOOM_LEVELS[this.currentZoomIndex];
+      if (this.zoomMultiplier < zoom.maxMult) {
+        this.zoomMultiplier++;
+        this.updateRange();
+      }
+    }
+
+    decreaseMultiplier() {
+      if (this.zoomMultiplier > 1) {
+        this.zoomMultiplier--;
+        this.updateRange();
+      }
     }
 
     zoomOut() {
       if (this.currentZoomIndex < ZOOM_LEVELS.length - 1) {
         this.currentZoomIndex++;
+        this.zoomMultiplier = 1; // Reset multiplier when changing zoom level
         this.updateRange();
       }
     }
@@ -111,6 +145,7 @@
     zoomIn() {
       if (this.currentZoomIndex > 0) {
         this.currentZoomIndex--;
+        this.zoomMultiplier = 1; // Reset multiplier when changing zoom level
         this.updateRange();
       }
     }
@@ -124,7 +159,7 @@
       const extent = this.getDataExtent();
       const firstData = extent.first ? new Date(extent.first).getTime() : now - 90 * 24 * 60 * 60 * 1000;
       const lastData = extent.last ? new Date(extent.last).getTime() : now;
-      const windowSize = zoom.ms;
+      const windowSize = zoom.ms * this.zoomMultiplier;
 
       if (this.currentStart == null || this.currentEnd == null) {
         this.updateRange();
@@ -148,7 +183,7 @@
       const extent = this.getDataExtent();
       const firstData = extent.first ? new Date(extent.first).getTime() : now - 90 * 24 * 60 * 60 * 1000;
       const lastData = extent.last ? new Date(extent.last).getTime() : now;
-      const windowSize = zoom.ms;
+      const windowSize = zoom.ms * this.zoomMultiplier;
 
       if (this.currentStart == null || this.currentEnd == null) {
         this.updateRange();
@@ -202,8 +237,8 @@
         // Total scrollable range (from first data to now)
         const totalRange = lastData - firstData;
         
-        // Window size
-        const windowSize = zoom.ms;
+        // Window size (with multiplier applied)
+        const windowSize = zoom.ms * this.zoomMultiplier;
         
         // Calculate where window should be based on slider (0=oldest, 100=latest)
         const sliderFraction = this.sliderPosition / 100;
