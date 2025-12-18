@@ -2001,7 +2001,7 @@ body{
             <div style="margin-top:12px;">
               <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">Parameters</div>
               <div style="margin-top:12px;padding:6px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
-                <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">EC targets are set by the active <strong>Scheduler Week</strong>. Dosing safety parameters configured below.</div>
+                <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">EC targets are set by the active <strong>Scheduler Week</strong>. System uses <strong>micro-dosing</strong>: multiple small doses (Step Min–Max) with scheduler ratios until target reached. No daily cap for automatic dosing.</div>
                 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--space-md);align-items:center;">
                   <span class="pill-muted nowrap" id="ecKChip">K=—</span>
                   <span class="pill-muted nowrap" id="ecCalChip">Cal: —</span>
@@ -2019,32 +2019,33 @@ body{
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Step Min (ml)</label>
-                    <input type="number" id="ecStepMinMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border-radius:6px;font-size:var(--font-base);" placeholder="5" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Micro-Dose Min (ml)</label>
+                    <input type="number" id="ecStepMinMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border-radius:6px;font-size:var(--font-base);" placeholder="3" />
+                    <div class="muted" style="font-size:9px;margin-top:2px;">Each auto step size</div>
                   </div>
                   <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Step Max (ml)</label>
-                    <input type="number" id="ecStepMaxMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border-radius:6px;font-size:var(--font-base);" placeholder="30" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Micro-Dose Max (ml)</label>
+                    <input type="number" id="ecStepMaxMl" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border-radius:6px;font-size:var(--font-base);" placeholder="10" />
+                    <div class="muted" style="font-size:9px;margin-top:2px;">Cap per step</div>
                   </div>
                 </div>
-                <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
+                <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
                   <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Safety Factor</label>
-                    <input type="number" id="ecSafetyFactor" step="0.1" min="0" max="1" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border-radius:6px;font-size:var(--font-base);" placeholder="0.6" />
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Safety Factor (×)</label>
+                    <input type="number" id="ecSafetyFactor" step="0.1" min="0" max="1" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border-radius:6px;font-size:var(--font-base);" placeholder="0.7" />
+                    <div class="muted" style="font-size:9px;margin-top:2px;">Cushion for target</div>
                   </div>
                   <div>
                     <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Min Interval (s)</label>
-                    <input type="number" id="ecMinInterval" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border-radius:6px;font-size:var(--font-base);" placeholder="300" />
-                  </div>
-                  <div>
-                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Max ml/day</label>
-                    <input type="number" id="ecMaxMlDay" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border-radius:6px;font-size:var(--font-base);" placeholder="0" />
+                    <input type="number" id="ecMinInterval" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border-radius:6px;font-size:var(--font-base);" placeholder="600" />
+                    <div class="muted" style="font-size:9px;margin-top:2px;">Between micro-doses</div>
                   </div>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(1,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:var(--space-md);align-items:end;">
                   <div>
                     <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Observe After Dose (s)</label>
-                    <input type="number" id="ecObserveAfterDose" step="1" min="0" style="width:140px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border-radius:6px;font-size:var(--font-base);" placeholder="600" />
+                    <input type="number" id="ecObserveAfterDose" step="1" min="0" style="width:140px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border-radius:6px;font-size:var(--font-base);" placeholder="300" />
+                    <div class="muted" style="font-size:9px;margin-top:2px;">Post-dose settle time</div>
                   </div>
                 </div>
                 <button id="btnSaveEcSettings" class="btn-secondary btn-full">Save EC Settings</button>

@@ -598,7 +598,6 @@
         'dosing.ec_step_ml_max': el('ecStepMaxMl')?.value,
         'dosing.ec_safety_factor': el('ecSafetyFactor')?.value,
         'dosing.ec_min_interval_s': el('ecMinInterval')?.value,
-        'dosing.ec_max_ml_day': el('ecMaxMlDay')?.value,
         'dosing.ec_observe_s_after_dose': el('ecObserveAfterDose')?.value
       };
       try{
@@ -746,12 +745,11 @@
     if (el('ecMicroMlPerSec')) el('ecMicroMlPerSec').value = window.rdwcSettings.get('dosing.micro_ml_per_sec') || '20';
     if (el('ecBloomMlPerSec')) el('ecBloomMlPerSec').value = window.rdwcSettings.get('dosing.bloom_ml_per_sec') || '20';
     if (el('ecTolerance')) el('ecTolerance').value = window.rdwcSettings.get('targets.ec_tolerance') || '0.2';
-    el('ecStepMinMl').value = window.rdwcSettings.get('dosing.ec_step_ml_min') || '5';
-    el('ecStepMaxMl').value = window.rdwcSettings.get('dosing.ec_step_ml_max') || '30';
-    el('ecSafetyFactor').value = window.rdwcSettings.get('dosing.ec_safety_factor') || '0.6';
-    el('ecMinInterval').value = window.rdwcSettings.get('dosing.ec_min_interval_s') || '300';
-    el('ecMaxMlDay').value = window.rdwcSettings.get('dosing.ec_max_ml_day') || '0';
-    const obs = window.rdwcSettings.get('dosing.ec_observe_s_after_dose') || window.rdwcSettings.get('dosing.observe_s_after_dose') || '600';
+    el('ecStepMinMl').value = window.rdwcSettings.get('dosing.ec_step_ml_min') || '3';
+    el('ecStepMaxMl').value = window.rdwcSettings.get('dosing.ec_step_ml_max') || '10';
+    el('ecSafetyFactor').value = window.rdwcSettings.get('dosing.ec_safety_factor') || '0.7';
+    el('ecMinInterval').value = window.rdwcSettings.get('dosing.ec_min_interval_s') || '600';
+    const obs = window.rdwcSettings.get('dosing.ec_observe_s_after_dose') || window.rdwcSettings.get('dosing.observe_s_after_dose') || '300';
     if (el('ecObserveAfterDose')) el('ecObserveAfterDose').value = obs;
   }
 
