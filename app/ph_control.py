@@ -1075,7 +1075,7 @@ def _auto_loop():
     margin = _settings_get_float("ph_auto.margin", 0.05)  # aim to stop slightly inside band
     step_min = _settings_get_float("dosing.ph_up_step_min_ml", 0.05)
     step_max = _settings_get_float("dosing.ph_up_step_max_ml", 10.0)
-    safety = _settings_get_float("dosing.ph_up_safety_factor", 0.6)  # under-dose fraction
+    safety = _settings_get_float("dosing.ph_up_safety_factor", 0.75)  # under-dose fraction (raised from 0.6 for stronger response)
     warmup_done = False
     skip_next_poll = False  # For backoff
     
@@ -1251,8 +1251,8 @@ def _auto_loop():
                         target = min(targets["low"] + margin, (targets["low"] + targets["high"]) / 2.0)
                         need_dpH = max(0.0, target - ph_val)
                         # Safe initial micro-dose when learner unknown/default
-                        # SAFETY: 0.01ml is conservative for systems where 0.1ml caused ~2 pH unit jumps
-                        initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.01)
+                        # SAFETY: 0.05ml provides faster response while remaining conservative
+                        initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.05)
                         est_val = _estimate_ml_per_pH(_get_latest_ec()[0])
                         # SAFETY: If learned value equals default (1.0), treat as "no learning yet" and use micro-dose
                         # Also treat values <= 1.0 as indicating more learning needed
