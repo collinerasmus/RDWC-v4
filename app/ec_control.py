@@ -1730,11 +1730,8 @@ def _auto_worker():
                 _auto_last_holding_reason = int_reason
             continue
         
-        ok_cap, cap_reason = _check_daily_cap(datetime.now(timezone.utc))
-        if not ok_cap:
-            with _auto_lock:
-                _auto_last_holding_reason = cap_reason
-            continue
+        # Skip daily cap check for automatic micro-dosing (operator wants unrestricted stepping toward target)
+        # Daily caps apply only to manual dosing to prevent accidental overdose
         
         # Read EC
         ec_val, _ = _get_latest_ec()
@@ -1752,30 +1749,33 @@ def _auto_worker():
                 _auto_last_holding_reason = "in_range"
             continue
         
-        # Compute dose
+        # Micro-dosing: compute single micro-step (NOT full target in one dose)
         needed_mScm = target_mid - ec_val
         safety_factor = _f("dosing.ec_safety_factor", 0.6)
         
-        if _learned_ml_per_mScm:
-            planned_ml = needed_mScm * _learned_ml_per_mScm * safety_factor
-        else:
-            # Default: 30ml per 0.1 mS/cm
-            planned_ml = needed_mScm * 300 * safety_factor
+        # Use learned rate or default (30ml per 0.1 mS/cm)
+        ml_per_mScm = _learned_ml_per_mScm if _learned_ml_per_mScm else 300
         
-        # Clamp
-        min_ml = _f("dosing.ec_step_ml_min", 10)
-        max_ml = _f("dosing.ec_step_ml_max", 120)
-        planned_ml = max(min_ml, min(planned_ml, max_ml))
+        # Calculate what 1 micro-step would be: a fraction of needed delta
+        # Use configured step min/max as the micro-step amount (not the full target)
+        step_min = _f("dosing.ec_step_ml_min", 3)
+        step_max = _f("dosing.ec_step_ml_max", 10)
         
-        # Dose (schedule ratio for auto)
+        # Micro-dose: use step_min as base, up to step_max, with safety factor applied to target
+        # This ensures each dose is small and controlled, not trying to hit full target at once
+        micro_dose_ml = step_min + (needed_mScm * ml_per_mScm * safety_factor - step_min)
+        micro_dose_ml = max(step_min, min(micro_dose_ml, step_max))
+        
+        # Dose (schedule ratio for auto - respects Grow:Micro:Bloom ratios from scheduler)
         try:
-            dose_ec({"ml": planned_ml, "mix_ratio": "schedule", "reason": "auto"})
+            dose_ec({"ml": micro_dose_ml, "mix_ratio": "schedule", "reason": "auto"})
             with _auto_lock:
                 _auto_last_holding_reason = None
                 _auto_last_decision = {
                     "ec_before": ec_val,
                     "needed_mScm": needed_mScm,
-                    "planned_ml": planned_ml,
+                    "micro_dose_ml": micro_dose_ml,
+                    "will_continue": True,  # Indicates more doses needed to reach target
                     "ts": datetime.now(timezone.utc).isoformat()
                 }
         except Exception as e:
