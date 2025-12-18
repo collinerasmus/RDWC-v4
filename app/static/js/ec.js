@@ -734,23 +734,55 @@
     // Placeholder for potential future per-pump status display
   }
 
-  // Load settings into UI
+  // Load settings into UI (fetch directly if rdwcSettings not yet hydrated)
   async function loadECSettings(){
-    if(!window.rdwcSettings) return;
-    // Setpoint (new key ec.setpoint_mscm)
-    const sp = window.rdwcSettings.get('ec.setpoint_mscm');
-    const spInput = el('ecSetpoint');
-    if(spInput) spInput.value = sp || '';
-    if (el('ecGrowMlPerSec')) el('ecGrowMlPerSec').value = window.rdwcSettings.get('dosing.grow_ml_per_sec') || '20';
-    if (el('ecMicroMlPerSec')) el('ecMicroMlPerSec').value = window.rdwcSettings.get('dosing.micro_ml_per_sec') || '20';
-    if (el('ecBloomMlPerSec')) el('ecBloomMlPerSec').value = window.rdwcSettings.get('dosing.bloom_ml_per_sec') || '20';
-    if (el('ecTolerance')) el('ecTolerance').value = window.rdwcSettings.get('targets.ec_tolerance') || '0.2';
-    el('ecStepMinMl').value = window.rdwcSettings.get('dosing.ec_step_ml_min') || '3';
-    el('ecStepMaxMl').value = window.rdwcSettings.get('dosing.ec_step_ml_max') || '10';
-    el('ecSafetyFactor').value = window.rdwcSettings.get('dosing.ec_safety_factor') || '0.7';
-    el('ecMinInterval').value = window.rdwcSettings.get('dosing.ec_min_interval_s') || '600';
-    const obs = window.rdwcSettings.get('dosing.ec_observe_s_after_dose') || window.rdwcSettings.get('dosing.observe_s_after_dose') || '300';
-    if (el('ecObserveAfterDose')) el('ecObserveAfterDose').value = obs;
+    // Helper resolves a dotted key from either rdwcSettings or freshly fetched JSON
+    const hydrateFromApi = async () => {
+      const resp = await fetch('/api/settings', {cache:'no-store'});
+      if(!resp.ok) throw new Error('Settings fetch failed');
+      const data = await resp.json();
+      const getNested = (path, fallback) => {
+        const parts = path.split('.');
+        let cur = data;
+        for(const p of parts){ cur = cur?.[p]; }
+        return (cur === undefined || cur === null || cur === '') ? fallback : cur;
+      };
+      return getNested;
+    };
+
+    let getter;
+    if(window.rdwcSettings?.get){
+      getter = (key, fallback) => {
+        const val = window.rdwcSettings.get(key);
+        return (val === undefined || val === null || val === '') ? fallback : val;
+      };
+    } else {
+      try{
+        getter = await hydrateFromApi();
+      }catch(err){
+        console.warn('[EC] Failed to load settings', err);
+        return;
+      }
+    }
+
+    const setVal = (id, key, fallback) => {
+      const elRef = el(id);
+      if(!elRef) return;
+      elRef.value = getter(key, fallback);
+    };
+
+    setVal('ecSetpoint', 'ec.setpoint_mscm', '');
+    setVal('ecGrowMlPerSec', 'dosing.grow_ml_per_sec', '20');
+    setVal('ecMicroMlPerSec', 'dosing.micro_ml_per_sec', '20');
+    setVal('ecBloomMlPerSec', 'dosing.bloom_ml_per_sec', '20');
+    setVal('ecTolerance', 'targets.ec_tolerance', '0.2');
+    setVal('ecStepMinMl', 'dosing.ec_step_ml_min', '3');
+    setVal('ecStepMaxMl', 'dosing.ec_step_ml_max', '10');
+    setVal('ecSafetyFactor', 'dosing.ec_safety_factor', '0.7');
+    setVal('ecMinInterval', 'dosing.ec_min_interval_s', '600');
+    const obs = getter('dosing.ec_observe_s_after_dose', getter('dosing.observe_s_after_dose', '300'));
+    const obsEl = el('ecObserveAfterDose');
+    if(obsEl) obsEl.value = obs;
   }
 
   if (document.readyState === 'loading') {
@@ -762,6 +794,9 @@
     loadECSettings();
     init();
   }
+
+  // Re-hydrate UI once settings.js finishes booting and dispatches UI event
+  window.addEventListener('settings:ui', loadECSettings);
   // Save setpoint handler
   document.addEventListener('click', async (e)=>{
     if(e.target && e.target.id === 'btnSaveEcSetpoint'){
