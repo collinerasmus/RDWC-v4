@@ -400,6 +400,38 @@ def _compute_guards(now: float) -> Dict[str, Any]:
     ec_baseline_min = _settings_get_float("dosing.ec_baseline_min", 0.2)
     ec_baseline_low = (ec_val is None) or (ec_val < ec_baseline_min)
 
+    # Out-of-band stabilization guard: wait for pH to settle before re-attempting
+    def _last_out_of_band_ts() -> Optional[datetime]:
+        """Find the most recent time pH went out of target band."""
+        try:
+            targets = {
+                "low": _settings_get_float("targets.ph_low", 5.8),
+                "high": _settings_get_float("targets.ph_high", 6.2),
+            }
+            with sqlite3.connect(str(DB_PATH)) as conn:
+                cur = conn.cursor()
+                # Find most recent reading outside band
+                cur.execute("""
+                    SELECT ts FROM readings 
+                    WHERE ph IS NOT NULL AND (ph < ? OR ph > ?)
+                    ORDER BY ts DESC LIMIT 1
+                """, (targets["low"], targets["high"]))
+                row = cur.fetchone()
+                if not row or not row[0]:
+                    return None
+                # Convert unix timestamp to datetime
+                return datetime.fromtimestamp(row[0], tz=timezone.utc)
+        except Exception:
+            return None
+
+    stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", 180)
+    last_oob = _last_out_of_band_ts()
+    since_last_oob = None
+    ph_settling = False
+    if last_oob:
+        since_last_oob = int(datetime.now(timezone.utc).timestamp() - last_oob.timestamp())
+        ph_settling = since_last_oob < stabilize_wait_s
+
     # Recent EC dose guard: wait for EC-induced pH drift to settle before dosing/learning
     def _last_ec_dose_ts() -> Optional[datetime]:
         try:
@@ -448,6 +480,7 @@ def _compute_guards(now: float) -> Dict[str, Any]:
         "reservoir": bool(res_guard),
         "ec_baseline_low": bool(ec_baseline_low),
         "ec_settle": bool(ec_settle),
+        "out_of_band": bool(out_of_band),
         "since_last_ok_s": since_last_ok,
         "since_last_ec_s": since_last_ec,
         "today_total_ml": today_ml,
@@ -1248,8 +1281,9 @@ def _auto_loop():
                     if _dose_lock.locked():
                         _set_auto_block("cooldown")
                     else:
-                        target = min(targets["low"] + margin, (targets["low"] + targets["high"]) / 2.0)
-                        need_dpH = max(0.0, target - ph_val)
+                        # Aim for setpoint (midpoint of band), not the low edge
+                        setpoint = (targets["low"] + targets["high"]) / 2.0
+                        need_dpH = max(0.0, setpoint - ph_val)
                         # Safe initial micro-dose when learner unknown/default
                         # SAFETY: 0.05ml provides faster response while remaining conservative
                         initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.05)
