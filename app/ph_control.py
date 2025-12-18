@@ -427,10 +427,10 @@ def _compute_guards(now: float) -> Dict[str, Any]:
     stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", 180)
     last_oob = _last_out_of_band_ts()
     since_last_oob = None
-    ph_settling = False
+    out_of_band = False
     if last_oob:
         since_last_oob = int(datetime.now(timezone.utc).timestamp() - last_oob.timestamp())
-        ph_settling = since_last_oob < stabilize_wait_s
+        out_of_band = since_last_oob < stabilize_wait_s
 
     # Recent EC dose guard: wait for EC-induced pH drift to settle before dosing/learning
     def _last_ec_dose_ts() -> Optional[datetime]:
