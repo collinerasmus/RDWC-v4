@@ -797,6 +797,35 @@
 
   // Re-hydrate UI once settings.js finishes booting and dispatches UI event
   window.addEventListener('settings:ui', loadECSettings);
+
+  // Save EC Parameters (batch save: step, safety, interval, observe, tolerance)
+  document.addEventListener('click', async (e)=>{
+    if(e.target && e.target.id === 'btnSaveEcSettings'){
+      const payload = {};
+      const fields = [
+        ['ecStepMinMl', 'dosing.ec_step_ml_min'],
+        ['ecStepMaxMl', 'dosing.ec_step_ml_max'],
+        ['ecSafetyFactor', 'dosing.ec_safety_factor'],
+        ['ecMinInterval', 'dosing.ec_min_interval_s'],
+        ['ecObserveAfterDose', 'dosing.ec_observe_s_after_dose'],
+        ['ecTolerance', 'targets.ec_tolerance']
+      ];
+      for(const [elemId, settingKey] of fields){
+        const v = parseFloat(el(elemId)?.value||'');
+        if(!isNaN(v)) payload[settingKey] = v;
+      }
+      try{
+        const r = await fetch('/api/settings', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+        if(!r.ok){
+          const err = await r.json();
+          throw new Error(err.message || 'HTTP '+r.status);
+        }
+        showToast('EC settings saved','success');
+        await loadECSettings(); // Reload to confirm
+      }catch(err){ showToast('Save failed: '+err.message,'error'); console.error('[EC] Save error:', err); }
+    }
+  });
+
   // Save setpoint handler
   document.addEventListener('click', async (e)=>{
     if(e.target && e.target.id === 'btnSaveEcSetpoint'){
