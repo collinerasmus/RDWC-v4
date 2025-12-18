@@ -309,6 +309,21 @@
         this.elements.zoomIn.disabled = (this.currentZoomIndex === 0);
       }
       
+      // Update multiplier button states
+      if (this.elements.multDec) {
+        const canDec = this.zoomMultiplier > 1;
+        this.elements.multDec.disabled = !canDec;
+        this.elements.multDec.style.opacity = canDec ? '1' : '0.5';
+        this.elements.multDec.style.cursor = canDec ? 'pointer' : 'not-allowed';
+      }
+      if (this.elements.multInc) {
+        const zoomMax = ZOOM_LEVELS[this.currentZoomIndex].maxMult;
+        const canInc = this.zoomMultiplier < zoomMax;
+        this.elements.multInc.disabled = !canInc;
+        this.elements.multInc.style.opacity = canInc ? '1' : '0.5';
+        this.elements.multInc.style.cursor = canInc ? 'pointer' : 'not-allowed';
+      }
+      
       // Update pan button states
       if (this.elements.panLeft) {
         const atLeftEdge = (this.currentStart != null) ? (this.currentStart <= firstData + epsilon) : (this.sliderPosition <= 0);
