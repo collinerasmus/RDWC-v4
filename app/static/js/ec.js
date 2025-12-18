@@ -686,8 +686,8 @@
         return;
       }
 
-      // Newest-first for readability
-      const ordered = [...doses].reverse();
+      // Newest-first for readability (sort by ts desc)
+      const ordered = [...doses].sort((a, b) => new Date(b.ts) - new Date(a.ts));
       const rows = ordered.map(d => {
         const ts = new Date(d.ts);
         const tsStr = `${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,'0')}-${String(ts.getDate()).padStart(2,'0')} ${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}:${String(ts.getSeconds()).padStart(2,'0')}`;
