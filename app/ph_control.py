@@ -1207,8 +1207,6 @@ def _auto_loop():
 
                         retry_id = retry_row[0]
                         retry_reason = retry_row[1] or ""
-                        # Count how many retries have been attempted for this dose (by counting "retry_for_faulty_dose_id_X" in reason field)
-                        retry_count = retry_reason.count(f"retry_for_faulty_dose_id_{retry_id}")
                         
                         # Mark as executing retry
                         conn.execute("UPDATE ph_dose_log SET result='executing_retry' WHERE id=?", (retry_id,))
@@ -1217,11 +1215,15 @@ def _auto_loop():
 
                         # Execute via shared performer to ensure consistent logging/locking
                         try:
-                            # Escalate dose: 0.1 * (1 + 0.5 * attempt_count) => 0.1, 0.15, 0.2, 0.25, 0.3...
+                            # Escalate dose based on retry attempt count: 0.1, 0.15, 0.2, 0.25, 0.3...
+                            # Each retry gets progressively stronger
                             base_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
-                            retry_ml = base_ml * (1.0 + 0.5 * attempts)  # escalate by 50% per retry
+                            escalation_factor = 1.0 + (0.5 * attempts)  # 1.0, 1.5, 2.0, 2.5...
+                            retry_ml = base_ml * escalation_factor
                             step_max = _settings_get_float("dosing.ph_up_step_max_ml", 0.5)
                             retry_ml = min(retry_ml, step_max)  # cap at step_max
+                            
+                            print(f"[pH Auto] Retry dose #{attempts+1}: {retry_ml:.3f}ml (escalation x{escalation_factor:.1f})")
                             
                             res = _perform_dose({"ml": retry_ml, "reason": f"retry_for_faulty_dose_id_{retry_id}", "nonblocking": True})
                             if res.get("ok"):
