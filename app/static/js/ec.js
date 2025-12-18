@@ -509,6 +509,10 @@
     await updatePumpStatuses();
     // Load and display recent dose log
     refreshDoseLog();
+    // Keep dose log fresh while the page is open (30s interval, guard against double timers)
+    if(!window.__ecDoseLogTimer){
+      window.__ecDoseLogTimer = setInterval(()=>{ refreshDoseLog(); }, 30000);
+    }
     // Register with centralized polling manager (main loop ~6s)
     if(window.pollingManager && !window.__ecPollingRegistered){
       window.__ecPollingRegistered = true;
