@@ -1200,23 +1200,32 @@ def _auto_loop():
                 while attempts < max_retry_attempts:
                     with sqlite3.connect(str(DB_PATH)) as conn:
                         cur = conn.cursor()
-                        cur.execute("SELECT id FROM ph_dose_log WHERE result='pending_retry' ORDER BY id ASC LIMIT 1")
+                        cur.execute("SELECT id, reason FROM ph_dose_log WHERE result='pending_retry' ORDER BY id ASC LIMIT 1")
                         retry_row = cur.fetchone()
                         if not retry_row:
                             break
 
                         retry_id = retry_row[0]
+                        retry_reason = retry_row[1] or ""
+                        # Count how many retries have been attempted for this dose (by counting "retry_for_faulty_dose_id_X" in reason field)
+                        retry_count = retry_reason.count(f"retry_for_faulty_dose_id_{retry_id}")
+                        
                         # Mark as executing retry
                         conn.execute("UPDATE ph_dose_log SET result='executing_retry' WHERE id=?", (retry_id,))
                         conn.commit()
-                        print(f"[pH Auto] Processing pending retry for dose id={retry_id} (bypassing interval guard)")
+                        print(f"[pH Auto] Processing pending retry for dose id={retry_id}, attempt #{attempts+1} (bypassing interval guard)")
 
                         # Execute via shared performer to ensure consistent logging/locking
                         try:
-                            retry_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
+                            # Escalate dose: 0.1 * (1 + 0.5 * attempt_count) => 0.1, 0.15, 0.2, 0.25, 0.3...
+                            base_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
+                            retry_ml = base_ml * (1.0 + 0.5 * attempts)  # escalate by 50% per retry
+                            step_max = _settings_get_float("dosing.ph_up_step_max_ml", 0.5)
+                            retry_ml = min(retry_ml, step_max)  # cap at step_max
+                            
                             res = _perform_dose({"ml": retry_ml, "reason": f"retry_for_faulty_dose_id_{retry_id}", "nonblocking": True})
                             if res.get("ok"):
-                                print(f"[pH Auto] Retry dose executed successfully for id={retry_id}")
+                                print(f"[pH Auto] Retry dose executed successfully for id={retry_id}: {retry_ml:.3f}ml")
                                 # Mark retry success and schedule stabilization with tighter window for fast re-eval
                                 with sqlite3.connect(str(DB_PATH)) as conn2:
                                     now_utc = datetime.now(timezone.utc).isoformat()
