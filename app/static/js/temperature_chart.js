@@ -216,7 +216,7 @@
     });
 
     // Hook up controls
-    window.createTimeRangeSelector('temperatureRangeSelect', chart);
+    window.createTimeRangeSelector('temperatureRangeSelect', chart, 'temperature-chart-controls');
     window.createCustomRangeInputs('temperatureFrom', 'temperatureTo', 'temperatureApply', chart);
 
     // Expose for external access
