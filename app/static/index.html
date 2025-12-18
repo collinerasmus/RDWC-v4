@@ -1794,6 +1794,8 @@ body{
                 <span class="ui-status-chip neutral" id="phChipInterval" title="Min seconds between doses">INTERVAL: —</span>
                 <span class="ui-status-chip neutral" id="phChipMaxDelta" title="Max predicted ΔpH per dose">MAXΔ: —</span>
                 <span class="ui-status-chip neutral" id="phChipStabilize" title="Stabilization wait time">STAB: —</span>
+                <span class="ui-status-chip neutral" id="phChipSafety" title="Safety factor applied to predicted dose">SAFETY: —</span>
+                <span class="ui-status-chip neutral" id="phChipStep" title="Min/Max step sizes">STEP: —</span>
               </div>
               <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Configure pH targets, dosing parameters, and alert thresholds.</div>
               <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
@@ -1845,7 +1847,26 @@ body{
                   <input type="number" id="phMaxPredictedDelta" step="0.01" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.5" />
                 </div>
               </div>
-              <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:var(--space-md);align-items:end;">
+              <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:8px;align-items:end;">
+                <div>
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Step Min (ml)</label>
+                  <input type="number" id="phStepMin" step="0.01" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.5" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Step Max (ml)</label>
+                  <input type="number" id="phStepMax" step="0.01" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="5.0" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Safety Factor (×)</label>
+                  <input type="number" id="phSafetyFactor" step="0.1" min="0" max="1" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.6" />
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:var(--space-md);align-items:end;">
+                <div>
+                  <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Observe After Retry (s)</label>
+                  <input type="number" id="phObserveRetry" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="60" />
+                  <div class="muted" style="font-size:9px;margin-top:2px;">Fast check after retry</div>
+                </div>
                 <div>
                   <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">pH Up ml/s</label>
                   <input type="number" id="phUpMlPerSec" step="0.001" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" placeholder="0.758" />
@@ -2018,6 +2039,12 @@ body{
                   <div>
                     <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Max ml/day</label>
                     <input type="number" id="ecMaxMlDay" step="1" min="0" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border-radius:6px;font-size:var(--font-base);" placeholder="0" />
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(1,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;margin-bottom:var(--space-md);align-items:end;">
+                  <div>
+                    <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Observe After Dose (s)</label>
+                    <input type="number" id="ecObserveAfterDose" step="1" min="0" style="width:140px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border-radius:6px;font-size:var(--font-base);" placeholder="600" />
                   </div>
                 </div>
                 <button id="btnSaveEcSettings" class="btn-secondary btn-full">Save EC Settings</button>

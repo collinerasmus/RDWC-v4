@@ -598,7 +598,8 @@
         'dosing.ec_step_ml_max': el('ecStepMaxMl')?.value,
         'dosing.ec_safety_factor': el('ecSafetyFactor')?.value,
         'dosing.ec_min_interval_s': el('ecMinInterval')?.value,
-        'dosing.ec_max_ml_day': el('ecMaxMlDay')?.value
+        'dosing.ec_max_ml_day': el('ecMaxMlDay')?.value,
+        'dosing.ec_observe_s_after_dose': el('ecObserveAfterDose')?.value
       };
       try{
         const r = await fetch('/api/settings', {
@@ -750,6 +751,8 @@
     el('ecSafetyFactor').value = window.rdwcSettings.get('dosing.ec_safety_factor') || '0.6';
     el('ecMinInterval').value = window.rdwcSettings.get('dosing.ec_min_interval_s') || '300';
     el('ecMaxMlDay').value = window.rdwcSettings.get('dosing.ec_max_ml_day') || '0';
+    const obs = window.rdwcSettings.get('dosing.ec_observe_s_after_dose') || window.rdwcSettings.get('dosing.observe_s_after_dose') || '600';
+    if (el('ecObserveAfterDose')) el('ecObserveAfterDose').value = obs;
   }
 
   if (document.readyState === 'loading') {

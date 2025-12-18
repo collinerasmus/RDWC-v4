@@ -403,6 +403,8 @@
     const chipInterval = el('phChipInterval');
     const chipMaxDelta = el('phChipMaxDelta');
     const chipStabilize = el('phChipStabilize');
+    const chipSafety = el('phChipSafety');
+    const chipStep = el('phChipStep');
     
     if (chipInitial) {
       const val = settings.get('dosing.ph_up_initial_ml') || '0.01';
@@ -419,6 +421,15 @@
     if (chipStabilize) {
       const val = settings.get('dosing.ph_stabilization_window_s') || '300';
       chipStabilize.textContent = `STAB: ${val}s`;
+    }
+    if (chipSafety) {
+      const val = settings.get('dosing.ph_up_safety_factor') || '0.6';
+      chipSafety.textContent = `SAFETY: ${val}x`;
+    }
+    if (chipStep) {
+      const min = settings.get('dosing.ph_up_step_min_ml') || '0.05';
+      const max = settings.get('dosing.ph_up_step_max_ml') || '0.5';
+      chipStep.textContent = `STEP: ${min}–${max}ml`;
     }
   }
 
@@ -1026,12 +1037,16 @@
           ['phAlertHigh', 'alerts.ph_high'],
           ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec'],
           ['phInitialMl', 'dosing.ph_up_initial_ml'],
+          ['phStepMin', 'dosing.ph_up_step_min_ml'],
+          ['phStepMax', 'dosing.ph_up_step_max_ml'],
+          ['phSafetyFactor', 'dosing.ph_up_safety_factor'],
           ['phMinInterval', 'dosing.ph_min_interval_s'],
           ['phMaxPressSeconds', 'safety.max_seconds_per_press'],
           ['phDailyCapMl', 'dosing.ph_up_max_ml_per_day'],
           ['phStabilizationWindow', 'dosing.ph_stabilization_window_s'],
           ['phStableDeltaThreshold', 'dosing.ph_stabilization_delta_threshold'],
-          ['phMaxPredictedDelta', 'dosing.ph_max_predicted_delta_ph']
+          ['phMaxPredictedDelta', 'dosing.ph_max_predicted_delta_ph'],
+          ['phObserveRetry', 'dosing.observe_s_after_retry']
         ];
         
         for(const [elemId, settingKey] of fields){
@@ -1074,12 +1089,16 @@
           ['phAlertHigh', 'alerts.ph_high', '6.5'],
           ['phUpMlPerSec', 'dosing.ph_up_ml_per_sec', '1.0'],
           ['phInitialMl', 'dosing.ph_up_initial_ml', '0.1'],
+          ['phStepMin', 'dosing.ph_up_step_min_ml', '0.5'],
+          ['phStepMax', 'dosing.ph_up_step_max_ml', '5.0'],
+          ['phSafetyFactor', 'dosing.ph_up_safety_factor', '0.6'],
           ['phMinInterval', 'dosing.ph_min_interval_s', '600'],
           ['phMaxPressSeconds', 'safety.max_seconds_per_press', '1.5'],
           ['phDailyCapMl', 'dosing.ph_up_max_ml_per_day', '50'],
           ['phStabilizationWindow', 'dosing.ph_stabilization_window_s', '300'],
           ['phStableDeltaThreshold', 'dosing.ph_stabilization_delta_threshold', '0.02'],
-          ['phMaxPredictedDelta', 'dosing.ph_max_predicted_delta_ph', '0.5']
+          ['phMaxPredictedDelta', 'dosing.ph_max_predicted_delta_ph', '0.5'],
+          ['phObserveRetry', 'dosing.observe_s_after_retry', '60']
         ];
         
         // Fetch fresh settings from API
