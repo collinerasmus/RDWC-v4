@@ -691,7 +691,8 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
         
         # Collect pH samples for stability check
         samples = []
-        delivery_confirmed = False
+        delivery_confirmed = False  # True only when spike is observed
+        delivery_window_expired = False  # Becomes True after early window passes
         poll_interval = early_poll_interval  # Start with fast polling
         
         print(f"[pH Stabilization] Starting 2-phase observation for rowid={rowid} (pre_ph={pre_ph:.3f})")
@@ -721,12 +722,12 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
                         print(f"[pH Stabilization] ✓ DELIVERY CONFIRMED for rowid={rowid}: spike detected! pH {pre_ph:.3f} → {ph_val:.3f} (Δ={delta:.3f})")
                         print(f"[pH Stabilization] Switching to Phase 2: waiting for settling to measure final effect...")
                 
-                # Transition: If early window expires without spike, assume delivery but warn
-                if not delivery_confirmed and time.time() >= early_spike_deadline:
-                    delivery_confirmed = True  # Assume success, but log
+                # Transition: Early window expired without spike — continue, but keep unconfirmed
+                if not delivery_confirmed and not delivery_window_expired and time.time() >= early_spike_deadline:
+                    delivery_window_expired = True
                     poll_interval = settling_poll_interval
                     print(f"[pH Stabilization] ⚠ No early spike detected for rowid={rowid} within {early_spike_window_s}s")
-                    print(f"[pH Stabilization] Continuing to Phase 2 (may be slow mixing or small dose)...")
+                    print(f"[pH Stabilization] Will treat as unconfirmed delivery; if effect is zero, will mark faulty and retry")
                 
                 # PHASE 2: Stability check (after minimum settling time)
                 if time.time() >= stabilize_deadline and len(samples) >= stability_samples:
@@ -748,8 +749,21 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
                                 delta = stable_ph - pre_ph
                                 is_effective = _is_dose_effective(pre_ph, stable_ph, dose_effectiveness_threshold, direction="up")
                                 if not is_effective:
-                                    print(f"[pH Dose Validation] rowid={rowid} INEFFECTIVE: delta={delta:.4f} (expected >= {dose_effectiveness_threshold}), pre={pre_ph:.3f}, post={stable_ph:.3f}")
-                                    _mark_dose_faulty_and_retry(rowid, pre_ph, stable_ph)
+                                    if delivery_confirmed:
+                                        # Delivery happened (spike seen) but net effect small — treat as low-effect, no retry
+                                        print(f"[pH Dose Validation] rowid={rowid} LOW EFFECT: delta={delta:.4f} (< {dose_effectiveness_threshold}) but spike confirmed; skipping retry, keep for learning")
+                                        try:
+                                            with sqlite3.connect(str(DB_PATH)) as conn:
+                                                conn.execute(
+                                                    "UPDATE ph_dose_log SET reason = reason || ' [LOW_EFFECT]' WHERE id=?",
+                                                    (rowid,),
+                                                )
+                                                conn.commit()
+                                        except Exception:
+                                            pass
+                                    else:
+                                        print(f"[pH Dose Validation] rowid={rowid} INEFFECTIVE: delta={delta:.4f} (expected >= {dose_effectiveness_threshold}), pre={pre_ph:.3f}, post={stable_ph:.3f}")
+                                        _mark_dose_faulty_and_retry(rowid, pre_ph, stable_ph)
                                 else:
                                     print(f"[pH Dose Validation] rowid={rowid} EFFECTIVE: delta={delta:.4f}, learning updated")
                             return
