@@ -1208,6 +1208,20 @@ def _auto_loop():
                         retry_id = retry_row[0]
                         retry_reason = retry_row[1] or ""
                         
+                        # GUARD: Check if pH has already reached/exceeded setpoint - if so, abort retry
+                        ph_val, _ = _get_latest_ph()
+                        targets = {
+                            "low": _settings_get_float("targets.ph_low", 5.8),
+                            "high": _settings_get_float("targets.ph_high", 6.2),
+                        }
+                        setpoint = (targets["low"] + targets["high"]) / 2.0
+                        if ph_val is not None and ph_val >= setpoint:
+                            print(f"[pH Auto] Aborting retry id={retry_id}: pH {ph_val:.3f} already >= setpoint {setpoint:.3f}")
+                            conn.execute("UPDATE ph_dose_log SET result='retry_aborted_at_target' WHERE id=?", (retry_id,))
+                            conn.commit()
+                            attempts += 1
+                            continue
+                        
                         # Mark as executing retry
                         conn.execute("UPDATE ph_dose_log SET result='executing_retry' WHERE id=?", (retry_id,))
                         conn.commit()
