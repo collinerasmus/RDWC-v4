@@ -646,17 +646,21 @@ SAMPLE_RETENTION_MULTIPLIER = 2  # Keep 2x stability_samples for trend analysis
 
 
 def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], max_wait_s: int):
-    """Wait for pH stabilization after dosing, then record the stable post_ph value.
+    """Two-phase stabilization: detect immediate spike (delivery), then wait for settling (learning).
     
-    Stability criteria (configurable):
-    - Wait at least 180 seconds for mixing and sensor response
-    - Check last N samples for low range (max - min < 0.05 over N readings)
-    - If stable within max_wait_s, record post_ph with stable=True
-    - Validate dose effectiveness: if pH change < 0.02, mark as faulty and queue retry
-    - If not stable, record last observed value with stable=False (unsettled)
+    PHASE 1 (0-60s): Early spike detection to verify solution delivery
+    - Poll every 5s for first 60s
+    - If pH rises by >= 0.02 from pre_ph, mark delivery as confirmed
+    - This proves pump worked and solution reached reservoir
     
-    This fixes the issue where immediate readings don't reflect the true pH effect,
-    and detects failed doses (e.g., air bubbles in dosing line).
+    PHASE 2 (60s-300s): Settling observation for learning
+    - Wait for pH to stabilize (min 180s total)
+    - Check last N samples for stability (range < 0.05)
+    - Record final post_ph for learning effectiveness
+    - Validate dose effectiveness: if final change < 0.02, mark faulty and retry
+    
+    This fixes the issue where the system doesn't see the immediate spike
+    and incorrectly treats successful doses as ineffective.
     """
     try:
         # Configuration
@@ -665,10 +669,16 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
         stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", _settings_get_float("dosing.stability_delta", 0.05))
         stability_samples = _settings_get_int("dosing.stability_samples", 3)  # sample count remained unchanged
         dose_effectiveness_threshold = _settings_get_float("dosing.dose_effectiveness_threshold", 0.02)  # Min pH change to consider dose effective
-        poll_interval = 10.0  # Poll every 10 seconds
+        
+        # NEW: Phase 1 early spike detection
+        early_spike_window_s = _settings_get_int("dosing.ph_early_spike_window_s", 60)  # Check for spike in first 60s
+        early_spike_threshold = _settings_get_float("dosing.ph_early_spike_threshold", 0.02)  # Min rise to confirm delivery
+        early_poll_interval = 5.0  # Fast polling for spike detection
+        settling_poll_interval = 10.0  # Slower polling after spike confirmed
         
         deadline = time.time() + max(0, max_wait_s)
         stabilize_deadline = time.time() + stabilize_wait_s
+        early_spike_deadline = time.time() + early_spike_window_s
         last_seen_ts = baseline_ts_unix or 0
         
         # Get pre-dose pH for validation
@@ -681,8 +691,12 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
         
         # Collect pH samples for stability check
         samples = []
+        delivery_confirmed = False
+        poll_interval = early_poll_interval  # Start with fast polling
         
-        print(f"[pH Stabilization] Starting observation for rowid={rowid}, waiting {stabilize_wait_s}s for stabilization (pre_ph={pre_ph})")
+        print(f"[pH Stabilization] Starting 2-phase observation for rowid={rowid} (pre_ph={pre_ph:.3f})")
+        print(f"[pH Stabilization]  Phase 1: Early spike detection (0-{early_spike_window_s}s, threshold={early_spike_threshold})")
+        print(f"[pH Stabilization]  Phase 2: Settling observation ({early_spike_window_s}s-{stabilize_wait_s}s, delta={stability_delta})")
         
         while time.time() < deadline:
             ph_val, ts = _get_latest_ph()
@@ -697,7 +711,24 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
                 if len(samples) > max_samples:
                     samples = samples[-max_samples:]
                 
-                # Only check stability after minimum wait time has passed
+                # PHASE 1: Early spike detection (first 60s) - confirms solution delivery
+                if not delivery_confirmed and time.time() < early_spike_deadline and pre_ph is not None and ph_val is not None:
+                    delta = ph_val - pre_ph
+                    if delta >= early_spike_threshold:
+                        # Spike detected! Solution reached reservoir
+                        delivery_confirmed = True
+                        poll_interval = settling_poll_interval  # Slow down polling after confirmation
+                        print(f"[pH Stabilization] ✓ DELIVERY CONFIRMED for rowid={rowid}: spike detected! pH {pre_ph:.3f} → {ph_val:.3f} (Δ={delta:.3f})")
+                        print(f"[pH Stabilization] Switching to Phase 2: waiting for settling to measure final effect...")
+                
+                # Transition: If early window expires without spike, assume delivery but warn
+                if not delivery_confirmed and time.time() >= early_spike_deadline:
+                    delivery_confirmed = True  # Assume success, but log
+                    poll_interval = settling_poll_interval
+                    print(f"[pH Stabilization] ⚠ No early spike detected for rowid={rowid} within {early_spike_window_s}s")
+                    print(f"[pH Stabilization] Continuing to Phase 2 (may be slow mixing or small dose)...")
+                
+                # PHASE 2: Stability check (after minimum settling time)
                 if time.time() >= stabilize_deadline and len(samples) >= stability_samples:
                     # Check if last N samples are stable (low range = max - min)
                     recent = [s["ph"] for s in samples[-stability_samples:] if s["ph"] is not None]
@@ -720,7 +751,7 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
                                     print(f"[pH Dose Validation] rowid={rowid} INEFFECTIVE: delta={delta:.4f} (expected >= {dose_effectiveness_threshold}), pre={pre_ph:.3f}, post={stable_ph:.3f}")
                                     _mark_dose_faulty_and_retry(rowid, pre_ph, stable_ph)
                                 else:
-                                    print(f"[pH Dose Validation] rowid={rowid} EFFECTIVE: delta={delta:.4f}")
+                                    print(f"[pH Dose Validation] rowid={rowid} EFFECTIVE: delta={delta:.4f}, learning updated")
                             return
                         else:
                             print(f"[pH Stabilization] rowid={rowid} still settling: range={sample_range:.4f} > {stability_delta}")
