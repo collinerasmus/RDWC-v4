@@ -790,6 +790,30 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
     DEFAULT_ML_PER_PH_FALLBACK = 1.0  # User spec: 1ml raises pH by 1.0
     MIN_ML_PER_PH = 0.01  # Minimum divisor to prevent division by zero
     
+    def _ec_compensated_ml_per_pH(base_ml_per_pH: float, ec_current: Optional[float]) -> float:
+        """Scale ml_per_pH based on EC to reflect reduced effectiveness at higher ionic strength.
+        factor = clamp(1 + slope * (ec - ref), [min_factor, max_factor])
+        Settings (with safe defaults):
+          - dosing.ph_up_ml_per_pH_ref_ec_mscm (default 1.0)
+          - dosing.ph_up_ml_per_pH_ec_slope (default 0.0 → disabled)
+          - dosing.ph_up_ml_per_pH_ec_min_factor (default 0.5)
+          - dosing.ph_up_ml_per_pH_ec_max_factor (default 2.0)
+        """
+        try:
+            if ec_current is None:
+                return base_ml_per_pH
+            ref = _settings_get_float("dosing.ph_up_ml_per_pH_ref_ec_mscm", 1.0)
+            slope = _settings_get_float("dosing.ph_up_ml_per_pH_ec_slope", 0.0)
+            fmin = _settings_get_float("dosing.ph_up_ml_per_pH_ec_min_factor", 0.5)
+            fmax = _settings_get_float("dosing.ph_up_ml_per_pH_ec_max_factor", 2.0)
+            factor = 1.0 + slope * (float(ec_current) - ref)
+            if fmin > fmax:
+                fmin, fmax = fmax, fmin
+            factor = max(fmin, min(fmax, factor))
+            return max(0.001, float(base_ml_per_pH) * factor)
+        except Exception:
+            return base_ml_per_pH
+    
     pre_ph_for_check, _ = _get_latest_ph()
     if volume_ml is not None and volume_ml > 0 and pre_ph_for_check is not None:
         try:
@@ -798,7 +822,9 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
             )
             if estimated_change_guard:
                 max_estimated_change = _settings_get_float("safety.max_estimated_ph_change", 0.5)
-                ml_per_pH = _estimate_ml_per_pH(_get_latest_ec()[0]) or DEFAULT_ML_PER_PH_FALLBACK
+                _ec = _get_latest_ec()[0]
+                ml_per_pH = _estimate_ml_per_pH(_ec) or DEFAULT_ML_PER_PH_FALLBACK
+                ml_per_pH = _ec_compensated_ml_per_pH(ml_per_pH, _ec)
                 # Estimated pH change = volume_ml / ml_per_pH
                 estimated_delta = volume_ml / max(MIN_ML_PER_PH, ml_per_pH)
                 if estimated_delta > max_estimated_change:
@@ -1312,14 +1338,30 @@ def _auto_loop():
                         # Safe initial micro-dose when learner unknown/default
                         # SAFETY: 0.10ml provides faster response while remaining conservative
                         initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.10)
-                        est_val = _estimate_ml_per_pH(_get_latest_ec()[0])
+                        _ec_now = _get_latest_ec()[0]
+                        est_val = _estimate_ml_per_pH(_ec_now)
                         # SAFETY: If learned value equals default (1.0), treat as "no learning yet" and use micro-dose
                         # Also treat values <= 1.0 as indicating more learning needed
                         safe_default = _settings_get_float("dosing.ph_up_ml_per_pH_default", 1.0)
                         if est_val is None or est_val <= safe_default or abs(est_val - safe_default) < 1e-6:
                             ml = initial_ml
                         else:
+                            # Apply EC compensation if configured (helper defined in _perform_dose scope is not accessible here,
+                            # so re-evaluate factor inline with identical logic for minimal coupling)
                             ml_per_pH = est_val
+                            try:
+                                if _ec_now is not None:
+                                    ref = _settings_get_float("dosing.ph_up_ml_per_pH_ref_ec_mscm", 1.0)
+                                    slope = _settings_get_float("dosing.ph_up_ml_per_pH_ec_slope", 0.0)
+                                    fmin = _settings_get_float("dosing.ph_up_ml_per_pH_ec_min_factor", 0.5)
+                                    fmax = _settings_get_float("dosing.ph_up_ml_per_pH_ec_max_factor", 2.0)
+                                    factor = 1.0 + slope * (float(_ec_now) - ref)
+                                    if fmin > fmax:
+                                        fmin, fmax = fmax, fmin
+                                    factor = max(fmin, min(fmax, factor))
+                                    ml_per_pH = max(0.001, float(ml_per_pH) * factor)
+                            except Exception:
+                                pass
                             ml_est = safety * need_dpH * ml_per_pH
                             ml = max(step_min, min(step_max, ml_est))
                         _print_auto_decision("dose", ph_val, _get_latest_ec()[0], targets, ml, g)
