@@ -1070,7 +1070,7 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
                 SELECT ts_utc, volume_ml, pre_ph, post_ph
                 FROM ph_dose_log
                 WHERE result='ok' AND volume_ml IS NOT NULL AND pre_ph IS NOT NULL AND post_ph IS NOT NULL
-                  AND (reason IS NULL OR reason NOT LIKE '%unsettled%')
+                  AND (reason IS NULL OR (reason NOT LIKE '%unsettled%' AND reason NOT LIKE '%FAULTY%' AND reason NOT LIKE '%LOW_EFFECT%'))
                 ORDER BY id DESC LIMIT 50
                 """
             )
