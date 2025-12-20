@@ -271,9 +271,9 @@
         });
 
         // Relay overlays (lights and pumps) - thin bands near top of EC axis
-        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 3.2);
-        const mainScaled = buildStepSeries(data?.mainEvents, window, 3.1);
-        const chillerScaled = buildStepSeries(data?.chillerEvents, window, 3.0);
+        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 3.2).map(p => ({ x: p.x, y: p.y === 0 ? 3.05 : p.y }));
+        const mainScaled = buildStepSeries(data?.mainEvents, window, 3.1).map(p => ({ x: p.x, y: p.y === 0 ? 2.95 : p.y }));
+        const chillerScaled = buildStepSeries(data?.chillerEvents, window, 3.0).map(p => ({ x: p.x, y: p.y === 0 ? 2.85 : p.y }));
 
         if (lightsScaled.length) {
           datasets.push({
