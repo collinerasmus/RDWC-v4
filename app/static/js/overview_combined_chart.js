@@ -110,13 +110,9 @@
         const targets = data?.settings?.targets || {};
         console.log('[Overview Combined] Targets from settings:', targets);
         
-        const phBand = parseFloat(targets.ph_band);
-        const phSet = parseFloat(targets.ph_high) && parseFloat(targets.ph_low)
-          ? (parseFloat(targets.ph_high) + parseFloat(targets.ph_low)) / 2
-          : null;
-        const useBand = !Number.isNaN(phBand) && phSet;
-        const phLow = useBand ? phSet - phBand : (parseFloat(targets.ph_low) || 5.8);
-        const phHigh = useBand ? phSet + phBand : (parseFloat(targets.ph_high) || 6.2);
+        // Use fixed pH band of 6.1-6.2
+        const phLow = 6.1;
+        const phHigh = 6.2;
         
         console.log('[Overview Combined] pH band calc:', { phBand, phSet, useBand, phLow, phHigh });
 
@@ -356,8 +352,8 @@
 
         const phMin = Number.isFinite(phLow) ? Math.min(phLow - 0.5, 5.0) : 5.0;
         const phMax = Number.isFinite(phHigh) ? Math.max(phHigh + 0.8, 7.5) : 7.5;
-        const ecMin = hasEcBand ? Math.max(ecLow - 0.6, 0) : 0;
-        const ecMax = hasEcBand ? ecHigh + 1.0 : Math.max(3.0, Math.max(...ec.map(p => p.y || 0), 0) + 0.3);
+        const ecMin = 0.0;
+        const ecMax = 4.0;
         const tempMin = Math.min(16, Math.min(...temp.map(p => p.y || 99), 16));
         const tempMax = Math.max(28, Math.max(...temp.map(p => p.y || 0), 28));
 
