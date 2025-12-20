@@ -168,6 +168,10 @@
         const phHigh = parseFloat(targets['ph_high']);
         const ecLow = parseFloat(targets['ec_low']);
         const ecHigh = parseFloat(targets['ec_high']);
+        
+        console.log('[Overview Combined] Parsed values:', { phLow, phHigh, ecLow, ecHigh });
+        console.log('[Overview Combined] Check: phLow=6.1?', phLow, 'phHigh=6.2?', phHigh, 'ecLow=1.45?', ecLow, 'ecHigh=1.55?', ecHigh);
+        
         const hasEcBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh);
 
         // Get temperature target + hysteresis
