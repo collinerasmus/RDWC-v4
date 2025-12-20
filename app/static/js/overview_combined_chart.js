@@ -118,12 +118,11 @@
         const settingsHistoryUrl = `/api/settings/history?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
 
         try {
-          const [trendsRes, phDoseRes, ecDoseRes, settingsRes, ecStatusRes, lightsRes, mainRes, chillerRes, historyRes] = await Promise.all([
+          const [trendsRes, phDoseRes, ecDoseRes, settingsRes, lightsRes, mainRes, chillerRes, historyRes] = await Promise.all([
             fetch(trendsUrl, { cache: 'no-store' }),
             fetch(phDoseUrl, { cache: 'no-store' }),
             fetch(ecDoseUrl, { cache: 'no-store' }),
             fetch('/api/settings', { cache: 'no-store' }),
-            fetch('/api/ec/status', { cache: 'no-store' }),
             fetch('/api/relays/events?name=lights&last=500', { cache: 'no-store' }),
             fetch('/api/relays/events?name=main_pump&last=500', { cache: 'no-store' }),
             fetch('/api/relays/events?name=chiller_pump&last=500', { cache: 'no-store' }),
@@ -135,13 +134,12 @@
           const ecDose = ecDoseRes.ok ? await ecDoseRes.json() : { events: [] };
           const settings = settingsRes.ok ? await settingsRes.json() : {};
           console.log('[Overview Combined] Raw settings fetch:', settings);
-          const ecStatus = ecStatusRes.ok ? await ecStatusRes.json() : {};
           const lightsEvents = lightsRes.ok ? await lightsRes.json() : [];
           const mainEvents = mainRes.ok ? await mainRes.json() : [];
           const chillerEvents = chillerRes.ok ? await chillerRes.json() : [];
           const settingsHistory = historyRes.ok ? await historyRes.json() : [];
 
-          return { trendsData, phDose, ecDose, settings, ecStatus, lightsEvents, mainEvents, chillerEvents, settingsHistory };
+          return { trendsData, phDose, ecDose, settings, lightsEvents, mainEvents, chillerEvents, settingsHistory };
         } catch (e) {
           console.error('[Overview Combined] Fetch failed', e);
           return { trendsData: { series: { ph: [], ec: [], temp: [] } }, phDose: [], ecDose: { events: [] }, settings: {}, ecStatus: {}, lightsEvents: [], mainEvents: [], chillerEvents: [], settingsHistory: [] };
