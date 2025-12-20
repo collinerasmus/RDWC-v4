@@ -1385,10 +1385,8 @@ def _auto_loop():
                         initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.10)
                         _ec_now = _get_latest_ec()[0]
                         est_val = _estimate_ml_per_pH(_ec_now)
-                        # SAFETY: If learned value equals default (1.0), treat as "no learning yet" and use micro-dose
-                        # Also treat values <= 1.0 as indicating more learning needed
-                        safe_default = _settings_get_float("dosing.ph_up_ml_per_pH_default", 1.0)
-                        if est_val is None or est_val <= safe_default or abs(est_val - safe_default) < 1e-6:
+                        # SAFETY: If no estimator available, use conservative micro-dose
+                        if est_val is None:
                             ml = initial_ml
                         else:
                             # Apply EC compensation if configured (helper defined in _perform_dose scope is not accessible here,
