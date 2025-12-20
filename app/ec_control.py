@@ -557,6 +557,20 @@ def _last_ok_ts() -> Optional[datetime]:
         except Exception:
             return None
 
+
+def _last_ph_ok_ts() -> Optional[datetime]:
+    """Latest successful pH dose timestamp (UTC) for cross-controller guard."""
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT ts_utc FROM ph_dose_log WHERE result='ok' ORDER BY id DESC LIMIT 1")
+            row = cur.fetchone()
+            if row and row[0]:
+                return datetime.fromisoformat(row[0]).astimezone(timezone.utc)
+    except Exception:
+        return None
+    return None
+
 # --- Sensors/Settings helpers ------------------------------------------------
 def _get_latest_ec() -> Tuple[Optional[float], Optional[int]]:
     """Return latest EC (mS/cm) and its unix ts from readings table."""
@@ -845,13 +859,24 @@ def _check_guards() -> Tuple[bool, Optional[str]]:
     
     # === AUTO-ONLY GUARDS ===
     if is_auto_mode:
+        now_ts = int(time.time())
         # Stale EC sensor (only in auto mode)
         ec_val, ec_ts = _get_latest_ec()
         if ec_val is None or ec_ts is None:
             return (False, "sensor_stale")
-        now_ts = int(time.time())
         if (now_ts - ec_ts) > 300:  # 5 min stale
             return (False, "sensor_stale")
+
+        # Cross-controller settle: wait after any pH dose before EC automation resumes
+        try:
+            wait_after_ph = _i("dosing.ec_wait_after_ph_s", 300)
+        except Exception:
+            wait_after_ph = 300
+        last_ph_ts = _last_ph_ok_ts()
+        if last_ph_ts:
+            elapsed = (datetime.fromtimestamp(now_ts, tz=timezone.utc) - last_ph_ts).total_seconds()
+            if elapsed < wait_after_ph:
+                return (False, "ph_settle")
     
     return (True, None)
 
@@ -1323,7 +1348,7 @@ def get_ec_status():
     
     # Guards
     ok, guard = _check_guards()
-    guards = {"estop": False, "sensor_stale": False, "mix_lock": False, "reservoir": False}
+    guards = {"estop": False, "sensor_stale": False, "mix_lock": False, "reservoir": False, "ph_settle": False}
     if not ok and guard:
         guards[guard] = True
     

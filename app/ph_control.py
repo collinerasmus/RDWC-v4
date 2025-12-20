@@ -665,7 +665,8 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
     try:
         # Configuration
         # Use canonical stabilization keys with fallback to legacy duplicates
-        stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 180))
+        # Require ~5 minutes by default to observe the settled effect
+        stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 300))
         stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", _settings_get_float("dosing.stability_delta", 0.05))
         stability_samples = _settings_get_int("dosing.stability_samples", 3)  # sample count remained unchanged
         dose_effectiveness_threshold = _settings_get_float("dosing.dose_effectiveness_threshold", 0.02)  # Min pH change to consider dose effective
@@ -713,14 +714,18 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
                     samples = samples[-max_samples:]
                 
                 # PHASE 1: Early spike detection (first 60s) - confirms solution delivery
-                if not delivery_confirmed and time.time() < early_spike_deadline and pre_ph is not None and ph_val is not None:
-                    delta = ph_val - pre_ph
-                    if delta >= early_spike_threshold:
-                        # Spike detected! Solution reached reservoir
-                        delivery_confirmed = True
-                        poll_interval = settling_poll_interval  # Slow down polling after confirmation
-                        print(f"[pH Stabilization] ✓ DELIVERY CONFIRMED for rowid={rowid}: spike detected! pH {pre_ph:.3f} → {ph_val:.3f} (Δ={delta:.3f})")
-                        print(f"[pH Stabilization] Switching to Phase 2: waiting for settling to measure final effect...")
+                if not delivery_confirmed and time.time() < early_spike_deadline:
+                    # If pre_ph is missing (rare), seed it from the first observed sample
+                    if pre_ph is None and ph_val is not None:
+                        pre_ph = ph_val
+                    if pre_ph is not None and ph_val is not None:
+                        delta = ph_val - pre_ph
+                        if delta >= early_spike_threshold:
+                            # Spike detected! Solution reached reservoir
+                            delivery_confirmed = True
+                            poll_interval = settling_poll_interval  # Slow down polling after confirmation
+                            print(f"[pH Stabilization] ✓ DELIVERY CONFIRMED for rowid={rowid}: spike detected! pH {pre_ph:.3f} → {ph_val:.3f} (Δ={delta:.3f})")
+                            print(f"[pH Stabilization] Switching to Phase 2: waiting for settling to measure final effect...")
                 
                 # Transition: Early window expired without spike — continue, but keep unconfirmed
                 if not delivery_confirmed and not delivery_window_expired and time.time() >= early_spike_deadline:
