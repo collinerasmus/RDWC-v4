@@ -363,9 +363,18 @@
         chartInstance.options.scales.yTemp.min = tempMin;
         chartInstance.options.scales.yTemp.max = tempMax;
 
-        // Nudge chart area to leave space for the latest points/tooltip on the right edge
-        chartInstance.options.layout = chartInstance.options.layout || {};
-        chartInstance.options.layout.padding = Object.assign({}, chartInstance.options.layout.padding, { right: 24 });
+        // Nudge chart area to leave space for the latest points/tooltip on the right edge (set once to avoid recursive proxy sets)
+        if (!chartInstance._addedPadding) {
+          chartInstance.options.layout = chartInstance.options.layout || {};
+          const p = chartInstance.options.layout.padding || {};
+          chartInstance.options.layout.padding = {
+            top: p.top || 0,
+            right: 24,
+            bottom: p.bottom || 0,
+            left: p.left || 0
+          };
+          chartInstance._addedPadding = true;
+        }
 
         return datasets;
       }
