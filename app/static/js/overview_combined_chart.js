@@ -118,11 +118,12 @@
         const settingsHistoryUrl = `/api/settings/history?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
 
         try {
-          const [trendsRes, phDoseRes, ecDoseRes, settingsRes, lightsRes, mainRes, chillerRes, historyRes] = await Promise.all([
+          const [trendsRes, phDoseRes, ecDoseRes, settingsRes, ecStatusRes, lightsRes, mainRes, chillerRes, historyRes] = await Promise.all([
             fetch(trendsUrl, { cache: 'no-store' }),
             fetch(phDoseUrl, { cache: 'no-store' }),
             fetch(ecDoseUrl, { cache: 'no-store' }),
             fetch('/api/settings', { cache: 'no-store' }),
+            fetch('/api/ec/status', { cache: 'no-store' }),
             fetch('/api/relays/events?name=lights&last=500', { cache: 'no-store' }),
             fetch('/api/relays/events?name=main_pump&last=500', { cache: 'no-store' }),
             fetch('/api/relays/events?name=chiller_pump&last=500', { cache: 'no-store' }),
@@ -133,13 +134,14 @@
           const phDose = phDoseRes.ok ? await phDoseRes.json() : [];
           const ecDose = ecDoseRes.ok ? await ecDoseRes.json() : { events: [] };
           const settings = settingsRes.ok ? await settingsRes.json() : {};
+          const ecStatus = ecStatusRes.ok ? await ecStatusRes.json() : {};
           console.log('[Overview Combined] Raw settings fetch:', settings);
           const lightsEvents = lightsRes.ok ? await lightsRes.json() : [];
           const mainEvents = mainRes.ok ? await mainRes.json() : [];
           const chillerEvents = chillerRes.ok ? await chillerRes.json() : [];
           const settingsHistory = historyRes.ok ? await historyRes.json() : [];
 
-          return { trendsData, phDose, ecDose, settings, lightsEvents, mainEvents, chillerEvents, settingsHistory };
+          return { trendsData, phDose, ecDose, settings, ecStatus, lightsEvents, mainEvents, chillerEvents, settingsHistory };
         } catch (e) {
           console.error('[Overview Combined] Fetch failed', e);
           return { trendsData: { series: { ph: [], ec: [], temp: [] } }, phDose: [], ecDose: { events: [] }, settings: {}, ecStatus: {}, lightsEvents: [], mainEvents: [], chillerEvents: [], settingsHistory: [] };
@@ -160,16 +162,22 @@
           .filter(e => e.ts >= window.start && e.ts <= window.end);
 
         const targets = data?.settings?.targets || {};
+        const ecStatusTargets = data?.ecStatus?.targets || {};
         const tempSettings = data?.settings?.temperature || {};
         console.log('[Overview Combined] Targets from settings:', targets);
         
         // Get current targets - live only (no history)
         const phLow = parseFloat(targets['ph_low']);
         const phHigh = parseFloat(targets['ph_high']);
-        const ecLow = parseFloat(targets['ec_low']);
-        const ecHigh = parseFloat(targets['ec_high']);
+        // Prefer live EC targets from controller status (scheduler-derived), fallback to settings
+        const ecLowLive = parseFloat(ecStatusTargets.low);
+        const ecHighLive = parseFloat(ecStatusTargets.high);
+        const ecLowSettings = parseFloat(targets['ec_low']);
+        const ecHighSettings = parseFloat(targets['ec_high']);
+        const ecLow = Number.isFinite(ecLowLive) ? ecLowLive : ecLowSettings;
+        const ecHigh = Number.isFinite(ecHighLive) ? ecHighLive : ecHighSettings;
         const hasEcBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh);
-        console.log('[Overview Combined] Parsed values:', { phLow, phHigh, ecLow, ecHigh });
+        console.log('[Overview Combined] Parsed values:', { phLow, phHigh, ecLow, ecHigh, ecLowLive, ecHighLive, ecLowSettings, ecHighSettings });
         console.log('[Overview Combined] hasEcBand?', hasEcBand, 'isFinite checks:', { ecLowFinite: Number.isFinite(ecLow), ecHighFinite: Number.isFinite(ecHigh) });
 
         // Get temperature target + hysteresis (live)
