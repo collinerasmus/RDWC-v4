@@ -363,6 +363,10 @@
         chartInstance.options.scales.yTemp.min = tempMin;
         chartInstance.options.scales.yTemp.max = tempMax;
 
+        // Nudge chart area to leave space for the latest points/tooltip on the right edge
+        chartInstance.options.layout = chartInstance.options.layout || {};
+        chartInstance.options.layout.padding = Object.assign({}, chartInstance.options.layout.padding, { right: 24 });
+
         return datasets;
       }
     });
