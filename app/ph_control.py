@@ -656,9 +656,9 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
     and incorrectly treats successful doses as ineffective.
     """
     try:
+        print(f"[pH Stabilization] THREAD STARTED for rowid={rowid}")
+        import sys; sys.stderr.flush()
         # Configuration
-        # Use canonical stabilization keys with fallback to legacy duplicates
-        # Require ~5 minutes by default to observe the settled effect
         stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 300))
         stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", _settings_get_float("dosing.stability_delta", 0.05))
         stability_samples = _settings_get_int("dosing.stability_samples", 3)  # sample count remained unchanged
@@ -780,7 +780,14 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
             
             
     except Exception as e:
-        print(f"[pH Stabilization] Error for rowid={rowid}: {e}")
+        import traceback
+        msg = f"[pH Stabilization] Error for rowid={rowid}: {e}\n{traceback.format_exc()}"
+        print(msg)
+        try:
+            with open("/tmp/ph_stab_error.log", "a") as f:
+                f.write(msg + "\n")
+        except:
+            pass
 
 
 def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
