@@ -161,18 +161,19 @@
           .filter(e => e.ts >= window.start && e.ts <= window.end);
 
         const targets = data?.settings?.targets || {};
+        const tempSettings = data?.settings?.temperature || {};
         console.log('[Overview Combined] Targets from settings:', targets);
         
         // Get current targets
-        const phLow = parseFloat(targets['targets.ph_low']);
-        const phHigh = parseFloat(targets['targets.ph_high']);
+        const phLow = parseFloat(targets['ph_low']);
+        const phHigh = parseFloat(targets['ph_high']);
         const ecLow = Number(data?.ecStatus?.targets?.low);
         const ecHigh = Number(data?.ecStatus?.targets?.high);
         const hasEcBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh);
 
         // Get temperature target + hysteresis
-        const tempTarget = parseFloat(targets['targets.temp_target_c']);
-        const tempHyst = parseFloat(targets['temperature.hysteresis']);
+        const tempTarget = parseFloat(targets['temp_target_c']);
+        const tempHyst = parseFloat(tempSettings['hysteresis']);
         const resolvedTarget = Number.isFinite(tempTarget) ? tempTarget : 20.0;
         const resolvedHyst = Number.isFinite(tempHyst) ? tempHyst : 0.5;
         const tempLow = resolvedTarget - resolvedHyst;
@@ -200,6 +201,7 @@
             borderColor: 'rgba(59, 130, 246, 0.25)',
             borderWidth: 1,
             borderDash: [5, 5],
+            stepped: true,
             pointRadius: 0,
             fill: '+1',
             backgroundColor: window.CHART_COLORS?.setpointBand || 'rgba(59, 130, 246, 0.1)',
@@ -213,6 +215,7 @@
             borderColor: 'rgba(59, 130, 246, 0.25)',
             borderWidth: 1,
             borderDash: [5, 5],
+            stepped: true,
             pointRadius: 0,
             order: 0
           });
@@ -232,6 +235,7 @@
             borderColor: 'rgba(16, 185, 129, 0.25)',
             borderWidth: 1,
             borderDash: [5, 5],
+            stepped: true,
             pointRadius: 0,
             fill: '+1',
             backgroundColor: 'rgba(16, 185, 129, 0.1)',
@@ -245,6 +249,7 @@
             borderColor: 'rgba(16, 185, 129, 0.25)',
             borderWidth: 1,
             borderDash: [5, 5],
+            stepped: true,
             pointRadius: 0,
             order: 0
           });
@@ -297,6 +302,7 @@
           borderColor: 'rgba(239, 68, 68, 0.25)',
           borderWidth: 1,
           borderDash: [5, 5],
+          stepped: true,
           pointRadius: 0,
           fill: '+1',
           backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -310,6 +316,7 @@
           borderColor: 'rgba(239, 68, 68, 0.25)',
           borderWidth: 1,
           borderDash: [5, 5],
+          stepped: true,
           pointRadius: 0,
           order: 0
         });
