@@ -178,6 +178,34 @@
           });
         }
 
+        // Temperature band (19-21°C target)
+        const tempLow = 19;
+        const tempHigh = 21;
+        datasets.push({
+          type: 'line',
+          yAxisID: 'yTemp',
+          label: 'Temp Target',
+          data: [ { x: window.start, y: tempLow }, { x: window.end, y: tempLow } ],
+          borderColor: 'rgba(239, 68, 68, 0.25)',
+          borderWidth: 1,
+          borderDash: [5, 5],
+          pointRadius: 0,
+          fill: '+1',
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          order: 0
+        });
+        datasets.push({
+          type: 'line',
+          yAxisID: 'yTemp',
+          label: '',
+          data: [ { x: window.start, y: tempHigh }, { x: window.end, y: tempHigh } ],
+          borderColor: 'rgba(239, 68, 68, 0.25)',
+          borderWidth: 1,
+          borderDash: [5, 5],
+          pointRadius: 0,
+          order: 0
+        });
+
         // pH series
         if (ph.length) {
           datasets.push({
@@ -354,8 +382,9 @@
         const phMax = Number.isFinite(phHigh) ? Math.max(phHigh + 0.8, 7.5) : 7.5;
         const ecMin = 0.0;
         const ecMax = 4.0;
-        const tempMin = Math.min(16, Math.min(...temp.map(p => p.y || 99), 16));
-        const tempMax = Math.max(28, Math.max(...temp.map(p => p.y || 0), 28));
+        // Adjust temp scale so 19-21°C range sits at bottom: min at 18, max at 28 for good proportion
+        const tempMin = 18;
+        const tempMax = 28;
 
         chartInstance.options.scales.yPh.min = phMin;
         chartInstance.options.scales.yPh.max = phMax;
