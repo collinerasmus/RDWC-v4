@@ -1082,6 +1082,7 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
             rows = cur.fetchall()
         total_ml = 0.0
         total_dpH = 0.0
+        num_valid = 0
         for ts_iso, ml, pre, post in rows:
             try:
                 dpH = float(post) - float(pre)
@@ -1089,8 +1090,8 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
                     continue
                 ml = float(ml)
                 # Filter to reasonable positive deltas (avoid noise/overshoot)
-                # Lowered floor to 0.002 to accept small real changes from dilution + buffering
-                if dpH <= 0 or dpH > 0.6 or abs(dpH) < 0.002:
+                # Require >= 0.005 pH change (5 millivolts) to reduce noise from small measurement jitter
+                if dpH <= 0 or dpH > 0.6 or abs(dpH) < 0.005:
                     continue
                 # Filter by EC near dose time
                 try:
@@ -1102,12 +1103,14 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
                     continue
                 total_ml += ml
                 total_dpH += dpH
+                num_valid += 1
             except Exception:
                 continue
-        if total_dpH > 0.02 and total_ml > 0:
+        if total_dpH > 0.02 and total_ml > 0 and num_valid >= 2:
             est = float(total_ml / total_dpH)  # ml for 1.0 pH
-            # Clamp to [1.0,100] ml per 1.0 pH (user spec: 1ml = 1 pH unit)
-            est = max(1.0, min(100.0, est))
+            # Clamp to [1.5,50] ml per 1.0 pH — conservative range given user spec of ~1ml = 1 pH
+            # Upper bound reduced from 100 to prevent learning runaway from low-effect doses
+            est = max(1.5, min(50.0, est))
             return est
     except Exception:
         pass
