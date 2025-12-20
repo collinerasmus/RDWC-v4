@@ -1215,7 +1215,15 @@ def _auto_loop():
             ph_val, _ = _get_latest_ph()
             targets = _get_ph_targets()
             g = _compute_guards(now)
-            print(f"[pH Auto DEBUG] Loop iteration: ph={ph_val:.3f}, targets={targets}, has_guards={any(g.values())}")
+            import sys
+            msg = f"[pH Auto DEBUG] Loop iteration: ph={ph_val:.3f}, targets={targets}, has_guards={any(g.values())}"
+            print(msg, file=sys.stderr, flush=True)
+            # Also write to file for debugging
+            try:
+                with open("/tmp/ph_auto_debug.log", "a") as f:
+                    f.write(msg + "\n")
+            except:
+                pass
             if ph_val is None or g.get("sensor_stale"):
                 _set_auto_block("stale")
                 if _auto_last_block_count == 3:
