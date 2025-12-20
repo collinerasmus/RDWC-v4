@@ -171,6 +171,7 @@
         
         console.log('[Overview Combined] Parsed values:', { phLow, phHigh, ecLow, ecHigh });
         console.log('[Overview Combined] Check: phLow=6.1?', phLow, 'phHigh=6.2?', phHigh, 'ecLow=1.45?', ecLow, 'ecHigh=1.55?', ecHigh);
+        console.log('[Overview Combined] hasEcBand?', hasEcBand, 'isFinite checks:', { ecLowFinite: Number.isFinite(ecLow), ecHighFinite: Number.isFinite(ecHigh) });
         
         const hasEcBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh);
 
