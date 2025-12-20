@@ -45,6 +45,7 @@
       emptyMessageId: 'overview-combined-empty',
       type: 'overview-combined',
       title: 'Overview Combined',
+      layout: { padding: { right: 24 } },
       onDataFetch: async (startISO, endISO) => {
         const spanMs = new Date(endISO) - new Date(startISO);
         const hours = spanMs / 3600000;
@@ -362,19 +363,6 @@
         chartInstance.options.scales.yEc.max = ecMax;
         chartInstance.options.scales.yTemp.min = tempMin;
         chartInstance.options.scales.yTemp.max = tempMax;
-
-        // Nudge chart area to leave space for the latest points/tooltip on the right edge (set once to avoid recursive proxy sets)
-        if (!chartInstance._addedPadding) {
-          chartInstance.options.layout = chartInstance.options.layout || {};
-          const p = chartInstance.options.layout.padding || {};
-          chartInstance.options.layout.padding = {
-            top: p.top || 0,
-            right: 24,
-            bottom: p.bottom || 0,
-            left: p.left || 0
-          };
-          chartInstance._addedPadding = true;
-        }
 
         return datasets;
       }
