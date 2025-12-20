@@ -163,19 +163,16 @@
         const tempSettings = data?.settings?.temperature || {};
         console.log('[Overview Combined] Targets from settings:', targets);
         
-        // Get current targets - ALWAYS use explicit settings, ignore scheduler
+        // Get current targets - live only (no history)
         const phLow = parseFloat(targets['ph_low']);
         const phHigh = parseFloat(targets['ph_high']);
         const ecLow = parseFloat(targets['ec_low']);
         const ecHigh = parseFloat(targets['ec_high']);
-        
-        console.log('[Overview Combined] Parsed values:', { phLow, phHigh, ecLow, ecHigh });
-        console.log('[Overview Combined] Check: phLow=6.1?', phLow, 'phHigh=6.2?', phHigh, 'ecLow=1.45?', ecLow, 'ecHigh=1.55?', ecHigh);
-        console.log('[Overview Combined] hasEcBand?', hasEcBand, 'isFinite checks:', { ecLowFinite: Number.isFinite(ecLow), ecHighFinite: Number.isFinite(ecHigh) });
-        
         const hasEcBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh);
+        console.log('[Overview Combined] Parsed values:', { phLow, phHigh, ecLow, ecHigh });
+        console.log('[Overview Combined] hasEcBand?', hasEcBand, 'isFinite checks:', { ecLowFinite: Number.isFinite(ecLow), ecHighFinite: Number.isFinite(ecHigh) });
 
-        // Get temperature target + hysteresis
+        // Get temperature target + hysteresis (live)
         const tempTarget = parseFloat(targets['temp_target_c']);
         const tempHyst = parseFloat(tempSettings['hysteresis']);
         const resolvedTarget = Number.isFinite(tempTarget) ? tempTarget : 20.0;
@@ -183,11 +180,6 @@
         const tempLow = resolvedTarget - resolvedHyst;
         const tempHigh = resolvedTarget + resolvedHyst;
         console.log('[Overview Combined] Temp targets:', { tempLow, tempHigh, resolvedTarget, resolvedHyst });
-
-        // Build settings history step series (temp only)
-        const historyKeys = ['targets.temp_target_c', 'temperature.hysteresis'];
-        const historyData = buildSettingsHistorySeries(data?.settingsHistory || [], historyKeys, window);
-        console.log('[Overview Combined] Settings history keys:', Object.keys(historyData));
 
         const datasets = [];
 
@@ -255,71 +247,39 @@
           });
         }
 
-        // Temperature band - dynamic from history
-        const tempTargetHistory = historyData['targets.temp_target_c'] || [];
-        const tempHystHistory = historyData['temperature.hysteresis'] || [];
-        // Helper: combine temp target + hysteresis into low/high bands
-        function buildTempBands(targetSeries, hystSeries, defaultTarget, defaultHyst, window) {
-          // Start with latest values before window.start
-          let currentTarget = defaultTarget;
-          let currentHyst = defaultHyst;
-          const combined = [...targetSeries, ...hystSeries]
-            .map(p => ({ ...p }))
-            .sort((a, b) => a.x - b.x);
-
-          // Apply any prior changes before window start to set baseline
-          for (const point of combined) {
-            if (point.x > window.start) break;
-            if (point.series === 'targets.temp_target_c') currentTarget = point.y;
-            if (point.series === 'temperature.hysteresis') currentHyst = point.y;
-          }
-
-          const lowData = [{ x: window.start, y: currentTarget - currentHyst }];
-          const highData = [{ x: window.start, y: currentTarget + currentHyst }];
-
-          // Add points within the window
-          for (const point of combined) {
-            if (point.x < window.start || point.x > window.end) continue;
-            if (point.series === 'targets.temp_target_c') currentTarget = point.y;
-            if (point.series === 'temperature.hysteresis') currentHyst = point.y;
-            lowData.push({ x: point.x, y: currentTarget - currentHyst });
-            highData.push({ x: point.x, y: currentTarget + currentHyst });
-          }
-
-          lowData.push({ x: window.end, y: currentTarget - currentHyst });
-          highData.push({ x: window.end, y: currentTarget + currentHyst });
-          return { low: lowData, high: highData };
+        // Temperature band - live only
+        if (Number.isFinite(resolvedTarget) && Number.isFinite(resolvedHyst)) {
+          const tempLowLive = resolvedTarget - resolvedHyst;
+          const tempHighLive = resolvedTarget + resolvedHyst;
+          const tempLowData = [{ x: window.start, y: tempLowLive }, { x: window.end, y: tempLowLive }];
+          const tempHighData = [{ x: window.start, y: tempHighLive }, { x: window.end, y: tempHighLive }];
+          datasets.push({
+            type: 'line',
+            yAxisID: 'yTemp',
+            label: 'Temp Target',
+            data: tempLowData,
+            borderColor: 'rgba(239, 68, 68, 0.25)',
+            borderWidth: 1,
+            borderDash: [5, 5],
+            stepped: true,
+            pointRadius: 0,
+            fill: '+1',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            order: 0
+          });
+          datasets.push({
+            type: 'line',
+            yAxisID: 'yTemp',
+            label: '',
+            data: tempHighData,
+            borderColor: 'rgba(239, 68, 68, 0.25)',
+            borderWidth: 1,
+            borderDash: [5, 5],
+            stepped: true,
+            pointRadius: 0,
+            order: 0
+          });
         }
-        // Annotate series origin for merging
-        const tempTargetAnnotated = tempTargetHistory.map(p => ({ ...p, series: 'targets.temp_target_c' }));
-        const tempHystAnnotated = tempHystHistory.map(p => ({ ...p, series: 'temperature.hysteresis' }));
-        const tempBands = buildTempBands(tempTargetAnnotated, tempHystAnnotated, resolvedTarget, resolvedHyst, window);
-        datasets.push({
-          type: 'line',
-          yAxisID: 'yTemp',
-          label: 'Temp Target',
-          data: tempBands.low,
-          borderColor: 'rgba(239, 68, 68, 0.25)',
-          borderWidth: 1,
-          borderDash: [5, 5],
-          stepped: true,
-          pointRadius: 0,
-          fill: '+1',
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          order: 0
-        });
-        datasets.push({
-          type: 'line',
-          yAxisID: 'yTemp',
-          label: '',
-          data: tempBands.high,
-          borderColor: 'rgba(239, 68, 68, 0.25)',
-          borderWidth: 1,
-          borderDash: [5, 5],
-          stepped: true,
-          pointRadius: 0,
-          order: 0
-        });
 
         // pH series
         if (ph.length) {
