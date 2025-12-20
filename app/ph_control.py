@@ -1202,11 +1202,14 @@ def _auto_loop():
             # NEW: Use unified auto-enable system
             try:
                 from app.auto_control import should_automate
-                if not should_automate("ph"):
+                should_ph = should_automate("ph")
+                print(f"[pH Auto DEBUG] should_automate('ph') = {should_ph}", flush=True)
+                if not should_ph:
                     _set_auto_block("auto_disabled")
                     time.sleep(poll_s)
                     continue
-            except Exception:
+            except Exception as e:
+                print(f"[pH Auto DEBUG] Exception in should_automate: {e}", flush=True)
                 pass
             # Suppress automation when global maintenance override is active
             try:
