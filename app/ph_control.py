@@ -1192,7 +1192,7 @@ def _auto_loop():
     warmup_done = False
     skip_next_poll = False  # For backoff
     
-    while _auto_stop_evt and not _auto_stop_evt.is_set():
+    while _auto_stop_evt is not None and not _auto_stop_evt.is_set():
         try:
             # NEW: Use unified auto-enable system
             try:
