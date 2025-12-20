@@ -120,6 +120,13 @@
         const ecHigh = Number(data?.ecStatus?.targets?.high);
         const hasEcBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh);
 
+        // Get temperature targets from settings
+        const tempTargetLow = parseFloat(targets.temp_low);
+        const tempTargetHigh = parseFloat(targets.temp_high);
+        const tempLow = Number.isFinite(tempTargetLow) ? tempTargetLow : 19;
+        const tempHigh = Number.isFinite(tempTargetHigh) ? tempTargetHigh : 21;
+        console.log('[Overview Combined] Temp targets:', { tempLow, tempHigh });
+
         const datasets = [];
 
         // pH band
@@ -178,9 +185,7 @@
           });
         }
 
-        // Temperature band (19-21°C target)
-        const tempLow = 19;
-        const tempHigh = 21;
+        // Temperature band (using actual target values from settings)
         datasets.push({
           type: 'line',
           yAxisID: 'yTemp',
@@ -382,16 +387,16 @@
         const phMax = Number.isFinite(phHigh) ? Math.max(phHigh + 0.8, 7.5) : 7.5;
         const ecMin = 0.0;
         const ecMax = 4.0;
-        // Adjust temp scale so 19-21°C range sits at bottom: min at 18, max at 28 for good proportion
-        const tempMin = 18;
-        const tempMax = 28;
+        // Scale temp axis: show range from (tempLow - 1) to (tempHigh + 7) for good proportion
+        const tempAxisMin = Math.floor(tempLow - 1);
+        const tempAxisMax = Math.ceil(tempHigh + 7);
 
         chartInstance.options.scales.yPh.min = phMin;
         chartInstance.options.scales.yPh.max = phMax;
         chartInstance.options.scales.yEc.min = ecMin;
         chartInstance.options.scales.yEc.max = ecMax;
-        chartInstance.options.scales.yTemp.min = tempMin;
-        chartInstance.options.scales.yTemp.max = tempMax;
+        chartInstance.options.scales.yTemp.min = tempAxisMin;
+        chartInstance.options.scales.yTemp.max = tempAxisMax;
 
         return datasets;
       }
