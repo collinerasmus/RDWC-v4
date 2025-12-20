@@ -1388,7 +1388,10 @@ def _auto_loop():
                 # pH above band: clear holding reason
                 _auto_last_holding_reason = None
             time.sleep(poll_s)
-        except Exception:
+        except Exception as e:
+            import traceback
+            print(f"[pH Auto ERROR] Exception in loop iteration: {e}", flush=True)
+            print(traceback.format_exc(), flush=True)
             time.sleep(poll_s)
 
 
