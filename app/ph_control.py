@@ -25,63 +25,6 @@ router = APIRouter()
 
 DB_PATH = Path(__file__).parent.parent / "data" / "rdwc.db"
 
-# --- Shared Helpers (Single Source of Truth) ----
-def _get_ph_targets() -> Dict[str, float]:
-    """Get pH target band from nutrient schedule (if available) or settings.
-    Returns dict with 'low' and 'high' keys.
-    """
-    from app.settings import get_all_settings, _settings_get_float
-    from app.schedule_api import DB_PATH as SCHED_DB
-    
-    band_tol = _settings_get_float("targets.ph_band", 0.2)
-    setpoint = None
-    try:
-        s = get_all_settings()
-        date_str = s.get("general.grow_start_date", "")
-        week_num = 1
-        if date_str:
-            try:
-                start = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                now_dt = datetime.now(timezone.utc)
-                delta_days = (now_dt - start).days
-                week_num = max(1, min(12, (delta_days // 7) + 1))
-            except Exception:
-                week_num = 1
-        with sqlite3.connect(str(SCHED_DB)) as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT ph_low, ph_high FROM nutrient_schedule WHERE week = ?", (week_num,))
-            row = cur.fetchone()
-            if row and row[0] is not None and row[1] is not None:
-                setpoint = ((float(row[0]) + float(row[1])) / 2.0)
-    except Exception:
-        setpoint = None
-    if setpoint is not None:
-        return {"low": round(setpoint - band_tol, 2), "high": round(setpoint + band_tol, 2)}
-    else:
-        from app.settings import _settings_get_float
-        return {
-            "low": _settings_get_float("targets.ph_low", 5.8),
-            "high": _settings_get_float("targets.ph_high", 6.2),
-        }
-
-def _ec_compensated_ml_per_pH(base_ml_per_pH: float, ec_current: Optional[float]) -> float:
-    """Scale ml_per_pH based on EC to reflect reduced effectiveness at higher ionic strength."""
-    from app.settings import _settings_get_float
-    try:
-        if ec_current is None:
-            return base_ml_per_pH
-        ref = _settings_get_float("dosing.ph_up_ml_per_pH_ref_ec_mscm", 1.0)
-        slope = _settings_get_float("dosing.ph_up_ml_per_pH_ec_slope", 0.0)
-        fmin = _settings_get_float("dosing.ph_up_ml_per_pH_ec_min_factor", 0.5)
-        fmax = _settings_get_float("dosing.ph_up_ml_per_pH_ec_max_factor", 2.0)
-        factor = 1.0 + slope * (float(ec_current) - ref)
-        if fmin > fmax:
-            fmin, fmax = fmax, fmin
-        factor = max(fmin, min(fmax, factor))
-        return max(0.001, float(base_ml_per_pH) * factor)
-    except Exception:
-        return base_ml_per_pH
-
 # --- Automation state --------------------------------------------------------
 _auto_thread: Optional[threading.Thread] = None
 _auto_stop_evt: Optional[threading.Event] = None
@@ -445,6 +388,61 @@ def _settings_get_int(key: str, default: int) -> int:
         return int(float(_settings_get(key, str(default))))
     except Exception:
         return default
+
+# --- Shared Target & EC Compensation Helpers (after settings helpers) -------
+def _get_ph_targets() -> Dict[str, float]:
+    """Get pH target band from nutrient schedule (if available) or settings.
+    Returns dict with 'low' and 'high' keys.
+    """
+    from app.settings import get_all_settings
+    from app.schedule_api import DB_PATH as SCHED_DB
+    
+    band_tol = _settings_get_float("targets.ph_band", 0.2)
+    setpoint = None
+    try:
+        s = get_all_settings()
+        date_str = s.get("general.grow_start_date", "")
+        week_num = 1
+        if date_str:
+            try:
+                start = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                now_dt = datetime.now(timezone.utc)
+                delta_days = (now_dt - start).days
+                week_num = max(1, min(12, (delta_days // 7) + 1))
+            except Exception:
+                week_num = 1
+        with sqlite3.connect(str(SCHED_DB)) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT ph_low, ph_high FROM nutrient_schedule WHERE week = ?", (week_num,))
+            row = cur.fetchone()
+            if row and row[0] is not None and row[1] is not None:
+                setpoint = ((float(row[0]) + float(row[1])) / 2.0)
+    except Exception:
+        setpoint = None
+    if setpoint is not None:
+        return {"low": round(setpoint - band_tol, 2), "high": round(setpoint + band_tol, 2)}
+    else:
+        return {
+            "low": _settings_get_float("targets.ph_low", 5.8),
+            "high": _settings_get_float("targets.ph_high", 6.2),
+        }
+
+def _ec_compensated_ml_per_pH(base_ml_per_pH: float, ec_current: Optional[float]) -> float:
+    """Scale ml_per_pH based on EC to reflect reduced effectiveness at higher ionic strength."""
+    try:
+        if ec_current is None:
+            return base_ml_per_pH
+        ref = _settings_get_float("dosing.ph_up_ml_per_pH_ref_ec_mscm", 1.0)
+        slope = _settings_get_float("dosing.ph_up_ml_per_pH_ec_slope", 0.0)
+        fmin = _settings_get_float("dosing.ph_up_ml_per_pH_ec_min_factor", 0.5)
+        fmax = _settings_get_float("dosing.ph_up_ml_per_pH_ec_max_factor", 2.0)
+        factor = 1.0 + slope * (float(ec_current) - ref)
+        if fmin > fmax:
+            fmin, fmax = fmax, fmin
+        factor = max(fmin, min(fmax, factor))
+        return max(0.001, float(base_ml_per_pH) * factor)
+    except Exception:
+        return base_ml_per_pH
 
 # --- Guards ------------------------------------------------------------------
 def _compute_guards(now: float) -> Dict[str, Any]:
