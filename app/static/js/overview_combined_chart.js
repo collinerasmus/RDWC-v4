@@ -180,19 +180,17 @@
         const tempHigh = resolvedTarget + resolvedHyst;
         console.log('[Overview Combined] Temp targets:', { tempLow, tempHigh, resolvedTarget, resolvedHyst });
 
-        // Build settings history step series
-        const historyKeys = ['targets.temp_target_c', 'temperature.hysteresis', 'targets.ph_low', 'targets.ph_high', 'targets.ec_low', 'targets.ec_high'];
+        // Build settings history step series (temp only)
+        const historyKeys = ['targets.temp_target_c', 'temperature.hysteresis'];
         const historyData = buildSettingsHistorySeries(data?.settingsHistory || [], historyKeys, window);
         console.log('[Overview Combined] Settings history keys:', Object.keys(historyData));
 
         const datasets = [];
 
-        // pH band - dynamic from history
-        const phLowHistory = historyData['targets.ph_low'] || [];
-        const phHighHistory = historyData['targets.ph_high'] || [];
-        if (phLowHistory.length > 0 || Number.isFinite(phLow)) {
-          const phLowData = phLowHistory.length > 0 ? phLowHistory : [ { x: window.start, y: phLow }, { x: window.end, y: phLow } ];
-          const phHighData = phHighHistory.length > 0 ? phHighHistory : [ { x: window.start, y: phHigh }, { x: window.end, y: phHigh } ];
+        // pH band - static from current settings
+        if (Number.isFinite(phLow) && Number.isFinite(phHigh)) {
+          const phLowData = [ { x: window.start, y: phLow }, { x: window.end, y: phLow } ];
+          const phHighData = [ { x: window.start, y: phHigh }, { x: window.end, y: phHigh } ];
           datasets.push({
             type: 'line',
             yAxisID: 'yPh',
@@ -221,12 +219,10 @@
           });
         }
 
-        // EC band - dynamic from history
-        const ecLowHistory = historyData['targets.ec_low'] || [];
-        const ecHighHistory = historyData['targets.ec_high'] || [];
-        if (ecLowHistory.length > 0 || hasEcBand) {
-          const ecLowData = ecLowHistory.length > 0 ? ecLowHistory : [ { x: window.start, y: ecLow }, { x: window.end, y: ecLow } ];
-          const ecHighData = ecHighHistory.length > 0 ? ecHighHistory : [ { x: window.start, y: ecHigh }, { x: window.end, y: ecHigh } ];
+        // EC band - static from current settings
+        if (hasEcBand) {
+          const ecLowData = [ { x: window.start, y: ecLow }, { x: window.end, y: ecLow } ];
+          const ecHighData = [ { x: window.start, y: ecHigh }, { x: window.end, y: ecHigh } ];
           datasets.push({
             type: 'line',
             yAxisID: 'yEc',
