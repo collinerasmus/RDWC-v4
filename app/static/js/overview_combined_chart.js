@@ -1,0 +1,411 @@
+(function() {
+  'use strict';
+
+  function formatRangeLabel(startMs, endMs) {
+    const fmt = (ts) => {
+      const d = new Date(ts);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mi = String(d.getMinutes()).padStart(2, '0');
+      return `${mm}/${dd} ${hh}:${mi}`;
+    };
+    const el = document.getElementById('overview-combined-range');
+    if (el) {
+      el.textContent = `${fmt(startMs)} — ${fmt(endMs)}`;
+    }
+  }
+
+  function buildStepSeries(events, window, level) {
+    if (!Array.isArray(events) || !events.length) return [];
+    const sorted = events
+      .map(e => ({ ts: new Date(e.ts).getTime(), final: !!e.final }))
+      .sort((a, b) => a.ts - b.ts)
+      .filter(e => e.ts >= window.start && e.ts <= window.end);
+
+    const pts = [];
+    let lastState = 0;
+    if (sorted.length) {
+      // Assume previous state off unless first event is ON
+      lastState = sorted[0].final ? 1 : 0;
+      pts.push({ x: window.start, y: lastState ? level : 0 });
+    }
+    for (const ev of sorted) {
+      lastState = ev.final ? 1 : 0;
+      pts.push({ x: ev.ts, y: lastState ? level : 0 });
+    }
+    pts.push({ x: window.end, y: lastState ? level : 0 });
+    return pts;
+  }
+
+  function init() {
+    if (typeof RDWCChart === 'undefined') return;
+
+    const chart = new RDWCChart({
+      canvasId: 'overviewCombinedChart',
+      emptyMessageId: 'overview-combined-empty',
+      type: 'overview-combined',
+      title: 'Overview Combined',
+      onDataFetch: async (startISO, endISO) => {
+        const spanMs = new Date(endISO) - new Date(startISO);
+        const hours = spanMs / 3600000;
+        let gran, max;
+        if (hours <= 1) { gran = 30; max = 300; }
+        else if (hours <= 6) { gran = 45; max = 800; }
+        else if (hours <= 24) { gran = 60; max = 1500; }
+        else if (hours <= 168) { gran = 300; max = 2100; }
+        else { gran = 900; max = 3000; }
+
+        const q = new URLSearchParams();
+        q.set('from', startISO);
+        q.set('to', endISO);
+        q.set('gran', String(gran));
+        q.set('max', String(max));
+
+        const trendsUrl = '/api/trends?' + q.toString();
+        const phDoseUrl = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=500`;
+        const ecDoseUrl = `/api/dose/recent?hours=${Math.max(1, Math.ceil(hours))}`;
+
+        try {
+          const [trendsRes, phDoseRes, ecDoseRes, settingsRes, ecStatusRes, lightsRes, mainRes, chillerRes] = await Promise.all([
+            fetch(trendsUrl, { cache: 'no-store' }),
+            fetch(phDoseUrl, { cache: 'no-store' }),
+            fetch(ecDoseUrl, { cache: 'no-store' }),
+            fetch('/api/settings', { cache: 'no-store' }),
+            fetch('/api/ec/status', { cache: 'no-store' }),
+            fetch('/api/relays/events?name=lights&last=500', { cache: 'no-store' }),
+            fetch('/api/relays/events?name=main_pump&last=500', { cache: 'no-store' }),
+            fetch('/api/relays/events?name=chiller_pump&last=500', { cache: 'no-store' })
+          ]);
+
+          const trendsData = trendsRes.ok ? await trendsRes.json() : { series: { ph: [], ec: [], temp: [] } };
+          const phDose = phDoseRes.ok ? await phDoseRes.json() : [];
+          const ecDose = ecDoseRes.ok ? await ecDoseRes.json() : { events: [] };
+          const settings = settingsRes.ok ? await settingsRes.json() : {};
+          const ecStatus = ecStatusRes.ok ? await ecStatusRes.json() : {};
+          const lightsEvents = lightsRes.ok ? await lightsRes.json() : [];
+          const mainEvents = mainRes.ok ? await mainRes.json() : [];
+          const chillerEvents = chillerRes.ok ? await chillerRes.json() : [];
+
+          return { trendsData, phDose, ecDose, settings, ecStatus, lightsEvents, mainEvents, chillerEvents };
+        } catch (e) {
+          console.error('[Overview Combined] Fetch failed', e);
+          return { trendsData: { series: { ph: [], ec: [], temp: [] } }, phDose: [], ecDose: { events: [] }, settings: {}, ecStatus: {}, lightsEvents: [], mainEvents: [], chillerEvents: [] };
+        }
+      },
+      onRender: (chartInstance, data, window) => {
+        const ph = (data?.trendsData?.series?.ph || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
+        const ec = (data?.trendsData?.series?.ec || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
+        const temp = (data?.trendsData?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
+
+        const phDoseEvents = (data?.phDose || [])
+          .map(e => ({ ts: new Date(e.ts).getTime(), volume_ml: e.volume_ml }))
+          .filter(e => e.ts >= window.start && e.ts <= window.end);
+
+        const ecDoseEvents = (data?.ecDose?.events || [])
+          .filter(e => !e.blocked_by)
+          .map(e => ({ ts: e.ts * 1000, pump: e.pump, ml: e.ml || 0 }))
+          .filter(e => e.ts >= window.start && e.ts <= window.end);
+
+        const targets = data?.settings?.targets || {};
+        console.log('[Overview Combined] Targets from settings:', targets);
+        
+        const phBand = parseFloat(targets.ph_band);
+        const phSet = parseFloat(targets.ph_high) && parseFloat(targets.ph_low)
+          ? (parseFloat(targets.ph_high) + parseFloat(targets.ph_low)) / 2
+          : null;
+        const useBand = !Number.isNaN(phBand) && phSet;
+        const phLow = useBand ? phSet - phBand : (parseFloat(targets.ph_low) || 5.8);
+        const phHigh = useBand ? phSet + phBand : (parseFloat(targets.ph_high) || 6.2);
+        
+        console.log('[Overview Combined] pH band calc:', { phBand, phSet, useBand, phLow, phHigh });
+
+        const ecLow = Number(data?.ecStatus?.targets?.low);
+        const ecHigh = Number(data?.ecStatus?.targets?.high);
+        const hasEcBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh);
+
+        const datasets = [];
+
+        // pH band
+        if (Number.isFinite(phLow) && Number.isFinite(phHigh)) {
+          datasets.push({
+            type: 'line',
+            yAxisID: 'yPh',
+            label: 'pH Target',
+            data: [ { x: window.start, y: phLow }, { x: window.end, y: phLow } ],
+            borderColor: 'rgba(59, 130, 246, 0.25)',
+            borderWidth: 1,
+            borderDash: [5, 5],
+            pointRadius: 0,
+            fill: '+1',
+            backgroundColor: window.CHART_COLORS?.setpointBand || 'rgba(59, 130, 246, 0.1)',
+            order: 0
+          });
+          datasets.push({
+            type: 'line',
+            yAxisID: 'yPh',
+            label: '',
+            data: [ { x: window.start, y: phHigh }, { x: window.end, y: phHigh } ],
+            borderColor: 'rgba(59, 130, 246, 0.25)',
+            borderWidth: 1,
+            borderDash: [5, 5],
+            pointRadius: 0,
+            order: 0
+          });
+        }
+
+        // EC band
+        if (hasEcBand) {
+          datasets.push({
+            type: 'line',
+            yAxisID: 'yEc',
+            label: 'EC Target',
+            data: [ { x: window.start, y: ecLow }, { x: window.end, y: ecLow } ],
+            borderColor: 'rgba(16, 185, 129, 0.25)',
+            borderWidth: 1,
+            borderDash: [5, 5],
+            pointRadius: 0,
+            fill: '+1',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            order: 0
+          });
+          datasets.push({
+            type: 'line',
+            yAxisID: 'yEc',
+            label: '',
+            data: [ { x: window.start, y: ecHigh }, { x: window.end, y: ecHigh } ],
+            borderColor: 'rgba(16, 185, 129, 0.25)',
+            borderWidth: 1,
+            borderDash: [5, 5],
+            pointRadius: 0,
+            order: 0
+          });
+        }
+
+        // pH series
+        if (ph.length) {
+          datasets.push({
+            id: 'ph',
+            yAxisID: 'yPh',
+            label: 'pH',
+            data: ph,
+            borderWidth: 2,
+            borderColor: window.CHART_COLORS?.ph || '#3b82f6',
+            backgroundColor: window.CHART_COLORS?.ph || '#3b82f6',
+            pointRadius: 0,
+            spanGaps: true,
+            order: 1
+          });
+        }
+
+        // EC series
+        if (ec.length) {
+          datasets.push({
+            id: 'ec',
+            yAxisID: 'yEc',
+            label: 'EC',
+            data: ec,
+            borderWidth: 2,
+            borderColor: window.CHART_COLORS?.ec || '#10b981',
+            backgroundColor: window.CHART_COLORS?.ec || '#10b981',
+            pointRadius: 0,
+            spanGaps: true,
+            order: 1
+          });
+        }
+
+        // Temp series
+        if (temp.length) {
+          datasets.push({
+            id: 'temp',
+            yAxisID: 'yTemp',
+            label: 'Temp (°C)',
+            data: temp,
+            borderWidth: 2,
+            borderColor: window.CHART_COLORS?.temp || '#ef4444',
+            backgroundColor: window.CHART_COLORS?.temp || '#ef4444',
+            pointRadius: 0,
+            spanGaps: true,
+            order: 1
+          });
+        }
+
+        // pH dose markers
+        if (phDoseEvents.length) {
+          const phDoseY = Number.isFinite(phHigh) ? phHigh + 0.3 : 6.6;
+          datasets.push({
+            type: 'scatter',
+            yAxisID: 'yPh',
+            label: `pH Doses (${phDoseEvents.length})`,
+            data: phDoseEvents.map(e => ({ x: e.ts, y: phDoseY })),
+            pointRadius: 5,
+            pointStyle: 'triangle',
+            pointBackgroundColor: window.CHART_COLORS?.phUp || '#fbbf24',
+            pointBorderColor: window.CHART_COLORS?.phUp || '#fbbf24',
+            pointBorderWidth: 1,
+            showLine: false,
+            order: 2
+          });
+        }
+
+        // EC dose markers
+        const ecDoseBase = hasEcBand ? ecHigh : (ec.length ? Math.max(...ec.map(p => p.y)) : 1.0);
+        const doseLevels = {
+          grow: ecDoseBase + 0.3,
+          micro: ecDoseBase + 0.2,
+          bloom: ecDoseBase + 0.1
+        };
+        const pumps = ['grow', 'micro', 'bloom'];
+        pumps.forEach(pump => {
+          const evs = ecDoseEvents.filter(e => e.pump === pump);
+          if (!evs.length) return;
+          datasets.push({
+            type: 'scatter',
+            yAxisID: 'yEc',
+            label: `${pump} (${evs.length})`,
+            data: evs.map(e => ({ x: e.ts, y: doseLevels[pump] })),
+            pointRadius: 5,
+            pointStyle: 'circle',
+            pointBackgroundColor: window.CHART_COLORS?.[pump] || '#6ee7b7',
+            pointBorderColor: window.CHART_COLORS?.[pump] || '#6ee7b7',
+            pointBorderWidth: 1,
+            showLine: false,
+            order: 2
+          });
+        });
+
+        // Relay overlays (lights and pumps) on hidden yState axis
+        const lightsSeries = buildStepSeries(data?.lightsEvents, window, 1.0);
+        const mainSeries = buildStepSeries(data?.mainEvents, window, 0.7);
+        const chillerSeries = buildStepSeries(data?.chillerEvents, window, 0.4);
+
+        if (lightsSeries.length) {
+          datasets.push({
+            label: 'Lights',
+            yAxisID: 'yState',
+            data: lightsSeries,
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34,197,94,0.25)',
+            stepped: true,
+            borderWidth: 2,
+            fill: false,
+            pointRadius: 0,
+            order: 3
+          });
+        }
+        if (mainSeries.length) {
+          datasets.push({
+            label: 'Main Pump',
+            yAxisID: 'yState',
+            data: mainSeries,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59,130,246,0.25)',
+            stepped: true,
+            borderWidth: 2,
+            fill: false,
+            pointRadius: 0,
+            order: 3
+          });
+        }
+        if (chillerSeries.length) {
+          datasets.push({
+            label: 'Chiller Pump',
+            yAxisID: 'yState',
+            data: chillerSeries,
+            borderColor: '#06b6d4',
+            backgroundColor: 'rgba(6,182,212,0.25)',
+            stepped: true,
+            borderWidth: 2,
+            fill: false,
+            pointRadius: 0,
+            order: 3
+          });
+        }
+
+        // Axes
+        if (!chartInstance.options.scales.yPh) {
+          chartInstance.options.scales.yPh = { 
+            type: 'linear', 
+            position: 'left', 
+            title: { display: true, text: 'pH', color: '#93c5fd' },
+            ticks: { color: '#9ca3af' },
+            grid: { color: 'rgba(148,163,184,0.12)' } 
+          };
+        }
+        if (!chartInstance.options.scales.yEc) {
+          chartInstance.options.scales.yEc = { 
+            type: 'linear', 
+            position: 'right', 
+            title: { display: true, text: 'EC (mS/cm)', color: '#86efac' },
+            ticks: { color: '#9ca3af' },
+            grid: { drawOnChartArea: false } 
+          };
+        }
+        if (!chartInstance.options.scales.yTemp) {
+          chartInstance.options.scales.yTemp = { 
+            type: 'linear', 
+            position: 'right', 
+            title: { display: true, text: 'Temp (°C)', color: '#f87171' },
+            ticks: { color: '#9ca3af' },
+            grid: { drawOnChartArea: false } 
+          };
+        }
+        if (!chartInstance.options.scales.yState) {
+          chartInstance.options.scales.yState = { type: 'linear', position: 'right', display: false, min: 0, max: 1.1, grid: { display: false } };
+        }
+
+        const phMin = Number.isFinite(phLow) ? Math.min(phLow - 0.5, 5.0) : 5.0;
+        const phMax = Number.isFinite(phHigh) ? Math.max(phHigh + 0.8, 7.5) : 7.5;
+        const ecMin = hasEcBand ? Math.max(ecLow - 0.6, 0) : 0;
+        const ecMax = hasEcBand ? ecHigh + 1.0 : Math.max(3.0, Math.max(...ec.map(p => p.y || 0), 0) + 0.3);
+        const tempMin = Math.min(16, Math.min(...temp.map(p => p.y || 99), 16));
+        const tempMax = Math.max(28, Math.max(...temp.map(p => p.y || 0), 28));
+
+        chartInstance.options.scales.yPh.min = phMin;
+        chartInstance.options.scales.yPh.max = phMax;
+        chartInstance.options.scales.yEc.min = ecMin;
+        chartInstance.options.scales.yEc.max = ecMax;
+        chartInstance.options.scales.yTemp.min = tempMin;
+        chartInstance.options.scales.yTemp.max = tempMax;
+
+        return datasets;
+      }
+    });
+
+    // Override default window to 1 hour live view while keeping controls consistent
+    const now = Date.now();
+    chart.timeWindow = { start: now - 60 * 60 * 1000, end: now };
+    chart.selectedRange = 'custom';
+    chart.isLiveMode = true;
+    formatRangeLabel(chart.timeWindow.start, chart.timeWindow.end);
+    chart.refresh(true);
+
+    // Wire controls using shared ChartControls
+    if (typeof ChartControls !== 'undefined' && document.getElementById('overview-combined-controls')) {
+      const controls = new ChartControls({
+        containerId: 'overview-combined-controls',
+        onRangeChange: async (start, end, isLive) => {
+          chart.timeWindow = { start, end };
+          chart.isLiveMode = !!isLive;
+          chart.selectedRange = isLive ? 'live' : 'custom';
+          formatRangeLabel(start, end);
+          await chart.refresh(true);
+        },
+        getDataExtent: () => {
+          const phSeries = chart.cachedData?.trendsData?.series?.ph || [];
+          const first = phSeries.length ? phSeries[0].ts * 1000 : null;
+          const last = phSeries.length ? phSeries[phSeries.length - 1].ts * 1000 : null;
+          return { first, last };
+        },
+        getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
+      });
+      // Seed controls to 1-hour live view
+      controls.applyRange(chart.timeWindow.start, chart.timeWindow.end, true);
+    }
+
+    window.overviewCombinedChart = chart;
+  }
+
+  if (document.readyState !== 'loading') init();
+  else document.addEventListener('DOMContentLoaded', () => setTimeout(init, 200));
+})();

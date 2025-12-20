@@ -444,7 +444,7 @@ body{
     margin: 0;
     background: transparent;
   }
-  #trendChart, #phDoseChart, #ecDoseChart, #temperatureChart, #circTimelineChart, #lightsChart {
+  #trendChart, #phDoseChart, #ecDoseChart, #temperatureChart, #circTimelineChart, #lightsChart, #overviewCombinedChart {
     display: block !important;
     width: 100% !important;
     height: var(--h-trends) !important;
@@ -1234,6 +1234,26 @@ body{
         </div>
       </div>
     </div>
+
+      <!-- Combined Overview Chart (pH, EC, Temp + pumps/lights overlays) -->
+      <div class="card" style="margin-top:16px;">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <h3 class="card-title" style="margin:0;">Live Overview Chart</h3>
+            <span class="muted" style="font-size:var(--font-xs);">pH, EC, Temp with dosing, circulation, lights overlays</span>
+          </div>
+          <span id="overview-combined-range" class="muted" style="font-size:var(--font-xs);">Last 30 min</span>
+        </div>
+        <div class="card-body">
+          <div class="muted" style="font-size:var(--font-xs);margin-bottom:8px;">Single source of truth using existing trends, dose logs, and relay events. Controls match other charts.</div>
+          <div id="overview-combined-wrap" class="chart-card">
+            <canvas id="overviewCombinedChart"></canvas>
+            <div id="overview-combined-empty" class="muted small" style="display:none;padding:8px 0;">No data in this window.</div>
+          </div>
+          <div id="overview-combined-controls" style="margin-top:8px;"></div>
+        </div>
+      </div>
+
     
     <!-- Camera (moved to bottom and height-limited) -->
     <div style="margin-top:16px;">
@@ -3097,11 +3117,11 @@ window.CircControl = (function(){
             // Reordered: range.js immediately after core to satisfy rdwcRange dependency for pH & EC charts before sensors/ph/ec modules run.
           // Instrumented loader: log each script as it begins loading (sequence is synchronous via promises)
             window.BUILD_COMMIT = '1764522441';
-              return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','chart_adapter.js','lights_chart.js','circulation_chart.js'], window.__app_version);
+              return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','overview_combined_chart.js','chart_adapter.js','lights_chart.js','circulation_chart.js'], window.__app_version);
       })
       .catch(function(){
         window.__app_version = (new Date()).toISOString().slice(0,10);
-            return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','chart_adapter.js','lights_chart.js','circulation_chart.js'], window.__app_version);
+            return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','overview_combined_chart.js','chart_adapter.js','lights_chart.js','circulation_chart.js'], window.__app_version);
       })
       .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();
