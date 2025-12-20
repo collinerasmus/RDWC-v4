@@ -1215,6 +1215,7 @@ def _auto_loop():
             ph_val, _ = _get_latest_ph()
             targets = _get_ph_targets()
             g = _compute_guards(now)
+            print(f"[pH Auto DEBUG] Loop iteration: ph={ph_val:.3f}, targets={targets}, has_guards={any(g.values())}")
             if ph_val is None or g.get("sensor_stale"):
                 _set_auto_block("stale")
                 if _auto_last_block_count == 3:
@@ -1242,6 +1243,7 @@ def _auto_loop():
                         cur.execute("SELECT id, reason FROM ph_dose_log WHERE result='pending_retry' ORDER BY id ASC LIMIT 1")
                         retry_row = cur.fetchone()
                         if not retry_row:
+                            print(f"[pH Auto DEBUG] No pending_retry doses found, breaking retry loop")
                             break
 
                         retry_id = retry_row[0]
@@ -1310,6 +1312,7 @@ def _auto_loop():
             
             # Only act when below band
             if ph_val < targets["low"]:
+                print(f"[pH Auto DEBUG] pH {ph_val:.3f} < target_low {targets['low']:.3f}, checking guards...")
                 # Guarded holds
                 if g.get("estop"):
                     _set_auto_block("estop")
