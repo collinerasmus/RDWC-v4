@@ -134,6 +134,7 @@
           const phDose = phDoseRes.ok ? await phDoseRes.json() : [];
           const ecDose = ecDoseRes.ok ? await ecDoseRes.json() : { events: [] };
           const settings = settingsRes.ok ? await settingsRes.json() : {};
+          console.log('[Overview Combined] Raw settings fetch:', settings);
           const ecStatus = ecStatusRes.ok ? await ecStatusRes.json() : {};
           const lightsEvents = lightsRes.ok ? await lightsRes.json() : [];
           const mainEvents = mainRes.ok ? await mainRes.json() : [];
