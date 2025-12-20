@@ -1214,11 +1214,14 @@ def _auto_loop():
             # Suppress automation when global maintenance override is active
             try:
                 from app.settings import get_setting_key
-                if (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true":
+                maint_override = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
+                print(f"[pH Auto DEBUG] maintenance_override = {maint_override}", flush=True)
+                if maint_override:
                     _set_auto_block("maintenance_override")
                     time.sleep(poll_s)
                     continue
-            except Exception:
+            except Exception as e:
+                print(f"[pH Auto DEBUG] Exception in maintenance override check: {e}", flush=True)
                 pass
             # Backoff: skip one extra poll if same non-interval guard repeated 3×
             if skip_next_poll:
