@@ -20,17 +20,16 @@
     if (!Array.isArray(events) || !events.length) return [];
     const sorted = events
       .map(e => ({ ts: new Date(e.ts).getTime(), final: !!e.final }))
-      .sort((a, b) => a.ts - b.ts)
-      .filter(e => e.ts >= window.start && e.ts <= window.end);
+      .sort((a, b) => a.ts - b.ts);
 
+    // Find the last known state before the window start to preserve visibility on small ranges
+    const prior = [...sorted].filter(e => e.ts <= window.start).pop();
+    let lastState = prior ? (prior.final ? 1 : 0) : 0;
+
+    const within = sorted.filter(e => e.ts >= window.start && e.ts <= window.end);
     const pts = [];
-    let lastState = 0;
-    if (sorted.length) {
-      // Assume previous state off unless first event is ON
-      lastState = sorted[0].final ? 1 : 0;
-      pts.push({ x: window.start, y: lastState ? level : 0 });
-    }
-    for (const ev of sorted) {
+    pts.push({ x: window.start, y: lastState ? level : 0 });
+    for (const ev of within) {
       lastState = ev.final ? 1 : 0;
       pts.push({ x: ev.ts, y: lastState ? level : 0 });
     }
