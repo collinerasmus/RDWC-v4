@@ -1184,6 +1184,11 @@ def _print_auto_decision(action: str, ph: Optional[float], ec: Optional[float], 
 
 def _auto_loop():
     global _auto_stop_evt, _auto_enabled_at, _auto_last_holding_reason, _auto_last_block, _auto_last_block_count
+    import sys
+    print("[pH Auto] _auto_loop() STARTED", flush=True)
+    sys.stderr.write("[pH Auto] _auto_loop() stderr test\n")
+    sys.stderr.flush()
+    
     poll_s = _settings_get_int("dosing.poll_interval_s", 30)
     margin = _settings_get_float("ph_auto.margin", 0.05)  # aim to stop slightly inside band
     step_min = _settings_get_float("dosing.ph_up_step_min_ml", 0.05)
