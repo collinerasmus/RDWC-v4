@@ -281,10 +281,10 @@
             yAxisID: 'yState',
             data: lightsSeries,
             borderColor: '#22c55e',
-            backgroundColor: 'rgba(34,197,94,0.25)',
+            backgroundColor: 'rgba(34,197,94,0.5)',
             stepped: true,
-            borderWidth: 2,
-            fill: false,
+            borderWidth: 3,
+            fill: true,
             pointRadius: 0,
             order: 3
           });
@@ -295,10 +295,10 @@
             yAxisID: 'yState',
             data: mainSeries,
             borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59,130,246,0.25)',
+            backgroundColor: 'rgba(59,130,246,0.5)',
             stepped: true,
-            borderWidth: 2,
-            fill: false,
+            borderWidth: 3,
+            fill: true,
             pointRadius: 0,
             order: 3
           });
@@ -309,10 +309,10 @@
             yAxisID: 'yState',
             data: chillerSeries,
             borderColor: '#06b6d4',
-            backgroundColor: 'rgba(6,182,212,0.25)',
+            backgroundColor: 'rgba(6,182,212,0.5)',
             stepped: true,
-            borderWidth: 2,
-            fill: false,
+            borderWidth: 3,
+            fill: true,
             pointRadius: 0,
             order: 3
           });
