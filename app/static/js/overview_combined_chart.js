@@ -177,18 +177,14 @@
         const historyData = buildSettingsHistorySeries(data?.settingsHistory || [], historyKeys, window);
         console.log('[Overview Combined] Settings history keys:', Object.keys(historyData));
 
-
-
-
-        });
         const datasets = [];
 
         // pH band - dynamic from history
         const phLowHistory = historyData['targets.ph_low'] || [];
         const phHighHistory = historyData['targets.ph_high'] || [];
         if (phLowHistory.length > 0 || Number.isFinite(phLow)) {
-          const phLowData = phLowHistory.length > 0 ? phLowHistory : [ { x: window.start, y: phLow } ];
-          const phHighData = phHighHistory.length > 0 ? phHighHistory : [ { x: window.start, y: phHigh } ];
+          const phLowData = phLowHistory.length > 0 ? phLowHistory : [ { x: window.start, y: phLow }, { x: window.end, y: phLow } ];
+          const phHighData = phHighHistory.length > 0 ? phHighHistory : [ { x: window.start, y: phHigh }, { x: window.end, y: phHigh } ];
           datasets.push({
             type: 'line',
             yAxisID: 'yPh',
@@ -219,8 +215,8 @@
         const ecLowHistory = historyData['targets.ec_low'] || [];
         const ecHighHistory = historyData['targets.ec_high'] || [];
         if (ecLowHistory.length > 0 || hasEcBand) {
-          const ecLowData = ecLowHistory.length > 0 ? ecLowHistory : [ { x: window.start, y: ecLow } ];
-          const ecHighData = ecHighHistory.length > 0 ? ecHighHistory : [ { x: window.start, y: ecHigh } ];
+          const ecLowData = ecLowHistory.length > 0 ? ecLowHistory : [ { x: window.start, y: ecLow }, { x: window.end, y: ecLow } ];
+          const ecHighData = ecHighHistory.length > 0 ? ecHighHistory : [ { x: window.start, y: ecHigh }, { x: window.end, y: ecHigh } ];
           datasets.push({
             type: 'line',
             yAxisID: 'yEc',
@@ -251,28 +247,41 @@
         const tempTargetHistory = historyData['targets.temp_target_c'] || [];
         const tempHystHistory = historyData['temperature.hysteresis'] || [];
         // Helper: combine temp target + hysteresis into low/high bands
-        function buildTempBands(targetSeries, hystSeries, defaultLow, defaultHigh, window) {
-          if (targetSeries.length === 0 && hystSeries.length === 0) {
-            return { low: [{ x: window.start, y: defaultLow }], high: [{ x: window.start, y: defaultHigh }] };
-          }
-          // Merge both series chronologically
-          const combined = [...targetSeries, ...hystSeries].sort((a, b) => a.x - b.x);
-          const lowData = [];
-          const highData = [];
-          let currentTarget = resolvedTarget;
-          let currentHyst = resolvedHyst;
+        function buildTempBands(targetSeries, hystSeries, defaultTarget, defaultHyst, window) {
+          // Start with latest values before window.start
+          let currentTarget = defaultTarget;
+          let currentHyst = defaultHyst;
+          const combined = [...targetSeries, ...hystSeries]
+            .map(p => ({ ...p }))
+            .sort((a, b) => a.x - b.x);
+
+          // Apply any prior changes before window start to set baseline
           for (const point of combined) {
+            if (point.x > window.start) break;
             if (point.series === 'targets.temp_target_c') currentTarget = point.y;
-            else if (point.series === 'temperature.hysteresis') currentHyst = point.y;
+            if (point.series === 'temperature.hysteresis') currentHyst = point.y;
+          }
+
+          const lowData = [{ x: window.start, y: currentTarget - currentHyst }];
+          const highData = [{ x: window.start, y: currentTarget + currentHyst }];
+
+          // Add points within the window
+          for (const point of combined) {
+            if (point.x < window.start || point.x > window.end) continue;
+            if (point.series === 'targets.temp_target_c') currentTarget = point.y;
+            if (point.series === 'temperature.hysteresis') currentHyst = point.y;
             lowData.push({ x: point.x, y: currentTarget - currentHyst });
             highData.push({ x: point.x, y: currentTarget + currentHyst });
           }
+
+          lowData.push({ x: window.end, y: currentTarget - currentHyst });
+          highData.push({ x: window.end, y: currentTarget + currentHyst });
           return { low: lowData, high: highData };
         }
         // Annotate series origin for merging
         const tempTargetAnnotated = tempTargetHistory.map(p => ({ ...p, series: 'targets.temp_target_c' }));
         const tempHystAnnotated = tempHystHistory.map(p => ({ ...p, series: 'temperature.hysteresis' }));
-        const tempBands = buildTempBands(tempTargetAnnotated, tempHystAnnotated, tempLow, tempHigh, window);
+        const tempBands = buildTempBands(tempTargetAnnotated, tempHystAnnotated, resolvedTarget, resolvedHyst, window);
         datasets.push({
           type: 'line',
           yAxisID: 'yTemp',
@@ -285,11 +294,12 @@
           fill: '+1',
           backgroundColor: 'rgba(239, 68, 68, 0.1)',
           order: 0
+        });
         datasets.push({
           type: 'line',
           yAxisID: 'yTemp',
           label: '',
-          data: [ { x: window.start, y: tempHigh }, { x: window.end, y: tempHigh } ],
+          data: tempBands.high,
           borderColor: 'rgba(239, 68, 68, 0.25)',
           borderWidth: 1,
           borderDash: [5, 5],
@@ -440,14 +450,14 @@
         // Axes
         if (!chartInstance.options.scales.yPh) {
           chartInstance.options.scales.yPh = { 
+            type: 'linear', 
+            position: 'left', 
+            title: { display: true, text: 'pH', color: '#bfdbfe' },
+            ticks: { color: '#9ca3af' },
+            grid: { drawOnChartArea: true } 
+          };
+        }
         if (!chartInstance.options.scales.yEc) {
-            type: 'line',
-            yAxisID: 'yTemp',
-            label: '',
-            data: tempBands.high,
-            borderColor: 'rgba(239, 68, 68, 0.25)',
-            borderWidth: 1,
-            borderDash: [5, 5],
           chartInstance.options.scales.yEc = { 
             type: 'linear', 
             position: 'right', 
