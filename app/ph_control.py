@@ -748,19 +748,23 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
                                 delta = stable_ph - pre_ph
                                 is_effective = _is_dose_effective(pre_ph, stable_ph, dose_effectiveness_threshold, direction="up")
                                 if not is_effective:
-                                    if delivery_confirmed:
-                                        # Delivery happened (spike seen) but net effect small — treat as low-effect, no retry
-                                        print(f"[pH Dose Validation] rowid={rowid} LOW EFFECT: delta={delta:.4f} (< {dose_effectiveness_threshold}) but spike confirmed; skipping retry, keep for learning")
+                                    # NEW: treat any measurable positive delta as low-effect learning instead of a fault
+                                    # This prevents small doses (e.g., 0.1ml) from being discarded when they produce small but valid movement.
+                                    if delta > 0:
+                                        tag = " [LOW_EFFECT]" if delivery_confirmed else " [LOW_EFFECT_UNCONFIRMED]"
+                                        print(f"[pH Dose Validation] rowid={rowid} LOW EFFECT: delta={delta:.4f} (< {dose_effectiveness_threshold}); keeping for learning{tag}")
                                         try:
                                             with sqlite3.connect(str(DB_PATH)) as conn:
                                                 conn.execute(
-                                                    "UPDATE ph_dose_log SET reason = reason || ' [LOW_EFFECT]' WHERE id=?",
-                                                    (rowid,),
+                                                    "UPDATE ph_dose_log SET reason = reason || ? WHERE id=?",
+                                                    (tag, rowid),
                                                 )
                                                 conn.commit()
                                         except Exception:
                                             pass
+                                        return
                                     else:
+                                        # Zero or negative effect and no spike confirmation → treat as faulty to retry
                                         print(f"[pH Dose Validation] rowid={rowid} INEFFECTIVE: delta={delta:.4f} (expected >= {dose_effectiveness_threshold}), pre={pre_ph:.3f}, post={stable_ph:.3f}")
                                         _mark_dose_faulty_and_retry(rowid, pre_ph, stable_ph)
                                 else:
