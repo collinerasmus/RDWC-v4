@@ -270,10 +270,10 @@
           });
         });
 
-        // Relay overlays (lights and pumps) - scale to EC axis range
-        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 3.6);
-        const mainScaled = buildStepSeries(data?.mainEvents, window, 3.4);
-        const chillerScaled = buildStepSeries(data?.chillerEvents, window, 3.2);
+        // Relay overlays (lights and pumps) - thin bands near top of EC axis
+        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 3.2);
+        const mainScaled = buildStepSeries(data?.mainEvents, window, 3.1);
+        const chillerScaled = buildStepSeries(data?.chillerEvents, window, 3.0);
 
         if (lightsScaled.length) {
           datasets.push({
@@ -281,10 +281,10 @@
             yAxisID: 'yEc',
             data: lightsScaled,
             borderColor: '#22c55e',
-            backgroundColor: 'rgba(34,197,94,0.6)',
+            backgroundColor: 'rgba(34,197,94,0.12)',
             stepped: true,
-            borderWidth: 4,
-            fill: true,
+            borderWidth: 2,
+            fill: false,
             pointRadius: 0,
             order: 2
           });
@@ -295,10 +295,10 @@
             yAxisID: 'yEc',
             data: mainScaled,
             borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59,130,246,0.6)',
+            backgroundColor: 'rgba(59,130,246,0.12)',
             stepped: true,
-            borderWidth: 4,
-            fill: true,
+            borderWidth: 2,
+            fill: false,
             pointRadius: 0,
             order: 2
           });
@@ -309,10 +309,10 @@
             yAxisID: 'yEc',
             data: chillerScaled,
             borderColor: '#06b6d4',
-            backgroundColor: 'rgba(6,182,212,0.6)',
+            backgroundColor: 'rgba(6,182,212,0.12)',
             stepped: true,
-            borderWidth: 4,
-            fill: true,
+            borderWidth: 2,
+            fill: false,
             pointRadius: 0,
             order: 2
           });
