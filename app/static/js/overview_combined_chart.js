@@ -37,6 +37,49 @@
     return pts;
   }
 
+  function buildSettingsHistorySeries(history, keys, window) {
+    // Convert settings history events into step series data points
+    // keys is array of key strings to match; returns { key: points[] } dict
+    const result = {};
+    const grouped = {};
+    
+    // Group by key and convert unix ts to ms
+    for (const ev of history) {
+      if (!keys.includes(ev.key)) continue;
+      if (!grouped[ev.key]) grouped[ev.key] = [];
+      grouped[ev.key].push({ ts: ev.ts * 1000, value: ev.value });
+    }
+    
+    // Build step series for each key
+    for (const key in grouped) {
+      const sorted = grouped[key].sort((a, b) => a.ts - b.ts);
+      const pts = [];
+      
+      // Find prior value before window
+      const prior = sorted.filter(e => e.ts <= window.start).pop();
+      let lastVal = prior ? prior.value : null;
+      
+      if (lastVal !== null) {
+        pts.push({ x: window.start, y: parseFloat(lastVal) });
+      }
+      
+      // Add changes within window
+      const within = sorted.filter(e => e.ts >= window.start && e.ts <= window.end);
+      for (const ev of within) {
+        lastVal = ev.value;
+        pts.push({ x: ev.ts, y: parseFloat(lastVal) });
+      }
+      
+      if (lastVal !== null) {
+        pts.push({ x: window.end, y: parseFloat(lastVal) });
+      }
+      
+      result[key] = pts;
+    }
+    
+    return result;
+  }
+
   function init() {
     if (typeof RDWCChart === 'undefined') return;
 
@@ -65,9 +108,10 @@
         const trendsUrl = '/api/trends?' + q.toString();
         const phDoseUrl = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=500`;
         const ecDoseUrl = `/api/dose/recent?hours=${Math.max(1, Math.ceil(hours))}`;
+        const settingsHistoryUrl = `/api/settings/history?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
 
         try {
-          const [trendsRes, phDoseRes, ecDoseRes, settingsRes, ecStatusRes, lightsRes, mainRes, chillerRes] = await Promise.all([
+          const [trendsRes, phDoseRes, ecDoseRes, settingsRes, ecStatusRes, lightsRes, mainRes, chillerRes, historyRes] = await Promise.all([
             fetch(trendsUrl, { cache: 'no-store' }),
             fetch(phDoseUrl, { cache: 'no-store' }),
             fetch(ecDoseUrl, { cache: 'no-store' }),
@@ -75,7 +119,8 @@
             fetch('/api/ec/status', { cache: 'no-store' }),
             fetch('/api/relays/events?name=lights&last=500', { cache: 'no-store' }),
             fetch('/api/relays/events?name=main_pump&last=500', { cache: 'no-store' }),
-            fetch('/api/relays/events?name=chiller_pump&last=500', { cache: 'no-store' })
+            fetch('/api/relays/events?name=chiller_pump&last=500', { cache: 'no-store' }),
+            fetch(settingsHistoryUrl, { cache: 'no-store' })
           ]);
 
           const trendsData = trendsRes.ok ? await trendsRes.json() : { series: { ph: [], ec: [], temp: [] } };
@@ -86,11 +131,12 @@
           const lightsEvents = lightsRes.ok ? await lightsRes.json() : [];
           const mainEvents = mainRes.ok ? await mainRes.json() : [];
           const chillerEvents = chillerRes.ok ? await chillerRes.json() : [];
+          const settingsHistory = historyRes.ok ? await historyRes.json() : [];
 
-          return { trendsData, phDose, ecDose, settings, ecStatus, lightsEvents, mainEvents, chillerEvents };
+          return { trendsData, phDose, ecDose, settings, ecStatus, lightsEvents, mainEvents, chillerEvents, settingsHistory };
         } catch (e) {
           console.error('[Overview Combined] Fetch failed', e);
-          return { trendsData: { series: { ph: [], ec: [], temp: [] } }, phDose: [], ecDose: { events: [] }, settings: {}, ecStatus: {}, lightsEvents: [], mainEvents: [], chillerEvents: [] };
+          return { trendsData: { series: { ph: [], ec: [], temp: [] } }, phDose: [], ecDose: { events: [] }, settings: {}, ecStatus: {}, lightsEvents: [], mainEvents: [], chillerEvents: [], settingsHistory: [] };
         }
       },
       onRender: (chartInstance, data, window) => {
@@ -110,17 +156,14 @@
         const targets = data?.settings?.targets || {};
         console.log('[Overview Combined] Targets from settings:', targets);
         
-        // Use fixed pH band of 6.1-6.2
+        // Get current targets
         const phLow = 6.1;
         const phHigh = 6.2;
-        
-        console.log('[Overview Combined] pH band fixed:', { phLow, phHigh });
-
         const ecLow = Number(data?.ecStatus?.targets?.low);
         const ecHigh = Number(data?.ecStatus?.targets?.high);
         const hasEcBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh);
 
-        // Get temperature target + hysteresis (consistent with temperature_chart)
+        // Get temperature target + hysteresis
         const tempTarget = parseFloat(targets['targets.temp_target_c']);
         const tempHyst = parseFloat(targets['temperature.hysteresis']);
         const resolvedTarget = Number.isFinite(tempTarget) ? tempTarget : 20.0;
@@ -128,6 +171,11 @@
         const tempLow = resolvedTarget - resolvedHyst;
         const tempHigh = resolvedTarget + resolvedHyst;
         console.log('[Overview Combined] Temp targets:', { tempLow, tempHigh, resolvedTarget, resolvedHyst });
+
+        // Build settings history step series
+        const historyKeys = ['targets.temp_target_c', 'temperature.hysteresis', 'targets.ph_low', 'targets.ph_high', 'targets.ec_low', 'targets.ec_high'];
+        const historyData = buildSettingsHistorySeries(data?.settingsHistory || [], historyKeys, window);
+        console.log('[Overview Combined] Settings history keys:', Object.keys(historyData));
 
         const datasets = [];
 

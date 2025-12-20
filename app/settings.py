@@ -256,12 +256,20 @@ def upsert_settings(partial: Dict[str, Any]) -> Dict[str, Any]:
     # Table initialization happens once at startup via get_all_settings
     changed: Dict[str, Any] = {}
     from app.db_pool import get_conn
+    import time
     conn = get_conn()
     cur = conn.cursor()
+    ts = int(time.time())
     for key, val in partial.items():
         if not isinstance(key, str):
             continue
         sval = str(val)
+        # Log target/hysteresis changes to history
+        if key in ('targets.temp_target_c', 'temperature.hysteresis', 'targets.ph_low', 'targets.ph_high', 'targets.ec_low', 'targets.ec_high'):
+            try:
+                cur.execute("INSERT INTO settings_history (key, value, ts) VALUES (?, ?, ?)", (key, sval, ts))
+            except Exception:
+                pass  # Ignore history log failures; main setting still updates
         cur.execute("INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)", (key, sval))
         changed[key] = sval
     conn.commit()
@@ -491,6 +499,18 @@ def _init_settings_table():
             value TEXT NOT NULL
         )
     """)
+    # Settings history table for tracking target/hysteresis changes
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS settings_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key TEXT NOT NULL,
+            value TEXT NOT NULL,
+            ts INTEGER NOT NULL
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_settings_history_ts ON settings_history (ts)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_settings_history_key ON settings_history (key)")
+    
     defaults = {
         'system_volume_liters': '25.0',
         'lights_on_time': '20:00',

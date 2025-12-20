@@ -2487,6 +2487,39 @@ def api_settings_get():
         )
 
 
+@app.get("/api/settings/history")
+def api_settings_history(start: str = None, end: str = None, keys: str = None):
+    """Fetch settings history (target/hysteresis changes) within time range.
+    Query params:
+    - start: ISO timestamp (default: 24h ago)
+    - end: ISO timestamp (default: now)
+    - keys: comma-separated setting keys (default: temp_target_c,temperature.hysteresis,ph_low,ph_high,ec_low,ec_high)
+    Returns list of {ts (unix), key, value} events sorted by time.
+    """
+    from datetime import datetime, timedelta
+    from app.db_pool import get_conn
+    
+    try:
+        now = datetime.utcnow().timestamp()
+        start_ts = (datetime.utcnow() - timedelta(hours=24)).timestamp() if not start else datetime.fromisoformat(start.replace('Z', '+00:00')).timestamp()
+        end_ts = now if not end else datetime.fromisoformat(end.replace('Z', '+00:00')).timestamp()
+        
+        key_list = (keys or "targets.temp_target_c,temperature.hysteresis,targets.ph_low,targets.ph_high,targets.ec_low,targets.ec_high").split(',')
+        
+        conn = get_conn(readonly=True)
+        placeholders = ','.join(['?' for _ in key_list])
+        query = f"""
+            SELECT ts, key, value FROM settings_history
+            WHERE key IN ({placeholders}) AND ts >= ? AND ts <= ?
+            ORDER BY ts ASC
+        """
+        rows = conn.execute(query, key_list + [int(start_ts), int(end_ts)]).fetchall()
+        return [{'ts': row[0], 'key': row[1], 'value': row[2]} for row in rows]
+    except Exception as e:
+        logger.error(f"Failed to get settings history: {e}")
+        return []
+
+
 @app.put("/api/settings")
 def api_settings_put(body: dict = Body(...)):
     """Accept partial updates; validate; persist; return summary.
