@@ -120,12 +120,14 @@
         const ecHigh = Number(data?.ecStatus?.targets?.high);
         const hasEcBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh);
 
-        // Get temperature targets from settings
-        const tempTargetLow = parseFloat(targets.temp_low);
-        const tempTargetHigh = parseFloat(targets.temp_high);
-        const tempLow = Number.isFinite(tempTargetLow) ? tempTargetLow : 19;
-        const tempHigh = Number.isFinite(tempTargetHigh) ? tempTargetHigh : 21;
-        console.log('[Overview Combined] Temp targets:', { tempLow, tempHigh });
+        // Get temperature target + hysteresis (consistent with temperature_chart)
+        const tempTarget = parseFloat(targets['targets.temp_target_c']);
+        const tempHyst = parseFloat(targets['temperature.hysteresis']);
+        const resolvedTarget = Number.isFinite(tempTarget) ? tempTarget : 20.0;
+        const resolvedHyst = Number.isFinite(tempHyst) ? tempHyst : 0.5;
+        const tempLow = resolvedTarget - resolvedHyst;
+        const tempHigh = resolvedTarget + resolvedHyst;
+        console.log('[Overview Combined] Temp targets:', { tempLow, tempHigh, resolvedTarget, resolvedHyst });
 
         const datasets = [];
 
@@ -387,9 +389,9 @@
         const phMax = Number.isFinite(phHigh) ? Math.max(phHigh + 0.8, 7.5) : 7.5;
         const ecMin = 0.0;
         const ecMax = 4.0;
-        // Scale temp axis: show range from (tempLow - 1) to (tempHigh + 7) for good proportion
+        // Scale temp axis: anchor band near bottom with slight headroom
         const tempAxisMin = Math.floor(tempLow - 1);
-        const tempAxisMax = Math.ceil(tempHigh + 7);
+        const tempAxisMax = Math.ceil(tempHigh + 6);
 
         chartInstance.options.scales.yPh.min = phMin;
         chartInstance.options.scales.yPh.max = phMax;
