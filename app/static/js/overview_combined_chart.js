@@ -59,17 +59,24 @@
       const prior = sorted.filter(e => e.ts <= window.start).pop();
       let lastVal = prior ? prior.value : null;
       
+      // Add baseline at window.start
       if (lastVal !== null) {
         pts.push({ x: window.start, y: parseFloat(lastVal) });
       }
-      
+
       // Add changes within window
       const within = sorted.filter(e => e.ts >= window.start && e.ts <= window.end);
       for (const ev of within) {
+        // If we had no baseline yet, start at window.start with first value
+        if (lastVal === null) {
+          lastVal = ev.value;
+          pts.push({ x: window.start, y: parseFloat(lastVal) });
+        }
         lastVal = ev.value;
         pts.push({ x: ev.ts, y: parseFloat(lastVal) });
       }
-      
+
+      // Close out to window.end if we have a value
       if (lastVal !== null) {
         pts.push({ x: window.end, y: parseFloat(lastVal) });
       }
@@ -157,8 +164,8 @@
         console.log('[Overview Combined] Targets from settings:', targets);
         
         // Get current targets
-        const phLow = 6.1;
-        const phHigh = 6.2;
+        const phLow = parseFloat(targets['targets.ph_low']);
+        const phHigh = parseFloat(targets['targets.ph_high']);
         const ecLow = Number(data?.ecStatus?.targets?.low);
         const ecHigh = Number(data?.ecStatus?.targets?.high);
         const hasEcBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh);
