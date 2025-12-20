@@ -659,6 +659,7 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
         print(f"[pH Stabilization] THREAD STARTED for rowid={rowid}")
         import sys; sys.stderr.flush()
         # Configuration
+        # Use canonical stabilization keys with fallback to legacy duplicates
         stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 300))
         stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", _settings_get_float("dosing.stability_delta", 0.05))
         stability_samples = _settings_get_int("dosing.stability_samples", 3)  # sample count remained unchanged
@@ -780,14 +781,7 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
             
             
     except Exception as e:
-        import traceback
-        msg = f"[pH Stabilization] Error for rowid={rowid}: {e}\n{traceback.format_exc()}"
-        print(msg)
-        try:
-            with open("/tmp/ph_stab_error.log", "a") as f:
-                f.write(msg + "\n")
-        except:
-            pass
+        print(f"[pH Stabilization] Error for rowid={rowid}: {e}")
 
 
 def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
@@ -1184,11 +1178,6 @@ def _print_auto_decision(action: str, ph: Optional[float], ec: Optional[float], 
 
 def _auto_loop():
     global _auto_stop_evt, _auto_enabled_at, _auto_last_holding_reason, _auto_last_block, _auto_last_block_count
-    import sys
-    print("[pH Auto] _auto_loop() STARTED", flush=True)
-    sys.stderr.write("[pH Auto] _auto_loop() stderr test\n")
-    sys.stderr.flush()
-    
     poll_s = _settings_get_int("dosing.poll_interval_s", 30)
     margin = _settings_get_float("ph_auto.margin", 0.05)  # aim to stop slightly inside band
     step_min = _settings_get_float("dosing.ph_up_step_min_ml", 0.05)
@@ -1202,26 +1191,20 @@ def _auto_loop():
             # NEW: Use unified auto-enable system
             try:
                 from app.auto_control import should_automate
-                should_ph = should_automate("ph")
-                print(f"[pH Auto DEBUG] should_automate('ph') = {should_ph}", flush=True)
-                if not should_ph:
+                if not should_automate("ph"):
                     _set_auto_block("auto_disabled")
                     time.sleep(poll_s)
                     continue
-            except Exception as e:
-                print(f"[pH Auto DEBUG] Exception in should_automate: {e}", flush=True)
+            except Exception:
                 pass
             # Suppress automation when global maintenance override is active
             try:
                 from app.settings import get_setting_key
-                maint_override = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
-                print(f"[pH Auto DEBUG] maintenance_override = {maint_override}", flush=True)
-                if maint_override:
+                if (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true":
                     _set_auto_block("maintenance_override")
                     time.sleep(poll_s)
                     continue
-            except Exception as e:
-                print(f"[pH Auto DEBUG] Exception in maintenance override check: {e}", flush=True)
+            except Exception:
                 pass
             # Backoff: skip one extra poll if same non-interval guard repeated 3×
             if skip_next_poll:
@@ -1233,15 +1216,6 @@ def _auto_loop():
             ph_val, _ = _get_latest_ph()
             targets = _get_ph_targets()
             g = _compute_guards(now)
-            import sys
-            msg = f"[pH Auto DEBUG] Loop iteration: ph={ph_val:.3f}, targets={targets}, has_guards={any(g.values())}"
-            print(msg, file=sys.stderr, flush=True)
-            # Also write to file for debugging
-            try:
-                with open("/tmp/ph_auto_debug.log", "a") as f:
-                    f.write(msg + "\n")
-            except:
-                pass
             if ph_val is None or g.get("sensor_stale"):
                 _set_auto_block("stale")
                 if _auto_last_block_count == 3:
@@ -1269,7 +1243,6 @@ def _auto_loop():
                         cur.execute("SELECT id, reason FROM ph_dose_log WHERE result='pending_retry' ORDER BY id ASC LIMIT 1")
                         retry_row = cur.fetchone()
                         if not retry_row:
-                            print(f"[pH Auto DEBUG] No pending_retry doses found, breaking retry loop")
                             break
 
                         retry_id = retry_row[0]
@@ -1338,7 +1311,6 @@ def _auto_loop():
             
             # Only act when below band
             if ph_val < targets["low"]:
-                print(f"[pH Auto DEBUG] pH {ph_val:.3f} < target_low {targets['low']:.3f}, checking guards...")
                 # Guarded holds
                 if g.get("estop"):
                     _set_auto_block("estop")
@@ -1395,9 +1367,6 @@ def _auto_loop():
                 _auto_last_holding_reason = None
             time.sleep(poll_s)
         except Exception as e:
-            import traceback
-            print(f"[pH Auto ERROR] Exception in loop iteration: {e}", flush=True)
-            print(traceback.format_exc(), flush=True)
             time.sleep(poll_s)
 
 
