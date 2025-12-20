@@ -1070,15 +1070,15 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
     try:
         with sqlite3.connect(str(DB_PATH)) as conn:
             cur = conn.cursor()
-            cur.execute(
-                """
-                SELECT ts_utc, volume_ml, pre_ph, post_ph
-                FROM ph_dose_log
-                WHERE result='ok' AND volume_ml IS NOT NULL AND pre_ph IS NOT NULL AND post_ph IS NOT NULL
-                  AND (reason IS NULL OR (reason NOT LIKE '%unsettled%' AND reason NOT LIKE '%FAULTY%' AND reason NOT LIKE '%LOW_EFFECT%'))
-                ORDER BY id DESC LIMIT 50
-                """
-            )
+                        cur.execute(
+                                """
+                                SELECT ts_utc, volume_ml, pre_ph, post_ph
+                                FROM ph_dose_log
+                                WHERE result='ok' AND volume_ml IS NOT NULL AND pre_ph IS NOT NULL AND post_ph IS NOT NULL
+                                    AND (reason IS NULL OR (reason NOT LIKE '%unsettled%' AND reason NOT LIKE '%FAULTY%'))
+                                ORDER BY id DESC LIMIT 50
+                                """
+                        )
             rows = cur.fetchall()
         total_ml = 0.0
         total_dpH = 0.0
@@ -1089,7 +1089,7 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
                     continue
                 ml = float(ml)
                 # Filter to reasonable positive deltas (avoid noise/overshoot)
-                if dpH <= 0 or dpH > 0.6 or abs(dpH) < 0.01:
+                if dpH <= 0 or dpH > 0.6 or abs(dpH) < 0.005:
                     continue
                 # Filter by EC near dose time
                 try:
