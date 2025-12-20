@@ -164,11 +164,11 @@
         const tempSettings = data?.settings?.temperature || {};
         console.log('[Overview Combined] Targets from settings:', targets);
         
-        // Get current targets
+        // Get current targets - ALWAYS use explicit settings, ignore scheduler
         const phLow = parseFloat(targets['ph_low']);
         const phHigh = parseFloat(targets['ph_high']);
-        const ecLow = Number(data?.ecStatus?.targets?.low);
-        const ecHigh = Number(data?.ecStatus?.targets?.high);
+        const ecLow = parseFloat(targets['ec_low']);
+        const ecHigh = parseFloat(targets['ec_high']);
         const hasEcBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh);
 
         // Get temperature target + hysteresis
