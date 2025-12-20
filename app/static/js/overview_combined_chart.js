@@ -270,51 +270,51 @@
           });
         });
 
-        // Relay overlays (lights and pumps) on yState axis, stacked at top
-        const lightsSeries = buildStepSeries(data?.lightsEvents, window, 2.7);
-        const mainSeries = buildStepSeries(data?.mainEvents, window, 1.8);
-        const chillerSeries = buildStepSeries(data?.chillerEvents, window, 0.9);
+        // Relay overlays (lights and pumps) - scale to EC axis range
+        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 3.6);
+        const mainScaled = buildStepSeries(data?.mainEvents, window, 3.4);
+        const chillerScaled = buildStepSeries(data?.chillerEvents, window, 3.2);
 
-        if (lightsSeries.length) {
+        if (lightsScaled.length) {
           datasets.push({
             label: 'Lights',
-            yAxisID: 'yState',
-            data: lightsSeries,
+            yAxisID: 'yEc',
+            data: lightsScaled,
             borderColor: '#22c55e',
-            backgroundColor: 'rgba(34,197,94,0.5)',
+            backgroundColor: 'rgba(34,197,94,0.6)',
             stepped: true,
-            borderWidth: 3,
+            borderWidth: 4,
             fill: true,
             pointRadius: 0,
-            order: 3
+            order: 2
           });
         }
-        if (mainSeries.length) {
+        if (mainScaled.length) {
           datasets.push({
             label: 'Main Pump',
-            yAxisID: 'yState',
-            data: mainSeries,
+            yAxisID: 'yEc',
+            data: mainScaled,
             borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59,130,246,0.5)',
+            backgroundColor: 'rgba(59,130,246,0.6)',
             stepped: true,
-            borderWidth: 3,
+            borderWidth: 4,
             fill: true,
             pointRadius: 0,
-            order: 3
+            order: 2
           });
         }
-        if (chillerSeries.length) {
+        if (chillerScaled.length) {
           datasets.push({
             label: 'Chiller Pump',
-            yAxisID: 'yState',
-            data: chillerSeries,
+            yAxisID: 'yEc',
+            data: chillerScaled,
             borderColor: '#06b6d4',
-            backgroundColor: 'rgba(6,182,212,0.5)',
+            backgroundColor: 'rgba(6,182,212,0.6)',
             stepped: true,
-            borderWidth: 3,
+            borderWidth: 4,
             fill: true,
             pointRadius: 0,
-            order: 3
+            order: 2
           });
         }
 
@@ -347,16 +347,7 @@
           };
         }
         if (!chartInstance.options.scales.yState) {
-          chartInstance.options.scales.yState = { 
-            type: 'linear', 
-            position: 'top', 
-            display: true,
-            title: { display: true, text: 'Relays', color: '#d1d5db' },
-            ticks: { color: '#9ca3af' },
-            grid: { drawOnChartArea: false },
-            min: 0, 
-            max: 3.0
-          };
+          chartInstance.options.scales.yState = { type: 'linear', position: 'right', display: false, min: 0, max: 4.0, grid: { display: false } };
         }
 
         const phMin = Number.isFinite(phLow) ? Math.min(phLow - 0.5, 5.0) : 5.0;
