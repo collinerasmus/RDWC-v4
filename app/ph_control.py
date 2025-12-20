@@ -25,6 +25,63 @@ router = APIRouter()
 
 DB_PATH = Path(__file__).parent.parent / "data" / "rdwc.db"
 
+# --- Shared Helpers (Single Source of Truth) ----
+def _get_ph_targets() -> Dict[str, float]:
+    """Get pH target band from nutrient schedule (if available) or settings.
+    Returns dict with 'low' and 'high' keys.
+    """
+    from app.settings import get_all_settings, _settings_get_float
+    from app.schedule_api import DB_PATH as SCHED_DB
+    
+    band_tol = _settings_get_float("targets.ph_band", 0.2)
+    setpoint = None
+    try:
+        s = get_all_settings()
+        date_str = s.get("general.grow_start_date", "")
+        week_num = 1
+        if date_str:
+            try:
+                start = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                now_dt = datetime.now(timezone.utc)
+                delta_days = (now_dt - start).days
+                week_num = max(1, min(12, (delta_days // 7) + 1))
+            except Exception:
+                week_num = 1
+        with sqlite3.connect(str(SCHED_DB)) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT ph_low, ph_high FROM nutrient_schedule WHERE week = ?", (week_num,))
+            row = cur.fetchone()
+            if row and row[0] is not None and row[1] is not None:
+                setpoint = ((float(row[0]) + float(row[1])) / 2.0)
+    except Exception:
+        setpoint = None
+    if setpoint is not None:
+        return {"low": round(setpoint - band_tol, 2), "high": round(setpoint + band_tol, 2)}
+    else:
+        from app.settings import _settings_get_float
+        return {
+            "low": _settings_get_float("targets.ph_low", 5.8),
+            "high": _settings_get_float("targets.ph_high", 6.2),
+        }
+
+def _ec_compensated_ml_per_pH(base_ml_per_pH: float, ec_current: Optional[float]) -> float:
+    """Scale ml_per_pH based on EC to reflect reduced effectiveness at higher ionic strength."""
+    from app.settings import _settings_get_float
+    try:
+        if ec_current is None:
+            return base_ml_per_pH
+        ref = _settings_get_float("dosing.ph_up_ml_per_pH_ref_ec_mscm", 1.0)
+        slope = _settings_get_float("dosing.ph_up_ml_per_pH_ec_slope", 0.0)
+        fmin = _settings_get_float("dosing.ph_up_ml_per_pH_ec_min_factor", 0.5)
+        fmax = _settings_get_float("dosing.ph_up_ml_per_pH_ec_max_factor", 2.0)
+        factor = 1.0 + slope * (float(ec_current) - ref)
+        if fmin > fmax:
+            fmin, fmax = fmax, fmin
+        factor = max(fmin, min(fmax, factor))
+        return max(0.001, float(base_ml_per_pH) * factor)
+    except Exception:
+        return base_ml_per_pH
+
 # --- Automation state --------------------------------------------------------
 _auto_thread: Optional[threading.Thread] = None
 _auto_stop_evt: Optional[threading.Event] = None
@@ -400,37 +457,11 @@ def _compute_guards(now: float) -> Dict[str, Any]:
     ec_baseline_min = _settings_get_float("dosing.ec_baseline_min", 0.2)
     ec_baseline_low = (ec_val is None) or (ec_val < ec_baseline_min)
 
-    # Out-of-band stabilization guard: wait for pH to settle before re-attempting
-    def _last_out_of_band_ts() -> Optional[datetime]:
-        """Find the most recent time pH went out of target band."""
-        try:
-            targets = {
-                "low": _settings_get_float("targets.ph_low", 5.8),
-                "high": _settings_get_float("targets.ph_high", 6.2),
-            }
-            with sqlite3.connect(str(DB_PATH)) as conn:
-                cur = conn.cursor()
-                # Find most recent reading outside band
-                cur.execute("""
-                    SELECT ts FROM readings 
-                    WHERE ph IS NOT NULL AND (ph < ? OR ph > ?)
-                    ORDER BY ts DESC LIMIT 1
-                """, (targets["low"], targets["high"]))
-                row = cur.fetchone()
-                if not row or not row[0]:
-                    return None
-                # Convert unix timestamp to datetime
-                return datetime.fromtimestamp(row[0], tz=timezone.utc)
-        except Exception:
-            return None
-
-    stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", 180)
-    last_oob = _last_out_of_band_ts()
-    since_last_oob = None
-    out_of_band = False
-    if last_oob:
-        since_last_oob = int(datetime.now(timezone.utc).timestamp() - last_oob.timestamp())
-        out_of_band = since_last_oob < stabilize_wait_s
+    # Out-of-band stabilization guard: REMOVED (logic was backwards)
+    # Original intent: wait for pH to stabilize after entering band
+    # Problem: blocked dosing when pH was OUTSIDE band (below target)
+    # Fix: Remove this guard entirely; stabilization already handled by interval guard
+    out_of_band = False  # Always false; guard disabled
 
     # Recent EC dose guard: wait for EC-induced pH drift to settle before dosing/learning
     def _last_ec_dose_ts() -> Optional[datetime]:
@@ -493,43 +524,7 @@ def _compute_guards(now: float) -> Dict[str, Any]:
 def ph_status():
     now = time.time()
     ph_val, ts = _get_latest_ph()
-    # Prefer scheduler setpoint + band tolerance if available
-    band_tol = _settings_get_float("targets.ph_band", 0.2)
-    setpoint = None
-    try:
-        # Lightweight read of current week setpoint from nutrient_schedule
-        from datetime import datetime, timezone
-        import sqlite3
-        from pathlib import Path
-        from app.schedule_api import DB_PATH as _DB
-        # Compute current week (duplicate minimal logic)
-        from app.settings import get_all_settings
-        s = get_all_settings()
-        date_str = s.get("general.grow_start_date", "")
-        week_num = 1
-        if date_str:
-            try:
-                start = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                now_dt = datetime.now(timezone.utc)
-                delta_days = (now_dt - start).days
-                week_num = max(1, min(12, (delta_days // 7) + 1))
-            except Exception:
-                week_num = 1
-        with sqlite3.connect(str(_DB)) as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT ph_low, ph_high FROM nutrient_schedule WHERE week = ?", (week_num,))
-            row = cur.fetchone()
-            if row and row[0] is not None and row[1] is not None:
-                setpoint = ((float(row[0]) + float(row[1])) / 2.0)
-    except Exception:
-        setpoint = None
-    if setpoint is not None:
-        targets = {"low": round(setpoint - band_tol, 2), "high": round(setpoint + band_tol, 2)}
-    else:
-        targets = {
-            "low": _settings_get_float("targets.ph_low", 5.8),
-            "high": _settings_get_float("targets.ph_high", 6.2),
-        }
+    targets = _get_ph_targets()
     guards = _compute_guards(now)
     # Remaining cooldown helper
     since = guards.get("since_last_ok_s") or 0
@@ -566,11 +561,11 @@ def ph_status():
     #   dosing.ph_stabilization_delta_threshold
     # Backward compatibility: fall back to legacy duplicate keys if canonical missing.
     initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
-    max_est_change = _settings_get_float("dosing.ph_max_predicted_delta_ph", _settings_get_float("safety.max_estimated_ph_change", 0.5))
-    est_guard = (_settings_get("safety.estimated_change_guard", "true").lower() == "true")  # guard key retained in safety.* namespace
+    max_est_change = _settings_get_float("dosing.ph_max_predicted_delta_ph", 0.5)  # Canonical key only
+    est_guard = (_settings_get("safety.estimated_change_guard", "true").lower() == "true")
     # Relaxed defaults: shorter stabilization window and wider delta tolerance
-    stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 180))
-    stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", _settings_get_float("dosing.stability_delta", 0.05))
+    stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", 300)
+    stability_delta = _settings_get_float("dosing.ph_stabilization_delta_threshold", 0.02)
     stability_samples = _settings_get_int("dosing.stability_samples", 3)
     return {
         "ph": ph_val,
@@ -1220,41 +1215,7 @@ def _auto_loop():
             
             now = time.time()
             ph_val, _ = _get_latest_ph()
-            # Use same target logic as status endpoint: prefer schedule setpoint + band, fallback to settings
-            band_tol = _settings_get_float("targets.ph_band", 0.2)
-            setpoint = None
-            try:
-                from datetime import datetime, timezone
-                import sqlite3
-                from pathlib import Path
-                from app.schedule_api import DB_PATH as _DB
-                from app.settings import get_all_settings
-                s = get_all_settings()
-                date_str = s.get("general.grow_start_date", "")
-                week_num = 1
-                if date_str:
-                    try:
-                        start = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                        now_dt = datetime.now(timezone.utc)
-                        delta_days = (now_dt - start).days
-                        week_num = max(1, min(12, (delta_days // 7) + 1))
-                    except Exception:
-                        week_num = 1
-                with sqlite3.connect(str(_DB)) as conn:
-                    cur = conn.cursor()
-                    cur.execute("SELECT ph_low, ph_high FROM nutrient_schedule WHERE week = ?", (week_num,))
-                    row = cur.fetchone()
-                    if row and row[0] is not None and row[1] is not None:
-                        setpoint = ((float(row[0]) + float(row[1])) / 2.0)
-            except Exception:
-                setpoint = None
-            if setpoint is not None:
-                targets = {"low": round(setpoint - band_tol, 2), "high": round(setpoint + band_tol, 2)}
-            else:
-                targets = {
-                    "low": _settings_get_float("targets.ph_low", 5.8),
-                    "high": _settings_get_float("targets.ph_high", 6.2),
-                }
+            targets = _get_ph_targets()
             g = _compute_guards(now)
             if ph_val is None or g.get("sensor_stale"):
                 _set_auto_block("stale")
@@ -1290,10 +1251,7 @@ def _auto_loop():
                         
                         # GUARD: Check if pH has already reached/exceeded setpoint - if so, abort retry
                         ph_val, _ = _get_latest_ph()
-                        targets = {
-                            "low": _settings_get_float("targets.ph_low", 5.8),
-                            "high": _settings_get_float("targets.ph_high", 6.2),
-                        }
+                        targets = _get_ph_targets()
                         setpoint = (targets["low"] + targets["high"]) / 2.0
                         if ph_val is not None and ph_val >= setpoint:
                             print(f"[pH Auto] Aborting retry id={retry_id}: pH {ph_val:.3f} already >= setpoint {setpoint:.3f}")
@@ -1398,22 +1356,8 @@ def _auto_loop():
                         if est_val is None:
                             ml = initial_ml
                         else:
-                            # Apply EC compensation if configured (helper defined in _perform_dose scope is not accessible here,
-                            # so re-evaluate factor inline with identical logic for minimal coupling)
-                            ml_per_pH = est_val
-                            try:
-                                if _ec_now is not None:
-                                    ref = _settings_get_float("dosing.ph_up_ml_per_pH_ref_ec_mscm", 1.0)
-                                    slope = _settings_get_float("dosing.ph_up_ml_per_pH_ec_slope", 0.0)
-                                    fmin = _settings_get_float("dosing.ph_up_ml_per_pH_ec_min_factor", 0.5)
-                                    fmax = _settings_get_float("dosing.ph_up_ml_per_pH_ec_max_factor", 2.0)
-                                    factor = 1.0 + slope * (float(_ec_now) - ref)
-                                    if fmin > fmax:
-                                        fmin, fmax = fmax, fmin
-                                    factor = max(fmin, min(fmax, factor))
-                                    ml_per_pH = max(0.001, float(ml_per_pH) * factor)
-                            except Exception:
-                                pass
+                            # Apply EC compensation using shared helper
+                            ml_per_pH = _ec_compensated_ml_per_pH(est_val, _ec_now)
                             ml_est = safety * need_dpH * ml_per_pH
                             ml = max(step_min, min(step_max, ml_est))
                         _print_auto_decision("dose", ph_val, _get_latest_ec()[0], targets, ml, g)
