@@ -114,7 +114,7 @@
         const phLow = 6.1;
         const phHigh = 6.2;
         
-        console.log('[Overview Combined] pH band calc:', { phBand, phSet, useBand, phLow, phHigh });
+        console.log('[Overview Combined] pH band fixed:', { phLow, phHigh });
 
         const ecLow = Number(data?.ecStatus?.targets?.low);
         const ecHigh = Number(data?.ecStatus?.targets?.high);
