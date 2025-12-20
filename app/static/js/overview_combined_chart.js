@@ -270,10 +270,10 @@
           });
         });
 
-        // Relay overlays (lights and pumps) on hidden yState axis
-        const lightsSeries = buildStepSeries(data?.lightsEvents, window, 1.0);
-        const mainSeries = buildStepSeries(data?.mainEvents, window, 0.7);
-        const chillerSeries = buildStepSeries(data?.chillerEvents, window, 0.4);
+        // Relay overlays (lights and pumps) on yState axis, stacked at top
+        const lightsSeries = buildStepSeries(data?.lightsEvents, window, 2.7);
+        const mainSeries = buildStepSeries(data?.mainEvents, window, 1.8);
+        const chillerSeries = buildStepSeries(data?.chillerEvents, window, 0.9);
 
         if (lightsSeries.length) {
           datasets.push({
@@ -347,7 +347,16 @@
           };
         }
         if (!chartInstance.options.scales.yState) {
-          chartInstance.options.scales.yState = { type: 'linear', position: 'right', display: false, min: 0, max: 1.1, grid: { display: false } };
+          chartInstance.options.scales.yState = { 
+            type: 'linear', 
+            position: 'top', 
+            display: true,
+            title: { display: true, text: 'Relays', color: '#d1d5db' },
+            ticks: { color: '#9ca3af' },
+            grid: { drawOnChartArea: false },
+            min: 0, 
+            max: 3.0
+          };
         }
 
         const phMin = Number.isFinite(phLow) ? Math.min(phLow - 0.5, 5.0) : 5.0;
