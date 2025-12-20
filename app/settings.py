@@ -92,9 +92,9 @@ DEFAULTS: Dict[str, str] = {
     # Max single pH Up dose (ml)
     "dosing.ph_up_max_single_ml": "5",
     # Minimum interval between pH Up doses (seconds)
-    # Min interval between auto doses (cooldown period after settling completes)
-    # Timing: 60s spike detection → 300s settling → 600s cooldown before next dose
-    "dosing.ph_min_interval_s": "600",
+    # Min interval between auto doses (lowered to 2min to allow micro-dosing accumulation for heavily buffered systems)
+    # Timing: 60s spike detection → 300s settling → 120s cooldown before next dose
+    "dosing.ph_min_interval_s": "120",
     # Post‑dose stabilization observation window (settling time until pH reaches final value)
     # This is the window used to check if a dose worked (samples collected within this period)
     "dosing.ph_stabilization_window_s": "300",
