@@ -177,15 +177,23 @@
         const historyData = buildSettingsHistorySeries(data?.settingsHistory || [], historyKeys, window);
         console.log('[Overview Combined] Settings history keys:', Object.keys(historyData));
 
+
+
+
+        });
         const datasets = [];
 
-        // pH band
-        if (Number.isFinite(phLow) && Number.isFinite(phHigh)) {
+        // pH band - dynamic from history
+        const phLowHistory = historyData['targets.ph_low'] || [];
+        const phHighHistory = historyData['targets.ph_high'] || [];
+        if (phLowHistory.length > 0 || Number.isFinite(phLow)) {
+          const phLowData = phLowHistory.length > 0 ? phLowHistory : [ { x: window.start, y: phLow } ];
+          const phHighData = phHighHistory.length > 0 ? phHighHistory : [ { x: window.start, y: phHigh } ];
           datasets.push({
             type: 'line',
             yAxisID: 'yPh',
             label: 'pH Target',
-            data: [ { x: window.start, y: phLow }, { x: window.end, y: phLow } ],
+            data: phLowData,
             borderColor: 'rgba(59, 130, 246, 0.25)',
             borderWidth: 1,
             borderDash: [5, 5],
@@ -198,7 +206,7 @@
             type: 'line',
             yAxisID: 'yPh',
             label: '',
-            data: [ { x: window.start, y: phHigh }, { x: window.end, y: phHigh } ],
+            data: phHighData,
             borderColor: 'rgba(59, 130, 246, 0.25)',
             borderWidth: 1,
             borderDash: [5, 5],
@@ -207,13 +215,17 @@
           });
         }
 
-        // EC band
-        if (hasEcBand) {
+        // EC band - dynamic from history
+        const ecLowHistory = historyData['targets.ec_low'] || [];
+        const ecHighHistory = historyData['targets.ec_high'] || [];
+        if (ecLowHistory.length > 0 || hasEcBand) {
+          const ecLowData = ecLowHistory.length > 0 ? ecLowHistory : [ { x: window.start, y: ecLow } ];
+          const ecHighData = ecHighHistory.length > 0 ? ecHighHistory : [ { x: window.start, y: ecHigh } ];
           datasets.push({
             type: 'line',
             yAxisID: 'yEc',
             label: 'EC Target',
-            data: [ { x: window.start, y: ecLow }, { x: window.end, y: ecLow } ],
+            data: ecLowData,
             borderColor: 'rgba(16, 185, 129, 0.25)',
             borderWidth: 1,
             borderDash: [5, 5],
@@ -226,7 +238,7 @@
             type: 'line',
             yAxisID: 'yEc',
             label: '',
-            data: [ { x: window.start, y: ecHigh }, { x: window.end, y: ecHigh } ],
+            data: ecHighData,
             borderColor: 'rgba(16, 185, 129, 0.25)',
             borderWidth: 1,
             borderDash: [5, 5],
@@ -235,12 +247,37 @@
           });
         }
 
-        // Temperature band (using actual target values from settings)
+        // Temperature band - dynamic from history
+        const tempTargetHistory = historyData['targets.temp_target_c'] || [];
+        const tempHystHistory = historyData['temperature.hysteresis'] || [];
+        // Helper: combine temp target + hysteresis into low/high bands
+        function buildTempBands(targetSeries, hystSeries, defaultLow, defaultHigh, window) {
+          if (targetSeries.length === 0 && hystSeries.length === 0) {
+            return { low: [{ x: window.start, y: defaultLow }], high: [{ x: window.start, y: defaultHigh }] };
+          }
+          // Merge both series chronologically
+          const combined = [...targetSeries, ...hystSeries].sort((a, b) => a.x - b.x);
+          const lowData = [];
+          const highData = [];
+          let currentTarget = resolvedTarget;
+          let currentHyst = resolvedHyst;
+          for (const point of combined) {
+            if (point.series === 'targets.temp_target_c') currentTarget = point.y;
+            else if (point.series === 'temperature.hysteresis') currentHyst = point.y;
+            lowData.push({ x: point.x, y: currentTarget - currentHyst });
+            highData.push({ x: point.x, y: currentTarget + currentHyst });
+          }
+          return { low: lowData, high: highData };
+        }
+        // Annotate series origin for merging
+        const tempTargetAnnotated = tempTargetHistory.map(p => ({ ...p, series: 'targets.temp_target_c' }));
+        const tempHystAnnotated = tempHystHistory.map(p => ({ ...p, series: 'temperature.hysteresis' }));
+        const tempBands = buildTempBands(tempTargetAnnotated, tempHystAnnotated, tempLow, tempHigh, window);
         datasets.push({
           type: 'line',
           yAxisID: 'yTemp',
           label: 'Temp Target',
-          data: [ { x: window.start, y: tempLow }, { x: window.end, y: tempLow } ],
+          data: tempBands.low,
           borderColor: 'rgba(239, 68, 68, 0.25)',
           borderWidth: 1,
           borderDash: [5, 5],
@@ -248,7 +285,6 @@
           fill: '+1',
           backgroundColor: 'rgba(239, 68, 68, 0.1)',
           order: 0
-        });
         datasets.push({
           type: 'line',
           yAxisID: 'yTemp',
@@ -404,14 +440,14 @@
         // Axes
         if (!chartInstance.options.scales.yPh) {
           chartInstance.options.scales.yPh = { 
-            type: 'linear', 
-            position: 'left', 
-            title: { display: true, text: 'pH', color: '#93c5fd' },
-            ticks: { color: '#9ca3af' },
-            grid: { color: 'rgba(148,163,184,0.12)' } 
-          };
-        }
         if (!chartInstance.options.scales.yEc) {
+            type: 'line',
+            yAxisID: 'yTemp',
+            label: '',
+            data: tempBands.high,
+            borderColor: 'rgba(239, 68, 68, 0.25)',
+            borderWidth: 1,
+            borderDash: [5, 5],
           chartInstance.options.scales.yEc = { 
             type: 'linear', 
             position: 'right', 
