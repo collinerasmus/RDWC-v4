@@ -182,9 +182,11 @@
         if (Number.isFinite(phLowCurrent) && Number.isFinite(phHighCurrent)) {
           phLowData = [ { x: window.start, y: phLowCurrent }, { x: window.end, y: phLowCurrent } ];
           phHighData = [ { x: window.start, y: phHighCurrent }, { x: window.end, y: phHighCurrent } ];
+          console.log('[Overview Combined] pH band data created:', { phLowData, phHighData });
         } else {
           phLowData = [];
           phHighData = [];
+          console.warn('[Overview Combined] pH targets not finite, skipping band');
         }
         
         // Prefer live EC targets from controller status (scheduler-derived), fallback to settings
