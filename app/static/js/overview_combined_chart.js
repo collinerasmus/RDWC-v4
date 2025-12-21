@@ -362,7 +362,7 @@
 
         // pH dose markers
         if (phDoseEvents.length) {
-          const phDoseY = Number.isFinite(phHigh) ? phHigh + 0.3 : 6.6;
+          const phDoseY = Number.isFinite(phHighCurrent) ? phHighCurrent + 0.3 : 6.6;
           datasets.push({
             type: 'scatter',
             yAxisID: 'yPh',
@@ -484,8 +484,8 @@
           chartInstance.options.scales.yState = { type: 'linear', position: 'right', display: false, min: 0, max: 4.0, grid: { display: false } };
         }
 
-        const phMin = Number.isFinite(phLow) ? Math.min(phLow - 0.5, 5.0) : 5.0;
-        const phMax = Number.isFinite(phHigh) ? Math.max(phHigh + 0.8, 7.5) : 7.5;
+        const phMin = Number.isFinite(phLowCurrent) ? Math.min(phLowCurrent - 0.5, 5.0) : 5.0;
+        const phMax = Number.isFinite(phHighCurrent) ? Math.max(phHighCurrent + 0.8, 7.5) : 7.5;
         const ecMin = 0.0;
         const ecMax = 4.0;
         // Scale temp axis: anchor band near bottom with slight headroom

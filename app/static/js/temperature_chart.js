@@ -47,27 +47,30 @@
 
         // Fetch temperature target
         const settingsUrl = '/api/settings';
+        const tempStatusUrl = '/api/temperature/status';
 
         try {
-          const [trendsRes, coolerRes, settingsRes] = await Promise.all([
+          const [trendsRes, coolerRes, settingsRes, tempStatusRes] = await Promise.all([
             fetch(trendsUrl, { cache: 'no-store' }),
             fetch(coolerUrl, { cache: 'no-store' }).catch(() => null),
-            fetch(settingsUrl, { cache: 'no-store' })
+            fetch(settingsUrl, { cache: 'no-store' }),
+            fetch(tempStatusUrl, { cache: 'no-store' })
           ]);
 
           const trendsData = trendsRes.ok ? await trendsRes.json() : { series: { temp: [] } };
           const coolerData = coolerRes && coolerRes.ok ? await coolerRes.json() : { events: [] };
           const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+          const tempStatusData = tempStatusRes.ok ? await tempStatusRes.json() : {};
 
           console.log('[Temperature Chart] Fetched:', {
             temp: trendsData?.series?.temp?.length || 0,
             coolerEvents: coolerData?.events?.length || 0
           });
 
-          return { trendsData, coolerData, settingsData };
+          return { trendsData, coolerData, settingsData, tempStatusData };
         } catch (e) {
           console.error('[Temperature Chart] Fetch failed:', e);
-          return { trendsData: { series: { temp: [] } }, coolerData: { events: [] }, settingsData: {} };
+          return { trendsData: { series: { temp: [] } }, coolerData: { events: [] }, settingsData: {}, tempStatusData: {} };
         }
       },
 
@@ -106,16 +109,15 @@
           totalEl.textContent = `${hours}h ${mins}m`;
         }
 
-        // Prefer controller-computed band from temperature status
+        // Prefer controller-computed band from temperature status (provided via data)
         let tempLow, tempHigh;
-        try {
-          const tempStatus = await fetch('/api/temperature/status', { cache: 'no-store' }).then(r => r.ok ? r.json() : {});
-          const lowLive = parseFloat(tempStatus.low);
-          const highLive = parseFloat(tempStatus.high);
+        {
+          const lowLive = parseFloat(data?.tempStatusData?.low);
+          const highLive = parseFloat(data?.tempStatusData?.high);
           if (Number.isFinite(lowLive) && Number.isFinite(highLive)) {
             tempLow = lowLive; tempHigh = highLive;
           }
-        } catch(_) {}
+        }
         if (!Number.isFinite(tempLow) || !Number.isFinite(tempHigh)) {
           const tempTarget = parseFloat(settingsData?.targets?.temp_target_c) || 19.0;
           const tempHysteresis = parseFloat(settingsData?.temperature?.hysteresis) || 0.6;
