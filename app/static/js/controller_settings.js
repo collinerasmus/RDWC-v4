@@ -273,7 +273,7 @@
       const btn = document.getElementById('btnSaveTempSettings');
       if (!btn) return;
       
-      const hysteresis = parseFloat(document.getElementById('temperatureHysteresis').value) || 0.5;
+      const hysteresis = parseFloat(document.getElementById('temperatureHysteresis').value) || 0.6;
       
       const updates = {
         'temperature.hysteresis': hysteresis,

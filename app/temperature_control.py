@@ -115,7 +115,7 @@ temperature_SPECS = {
     'cooling_capacity_watts': 160,
     'recommended_volume_liters': (50, 150),
     # Defaults per approved brief (compressor-safe but responsive):
-    # min_off_seconds: 300 (5 min cooldown), min_on_seconds: 60 (≥1 min runtime), hysteresis default 0.7°C
+    # min_off_seconds: 300 (5 min cooldown), min_on_seconds: 60 (≥1 min runtime), hysteresis default 0.6°C
     'min_on_seconds': 60,
     'min_off_seconds': 300,
     'max_cycles_per_hour': 8,   # Allow up to 8 safe cycles/hour given shorter min_on
@@ -261,14 +261,38 @@ def get_temperature_state() -> Dict[str, Any]:
         if state['last_on_time'] and state['is_running']:
             state['current_runtime'] = int(now - state['last_on_time'])
         
-        # Add settings
-        # Unified target temp: prefer temperature.target_temp, fallback to legacy targets.temp_target_c
-        _t = get_setting('temperature.target_temp', None)
-        if _t is None:
-            _t = get_setting('targets.temp_target_c', '19.0')
-        state['target_temp'] = float(_t)
-        state['hysteresis'] = float(get_setting('temperature.hysteresis', '0.5'))
-        state['stage'] = get_setting('temperature.stage', 'default')
+        # Add settings (single source of truth: targets.temp_target_c + temperature.hysteresis)
+        try:
+            t_val = get_setting('targets.temp_target_c', get_setting('temperature.target_temp', '19.0'))
+            state['target_temp'] = float(t_val or 19.0)
+        except Exception:
+            state['target_temp'] = 19.0
+        try:
+            h_val = get_setting('temperature.hysteresis', get_setting('chiller.hysteresis', '0.6'))
+            state['hysteresis'] = float(h_val or 0.6)
+        except Exception:
+            state['hysteresis'] = 0.6
+        # Single source: controller computes band
+        try:
+            tt = float(state['target_temp'])
+            hh = float(state['hysteresis'])
+            state['low'] = round(tt - hh, 3)
+            state['high'] = round(tt + hh, 3)
+        except Exception:
+            state['low'] = round(19.0 - 0.6, 3)
+            state['high'] = round(19.0 + 0.6, 3)
+        # Stage: prefer canonical temperature.stage, fallback to legacy chiller.stage
+        try:
+            from app.settings import get_setting_key as _get_key
+            stage_val = _get_key('temperature.stage', None)
+            if stage_val is None:
+                stage_val = _get_key('chiller.stage', 'default')
+            state['stage'] = stage_val or 'default'
+        except Exception:
+            stage_val = get_setting('temperature.stage', None)
+            if stage_val is None:
+                stage_val = get_setting('chiller.stage', 'default')
+            state['stage'] = stage_val or 'default'
         # NEW: Use unified auto-enable system
         state['auto_enabled'] = should_automate_temperature()
         
@@ -416,9 +440,17 @@ def should_temperature_run() -> tuple[bool, str]:
     if current_temp is None:
         return False, 'Temperature sensor unavailable'
     
-    # Get target from scheduler and hysteresis from settings
-    target_temp = float(get_setting('targets.temp_target_c', '20.0'))  # From scheduler ONLY
-    hysteresis = float(get_setting('temperature.hysteresis', '0.5'))
+    # Get target from scheduler-backed setting with legacy fallback
+    try:
+        target_temp = float(get_setting('targets.temp_target_c', get_setting('temperature.target_temp', '19.0')) or 19.0)
+    except Exception:
+        target_temp = 19.0
+    # Single hysteresis source with legacy fallback to chiller.hysteresis
+    try:
+        hyst_raw = get_setting('temperature.hysteresis', get_setting('chiller.hysteresis', '0.6'))
+        hysteresis = float(hyst_raw or 0.6)
+    except Exception:
+        hysteresis = 0.6
     
     # Calculate thresholds: target ± hysteresis (e.g., 20°C ± 0.5°C = 19.5-20.5°C band)
     turn_on_temp = target_temp + hysteresis    # e.g., 20.5°C
@@ -545,8 +577,8 @@ def _ensure_defaults():
     via the unified auto-enable system in app/auto_control.py
     """
     defaults = {
-        'temperature.target_temp': '19.0',            # °C - optimal for cannabis
-        'temperature.hysteresis': '0.7',              # °C - deadband per brief
+        'temperature.target_temp': '19.0',            # °C - aligns with scheduler target
+        'temperature.hysteresis': '0.6',              # °C - matches HMI expectation
         'temperature.min_on_seconds': str(temperature_SPECS['min_on_seconds']),
         'temperature.min_off_seconds': str(temperature_SPECS['min_off_seconds']),
         'temperature.control_interval_s': '30',       # Check temp every 30s

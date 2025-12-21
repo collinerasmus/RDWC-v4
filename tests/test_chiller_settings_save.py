@@ -34,7 +34,8 @@ def client():
     # Initialize settings with defaults
     settings.upsert_settings({
         'chiller.target_temp': '19.0',
-        'chiller.hysteresis': '0.5',
+        'chiller.hysteresis': '0.6',
+        'temperature.hysteresis': '0.6',
         'chiller.stage': 'default',
         'targets.temp_target_c': '19.0',
         'alerts.temp_lo_alert': '16.0',
@@ -136,7 +137,7 @@ def test_partial_chiller_settings_update(client):
     """Test that partial updates work correctly (only updating some fields)."""
     # First, set initial values
     client.put('/api/settings', json={
-        'chiller.hysteresis': '0.5',
+        'chiller.hysteresis': '0.6',
         'chiller.stage': 'default'
     })
     

@@ -1794,13 +1794,14 @@ def api_chiller_settings_update(req: dict):
     from app.settings import upsert_settings, validate_partial
     
     # Map incoming keys to settings keys
+    # Canonical targets: targets.temp_target_c + temperature.*; write legacy chiller.* for backward compatibility
     settings_map = {
-        'target_temp': 'chiller.target_temp',
-        'hysteresis': 'chiller.hysteresis',
-        'stage': 'chiller.stage',
-        'min_on_seconds': 'chiller.min_on_seconds',
-        'min_off_seconds': 'chiller.min_off_seconds',
-        'control_interval_s': 'chiller.control_interval_s',
+        'target_temp': 'targets.temp_target_c',
+        'hysteresis': 'temperature.hysteresis',
+        'stage': 'temperature.stage',
+        'min_on_seconds': 'temperature.min_on_seconds',
+        'min_off_seconds': 'temperature.min_off_seconds',
+        'control_interval_s': 'temperature.control_interval_s',
     }
     
     updates = {}
@@ -1808,9 +1809,11 @@ def api_chiller_settings_update(req: dict):
         if key in req:
             updates[setting_key] = str(req[key])
 
-    # Keep legacy target in sync for older UI components
+    # Keep legacy chiller.* keys in sync for older components
     if 'target_temp' in req:
-        updates['targets.temp_target_c'] = str(req['target_temp'])
+        updates['chiller.target_temp'] = str(req['target_temp'])
+    if 'hysteresis' in req:
+        updates['chiller.hysteresis'] = str(req['hysteresis'])
     
     # Validate
     ok, error = validate_partial(updates)
@@ -1820,6 +1823,28 @@ def api_chiller_settings_update(req: dict):
     # Apply
     upsert_settings(updates)
     return {"ok": True, "updated": updates}
+
+# Backward-compatibility alias endpoints for chiller
+@app.get("/api/chiller/status")
+def api_chiller_status_alias():
+    """Alias to /api/temperature/status for legacy UI/tests."""
+    from app.temperature_control import get_temperature_state
+    state = get_temperature_state()
+    # Ensure stage reflects latest DB write even if cached settings lag
+    try:
+        from app.settings import get_setting_key as _get_key
+        stage_val = _get_key('temperature.stage', None)
+        if stage_val is None:
+            stage_val = _get_key('chiller.stage', 'default')
+        state['stage'] = stage_val or state.get('stage', 'default')
+    except Exception:
+        pass
+    return state
+
+@app.post("/api/chiller/settings")
+def api_chiller_settings_alias(req: dict):
+    """Alias to /api/temperature/settings for legacy UI/tests."""
+    return api_chiller_settings_update(req)
 
 @app.get("/api/controllers/status")
 def api_controllers_status():
@@ -1907,14 +1932,21 @@ def api_controllers_status():
         from app.temperature_control import get_temperature_state, get_current_water_temp
         chiller_state = get_temperature_state()
         will_automate = should_automate("chiller")
+        target_temp = get_setting_key("targets.temp_target_c", None)
+        if target_temp is None:
+            target_temp = get_setting_key("temperature.target_temp", "19.0")
+        chiller_hyst = get_setting_key("temperature.hysteresis", None)
+        if chiller_hyst is None:
+            chiller_hyst = get_setting_key("chiller.hysteresis", "0.6")
+
         controllers["chiller"] = {
             "mode": "auto" if will_automate else "manual",  # For backward compatibility
             "auto_enabled": is_controller_auto_enabled("chiller"),  # Use unified auto-enable system
             "will_automate": will_automate,
             "current_temp": get_current_water_temp(),
-            "target_temp": float(get_setting_key("chiller.target_temp", "19.0") or "19.0"),
-            # Updated default hysteresis per brief (0.7°C)
-            "hysteresis": float(get_setting_key("chiller.hysteresis", "0.7") or "0.7"),
+            "target_temp": float(target_temp or "19.0"),
+            # Default hysteresis 0.6°C; legacy chiller.* fallback retained
+            "hysteresis": float(chiller_hyst or "0.6"),
             "is_running": chiller_state.get("is_running", False),
             "in_cooldown": chiller_state.get("in_cooldown", False),
         }
@@ -1976,6 +2008,17 @@ def api_chiller_events(limit: int = Query(200, ge=1, le=1000)):
         return {"events": events, "count": len(events)}
     except Exception as e:
         logger.error(f"/api/temperature/events failed: {e}")
+        return JSONResponse(status_code=500, content={"error": "events_failed"})
+
+@app.get("/api/chiller/events")
+def api_chiller_events_alias(limit: int = Query(200, ge=1, le=1000)):
+    """Legacy alias to /api/temperature/events for unit tests/UI."""
+    try:
+        from app.temperature_control import get_temperature_events
+        events = get_temperature_events(limit)
+        return {"events": events, "count": len(events)}
+    except Exception as e:
+        logger.error(f"/api/chiller/events failed: {e}")
         return JSONResponse(status_code=500, content={"error": "events_failed"})
 
 # --- Unified dosing endpoints ------------------------------------------------
@@ -2526,6 +2569,9 @@ def api_settings_put(body: dict = Body(...)):
     Response: {ok: true, updated: {k:v}, requires_restart: false}
     """
     from app.settings import validate_partial, upsert_settings
+    # Back-compat sync: mirror legacy chiller.stage into canonical temperature.stage
+    if body and isinstance(body, dict) and ('chiller.stage' in body) and ('temperature.stage' not in body):
+        body = {**body, 'temperature.stage': body.get('chiller.stage')}
     ok, err = validate_partial(body or {})
     if not ok:
         return JSONResponse(status_code=422, content={"ok": False, **(err or {})})

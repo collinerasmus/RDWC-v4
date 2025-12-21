@@ -49,7 +49,7 @@ VALID_MODES = {MODE_AUTO, MODE_MANUAL, MODE_MAINTENANCE}
 MODE_HOLD = "hold"  # Maps to MANUAL
 
 # Controllers that respect mode
-CONTROLLERS = ["ph", "ec", "lights", "temperature", "circulation", "sensors"]
+CONTROLLERS = ["ph", "ec", "lights", "temperature", "circulation", "sensors", "chiller"]
 
 def _ensure_db():
     """Initialize database tables"""
@@ -159,12 +159,22 @@ def set_system_mode(mode: str, propagate_to_controllers: bool = True) -> bool:
 
 def get_controller_mode(controller: str) -> str:
     """Get mode for a specific controller.
-    In unified mode, returns system-wide mode without legacy mapping."""
-    return get_mode()  # Returns: "auto", "manual", or "maintenance"
+    In unified mode, returns system-wide mode.
+    Maps manual/maintenance to "hold" for backward compatibility with tests."""
+    mode = get_mode()
+    # Map to legacy "hold" format for backward compatibility
+    if mode in (MODE_MANUAL, MODE_MAINTENANCE):
+        return "hold"
+    return mode
 
 
 def set_controller_mode(controller: str, mode: str) -> bool:
-    """Legacy compatibility - setting any controller sets system mode"""
+    """Legacy compatibility - setting any controller sets system mode.
+    Maps "hold" to manual internally.
+    Rejects invalid controller names."""
+    # Validate controller name (legacy tests expect this)
+    if controller not in CONTROLLERS:
+        return False
     # Map legacy "hold" to manual
     if mode == "hold":
         mode = MODE_MANUAL
@@ -182,11 +192,14 @@ def set_sensor_mode(mode: str) -> bool:
 
 
 def get_all_modes() -> Dict[str, str]:
-    """Legacy compatibility - returns dict of controller names to modes (as "hold" for backward compat)"""
+    """Legacy compatibility - returns dict of controller names to modes.
+    Maps modes correctly: auto stays "auto", manual/maintenance become "hold"."""
     mode = get_mode()
-    # Map to legacy "hold" format that old code expects
-    legacy_mode = "hold" if mode in (MODE_MANUAL, MODE_MAINTENANCE) else "auto"
-    return {controller: legacy_mode for controller in CONTROLLERS}
+    # Map to legacy "hold" format only for manual/maintenance
+    if mode in (MODE_MANUAL, MODE_MAINTENANCE):
+        return {controller: "hold" for controller in CONTROLLERS}
+    else:
+        return {controller: mode for controller in CONTROLLERS}
 
 
 def get_overrides() -> Dict[str, str]:

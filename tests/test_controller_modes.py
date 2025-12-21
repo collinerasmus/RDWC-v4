@@ -42,13 +42,19 @@ def test_set_and_get_mode():
 
 @with_temp_db
 def test_get_all_modes():
-    # Set modes and verify get_all_modes returns correct dict
-    # Note: manual and maintenance now map to "hold"
+    # Set system mode and verify get_all_modes returns same for all controllers
+    # NOTE: unified_mode is system-wide; all controllers share ONE mode
+    # Setting any controller mode sets the system mode for ALL
     mod.set_controller_mode('ph', 'auto')
-    mod.set_controller_mode('ec', 'manual')  # Maps to hold
-    mod.set_controller_mode('chiller', 'maintenance')  # Maps to hold
     modes = mod.get_all_modes()
     assert modes['ph'] == 'auto'
+    assert modes['ec'] == 'auto'  # All controllers share unified mode
+    assert modes['chiller'] == 'auto'
+    
+    # Setting one controller to manual sets system mode
+    mod.set_controller_mode('ec', 'manual')  # Maps to hold
+    modes = mod.get_all_modes()
+    assert modes['ph'] == 'hold'  # All share the unified manual/hold mode now
     assert modes['ec'] == 'hold'
     assert modes['chiller'] == 'hold'
 
@@ -60,4 +66,5 @@ def test_mode_persistence():
     assert mod.get_controller_mode('ph') == 'hold'
     # Simulate reload
     mod2 = importlib.reload(mod)
-    assert mod2.get_mode('ph') == 'hold'
+    # Use get_controller_mode (per-controller), not get_mode() which is system-wide
+    assert mod2.get_controller_mode('ph') == 'hold'

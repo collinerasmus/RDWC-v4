@@ -13,6 +13,7 @@ import tempfile
 import os
 import time
 import sqlite3
+import importlib
 from pathlib import Path
 
 
@@ -59,45 +60,38 @@ def test_controller_modes_persistence(temp_db):
     """Test that controller modes persist across module reloads."""
     from app import unified_mode as cm
     
-    # Set modes for all controllers (legacy modes map to hold)
-    assert cm.set_controller_mode('ph', 'manual')
-    assert cm.set_controller_mode('ec', 'auto')
-    assert cm.set_controller_mode('chiller', 'maintenance')
-    assert cm.set_controller_mode('lights', 'manual')
-    assert cm.set_controller_mode('circulation', 'auto')
-    
-    # Verify modes are set (manual/maintenance -> hold)
-    assert cm.get_controller_mode('ph') == 'hold'
+    # Set system mode (last call sets the unified mode for all controllers)
+    assert cm.set_controller_mode('circulation', 'auto')  # Set to auto
+
+    # Verify final unified mode is auto
+    assert cm.get_controller_mode('ph') == 'auto'
     assert cm.get_controller_mode('ec') == 'auto'
-    assert cm.get_controller_mode('chiller') == 'hold'
-    assert cm.get_controller_mode('lights') == 'hold'
+    assert cm.get_controller_mode('chiller') == 'auto'
+    assert cm.get_controller_mode('lights') == 'auto'
     assert cm.get_controller_mode('circulation') == 'auto'
     
-    # Simulate restart by reloading module
-    import importlib
-    cm = importlib.reload(cm)
+    cm2 = importlib.reload(cm)
     
-    # Verify persistence
-    assert cm.get_controller_mode('ph') == 'hold'
-    assert cm.get_controller_mode('ec') == 'auto'
-    assert cm.get_controller_mode('chiller') == 'hold'
-    assert cm.get_controller_mode('lights') == 'hold'
-    assert cm.get_controller_mode('circulation') == 'auto'
+    # Verify persistence after reload
+    assert cm2.get_controller_mode('ph') == 'auto'
+    assert cm2.get_controller_mode('ec') == 'auto'
+    assert cm2.get_controller_mode('chiller') == 'auto'
+    assert cm2.get_controller_mode('lights') == 'auto'
+    assert cm2.get_controller_mode('circulation') == 'auto'
 
 
 def test_get_all_modes(temp_db):
     """Test retrieving all controller modes at once."""
     from app import unified_mode as cm
     
-    # Set different modes (legacy modes map to hold)
-    cm.set_controller_mode('ph', 'manual')
-    cm.set_controller_mode('ec', 'maintenance')
+    # Set unified system mode to auto (last call)
     cm.set_controller_mode('chiller', 'auto')
     
     modes = cm.get_all_modes()
     
-    assert modes['ph'] == 'hold'  # manual -> hold
-    assert modes['ec'] == 'hold'  # maintenance -> hold
+    # All controllers share the unified auto mode
+    assert modes['ph'] == 'auto'
+    assert modes['ec'] == 'auto'
     assert modes['chiller'] == 'auto'
     assert 'lights' in modes
     assert 'circulation' in modes
@@ -227,32 +221,33 @@ def test_mode_transitions_all_controllers(temp_db):
 
 
 def test_concurrent_mode_changes(temp_db):
-    """Test that multiple controllers can have different modes simultaneously."""
+    """Test that unified mode system sets all controllers to the last mode.
+    NOTE: unified_mode is system-wide - all controllers share one mode."""
     from app import unified_mode as cm
     
-    # Set each controller to a different mode (legacy modes map to hold)
+    # Set each controller to different modes - last call wins (unified system)
     cm.set_controller_mode('ph', 'auto')
-    cm.set_controller_mode('ec', 'manual')
-    cm.set_controller_mode('chiller', 'maintenance')
-    cm.set_controller_mode('lights', 'auto')
-    cm.set_controller_mode('circulation', 'manual')
+    cm.set_controller_mode('ec', 'manual')  # Sets all to manual/hold
+    cm.set_controller_mode('chiller', 'maintenance')  # Sets all to maintenance/hold
+    cm.set_controller_mode('lights', 'auto')  # Sets all to auto
+    cm.set_controller_mode('circulation', 'manual')  # Sets all to manual/hold
     
-    # Verify all modes are independent (manual/maintenance -> hold)
-    assert cm.get_controller_mode('ph') == 'auto'
+    # Last call was manual -> hold, so ALL controllers are now hold
+    assert cm.get_controller_mode('ph') == 'hold'
     assert cm.get_controller_mode('ec') == 'hold'
     assert cm.get_controller_mode('chiller') == 'hold'
-    assert cm.get_controller_mode('lights') == 'auto'
+    assert cm.get_controller_mode('lights') == 'hold'
     assert cm.get_controller_mode('circulation') == 'hold'
 
 
 def test_mode_default_on_first_access(temp_db):
-    """Test that controllers default to 'auto' mode on first access."""
+    """Test that controllers default to 'manual' mode on first access (safety first)."""
     from app import unified_mode as cm
     
-    # Fresh database - all controllers should default to auto
+    # Fresh database - defaults to manual for safety (mapped to 'hold' for legacy)
     for controller in cm.CONTROLLERS:
         mode = cm.get_controller_mode(controller)
-        assert mode == 'auto', f"{controller} should default to auto, got {mode}"
+        assert mode == 'hold', f"{controller} should default to hold (manual), got {mode}"
 
 
 def test_maintenance_mode_behavior(temp_db):
@@ -270,10 +265,12 @@ def test_api_endpoint_compatibility(temp_db):
     from app import unified_mode as cm
     
     # Simulate API flow: GET current mode, POST new mode
+    # NOTE: get_controller_mode returns 'hold' for manual/maintenance
     for controller in ['ph', 'ec', 'chiller', 'lights', 'circulation']:
         # GET
         current_mode = cm.get_controller_mode(controller)
-        assert current_mode in cm.VALID_MODES
+        # Valid modes returned include 'auto' or 'hold' (legacy mapped)
+        assert current_mode in ('auto', 'hold')
         
         # POST - change mode (manual maps to hold)
         new_mode = 'manual' if current_mode == 'auto' else 'auto'

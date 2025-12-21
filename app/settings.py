@@ -65,10 +65,10 @@ DEFAULTS: Dict[str, str] = {
     "targets.ec_high": "0.6",
     "targets.ec_target": "1.8",
     "targets.ec_tolerance": "0.2",
-    "targets.temp_target_c": "20",
+    "targets.temp_target_c": "19.0",
     
     # EC sensor calibration (persisted to survive power cycles)
-    "ec.k_value": "1.0",  # EC probe K factor (probe constant) - must match physical probe label
+    "ec.k_value": "0.1",  # EC probe K factor (probe constant) - default 0.1 for most Atlas K=0.1 probes
     "ec.cal_dry": "0",  # Dry calibration point (0 = not calibrated, 1 = calibrated)
     "ec.cal_low_us": "0",  # Low calibration point in µS/cm (0 = not calibrated)
     "ec.cal_high_us": "0",  # High calibration point in µS/cm (0 = not calibrated)
@@ -155,7 +155,7 @@ DEFAULTS: Dict[str, str] = {
 
     # temperature (Hailea HS-52A intelligent control)
     # NOTE: target comes from scheduler via targets.temp_target_c setting
-    "temperature.hysteresis": "0.5",             # °C - deadband (with target 20°C: on at 20.5, off at 19.5)
+    "temperature.hysteresis": "0.6",             # °C - deadband (with target 19°C: on at 19.6, off at 18.4)
     "temperature.min_on_seconds": "300",         # 5 min minimum runtime (compressor protection)
     "temperature.min_off_seconds": "600",        # 10 min minimum off time (cooldown)
     # NOTE: temperature.auto_enabled is DEPRECATED - use controls.temperature_auto via auto_control.py

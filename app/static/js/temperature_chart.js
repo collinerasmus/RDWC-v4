@@ -106,11 +106,22 @@
           totalEl.textContent = `${hours}h ${mins}m`;
         }
 
-        // Get temperature target and hysteresis from settings
-        const tempTarget = parseFloat(settingsData?.targets?.temp_target_c) || 20.0;
-        const tempHysteresis = parseFloat(settingsData?.temperature?.hysteresis) || 0.5;
-        const tempLow = tempTarget - tempHysteresis;
-        const tempHigh = tempTarget + tempHysteresis;
+        // Prefer controller-computed band from temperature status
+        let tempLow, tempHigh;
+        try {
+          const tempStatus = await fetch('/api/temperature/status', { cache: 'no-store' }).then(r => r.ok ? r.json() : {});
+          const lowLive = parseFloat(tempStatus.low);
+          const highLive = parseFloat(tempStatus.high);
+          if (Number.isFinite(lowLive) && Number.isFinite(highLive)) {
+            tempLow = lowLive; tempHigh = highLive;
+          }
+        } catch(_) {}
+        if (!Number.isFinite(tempLow) || !Number.isFinite(tempHigh)) {
+          const tempTarget = parseFloat(settingsData?.targets?.temp_target_c) || 19.0;
+          const tempHysteresis = parseFloat(settingsData?.temperature?.hysteresis) || 0.6;
+          tempLow = tempTarget - tempHysteresis;
+          tempHigh = tempTarget + tempHysteresis;
+        }
 
         // Get current temp
         const currentTemp = temp.length > 0 ? temp[temp.length - 1].y : null;

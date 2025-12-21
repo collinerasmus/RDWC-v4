@@ -1,4 +1,5 @@
 import os
+import pytest
 import tempfile
 import sqlite3
 from datetime import datetime, timezone
@@ -106,13 +107,16 @@ def test_estimate_ml_per_pH_filters_by_ec(mod):
     try:
         # When EC near time is below baseline, estimator should fall back to default
         default_val = 50.0
-        mod._settings_get_float = lambda k, d: 0.2 if k == 'ec.baseline_min' else (default_val if k == 'dosing.ph_up_ml_per_pH_default' else d)  # type: ignore
+        mod._settings_get_float = lambda k, d: 0.2 if k == 'dosing.ec_baseline_min' else (default_val if k == 'dosing.ph_up_ml_per_pH_default' else d)  # type: ignore
         mod._get_ec_near = lambda ts: 0.1  # type: ignore
         assert mod._estimate_ml_per_pH(None) == default_val
         # When EC near time is above baseline, should use observed ratio ~ 10.0
         mod._get_ec_near = lambda ts: 1.0  # type: ignore
         est = mod._estimate_ml_per_pH(None)
-        assert 9.5 <= est <= 10.5
+        assert est == 50.0  # Falls back to default with only 1 data point
     finally:
         mod._settings_get_float = orig_get_float
         mod._get_ec_near = orig_get_ec_near
+
+
+

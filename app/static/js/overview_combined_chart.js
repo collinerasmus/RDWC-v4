@@ -118,12 +118,14 @@
         const settingsHistoryUrl = `/api/settings/history?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
 
         try {
-          const [trendsRes, phDoseRes, ecDoseRes, settingsRes, ecStatusRes, lightsRes, mainRes, chillerRes, historyRes] = await Promise.all([
+          const [trendsRes, phDoseRes, ecDoseRes, settingsRes, ecStatusRes, tempStatusRes, phStatusRes, lightsRes, mainRes, chillerRes, historyRes] = await Promise.all([
             fetch(trendsUrl, { cache: 'no-store' }),
             fetch(phDoseUrl, { cache: 'no-store' }),
             fetch(ecDoseUrl, { cache: 'no-store' }),
             fetch('/api/settings', { cache: 'no-store' }),
             fetch('/api/ec/status', { cache: 'no-store' }),
+            fetch('/api/temperature/status', { cache: 'no-store' }),
+            fetch('/api/ph/status', { cache: 'no-store' }),
             fetch('/api/relays/events?name=lights&last=500', { cache: 'no-store' }),
             fetch('/api/relays/events?name=main_pump&last=500', { cache: 'no-store' }),
             fetch('/api/relays/events?name=chiller_pump&last=500', { cache: 'no-store' }),
@@ -135,16 +137,18 @@
           const ecDose = ecDoseRes.ok ? await ecDoseRes.json() : { events: [] };
           const settings = settingsRes.ok ? await settingsRes.json() : {};
           const ecStatus = ecStatusRes.ok ? await ecStatusRes.json() : {};
+          const tempStatus = tempStatusRes.ok ? await tempStatusRes.json() : {};
+          const phStatus = phStatusRes.ok ? await phStatusRes.json() : {};
           console.log('[Overview Combined] Raw settings fetch:', settings);
           const lightsEvents = lightsRes.ok ? await lightsRes.json() : [];
           const mainEvents = mainRes.ok ? await mainRes.json() : [];
           const chillerEvents = chillerRes.ok ? await chillerRes.json() : [];
           const settingsHistory = historyRes.ok ? await historyRes.json() : [];
 
-          return { trendsData, phDose, ecDose, settings, ecStatus, lightsEvents, mainEvents, chillerEvents, settingsHistory };
+          return { trendsData, phDose, ecDose, settings, ecStatus, tempStatus, phStatus, lightsEvents, mainEvents, chillerEvents, settingsHistory };
         } catch (e) {
           console.error('[Overview Combined] Fetch failed', e);
-          return { trendsData: { series: { ph: [], ec: [], temp: [] } }, phDose: [], ecDose: { events: [] }, settings: {}, ecStatus: {}, lightsEvents: [], mainEvents: [], chillerEvents: [], settingsHistory: [] };
+          return { trendsData: { series: { ph: [], ec: [], temp: [] } }, phDose: [], ecDose: { events: [] }, settings: {}, ecStatus: {}, tempStatus: {}, phStatus: {}, lightsEvents: [], mainEvents: [], chillerEvents: [], settingsHistory: [] };
         }
       },
       onRender: (chartInstance, data, window) => {
@@ -164,11 +168,34 @@
         const targets = data?.settings?.targets || {};
         const ecStatusTargets = data?.ecStatus?.targets || {};
         const tempSettings = data?.settings?.temperature || {};
+        const phStatusTargets = data?.phStatus?.targets || {};
+        const tempStatus = data?.tempStatus || {};
         console.log('[Overview Combined] Targets from settings:', targets);
         
-        // Get current targets - live only (no history)
-        const phLow = parseFloat(targets['ph_low']);
-        const phHigh = parseFloat(targets['ph_high']);
+        // Get current pH targets from controller (scheduler-derived)
+        const phLowLive = parseFloat(phStatusTargets.low);
+        const phHighLive = parseFloat(phStatusTargets.high);
+        const phLowSettings = parseFloat(targets['ph_low']);
+        const phHighSettings = parseFloat(targets['ph_high']);
+        const phLowCurrent = Number.isFinite(phLowLive) ? phLowLive : phLowSettings;
+        const phHighCurrent = Number.isFinite(phHighLive) ? phHighLive : phHighSettings;
+        
+        // Build pH target history from settings changes
+        const phTargetHistory = buildSteppedSeriesFromHistory(data?.settingsHistory || [], ['targets.ph_low', 'targets.ph_high'], window);
+        const phLowHistory = phTargetHistory['targets.ph_low'] || [];
+        const phHighHistory = phTargetHistory['targets.ph_high'] || [];
+        
+        // Use historical data if available, otherwise use current values
+        let phLowData, phHighData;
+        if (phLowHistory.length > 0 && phHighHistory.length > 0) {
+          phLowData = phLowHistory;
+          phHighData = phHighHistory;
+        } else {
+          // Fallback to current values as horizontal lines
+          phLowData = [ { x: window.start, y: phLowCurrent }, { x: window.end, y: phLowCurrent } ];
+          phHighData = [ { x: window.start, y: phHighCurrent }, { x: window.end, y: phHighCurrent } ];
+        }
+        
         // Prefer live EC targets from controller status (scheduler-derived), fallback to settings
         const ecLowLive = parseFloat(ecStatusTargets.low);
         const ecHighLive = parseFloat(ecStatusTargets.high);
@@ -181,20 +208,23 @@
         console.log('[Overview Combined] hasEcBand?', hasEcBand, 'isFinite checks:', { ecLowFinite: Number.isFinite(ecLow), ecHighFinite: Number.isFinite(ecHigh) });
 
         // Get temperature target + hysteresis (live)
+        // Prefer controller-computed band from temperature status
+        const tempLowLive = parseFloat(tempStatus.low);
+        const tempHighLive = parseFloat(tempStatus.high);
         const tempTarget = parseFloat(targets['temp_target_c']);
         const tempHyst = parseFloat(tempSettings['hysteresis']);
-        const resolvedTarget = Number.isFinite(tempTarget) ? tempTarget : 20.0;
-        const resolvedHyst = Number.isFinite(tempHyst) ? tempHyst : 0.5;
-        const tempLow = resolvedTarget - resolvedHyst;
-        const tempHigh = resolvedTarget + resolvedHyst;
+        const resolvedTarget = Number.isFinite(tempTarget) ? tempTarget : 19.0;
+        const resolvedHyst = Number.isFinite(tempHyst) ? tempHyst : 0.6;
+        const tempLowFallback = resolvedTarget - resolvedHyst;
+        const tempHighFallback = resolvedTarget + resolvedHyst;
+        const tempLow = Number.isFinite(tempLowLive) ? tempLowLive : tempLowFallback;
+        const tempHigh = Number.isFinite(tempHighLive) ? tempHighLive : tempHighFallback;
         console.log('[Overview Combined] Temp targets:', { tempLow, tempHigh, resolvedTarget, resolvedHyst });
 
         const datasets = [];
 
-        // pH band - static from current settings
-        if (Number.isFinite(phLow) && Number.isFinite(phHigh)) {
-          const phLowData = [ { x: window.start, y: phLow }, { x: window.end, y: phLow } ];
-          const phHighData = [ { x: window.start, y: phHigh }, { x: window.end, y: phHigh } ];
+        // pH band - from historical settings changes or current controller values
+        if (phLowData && phHighData && phLowData.length > 0 && phHighData.length > 0) {
           datasets.push({
             type: 'line',
             yAxisID: 'yPh',

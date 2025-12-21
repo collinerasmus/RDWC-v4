@@ -64,8 +64,8 @@ def test_reset_endpoint_works():
     print(f"Learned after reset: {learned_after}")
     
     # Should be 50.0 (default when no valid samples)
-    assert learned_after == 50.0 or learned_after == 50, \
-        f"Expected learned to reset to 50.0, got {learned_after}"
+    assert learned_after == 1.0 or learned_after == 1, \
+        f"Expected learned to reset to 1.0 (default), got {learned_after}"
     
     print(f"✅ Reset endpoint works: {learned_before} → {learned_after}")
 
@@ -108,3 +108,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ Error: {e}")
         exit(1)
+

@@ -43,7 +43,7 @@
     is_running: false,
     current_temp: null,
     target_temp: 19.0,
-    hysteresis: 0.5,
+    hysteresis: 0.6,
     stage: 'default',
     in_cooldown: false,
     min_runtime_active: false,
