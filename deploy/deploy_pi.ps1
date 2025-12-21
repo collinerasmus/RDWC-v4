@@ -1,40 +1,75 @@
 param(
   [string]$Host = "192.168.88.55",
   [string]$User = "pi",
-  [string]$Branch = "main"
+  [string]$Branch = "main",
+  [string]$KeyPath = ""
 )
 
 $ErrorActionPreference = "Stop"
-Write-Host "[Deploy] Target: $User@$Host Branch: $Branch"
+Write-Host "[Deploy] Target: $User@$Host Branch: $Branch" -ForegroundColor Cyan
+
+# Resolve SSH key automatically if not provided
+function Resolve-KeyPath {
+  param([string]$Provided)
+  if ($Provided -and (Test-Path -LiteralPath $Provided)) { return (Resolve-Path -LiteralPath $Provided).Path }
+  $home = $env:USERPROFILE
+  $candidates = @(
+    Join-Path $home ".ssh\id_ed25519",
+    Join-Path $home ".ssh\id_rsa",
+    "C:\\Users\\$($env:USERNAME)\\.ssh\\id_ed25519",
+    "C:\\Users\\$($env:USERNAME)\\.ssh\\id_rsa"
+  )
+  foreach ($c in $candidates) { if (Test-Path -LiteralPath $c) { return (Resolve-Path -LiteralPath $c).Path } }
+  return ""
+}
+
+$resolvedKey = Resolve-KeyPath -Provided $KeyPath
+if (-not $resolvedKey) {
+  Write-Error "[Deploy] No SSH key found. Provide -KeyPath or place id_ed25519/id_rsa in %USERPROFILE%\.ssh"
+  exit 1
+}
+Write-Host "[Deploy] Using SSH key: $resolvedKey" -ForegroundColor Yellow
 
 # Build remote command: pull latest + restart services + version check
 $remoteCmd = @(
+  'set -e',
   'cd ~/RDWC-v4',
   "git fetch origin $Branch",
   "git reset --hard origin/$Branch",
   'sudo systemctl restart rdwc',
   'sudo systemctl restart rdwc-sensors',
   'sleep 2',
-  'systemctl is-active rdwc',
-  'systemctl is-active rdwc-sensors',
+  'systemctl is-active rdwc || true',
+  'systemctl is-active rdwc-sensors || true',
   'curl -s http://localhost:8080/api/version || true'
 ) -join '; '
 
-Write-Host "[Deploy] Executing remote commands..." -ForegroundColor Cyan
+Write-Host "[Deploy] Executing remote commands via SSH..." -ForegroundColor Cyan
 
-# Requires OpenSSH client installed on Windows
-$sshCmd = "ssh $User@$Host \"$remoteCmd\""
-Write-Host "[Deploy] ssh command: $sshCmd"
+# Use OpenSSH client on Windows; no password prompts (BatchMode)
+$sshArgs = @(
+  '-i', "`"$resolvedKey`"",
+  '-o', 'BatchMode=yes',
+  '-o', 'StrictHostKeyChecking=no',
+  "$User@$Host",
+  "`"$remoteCmd`""
+)
 
+& ssh @sshArgs
+$code = $LASTEXITCODE
+if ($code -ne 0) {
+  Write-Error "[Deploy] Remote deploy failed with exit code $code"
+  exit $code
+}
+
+Write-Host "[Deploy] ✓ Deployment complete" -ForegroundColor Green
+
+# Quick remote API version check from Windows (optional)
 try {
-  $proc = Start-Process -FilePath "powershell" -ArgumentList "-NoProfile", "-Command", $sshCmd -NoNewWindow -PassThru -Wait
-  if ($proc.ExitCode -ne 0) {
-    throw "Remote deploy failed with exit code $($proc.ExitCode)"
-  }
-  Write-Host "[Deploy] ✓ Deployment complete" -ForegroundColor Green
-  Write-Host "[Deploy] Next: Hard-refresh HMI (Ctrl+Shift+R) to load new JS"
+  $ver = Invoke-RestMethod -Method Get -Uri "http://$Host:8080/api/version" -TimeoutSec 5
+  Write-Host "[Deploy] API version: $($ver.version)" -ForegroundColor Green
+} catch {
+  Write-Warning "[Deploy] Could not fetch API version from Windows. HMI should still load; hard-refresh (Ctrl+Shift+R)."
 }
-catch {
-  Write-Error "[Deploy] Error: $_"
-  Write-Host "Tip: Ensure SSH access to the Pi and correct user/password or keys are set."
-}
+
+Write-Host "[Deploy] Next: Hard-refresh HMI to load new JS (Ctrl+Shift+R)" -ForegroundColor Cyan
