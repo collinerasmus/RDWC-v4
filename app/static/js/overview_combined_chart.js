@@ -171,29 +171,20 @@
         const phStatusTargets = data?.phStatus?.targets || {};
         const tempStatus = data?.tempStatus || {};
         console.log('[Overview Combined] Targets from settings:', targets);
+        console.log('[Overview Combined] pH controller targets:', phStatusTargets);
         
-        // Get current pH targets from controller (scheduler-derived)
-        const phLowLive = parseFloat(phStatusTargets.low);
-        const phHighLive = parseFloat(phStatusTargets.high);
-        const phLowSettings = parseFloat(targets['ph_low']);
-        const phHighSettings = parseFloat(targets['ph_high']);
-        const phLowCurrent = Number.isFinite(phLowLive) ? phLowLive : phLowSettings;
-        const phHighCurrent = Number.isFinite(phHighLive) ? phHighLive : phHighSettings;
+        // ALWAYS use pH controller's computed targets (scheduler-derived)
+        const phLowCurrent = parseFloat(phStatusTargets.low);
+        const phHighCurrent = parseFloat(phStatusTargets.high);
         
-        // Build pH target history from settings changes
-        const phTargetHistory = buildSteppedSeriesFromHistory(data?.settingsHistory || [], ['targets.ph_low', 'targets.ph_high'], window);
-        const phLowHistory = phTargetHistory['targets.ph_low'] || [];
-        const phHighHistory = phTargetHistory['targets.ph_high'] || [];
-        
-        // Use historical data if available, otherwise use current values
+        // pH band is horizontal at controller's current values
         let phLowData, phHighData;
-        if (phLowHistory.length > 0 && phHighHistory.length > 0) {
-          phLowData = phLowHistory;
-          phHighData = phHighHistory;
-        } else {
-          // Fallback to current values as horizontal lines
+        if (Number.isFinite(phLowCurrent) && Number.isFinite(phHighCurrent)) {
           phLowData = [ { x: window.start, y: phLowCurrent }, { x: window.end, y: phLowCurrent } ];
           phHighData = [ { x: window.start, y: phHighCurrent }, { x: window.end, y: phHighCurrent } ];
+        } else {
+          phLowData = [];
+          phHighData = [];
         }
         
         // Prefer live EC targets from controller status (scheduler-derived), fallback to settings
@@ -204,8 +195,8 @@
         const ecLow = Number.isFinite(ecLowLive) ? ecLowLive : ecLowSettings;
         const ecHigh = Number.isFinite(ecHighLive) ? ecHighLive : ecHighSettings;
         const hasEcBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh);
-        console.log('[Overview Combined] Parsed values:', { phLow, phHigh, ecLow, ecHigh, ecLowLive, ecHighLive, ecLowSettings, ecHighSettings });
-        console.log('[Overview Combined] hasEcBand?', hasEcBand, 'isFinite checks:', { ecLowFinite: Number.isFinite(ecLow), ecHighFinite: Number.isFinite(ecHigh) });
+        console.log('[Overview Combined] EC band:', { ecLow, ecHigh, hasEcBand });
+        console.log('[Overview Combined] pH band:', { phLowCurrent, phHighCurrent });
 
         // Get temperature target + hysteresis (live)
         // Prefer controller-computed band from temperature status
