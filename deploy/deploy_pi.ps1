@@ -1,21 +1,21 @@
 param(
-  [string]$Host = "192.168.88.55",
+  [string]$PiHost = "192.168.88.55",
   [string]$User = "pi",
   [string]$Branch = "main",
   [string]$KeyPath = ""
 )
 
 $ErrorActionPreference = "Stop"
-Write-Host "[Deploy] Target: $User@$Host Branch: $Branch" -ForegroundColor Cyan
+Write-Host "[Deploy] Target: $User@$PiHost Branch: $Branch" -ForegroundColor Cyan
 
 # Resolve SSH key automatically if not provided
 function Resolve-KeyPath {
   param([string]$Provided)
   if ($Provided -and (Test-Path -LiteralPath $Provided)) { return (Resolve-Path -LiteralPath $Provided).Path }
-  $home = $env:USERPROFILE
+  $userHome = $env:USERPROFILE
   $candidates = @(
-    Join-Path $home ".ssh\id_ed25519",
-    Join-Path $home ".ssh\id_rsa",
+    "$userHome\\.ssh\\id_ed25519",
+    "$userHome\\.ssh\\id_rsa",
     "C:\\Users\\$($env:USERNAME)\\.ssh\\id_ed25519",
     "C:\\Users\\$($env:USERNAME)\\.ssh\\id_rsa"
   )
@@ -51,7 +51,7 @@ $sshArgs = @(
   '-i', "`"$resolvedKey`"",
   '-o', 'BatchMode=yes',
   '-o', 'StrictHostKeyChecking=no',
-  "$User@$Host",
+  "$User@$PiHost",
   "`"$remoteCmd`""
 )
 
@@ -66,7 +66,7 @@ Write-Host "[Deploy] ✓ Deployment complete" -ForegroundColor Green
 
 # Quick remote API version check from Windows (optional)
 try {
-  $ver = Invoke-RestMethod -Method Get -Uri "http://$Host:8080/api/version" -TimeoutSec 5
+  $ver = Invoke-RestMethod -Method Get -Uri "http://$PiHost:8080/api/version" -TimeoutSec 5
   Write-Host "[Deploy] API version: $($ver.version)" -ForegroundColor Green
 } catch {
   Write-Warning "[Deploy] Could not fetch API version from Windows. HMI should still load; hard-refresh (Ctrl+Shift+R)."

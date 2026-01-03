@@ -1,36 +1,174 @@
-# RDWC v4.0.0 — simple & reliable
+# RDWC v4 — Production Hydroponic Automation
 
-Automated RDWC (Recirculating Deep Water Culture) hydroponic controller with pH/EC dosing, temperature control, and grow cycle management.
+<div align="center">
 
-**Hardware**: Raspberry Pi 4 + Atlas Scientific EZO sensors + Peristaltic pumps + Active-low relays  
-**Software**: FastAPI + SQLite + Python 3.9+  
-**Safety-First**: Active-low relays (HIGH=OFF), safe-off on boot, guard rails, alerts
+![Status](https://img.shields.io/badge/Status-Production%20Ready-success)
+![Platform](https://img.shields.io/badge/Platform-Raspberry%20Pi%205-blue)
+![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
+
+**Professional-grade automated RDWC (Recirculating Deep Water Culture) hydroponic controller**
+
+Autonomous pH/EC dosing • Temperature control • Scheduled lighting • Real-time monitoring
+
+[Features](#features) • [Screenshots](#screenshots) • [Quick Start](#quick-start) • [Documentation](#documentation) • [Architecture](#architecture)
+
+</div>
 
 ---
 
-## 🟢 Status: Construction Complete, 90% Commissioning
+## Overview
 
-**As of Dec 15, 2025**: System fully integrated and running 24/7 in unattended AUTO mode with live plants. All core systems operational:
-- ✅ pH/EC auto-dosing with safety guards
-- ✅ Temperature-based chiller control
-- ✅ Scheduled lighting (two edges/day)
-- ✅ Real-time sensor polling (RTD, pH, EC)
-- ✅ Dose event logging with blocked-by tracking
-- ✅ Chart KPI aggregation + relay event log
-- ✅ React HMI with responsive tabs
+RDWC-v4 is a production-ready hydroponic automation system built on Raspberry Pi 5, designed for 24/7 unattended operation. The system manages all critical grow parameters: pH stabilization, nutrient dosing (EC), water temperature, lighting schedules, and circulation — all with comprehensive safety guards and real-time monitoring.
 
-**Next Phase**: Post-overnight validation → field calibrations → production hardening
+**Hardware**: Raspberry Pi 5 + Atlas Scientific EZO sensors + Peristaltic dosing pumps + Active-low relay board  
+**Software**: FastAPI backend + SQLite database + Modern responsive web HMI  
+**Design Philosophy**: Backend-first autonomous controllers + safety-critical relay guards
 
-See [COMMISSIONING_STATUS_DEC15.md](COMMISSIONING_STATUS_DEC15.md) and [SYSTEM_HANDOFF_DEC15.md](SYSTEM_HANDOFF_DEC15.md) for details.
+---
 
-## 📚 Documentation
-- **[Quick Answers](QUICK_ANSWERS.md)** - Fast answers to project management questions ⚡
-- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute safely and effectively
-- **[Project Management](PROJECT_MANAGEMENT.md)** - Organization, best practices, GitHub features
-- **[System Architecture](SYSTEM_ARCHITECTURE.md)** - Technical design and data flows
-- **[GitHub Setup](GITHUB_REPOSITORY_SETUP.md)** - Repository configuration and security
+## 🎯 Current Status
 
-## Quick Start
+**Project Phase**: Performance evaluation & production prototype operation  
+**Commissioning**: ✅ Complete (Dec 2025)  
+**Next Milestone**: New grow cycle when seeds arrive
+
+### System Health
+- ✅ pH/EC auto-dosing with multi-layer safety guards
+- ✅ Temperature-based chiller control (0.5°C precision)
+- ✅ Scheduled lighting with edge-only scheduler (18/6 veg, 12/12 flower)
+- ✅ Real-time sensor polling at 5-second intervals (headless systemd service)
+- ✅ Comprehensive dose event logging with blocked-by tracking
+- ✅ Chart aggregation + relay event timeline
+- ✅ Modern responsive HMI with 10 specialized control tabs
+
+**Uptime**: 24/7 autonomous operation since Dec 22, 2025  
+**Last Deploy**: 2025-12-22, commit `10f9812`  
+**Pi Host**: 192.168.88.55
+
+---
+
+---
+
+## Features
+
+### Autonomous Control Systems
+- **pH Dosing**: Precision pH control with auto/manual modes, configurable bands, daily caps, and dose retry logic
+- **EC/Nutrient Dosing**: Automated Grow/Micro/Bloom dosing with mix ratios, pH-aware guards, and learning mode
+- **Temperature Control**: Smart chiller management with compressor protection, min ON/OFF times, and hysteresis
+- **Lighting**: Edge-only scheduler (two transitions/day) with midnight rollover support and 18/6 or 12/12 photoperiods
+- **Circulation**: Main pump + chiller pump orchestration with anti-flap guards and runtime tracking
+
+### Safety Architecture
+- **Active-Low Relays**: HIGH=OFF ensures fail-safe operation (power loss = pumps OFF)
+- **E-STOP**: Global emergency stop with persistence across restarts
+- **Multi-Layer Guards**: Cooldown timers, daily dose caps, stale sensor blocks, pH/EC interlock
+- **Dose Retries**: Exponential backoff with safety validation before each attempt
+- **Relay Core**: Centralized GPIO control (`relays_core.py`) — the ONLY file that touches pins
+
+### Data & Monitoring
+- **Real-Time Sensors**: Atlas EZO circuits (pH, EC, RTD) polled every 5 seconds via headless systemd service
+- **Comprehensive Logging**: All dose events, relay state changes, and sensor readings stored in SQLite
+- **Historical Charts**: Multi-day trend visualization with custom date ranges and CSV export
+- **Event Timelines**: Visual pump/light activity bars with duration calculations
+- **Health Dashboard**: Live system status with controller health indicators and mode badges
+
+### Modern Web HMI
+- **10 Specialized Tabs**: Overview, Sensors, pH, EC, Calibration, Temperature, Lights, Circulation, Relays, Settings
+- **Responsive Design**: Mobile-friendly CSS with dark theme optimized for grow room monitoring
+- **Real-Time Updates**: 5-second polling with stale data warnings
+- **Chart Library**: Chart.js integration with zoom/pan and time-based X-axes
+- **API Documentation**: Auto-generated Swagger UI and ReDoc
+
+---
+
+## Screenshots
+
+> **Note**: Screenshots will be added here showcasing all 10 tabs of the HMI in the next update.
+
+---
+
+---
+
+## Architecture
+
+### System Design
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Web Browser (HMI)                        │
+│  ┌──────────┬──────────┬──────────┬──────────┬──────────────┐  │
+│  │ Overview │ Sensors  │  pH/EC   │  Lights  │   Relays     │  │
+│  └──────────┴──────────┴──────────┴──────────┴──────────────┘  │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ REST API (5s polling)
+┌────────────────────────────┴────────────────────────────────────┐
+│                    FastAPI Backend (main.py)                    │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Controllers (Autonomous)                                │  │
+│  │  • ph_control.py    • ec_control.py    • scheduler.py   │  │
+│  │  • temperature.py   • relays_core.py                     │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Safety Guards                                            │  │
+│  │  • E-STOP  • Cooldowns  • Daily Caps  • Stale Sensors   │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└────────────────────┬─────────────────┬─────────────────────────┘
+                     │                 │
+        ┌────────────┴────────┐   ┌────┴─────────────────┐
+        │  SQLite Database    │   │  Sensor Poller       │
+        │  (rdwc.db)          │   │  (systemd service)   │
+        │  • readings         │   │  • 5s interval       │
+        │  • dose_events      │   │  • headless         │
+        │  • relay_events     │   │  • PID lock         │
+        │  • settings         │   └──────────┬───────────┘
+        └─────────────────────┘              │
+                     │                        │
+        ┌────────────┴────────────────────────┴───────────────┐
+        │         Hardware (I²C + GPIO)                       │
+        │  ┌──────────────────┐  ┌──────────────────────┐   │
+        │  │ Atlas EZO I²C    │  │ GPIO Relays (BCM)    │   │
+        │  │ • pH (0x63)      │  │ • Active-Low (safe)  │   │
+        │  │ • EC (0x64)      │  │ • 8 channels         │   │
+        │  │ • RTD (0x66)     │  │ • Idempotent writes  │   │
+        │  └──────────────────┘  └──────────────────────┘   │
+        └──────────────────────────────────────────────────────┘
+```
+
+### Key Principles
+
+1. **Backend-First**: All control logic in Python; UI is view-only
+2. **Autonomous Operation**: Controllers run 24/7 without browser open
+3. **Single Source of Truth**: SQLite database for settings, logs, and telemetry
+4. **Centralized GPIO**: Only `relays_core.py` touches hardware pins
+5. **Separation of Concerns**: Sensor poller is separate systemd service
+6. **Safety by Design**: Multi-layer guards prevent hardware damage and unsafe dosing
+
+---
+
+## Documentation
+
+### Quick Reference
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Common tasks and API endpoints
+- **[START_HERE.md](START_HERE.md)** - New user onboarding guide
+- **[HMI_SHOWCASE.md](HMI_SHOWCASE.md)** - Web interface tour
+
+### Technical Docs
+- **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)** - Detailed system design
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Development guidelines
+- **[GITHUB_REPOSITORY_SETUP.md](GITHUB_REPOSITORY_SETUP.md)** - Repository configuration
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history
+
+### Deployment Guides
+- **[PI_DEPLOY_GUIDE.md](PI_DEPLOY_GUIDE.md)** - Raspberry Pi setup
+- **[HMI_SETUP_GUIDE.md](HMI_SETUP_GUIDE.md)** - Frontend deployment
+- **[STATUS_AT_A_GLANCE.md](STATUS_AT_A_GLANCE.md)** - Current system state
+
+### Commissioning
+- **[docs/COMMISSIONING_AUTOMATION.md](docs/COMMISSIONING_AUTOMATION.md)** - Automated commissioning
+- **[.github/copilot-instructions.md](.github/copilot-instructions.md)** - AI coding assistant guide
+
+---
 
 1. **Hardware Setup**: Connect sensors and relays per hardware map below
 2. **Install**: `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`

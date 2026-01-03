@@ -59,28 +59,32 @@
         fetch(`/api/relays/events?name=chiller_pump&last=500`, { cache: 'no-store' })
       ]);
 
-      const processPump = (res, pumpLabel) => {
+      const processPump = async (res, pumpLabel) => {
         if (!res.ok) return [];
-        return (res.json() || [])
-          .then(events => {
-            if (!events) return [];
-            const sorted = events
-              .map(e => ({ ...e, ts: new Date(e.ts).getTime() }))
-              .sort((a, b) => a.ts - b.ts)
-              .filter(e => e.ts >= start && e.ts <= end);
+        try {
+          const events = await res.json();
+          if (!events || !Array.isArray(events)) return [];
+          
+          const sorted = events
+            .map(e => ({ ...e, ts: new Date(e.ts).getTime() }))
+            .sort((a, b) => a.ts - b.ts)
+            .filter(e => e.ts >= start && e.ts <= end);
 
-            const bars = [];
-            for (let i = 0; i < sorted.length; i++) {
-              if (sorted[i].final === true && sorted[i + 1]) {
-                const dur = (sorted[i + 1].ts - sorted[i].ts) / 1000;
-                bars.push({ x: [sorted[i].ts, sorted[i + 1].ts], y: pumpLabel, duration: formatDuration(dur) });
-              } else if (sorted[i].final === true && i === sorted.length - 1) {
-                const dur = (end - sorted[i].ts) / 1000;
-                bars.push({ x: [sorted[i].ts, end], y: pumpLabel, duration: formatDuration(dur) });
-              }
+          const bars = [];
+          for (let i = 0; i < sorted.length; i++) {
+            if (sorted[i].final === true && sorted[i + 1]) {
+              const dur = (sorted[i + 1].ts - sorted[i].ts) / 1000;
+              bars.push({ x: [sorted[i].ts, sorted[i + 1].ts], y: pumpLabel, duration: formatDuration(dur) });
+            } else if (sorted[i].final === true && i === sorted.length - 1) {
+              const dur = (end - sorted[i].ts) / 1000;
+              bars.push({ x: [sorted[i].ts, end], y: pumpLabel, duration: formatDuration(dur) });
             }
-            return bars;
-          });
+          }
+          return bars;
+        } catch (e) {
+          console.error(`[CircChart] processPump error for ${pumpLabel}:`, e);
+          return [];
+        }
       };
 
       const [mainBars, chillerBars] = await Promise.all([

@@ -77,7 +77,7 @@
         const PREF = {
           ph: { min: 5.0, max: 7.8 },
           ec: { min: 0.0, max: 3.0 },
-          temp: { min: 16.0, max: 28.0 }
+          temp: { min: 0.0, max: 26.0 }  // Extended range as requested
         };
 
         function dataMinMax(series) {
@@ -110,29 +110,34 @@
         const aEc = chooseAxis(PREF.ec, ec);
         const aTemp = chooseAxis(PREF.temp, temp);
 
-        // Create or update y-axes
+        // Create or update y-axes with improved positioning
+        // pH on left, EC and Temp stacked on right with offset
         if (!chart.options.scales.yPh) {
           chart.options.scales.yPh = {
             type: 'linear',
             position: 'left',
-            title: { display: true, text: 'pH' },
-            grid: { color: 'rgba(148,163,184,0.12)' }
+            title: { display: true, text: 'pH', color: '#9ca3af', font: { size: 11 } },
+            grid: { color: 'rgba(148,163,184,0.12)' },
+            ticks: { color: '#9ca3af' }
           };
         }
         if (!chart.options.scales.yEc) {
           chart.options.scales.yEc = {
             type: 'linear',
             position: 'right',
-            title: { display: true, text: 'EC (mS/cm)' },
-            grid: { drawOnChartArea: false }
+            title: { display: true, text: 'EC (mS/cm)', color: '#9ca3af', font: { size: 11 } },
+            grid: { drawOnChartArea: false },
+            ticks: { color: '#9ca3af' }
           };
         }
         if (!chart.options.scales.yTemp) {
           chart.options.scales.yTemp = {
             type: 'linear',
             position: 'right',
-            title: { display: true, text: 'Temp (°C)' },
-            grid: { drawOnChartArea: false }
+            offset: true,
+            title: { display: true, text: 'Temp (°C)', color: '#9ca3af', font: { size: 11 } },
+            grid: { drawOnChartArea: false },
+            ticks: { color: '#9ca3af' }
           };
         }
 

@@ -2599,6 +2599,84 @@ def api_settings_import(payload: dict = Body(...)):
     status = 200 if res.get("ok") else 422
     return JSONResponse(status_code=status, content=res)
 
+# ===== SCHEDULER API ENDPOINTS =====
+@app.get("/api/scheduler/config")
+def api_scheduler_config_get():
+    """Get current scheduler configuration"""
+    try:
+        from app.scheduler import load_cfg
+        cfg = load_cfg()
+        return cfg
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.put("/api/scheduler/config")
+def api_scheduler_config_put(body: dict = Body(...)):
+    """Update scheduler configuration
+    Body: {enabled, entries, daily_caps}
+    Example entry: {name, kind, at, duration_sec, days}
+    """
+    try:
+        from app.scheduler import load_cfg, save_cfg
+        
+        # Validate and merge with existing config
+        current = load_cfg()
+        
+        if "enabled" in body:
+            current["enabled"] = bool(body["enabled"])
+        
+        if "entries" in body:
+            # Validate entries structure
+            for entry in body["entries"]:
+                if "name" not in entry or "kind" not in entry:
+                    return JSONResponse(status_code=400, content={"error": "Each entry must have 'name' and 'kind'"})
+                if entry["kind"] == "pulse" and ("at" not in entry or "duration_sec" not in entry):
+                    return JSONResponse(status_code=400, content={"error": "Pulse entries must have 'at' and 'duration_sec'"})
+            current["entries"] = body["entries"]
+        
+        if "daily_caps" in body:
+            current["daily_caps"] = body["daily_caps"]
+        
+        save_cfg(current)
+        return {"ok": True, "config": current}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/scheduler/status")
+def api_scheduler_status():
+    """Get scheduler status and daily usage"""
+    try:
+        from app.scheduler import load_cfg
+        from app.main import sched  # Access the global scheduler instance
+        
+        cfg = load_cfg()
+        status = {
+            "enabled": cfg.get("enabled", False),
+            "lights_on_time": sched._current_lights_on_time if hasattr(sched, '_current_lights_on_time') else None,
+            "lights_off_time": sched._current_lights_off_time if hasattr(sched, '_current_lights_off_time') else None,
+            "daily_used": dict(sched.daily_used) if hasattr(sched, 'daily_used') else {},
+            "daily_caps": cfg.get("daily_caps", {}),
+            "pulse_work": dict(sched._pulse_work) if hasattr(sched, '_pulse_work') else {}
+        }
+        return status
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/scheduler/enable")
+def api_scheduler_enable(body: dict = Body(...)):
+    """Enable or disable scheduler"""
+    try:
+        from app.scheduler import load_cfg, save_cfg
+        
+        enabled = bool(body.get("enabled", True))
+        cfg = load_cfg()
+        cfg["enabled"] = enabled
+        save_cfg(cfg)
+        
+        return {"ok": True, "enabled": enabled}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.get("/api/health/override")
 def health_override():
     """Quick endpoint to reflect current maintenance override and related safety switches.
