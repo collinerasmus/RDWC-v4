@@ -2647,17 +2647,33 @@ def api_scheduler_status():
     """Get scheduler status and daily usage"""
     try:
         from app.scheduler import load_cfg
-        from app.main import sched  # Access the global scheduler instance
         
         cfg = load_cfg()
         status = {
             "enabled": cfg.get("enabled", False),
-            "lights_on_time": sched._current_lights_on_time if hasattr(sched, '_current_lights_on_time') else None,
-            "lights_off_time": sched._current_lights_off_time if hasattr(sched, '_current_lights_off_time') else None,
-            "daily_used": dict(sched.daily_used) if hasattr(sched, 'daily_used') else {},
+            "lights_on_time": None,
+            "lights_off_time": None,
+            "daily_used": {},
             "daily_caps": cfg.get("daily_caps", {}),
-            "pulse_work": dict(sched._pulse_work) if hasattr(sched, '_pulse_work') else {}
+            "pulse_work": {}
         }
+        
+        # Try to get scheduler instance state if available
+        try:
+            import app.main as main_module
+            if hasattr(main_module, 'sched'):
+                sched = main_module.sched
+                if hasattr(sched, '_current_lights_on_time'):
+                    status["lights_on_time"] = sched._current_lights_on_time
+                if hasattr(sched, '_current_lights_off_time'):
+                    status["lights_off_time"] = sched._current_lights_off_time
+                if hasattr(sched, 'daily_used'):
+                    status["daily_used"] = dict(sched.daily_used)
+                if hasattr(sched, '_pulse_work'):
+                    status["pulse_work"] = dict(sched._pulse_work)
+        except Exception:
+            pass  # Scheduler not initialized yet
+        
         return status
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
