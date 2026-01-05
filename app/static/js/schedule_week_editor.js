@@ -8,48 +8,30 @@
   let editingWeekIndex = null;
 
   function init() {
-    // Watch for schedule to load and attach handlers
-    watchAndAttach();
-  }
-
-  function watchAndAttach() {
+    // Use event delegation on timeline container
     const timeline = document.getElementById('schedule-timeline-lanes');
     if (!timeline) return;
 
-    // Initial attempt
-    attachTileHandlers();
+    timeline.addEventListener('click', (e) => {
+      // Find the closest week-block tile
+      const tile = e.target.closest('[data-week]');
+      if (!tile || editingWeekIndex !== null) return;
 
-    // Watch for timeline changes (re-renders)
-    const observer = new MutationObserver(() => {
-      if (editingWeekIndex === null) {
-        attachTileHandlers();
-      }
-    });
-
-    observer.observe(timeline, { childList: true, subtree: true });
-  }
-
-  function attachTileHandlers() {
-    const tiles = document.querySelectorAll('[data-week]');
-    tiles.forEach((tile, idx) => {
-      if (tile._weekEditorAttached) return;
-      tile._weekEditorAttached = true;
-      tile.addEventListener('click', () => onTileClick(idx));
+      const weekNum = parseInt(tile.getAttribute('data-week'), 10);
+      onTileClick(weekNum);
     });
   }
 
-  function onTileClick(idx) {
-    if (editingWeekIndex !== null) return; // Already editing
-
+  function onTileClick(weekNum) {
     const sched = window.scheduleCache || {};
-    if (!sched.weeks || !sched.weeks[idx]) return;
+    if (!sched.weeks) return;
+
+    // Find week by week.week property
+    const idx = sched.weeks.findIndex(w => w.week === weekNum);
+    if (idx === -1) return;
 
     editingWeekIndex = idx;
     const week = sched.weeks[idx];
-    const tile = document.querySelectorAll('[data-week]')[idx];
-
-    // Get tile position for overlay
-    const rect = tile.getBoundingClientRect();
 
     // Create modal overlay
     const modal = document.createElement('div');
@@ -79,7 +61,7 @@
     `;
 
     form.innerHTML = `
-      <div style="font-weight:600;font-size:18px;margin-bottom:20px;color:#e0e0e0;">Edit W${week.week || idx + 1}</div>
+      <div style="font-weight:600;font-size:18px;margin-bottom:20px;color:#e0e0e0;">Edit W${weekNum}</div>
       <div style="display:grid;gap:16px;margin-bottom:20px;">
         <div>
           <label style="display:block;font-size:12px;color:#9ca3af;margin-bottom:6px;">Stage</label>
@@ -129,15 +111,15 @@
     document.getElementById('modalTemp').value = week.temp ?? '';
 
     // Attach handlers
-    document.getElementById('modalSave').addEventListener('click', () => saveWeek(idx, modal));
+    document.getElementById('modalSave').addEventListener('click', () => saveWeek(idx, weekNum, modal));
     document.getElementById('modalCancel').addEventListener('click', () => closeModal(modal));
-    document.getElementById('modalDelete').addEventListener('click', () => deleteWeek(idx, modal));
+    document.getElementById('modalDelete').addEventListener('click', () => deleteWeek(idx, weekNum, modal));
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeModal(modal);
     });
   }
 
-  async function saveWeek(idx, modal) {
+  async function saveWeek(idx, weekNum, modal) {
     const sched = window.scheduleCache || {};
     if (!sched.weeks || !sched.weeks[idx]) return;
 
@@ -169,11 +151,10 @@
     }
   }
 
-  async function deleteWeek(idx, modal) {
+  async function deleteWeek(idx, weekNum, modal) {
     const sched = window.scheduleCache || {};
     if (!sched.weeks || !sched.weeks[idx]) return;
 
-    const weekNum = sched.weeks[idx].week || idx + 1;
     if (!confirm(`Delete W${weekNum}?`)) return;
 
     sched.weeks.splice(idx, 1);
