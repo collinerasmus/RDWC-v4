@@ -10,14 +10,30 @@
   function init() {
     // Use event delegation on timeline container
     const timeline = document.getElementById('schedule-timeline-lanes');
-    if (!timeline) return;
+    if (!timeline) {
+      console.log('[Week Editor] Timeline container not found');
+      return;
+    }
 
+    console.log('[Week Editor] Initialized, listening on timeline');
+    
     timeline.addEventListener('click', (e) => {
+      console.log('[Week Editor] Click detected on:', e.target, 'closest tile:', e.target.closest('[data-week]'));
+      
       // Find the closest week-block tile
       const tile = e.target.closest('[data-week]');
-      if (!tile || editingWeekIndex !== null) return;
+      if (!tile) {
+        console.log('[Week Editor] No tile found in click path');
+        return;
+      }
+      
+      if (editingWeekIndex !== null) {
+        console.log('[Week Editor] Already editing week', editingWeekIndex);
+        return;
+      }
 
       const weekNum = parseInt(tile.getAttribute('data-week'), 10);
+      console.log('[Week Editor] Opening tile for week', weekNum);
       onTileClick(weekNum);
     });
   }
