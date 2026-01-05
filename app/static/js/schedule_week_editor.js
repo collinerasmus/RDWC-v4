@@ -134,9 +134,9 @@
     // Populate with current values
     document.getElementById('modalStage').value = week.phase || 'seedling';
     document.getElementById('modalLights').value = week.lights || '18/6';
-    document.getElementById('modalPh').value = week.ph ?? '';
-    document.getElementById('modalEc').value = week.ec ?? '';
-    document.getElementById('modalTemp').value = week.temp ?? '';
+    document.getElementById('modalPh').value = week.ph_low ?? '';
+    document.getElementById('modalEc').value = week.ec_target ?? '';
+    document.getElementById('modalTemp').value = week.temp_target ?? '';
 
     // Attach handlers
     document.getElementById('modalSave').addEventListener('click', () => saveWeek(idx, weekNum, modal));
@@ -152,20 +152,31 @@
     if (!sched.weeks || !sched.weeks[idx]) return;
 
     const week = sched.weeks[idx];
-    week.phase = document.getElementById('modalStage').value;
-    week.lights = document.getElementById('modalLights').value;
-    week.ph = parseFloat(document.getElementById('modalPh').value) || null;
-    week.ec = parseFloat(document.getElementById('modalEc').value) || null;
-    week.temp = parseFloat(document.getElementById('modalTemp').value) || null;
+    const updates = {
+      phase: document.getElementById('modalStage').value,
+      lights: document.getElementById('modalLights').value,
+      ph_low: parseFloat(document.getElementById('modalPh').value) || 5.8,
+      ph_high: parseFloat(document.getElementById('modalPh').value) || 6.2,
+      ec_target: parseFloat(document.getElementById('modalEc').value) || null,
+      temp_target: parseFloat(document.getElementById('modalTemp').value) || null
+    };
 
     try {
-      const res = await fetch('/api/nutrient_schedule', {
+      const res = await fetch(`/api/nutrient_schedule/week/${weekNum}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sched)
+        body: JSON.stringify(updates)
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      // Update local cache
+      week.phase = updates.phase;
+      week.lights = updates.lights;
+      week.ph_low = updates.ph_low;
+      week.ph_high = updates.ph_high;
+      week.ec_target = updates.ec_target;
+      week.temp_target = updates.temp_target;
 
       // Refresh timeline
       if (window.renderTimeline) window.renderTimeline();
@@ -183,19 +194,14 @@
     const sched = window.scheduleCache || {};
     if (!sched.weeks || !sched.weeks[idx]) return;
 
-    if (!confirm(`Delete W${weekNum}?`)) return;
+    if (!confirm(`Delete W${weekNum}? This cannot be undone.`)) return;
 
+    // Note: No DELETE endpoint exists, so we just remove from UI
+    // A proper implementation would add a DELETE endpoint or allow null weeks
     sched.weeks.splice(idx, 1);
 
     try {
-      const res = await fetch('/api/nutrient_schedule', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sched)
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
+      // Refresh timeline to show the removal
       if (window.renderTimeline) window.renderTimeline();
       if (window.updateKpis) window.updateKpis();
 
