@@ -7,6 +7,7 @@
   'use strict';
 
   let selectedWeekIndex = null;
+  let watchTimer = null;
 
   function init() {
     const weekSelect = document.getElementById('weekSelect');
@@ -15,30 +16,51 @@
 
     if (!weekSelect || !btnUpdateWeek || !btnDeleteWeek) return;
 
-    // Initial population from existing schedule.js cache
-    setTimeout(() => {
+    // Attach event listeners immediately
+    weekSelect.addEventListener('change', onWeekSelected);
+    btnUpdateWeek.addEventListener('click', updateSelectedWeek);
+    btnDeleteWeek.addEventListener('click', deleteSelectedWeek);
+
+    // Watch for scheduleCache to become available (schedule.js loads it)
+    watchForScheduleCache();
+  }
+
+  function watchForScheduleCache() {
+    // Try to populate immediately if cache exists
+    if (window.scheduleCache && window.scheduleCache.weeks) {
       populateWeekSelector();
-      attachEventListeners();
-    }, 300);
+      if (watchTimer) clearInterval(watchTimer);
+      return;
+    }
+
+    // Otherwise, poll every 500ms until it appears (max 10 seconds)
+    let attempts = 0;
+    watchTimer = setInterval(() => {
+      if (window.scheduleCache && window.scheduleCache.weeks) {
+        populateWeekSelector();
+        clearInterval(watchTimer);
+        return;
+      }
+      attempts++;
+      if (attempts > 20) {
+        // Timeout - schedule probably won't load
+        clearInterval(watchTimer);
+      }
+    }, 500);
   }
 
   function populateWeekSelector() {
     const select = document.getElementById('weekSelect');
     if (!select) return;
 
-    select.innerHTML = '<option value="">Select a week...</option>';
-
     // Use global scheduleCache from schedule.js (single source of truth)
     const sched = window.scheduleCache || {};
     if (!sched.weeks || !Array.isArray(sched.weeks) || sched.weeks.length === 0) {
-      const opt = document.createElement('option');
-      opt.value = '';
-      opt.textContent = 'No schedule loaded';
-      opt.disabled = true;
-      select.appendChild(opt);
+      select.innerHTML = '<option value="">Select a week...</option>';
       return;
     }
 
+    select.innerHTML = '<option value="">Select a week...</option>';
     sched.weeks.forEach((week, idx) => {
       const label = `W${week.week || idx + 1}: ${week.phase || 'N/A'} (EC: ${week.ec?.toFixed(1) || '?'})`;
       const option = document.createElement('option');
@@ -46,18 +68,6 @@
       option.textContent = label;
       select.appendChild(option);
     });
-  }
-
-  function attachEventListeners() {
-    const weekSelect = document.getElementById('weekSelect');
-    const btnUpdateWeek = document.getElementById('btnUpdateWeek');
-    const btnDeleteWeek = document.getElementById('btnDeleteWeek');
-
-    if (!weekSelect || !btnUpdateWeek || !btnDeleteWeek) return;
-
-    weekSelect.addEventListener('change', onWeekSelected);
-    btnUpdateWeek.addEventListener('click', updateSelectedWeek);
-    btnDeleteWeek.addEventListener('click', deleteSelectedWeek);
   }
 
   function onWeekSelected() {
@@ -207,5 +217,5 @@
   }
 
   if (document.readyState !== 'loading') init();
-  else document.addEventListener('DOMContentLoaded', () => setTimeout(init, 300));
+  else document.addEventListener('DOMContentLoaded', () => setTimeout(init, 100));
 })();
