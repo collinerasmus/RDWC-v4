@@ -488,9 +488,9 @@
         const phMax = Number.isFinite(phHighCurrent) ? Math.max(phHighCurrent + 0.8, 7.5) : 7.5;
         const ecMin = 0.0;
         const ecMax = 4.0;
-        // Scale temp axis: anchor band near bottom with slight headroom
-        const tempAxisMin = Math.floor(tempLow - 1);
-        const tempAxisMax = Math.ceil(tempHigh + 6);
+        // Fixed temperature axis range: 0-26°C as requested
+        const tempAxisMin = 0;
+        const tempAxisMax = 26;
 
         chartInstance.options.scales.yPh.min = phMin;
         chartInstance.options.scales.yPh.max = phMax;
