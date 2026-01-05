@@ -40,14 +40,26 @@
 
   function onTileClick(weekNum) {
     const sched = window.scheduleCache || {};
-    if (!sched.weeks) return;
+    console.log('[Week Editor] scheduleCache content:', sched);
+    console.log('[Week Editor] weeks array:', sched.weeks);
+    
+    if (!sched.weeks) {
+      console.log('[Week Editor] No weeks array in cache');
+      return;
+    }
 
     // Find week by week.week property
     const idx = sched.weeks.findIndex(w => w.week === weekNum);
-    if (idx === -1) return;
+    console.log('[Week Editor] Looking for weekNum', weekNum, 'found idx:', idx);
+    
+    if (idx === -1) {
+      console.log('[Week Editor] Week not found in array');
+      return;
+    }
 
     editingWeekIndex = idx;
     const week = sched.weeks[idx];
+    console.log('[Week Editor] Opening week at index', idx, ':', week);
 
     // Create modal overlay
     const modal = document.createElement('div');
