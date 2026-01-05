@@ -357,6 +357,12 @@
   };
   window.scheduleInit = window.scheduleModule.init;
   window.scheduleRefresh = window.scheduleModule.refresh;
+  
+  // Expose scheduleCache for week editor
+  Object.defineProperty(window, 'scheduleCache', {
+    get() { return scheduleCache; },
+    set(v) { scheduleCache = v; }
+  });
 
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', ()=>{init(); startPoll();});
