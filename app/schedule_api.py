@@ -246,6 +246,61 @@ def update_week(week_num: int, updates: dict):
 
     return {"ok": True, "week": week_num, "updated": list((updates or {}).keys())}
 
+
+@router.post("/api/nutrient_schedule/week")
+def upsert_week(payload: dict):
+    """Insert or replace a week in the nutrient schedule."""
+    try:
+        week_num = int(payload.get("week", 0))
+    except Exception:
+        week_num = 0
+    if week_num < 1 or week_num > 52:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "Week must be 1-52"})
+
+    _ensure_table()
+
+    allowed_fields = [
+        "phase", "grow_ml10", "micro_ml10", "bloom_ml10", "ec_target",
+        "ph_low", "ph_high", "temp_target", "lights", "notes"
+    ]
+    fields = ["week"]
+    values = [week_num]
+
+    for key in allowed_fields:
+        if key in payload:
+            fields.append(key)
+            values.append(payload[key])
+
+    if len(fields) == 1:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "No valid fields to insert"})
+
+    placeholders = ",".join(["?"] * len(fields))
+    columns = ",".join(fields)
+
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        conn.execute(
+            f"REPLACE INTO nutrient_schedule ({columns}) VALUES ({placeholders})",
+            values
+        )
+        conn.commit()
+
+    return {"ok": True, "week": week_num, "updated": fields}
+
+
+@router.delete("/api/nutrient_schedule/week/{week_num}")
+def delete_week(week_num: int):
+    """Delete a specific week from the nutrient schedule."""
+    if week_num < 1 or week_num > 52:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "Week must be 1-52"})
+
+    _ensure_table()
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        cur = conn.execute("DELETE FROM nutrient_schedule WHERE week = ?", (week_num,))
+        conn.commit()
+        deleted = cur.rowcount
+
+    return {"ok": True, "deleted": deleted, "week": week_num}
+
 @router.post("/api/nutrient_schedule/reset")
 def reset_nutrient_schedule():
     """Clear and reseed schedule with default AUTO values."""

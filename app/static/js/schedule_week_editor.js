@@ -36,6 +36,12 @@
       console.log('[Week Editor] Opening tile for week', weekNum);
       onTileClick(weekNum);
     });
+
+    // Add week button
+    const addBtn = document.getElementById('schedule-add-week-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', addWeekFromLast);
+    }
   }
 
   function onTileClick(weekNum) {
@@ -219,19 +225,72 @@
 
     if (!confirm(`Delete W${weekNum}? This cannot be undone.`)) return;
 
-    // Note: No DELETE endpoint exists, so we just remove from UI
-    // A proper implementation would add a DELETE endpoint or allow null weeks
-    sched.weeks.splice(idx, 1);
-
     try {
-      // Refresh timeline to show the removal
+      const res = await fetch(`/api/nutrient_schedule/week/${weekNum}`, { method: 'DELETE' });
+      const result = await res.json().catch(() => ({}));
+      console.log('[Week Editor] Delete response:', result);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${result.error || 'unknown'}`);
+
+      // Remove locally
+      sched.weeks.splice(idx, 1);
+
       if (window.renderTimeline) window.renderTimeline();
       if (window.updateKpis) window.updateKpis();
+      if (window.scheduleRefresh) {
+        try { await window.scheduleRefresh(); } catch (_) {}
+      }
 
       closeModal(modal);
     } catch (e) {
       console.error('[Week Editor] Delete failed:', e);
       showStatus(modal, 'Delete failed', 'error');
+    }
+  }
+
+  async function addWeekFromLast() {
+    const sched = window.scheduleCache || {};
+    const weeks = sched.weeks || [];
+    if (!weeks.length) return;
+
+    const last = weeks[weeks.length - 1];
+    const newWeekNum = (last.week || weeks.length) + 1;
+
+    const payload = {
+      week: newWeekNum,
+      phase: last.phase || 'veg',
+      grow_ml10: last.grow_ml10 ?? 0,
+      micro_ml10: last.micro_ml10 ?? 0,
+      bloom_ml10: last.bloom_ml10 ?? 0,
+      ec_target: last.ec_target ?? 1.0,
+      ph_low: last.ph_low ?? 5.8,
+      ph_high: last.ph_high ?? 6.2,
+      temp_target: last.temp_target ?? 20.0,
+      lights: last.lights || '18/6',
+      notes: last.notes || ''
+    };
+
+    console.log('[Week Editor] Adding week', newWeekNum, payload);
+
+    try {
+      const res = await fetch('/api/nutrient_schedule/week', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json().catch(() => ({}));
+      console.log('[Week Editor] Add response:', result);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${result.error || 'unknown'}`);
+
+      // Push locally to show immediately
+      weeks.push({ ...payload });
+      if (window.renderTimeline) window.renderTimeline();
+      if (window.updateKpis) window.updateKpis();
+      if (window.scheduleRefresh) {
+        try { await window.scheduleRefresh(); } catch (_) {}
+      }
+    } catch (e) {
+      console.error('[Week Editor] Add week failed:', e);
+      if (window.showToast) window.showToast('Add week failed', 'error');
     }
   }
 

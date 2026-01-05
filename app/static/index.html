@@ -865,9 +865,12 @@ body{
 
       <!-- Timeline Visualization -->
       <hr class="separator" />
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;">
         <div class="muted" style="font-weight:600;">Schedule Timeline</div>
-        <button id="schedule-refresh-btn" class="btn-secondary btn-small">Refresh</button>
+        <div style="display:flex;gap:6px;">
+          <button id="schedule-add-week-btn" class="btn-secondary btn-small" title="Add a new week">Add Week</button>
+          <button id="schedule-refresh-btn" class="btn-secondary btn-small">Refresh</button>
+        </div>
       </div>
       <div id="schedule-timeline-lanes" class="schedule-timeline-lanes" style="min-height:120px;position:relative;overflow:hidden;margin-bottom:12px;">
         <div class="muted" style="font-size:var(--font-sm);opacity:.6;">Loading schedule…</div>
