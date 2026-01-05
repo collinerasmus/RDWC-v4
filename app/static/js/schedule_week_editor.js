@@ -152,14 +152,30 @@
     if (!sched.weeks || !sched.weeks[idx]) return;
 
     const week = sched.weeks[idx];
+
+    // Normalize inputs (handle comma decimals, preserve existing on blank)
+    const parseNumber = (val, fallback) => {
+      if (val === undefined || val === null) return fallback;
+      const cleaned = String(val).replace(',', '.').trim();
+      if (cleaned === '') return fallback;
+      const n = Number.parseFloat(cleaned);
+      return Number.isFinite(n) ? n : fallback;
+    };
+
+    const phInput = document.getElementById('modalPh').value;
+    const ecInput = document.getElementById('modalEc').value;
+    const tempInput = document.getElementById('modalTemp').value;
+
     const updates = {
       phase: document.getElementById('modalStage').value,
       lights: document.getElementById('modalLights').value,
-      ph_low: parseFloat(document.getElementById('modalPh').value) || 5.8,
-      ph_high: parseFloat(document.getElementById('modalPh').value) || 6.2,
-      ec_target: parseFloat(document.getElementById('modalEc').value) || null,
-      temp_target: parseFloat(document.getElementById('modalTemp').value) || null
+      ph_low: parseNumber(phInput, week.ph_low ?? 5.8),
+      ph_high: parseNumber(phInput, week.ph_high ?? 6.2),
+      ec_target: parseNumber(ecInput, week.ec_target ?? null),
+      temp_target: parseNumber(tempInput, week.temp_target ?? null)
     };
+
+    console.log('[Week Editor] Sending updates for week', weekNum, updates);
 
     try {
       const res = await fetch(`/api/nutrient_schedule/week/${weekNum}`, {
@@ -168,9 +184,11 @@
         body: JSON.stringify(updates)
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const result = await res.json().catch(() => ({}));
+      console.log('[Week Editor] API response:', result);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${result.error || 'unknown'}`);
 
-      // Update local cache
+      // Update local cache so UI reflects immediately
       week.phase = updates.phase;
       week.lights = updates.lights;
       week.ph_low = updates.ph_low;
@@ -178,9 +196,14 @@
       week.ec_target = updates.ec_target;
       week.temp_target = updates.temp_target;
 
-      // Refresh timeline
+      // Re-render from cache
       if (window.renderTimeline) window.renderTimeline();
       if (window.updateKpis) window.updateKpis();
+
+      // Pull fresh from backend to avoid duplication/staleness
+      if (window.scheduleRefresh) {
+        try { await window.scheduleRefresh(); } catch (_) {}
+      }
 
       showStatus(modal, 'Saved ✓', 'success');
       setTimeout(() => closeModal(modal), 800);
