@@ -1,163 +1,154 @@
 /**
- * Schedule Week Editor - Edit schedule weeks directly
- * Reuses scheduleCache from schedule.js (single source of truth)
- * No duplicate API calls or data
+ * Schedule Week Editor - Click tiles to edit inline
+ * Makes week tiles clickable and editable
  */
 (function() {
   'use strict';
 
-  let selectedWeekIndex = null;
-  let watchTimer = null;
+  let editingWeekIndex = null;
 
   function init() {
-    const weekSelect = document.getElementById('weekSelect');
-    const btnUpdateWeek = document.getElementById('btnUpdateWeek');
-    const btnDeleteWeek = document.getElementById('btnDeleteWeek');
-
-    if (!weekSelect || !btnUpdateWeek || !btnDeleteWeek) return;
-
-    // Attach event listeners immediately
-    weekSelect.addEventListener('change', onWeekSelected);
-    btnUpdateWeek.addEventListener('click', updateSelectedWeek);
-    btnDeleteWeek.addEventListener('click', deleteSelectedWeek);
-
-    // Watch for scheduleCache to become available (schedule.js loads it)
-    watchForScheduleCache();
+    // Watch for schedule to load and attach handlers
+    watchAndAttach();
   }
 
-  function watchForScheduleCache() {
-    // Try to populate immediately if cache exists
-    if (window.scheduleCache && window.scheduleCache.weeks) {
-      populateWeekSelector();
-      if (watchTimer) clearInterval(watchTimer);
-      return;
-    }
+  function watchAndAttach() {
+    const timeline = document.getElementById('schedule-timeline-lanes');
+    if (!timeline) return;
 
-    // Otherwise, poll every 500ms until it appears (max 10 seconds)
-    let attempts = 0;
-    watchTimer = setInterval(() => {
-      if (window.scheduleCache && window.scheduleCache.weeks) {
-        populateWeekSelector();
-        clearInterval(watchTimer);
-        return;
+    // Initial attempt
+    attachTileHandlers();
+
+    // Watch for timeline changes (re-renders)
+    const observer = new MutationObserver(() => {
+      if (editingWeekIndex === null) {
+        attachTileHandlers();
       }
-      attempts++;
-      if (attempts > 20) {
-        // Timeout - schedule probably won't load
-        clearInterval(watchTimer);
-      }
-    }, 500);
+    });
+
+    observer.observe(timeline, { childList: true, subtree: true });
   }
 
-  function populateWeekSelector() {
-    const select = document.getElementById('weekSelect');
-    if (!select) return;
-
-    // Use global scheduleCache from schedule.js (single source of truth)
-    const sched = window.scheduleCache || {};
-    if (!sched.weeks || !Array.isArray(sched.weeks) || sched.weeks.length === 0) {
-      select.innerHTML = '<option value="">Select a week...</option>';
-      return;
-    }
-
-    select.innerHTML = '<option value="">Select a week...</option>';
-    sched.weeks.forEach((week, idx) => {
-      const label = `W${week.week || idx + 1}: ${week.phase || 'N/A'} (EC: ${week.ec?.toFixed(1) || '?'})`;
-      const option = document.createElement('option');
-      option.value = idx;
-      option.textContent = label;
-      select.appendChild(option);
+  function attachTileHandlers() {
+    const tiles = document.querySelectorAll('[data-week]');
+    tiles.forEach((tile, idx) => {
+      if (tile._weekEditorAttached) return;
+      tile._weekEditorAttached = true;
+      tile.addEventListener('click', () => onTileClick(idx));
     });
   }
 
-  function onWeekSelected() {
-    const select = document.getElementById('weekSelect');
-    selectedWeekIndex = parseInt(select.value, 10);
-
-    if (isNaN(selectedWeekIndex)) {
-      clearWeekForm();
-      return;
-    }
+  function onTileClick(idx) {
+    if (editingWeekIndex !== null) return; // Already editing
 
     const sched = window.scheduleCache || {};
-    if (!sched.weeks || !sched.weeks[selectedWeekIndex]) {
-      clearWeekForm();
-      return;
-    }
+    if (!sched.weeks || !sched.weeks[idx]) return;
 
-    const week = sched.weeks[selectedWeekIndex];
+    editingWeekIndex = idx;
+    const week = sched.weeks[idx];
+    const tile = document.querySelectorAll('[data-week]')[idx];
 
-    // Populate form fields from week data
-    document.getElementById('stageSelect').value = week.phase || week.stage || 'seedling';
-    document.getElementById('lightCycleInput').value = week.lights || week.light_cycle || '18/6';
-    document.getElementById('phInput').value = week.ph ?? '';
-    document.getElementById('ecInput').value = week.ec ?? '';
-    document.getElementById('tempInput').value = week.temp || '';
+    // Get tile position for overlay
+    const rect = tile.getBoundingClientRect();
+
+    // Create modal overlay
+    const modal = document.createElement('div');
+    modal.id = 'week-editor-modal';
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    `;
+
+    const form = document.createElement('div');
+    form.style.cssText = `
+      background: #0f172a;
+      border: 1px solid #374151;
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+    `;
+
+    form.innerHTML = `
+      <div style="font-weight:600;font-size:18px;margin-bottom:20px;color:#e0e0e0;">Edit W${week.week || idx + 1}</div>
+      <div style="display:grid;gap:16px;margin-bottom:20px;">
+        <div>
+          <label style="display:block;font-size:12px;color:#9ca3af;margin-bottom:6px;">Stage</label>
+          <select id="modalStage" style="width:100%;height:36px;padding:0 10px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:14px;">
+            <option value="seedling">Seedling</option>
+            <option value="veg">Veg</option>
+            <option value="preflower">Preflower</option>
+            <option value="flower">Flower</option>
+            <option value="flush">Flush</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:#9ca3af;margin-bottom:6px;">Light Cycle</label>
+          <input type="text" id="modalLights" placeholder="18/6" style="width:100%;height:36px;padding:0 10px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:14px;" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label style="display:block;font-size:12px;color:#9ca3af;margin-bottom:6px;">pH</label>
+            <input type="number" id="modalPh" placeholder="6.0" min="4" max="8" step="0.1" style="width:100%;height:36px;padding:0 10px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:14px;" />
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;color:#9ca3af;margin-bottom:6px;">EC</label>
+            <input type="number" id="modalEc" placeholder="1.0" min="0" max="3" step="0.1" style="width:100%;height:36px;padding:0 10px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:14px;" />
+          </div>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:#9ca3af;margin-bottom:6px;">Temp (°C)</label>
+          <input type="number" id="modalTemp" placeholder="20" min="10" max="30" step="0.5" style="width:100%;height:36px;padding:0 10px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:14px;" />
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <button id="modalSave" class="btn-secondary" style="padding:10px 16px;">💾 Save</button>
+        <button id="modalCancel" class="btn-secondary" style="padding:10px 16px;background:rgba(148,163,184,0.15);border-color:rgba(148,163,184,0.3);">Cancel</button>
+      </div>
+      <button id="modalDelete" class="btn-secondary" style="width:100%;padding:10px 16px;background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.3);color:#fecaca;">🗑️ Delete Week</button>
+      <div id="modalStatus" style="margin-top:12px;font-size:12px;text-align:center;color:#9ca3af;"></div>
+    `;
+
+    modal.appendChild(form);
+    document.body.appendChild(modal);
+
+    // Populate with current values
+    document.getElementById('modalStage').value = week.phase || 'seedling';
+    document.getElementById('modalLights').value = week.lights || '18/6';
+    document.getElementById('modalPh').value = week.ph ?? '';
+    document.getElementById('modalEc').value = week.ec ?? '';
+    document.getElementById('modalTemp').value = week.temp ?? '';
+
+    // Attach handlers
+    document.getElementById('modalSave').addEventListener('click', () => saveWeek(idx, modal));
+    document.getElementById('modalCancel').addEventListener('click', () => closeModal(modal));
+    document.getElementById('modalDelete').addEventListener('click', () => deleteWeek(idx, modal));
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal(modal);
+    });
   }
 
-  function clearWeekForm() {
-    selectedWeekIndex = null;
-    document.getElementById('stageSelect').value = 'seedling';
-    document.getElementById('lightCycleInput').value = '';
-    document.getElementById('phInput').value = '';
-    document.getElementById('ecInput').value = '';
-    document.getElementById('tempInput').value = '';
-  }
-
-  async function updateSelectedWeek() {
-    if (selectedWeekIndex === null) {
-      showFeedback('Please select a week first', 'error');
-      return;
-    }
-
+  async function saveWeek(idx, modal) {
     const sched = window.scheduleCache || {};
-    if (!sched.weeks || !sched.weeks[selectedWeekIndex]) {
-      showFeedback('Week not found', 'error');
-      return;
-    }
+    if (!sched.weeks || !sched.weeks[idx]) return;
 
-    const week = sched.weeks[selectedWeekIndex];
+    const week = sched.weeks[idx];
+    week.phase = document.getElementById('modalStage').value;
+    week.lights = document.getElementById('modalLights').value;
+    week.ph = parseFloat(document.getElementById('modalPh').value) || null;
+    week.ec = parseFloat(document.getElementById('modalEc').value) || null;
+    week.temp = parseFloat(document.getElementById('modalTemp').value) || null;
 
-    // Update week object from form
-    week.phase = document.getElementById('stageSelect').value;
-    week.lights = document.getElementById('lightCycleInput').value;
-    week.ph = parseFloat(document.getElementById('phInput').value) || null;
-    week.ec = parseFloat(document.getElementById('ecInput').value) || null;
-    week.temp = parseFloat(document.getElementById('tempInput').value) || null;
-
-    // Save to API
-    await saveSchedule();
-  }
-
-  async function deleteSelectedWeek() {
-    if (selectedWeekIndex === null) {
-      showFeedback('Please select a week first', 'error');
-      return;
-    }
-
-    const sched = window.scheduleCache || {};
-    if (!sched.weeks || !sched.weeks[selectedWeekIndex]) {
-      showFeedback('Week not found', 'error');
-      return;
-    }
-
-    const weekNum = sched.weeks[selectedWeekIndex].week || selectedWeekIndex + 1;
-    if (!confirm(`Delete W${weekNum}? This cannot be undone.`)) {
-      return;
-    }
-
-    sched.weeks.splice(selectedWeekIndex, 1);
-    selectedWeekIndex = null;
-    clearWeekForm();
-
-    // Save to API
-    await saveSchedule();
-  }
-
-  async function saveSchedule() {
     try {
-      const sched = window.scheduleCache || {};
-
       const res = await fetch('/api/nutrient_schedule', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -166,54 +157,57 @@
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      // Refresh UI
-      populateWeekSelector();
-      clearWeekForm();
-      
-      // Trigger schedule.js timeline refresh if available
-      if (window.renderTimeline) {
-        window.renderTimeline();
-      }
-      if (window.updateKpis) {
-        window.updateKpis();
-      }
-      
-      showFeedback('Schedule updated successfully', 'success');
+      // Refresh timeline
+      if (window.renderTimeline) window.renderTimeline();
+      if (window.updateKpis) window.updateKpis();
+
+      showStatus(modal, 'Saved ✓', 'success');
+      setTimeout(() => closeModal(modal), 800);
     } catch (e) {
-      console.error('[Schedule Week Editor] Save failed:', e);
-      showFeedback(`Save failed: ${e.message}`, 'error');
+      console.error('[Week Editor] Save failed:', e);
+      showStatus(modal, 'Save failed', 'error');
     }
   }
 
-  function showFeedback(msg, type) {
-    let feedback = document.getElementById('scheduleWeekEditorFeedback');
-    if (!feedback) {
-      feedback = document.createElement('div');
-      feedback.id = 'scheduleWeekEditorFeedback';
-      const container = document.getElementById('week-editor-container');
-      if (container) {
-        container.appendChild(feedback);
-      } else {
-        return;
-      }
+  async function deleteWeek(idx, modal) {
+    const sched = window.scheduleCache || {};
+    if (!sched.weeks || !sched.weeks[idx]) return;
+
+    const weekNum = sched.weeks[idx].week || idx + 1;
+    if (!confirm(`Delete W${weekNum}?`)) return;
+
+    sched.weeks.splice(idx, 1);
+
+    try {
+      const res = await fetch('/api/nutrient_schedule', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sched)
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      if (window.renderTimeline) window.renderTimeline();
+      if (window.updateKpis) window.updateKpis();
+
+      closeModal(modal);
+    } catch (e) {
+      console.error('[Week Editor] Delete failed:', e);
+      showStatus(modal, 'Delete failed', 'error');
     }
+  }
 
-    feedback.style.cssText = `
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: var(--font-xs);
-      margin-top: 8px;
-      ${type === 'success' 
-        ? 'background: rgba(16,185,129,0.2); border: 1px solid rgba(16,185,129,0.4); color: #86efac;'
-        : 'background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.4); color: #fecaca;'
-      }
-    `;
-    feedback.textContent = msg;
-    feedback.style.display = 'block';
+  function showStatus(modal, msg, type) {
+    const status = modal.querySelector('#modalStatus');
+    if (status) {
+      status.textContent = msg;
+      status.style.color = type === 'success' ? '#86efac' : '#fecaca';
+    }
+  }
 
-    setTimeout(() => {
-      feedback.style.display = 'none';
-    }, 4000);
+  function closeModal(modal) {
+    editingWeekIndex = null;
+    modal.remove();
   }
 
   if (document.readyState !== 'loading') init();
