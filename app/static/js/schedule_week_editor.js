@@ -207,6 +207,20 @@
     modal.remove();
   }
 
-  if (document.readyState !== 'loading') init();
-  else document.addEventListener('DOMContentLoaded', () => setTimeout(init, 100));
+  // Wait for DOM ready and then attach listener
+  function waitAndInit() {
+    const timeline = document.getElementById('schedule-timeline-lanes');
+    if (!timeline) {
+      console.log('[Week Editor] Timeline not found yet, retrying...');
+      setTimeout(waitAndInit, 500);
+      return;
+    }
+    init();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(waitAndInit, 100));
+  } else {
+    setTimeout(waitAndInit, 100);
+  }
 })();
