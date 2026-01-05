@@ -1,11 +1,11 @@
 /**
  * Schedule Week Editor - Edit schedule weeks directly
- * Allows users to add/delete/modify week parameters and persist via API
+ * Reuses scheduleCache from schedule.js (single source of truth)
+ * No duplicate API calls or data
  */
 (function() {
   'use strict';
 
-  let scheduleData = {};
   let selectedWeekIndex = null;
 
   function init() {
@@ -15,41 +15,49 @@
 
     if (!weekSelect || !btnUpdateWeek || !btnDeleteWeek) return;
 
-    // Load schedule on init
-    loadSchedule();
-
-    // Event listeners
-    weekSelect.addEventListener('change', onWeekSelected);
-    btnUpdateWeek.addEventListener('click', updateSelectedWeek);
-    btnDeleteWeek.addEventListener('click', deleteSelectedWeek);
-  }
-
-  async function loadSchedule() {
-    try {
-      const res = await fetch('/api/scheduler/config');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      scheduleData = await res.json();
+    // Initial population from existing schedule.js cache
+    setTimeout(() => {
       populateWeekSelector();
-    } catch (e) {
-      console.error('[Schedule Week Editor] Failed to load schedule:', e);
-    }
+      attachEventListeners();
+    }, 300);
   }
 
   function populateWeekSelector() {
     const select = document.getElementById('weekSelect');
+    if (!select) return;
+
     select.innerHTML = '<option value="">Select a week...</option>';
 
-    if (!scheduleData.weeks || !Array.isArray(scheduleData.weeks)) {
+    // Use global scheduleCache from schedule.js (single source of truth)
+    const sched = window.scheduleCache || {};
+    if (!sched.weeks || !Array.isArray(sched.weeks) || sched.weeks.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No schedule loaded';
+      opt.disabled = true;
+      select.appendChild(opt);
       return;
     }
 
-    scheduleData.weeks.forEach((week, idx) => {
-      const label = `W${idx + 1}: ${week.stage || 'N/A'} (EC: ${week.ec?.toFixed(1) || '?'})`;
+    sched.weeks.forEach((week, idx) => {
+      const label = `W${week.week || idx + 1}: ${week.phase || 'N/A'} (EC: ${week.ec?.toFixed(1) || '?'})`;
       const option = document.createElement('option');
       option.value = idx;
       option.textContent = label;
       select.appendChild(option);
     });
+  }
+
+  function attachEventListeners() {
+    const weekSelect = document.getElementById('weekSelect');
+    const btnUpdateWeek = document.getElementById('btnUpdateWeek');
+    const btnDeleteWeek = document.getElementById('btnDeleteWeek');
+
+    if (!weekSelect || !btnUpdateWeek || !btnDeleteWeek) return;
+
+    weekSelect.addEventListener('change', onWeekSelected);
+    btnUpdateWeek.addEventListener('click', updateSelectedWeek);
+    btnDeleteWeek.addEventListener('click', deleteSelectedWeek);
   }
 
   function onWeekSelected() {
@@ -61,15 +69,20 @@
       return;
     }
 
-    const week = scheduleData.weeks[selectedWeekIndex];
-    if (!week) return;
+    const sched = window.scheduleCache || {};
+    if (!sched.weeks || !sched.weeks[selectedWeekIndex]) {
+      clearWeekForm();
+      return;
+    }
 
-    // Populate form fields
-    document.getElementById('stageSelect').value = week.stage || 'seedling';
-    document.getElementById('lightCycleInput').value = week.light_cycle || '18/6';
+    const week = sched.weeks[selectedWeekIndex];
+
+    // Populate form fields from week data
+    document.getElementById('stageSelect').value = week.phase || week.stage || 'seedling';
+    document.getElementById('lightCycleInput').value = week.lights || week.light_cycle || '18/6';
     document.getElementById('phInput').value = week.ph ?? '';
     document.getElementById('ecInput').value = week.ec ?? '';
-    document.getElementById('tempInput').value = week.temp ?? '';
+    document.getElementById('tempInput').value = week.temp || '';
   }
 
   function clearWeekForm() {
@@ -83,16 +96,21 @@
 
   async function updateSelectedWeek() {
     if (selectedWeekIndex === null) {
-      alert('Please select a week first');
+      showFeedback('Please select a week first', 'error');
       return;
     }
 
-    const week = scheduleData.weeks[selectedWeekIndex];
-    if (!week) return;
+    const sched = window.scheduleCache || {};
+    if (!sched.weeks || !sched.weeks[selectedWeekIndex]) {
+      showFeedback('Week not found', 'error');
+      return;
+    }
+
+    const week = sched.weeks[selectedWeekIndex];
 
     // Update week object from form
-    week.stage = document.getElementById('stageSelect').value;
-    week.light_cycle = document.getElementById('lightCycleInput').value;
+    week.phase = document.getElementById('stageSelect').value;
+    week.lights = document.getElementById('lightCycleInput').value;
     week.ph = parseFloat(document.getElementById('phInput').value) || null;
     week.ec = parseFloat(document.getElementById('ecInput').value) || null;
     week.temp = parseFloat(document.getElementById('tempInput').value) || null;
@@ -103,15 +121,22 @@
 
   async function deleteSelectedWeek() {
     if (selectedWeekIndex === null) {
-      alert('Please select a week first');
+      showFeedback('Please select a week first', 'error');
       return;
     }
 
-    if (!confirm(`Delete W${selectedWeekIndex + 1}? This cannot be undone.`)) {
+    const sched = window.scheduleCache || {};
+    if (!sched.weeks || !sched.weeks[selectedWeekIndex]) {
+      showFeedback('Week not found', 'error');
       return;
     }
 
-    scheduleData.weeks.splice(selectedWeekIndex, 1);
+    const weekNum = sched.weeks[selectedWeekIndex].week || selectedWeekIndex + 1;
+    if (!confirm(`Delete W${weekNum}? This cannot be undone.`)) {
+      return;
+    }
+
+    sched.weeks.splice(selectedWeekIndex, 1);
     selectedWeekIndex = null;
     clearWeekForm();
 
@@ -121,10 +146,12 @@
 
   async function saveSchedule() {
     try {
-      const res = await fetch('/api/scheduler/config', {
+      const sched = window.scheduleCache || {};
+
+      const res = await fetch('/api/nutrient_schedule', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(scheduleData)
+        body: JSON.stringify(sched)
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -133,7 +160,14 @@
       populateWeekSelector();
       clearWeekForm();
       
-      // Show success feedback
+      // Trigger schedule.js timeline refresh if available
+      if (window.renderTimeline) {
+        window.renderTimeline();
+      }
+      if (window.updateKpis) {
+        window.updateKpis();
+      }
+      
       showFeedback('Schedule updated successfully', 'success');
     } catch (e) {
       console.error('[Schedule Week Editor] Save failed:', e);
@@ -142,7 +176,6 @@
   }
 
   function showFeedback(msg, type) {
-    // Find or create feedback element
     let feedback = document.getElementById('scheduleWeekEditorFeedback');
     if (!feedback) {
       feedback = document.createElement('div');
@@ -174,5 +207,5 @@
   }
 
   if (document.readyState !== 'loading') init();
-  else document.addEventListener('DOMContentLoaded', () => setTimeout(init, 200));
+  else document.addEventListener('DOMContentLoaded', () => setTimeout(init, 300));
 })();
