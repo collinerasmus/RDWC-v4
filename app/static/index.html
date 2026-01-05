@@ -874,6 +874,52 @@ body{
       </div>
       <div id="schedule-week-selector" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px;"></div>
 
+      <!-- Week Editor -->
+      <div style="margin-bottom:20px;padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
+        <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:12px;">📝 Edit Week</div>
+        <div id="week-editor-container" style="display:grid;gap:12px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;">
+            <div>
+              <label style="display:block;font-size:var(--font-xs);color:#9ca3af;margin-bottom:4px;">Week</label>
+              <select id="weekSelect" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);">
+                <option value="">Select a week...</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:var(--font-xs);color:#9ca3af;margin-bottom:4px;">Stage</label>
+              <select id="stageSelect" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);">
+                <option value="seedling">Seedling</option>
+                <option value="veg">Veg</option>
+                <option value="flower">Flower</option>
+                <option value="flush">Flush</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:var(--font-xs);color:#9ca3af;margin-bottom:4px;">Light Cycle (e.g., 18/6)</label>
+              <input type="text" id="lightCycleInput" placeholder="18/6" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);" />
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;">
+            <div>
+              <label style="display:block;font-size:var(--font-xs);color:#9ca3af;margin-bottom:4px;">pH</label>
+              <input type="number" id="phInput" placeholder="6.0" min="4" max="8" step="0.1" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);" />
+            </div>
+            <div>
+              <label style="display:block;font-size:var(--font-xs);color:#9ca3af;margin-bottom:4px;">EC (mS/cm)</label>
+              <input type="number" id="ecInput" placeholder="1.0" min="0" max="3" step="0.1" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);" />
+            </div>
+            <div>
+              <label style="display:block;font-size:var(--font-xs);color:#9ca3af;margin-bottom:4px;">Temp (°C)</label>
+              <input type="number" id="tempInput" placeholder="20" min="10" max="30" step="0.5" style="width:100%;height:32px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);" />
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button id="btnUpdateWeek" class="btn-primary" style="flex:1;min-width:120px;">💾 Update Week</button>
+            <button id="btnDeleteWeek" class="btn-secondary" style="flex:0 0 auto;">🗑️ Delete Week</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Settings -->
       <div style="margin-top:12px;">
         <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">⚙️ Schedule Settings</div>
@@ -1457,62 +1503,6 @@ body{
       </div>
     </div>
 
-    <!-- Advanced Scheduler Management -->
-    <div style="margin-top:20px;">
-      <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">⏰ Advanced Scheduler (Dosing, Custom Entries)</div>
-      <div style="padding:12px;border-radius:12px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
-        <div class="muted" style="font-size:var(--font-xs);margin-bottom:12px;">Manage pump schedules, custom entries, and pulse timings. Add/edit/delete entries and save to persist across restarts.</div>
-        
-        <!-- Scheduler Enable Toggle -->
-        <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-          <label style="font-size:var(--font-xs);color:#9ca3af;">Scheduler Enabled:</label>
-          <input type="checkbox" id="schedulerEnabled" style="width:18px;height:18px;cursor:pointer;" />
-        </div>
-
-        <!-- Entries List -->
-        <div style="margin-bottom:12px;border:1px solid #374151;border-radius:6px;padding:8px;background:rgba(0,0,0,0.2);">
-          <div style="font-size:var(--font-xs);font-weight:600;color:#9ca3af;margin-bottom:8px;">Schedule Entries</div>
-          <div id="schedulerEntriesList" style="font-size:var(--font-xs);max-height:300px;overflow-y:auto;"></div>
-        </div>
-
-        <!-- Add New Entry Form -->
-        <div style="margin-bottom:12px;padding:8px;border:1px solid #374151;border-radius:6px;background:rgba(0,0,0,0.3);">
-          <div style="font-size:var(--font-xs);font-weight:600;color:#9ca3af;margin-bottom:8px;">Add New Entry</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:8px;">
-            <div>
-              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Name</label>
-              <input type="text" id="entryName" placeholder="e.g., grow_pump" style="width:100%;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-xs);" />
-            </div>
-            <div>
-              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Kind</label>
-              <select id="entryKind" style="width:100%;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-xs);">
-                <option value="pulse">Pulse</option>
-                <option value="span">Span</option>
-              </select>
-            </div>
-            <div>
-              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Time (HH:MM)</label>
-              <input type="time" id="entryTime" style="width:100%;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-xs);" />
-            </div>
-            <div>
-              <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Duration (sec)</label>
-              <input type="number" id="entryDuration" placeholder="120" style="width:100%;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:4px;font-size:var(--font-xs);" />
-            </div>
-          </div>
-          <button id="btnAddEntry" class="btn-secondary btn-xs">+ Add Entry</button>
-        </div>
-
-        <!-- Daily Caps -->
-        <div style="margin-bottom:12px;padding:8px;border:1px solid #374151;border-radius:6px;background:rgba(0,0,0,0.2);">
-          <div style="font-size:var(--font-xs);font-weight:600;color:#9ca3af;margin-bottom:8px;">Daily Caps (seconds)</div>
-          <div id="schedulerCapsList" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;font-size:var(--font-xs);"></div>
-        </div>
-
-        <!-- Save Button -->
-        <button id="btnSaveScheduler" class="btn-primary btn-full" style="background:#10b981;border-color:#059669;">💾 Save All Changes</button>
-        <div id="schedulerSaveStatus" style="font-size:var(--font-xs);color:#9ca3af;margin-top:8px;text-align:center;"></div>
-      </div>
-    </div>
 
     <!-- Info -->
     <div class="muted" style="font-size:var(--font-sm);margin-top:12px;padding:8px 10px;border-radius:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);">
@@ -3174,11 +3164,11 @@ window.CircControl = (function(){
             // Reordered: range.js immediately after core to satisfy rdwcRange dependency for pH & EC charts before sensors/ph/ec modules run.
           // Instrumented loader: log each script as it begins loading (sequence is synchronous via promises)
             window.BUILD_COMMIT = '1764522441';
-              return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','scheduler_manager.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','overview_combined_chart.js','chart_adapter.js','lights_chart.js','circulation_chart.js'], window.__app_version);
+              return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','schedule_week_editor.js','lights_v2.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','overview_combined_chart.js','chart_adapter.js','lights_chart.js','circulation_chart.js'], window.__app_version);
       })
       .catch(function(){
         window.__app_version = (new Date()).toISOString().slice(0,10);
-            return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','lights_v2.js','scheduler_manager.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','overview_combined_chart.js','chart_adapter.js','lights_chart.js','circulation_chart.js'], window.__app_version);
+            return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','schedule_week_editor.js','lights_v2.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','overview_combined_chart.js','chart_adapter.js','lights_chart.js','circulation_chart.js'], window.__app_version);
       })
       .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();

@@ -404,10 +404,10 @@
           });
         });
 
-        // Relay overlays (lights and pumps) - thin bands near top of EC axis
-        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 3.2).map(p => ({ x: p.x, y: p.y === 0 ? 3.05 : p.y }));
-        const mainScaled = buildStepSeries(data?.mainEvents, window, 3.1).map(p => ({ x: p.x, y: p.y === 0 ? 2.95 : p.y }));
-        const chillerScaled = buildStepSeries(data?.chillerEvents, window, 3.0).map(p => ({ x: p.x, y: p.y === 0 ? 2.85 : p.y }));
+        // Relay overlays (lights and pumps) - positioned low on EC axis to avoid legend overlap
+        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 0.35).map(p => ({ x: p.x, y: p.y === 0 ? 0.25 : p.y }));
+        const mainScaled = buildStepSeries(data?.mainEvents, window, 0.5).map(p => ({ x: p.x, y: p.y === 0 ? 0.4 : p.y }));
+        const chillerScaled = buildStepSeries(data?.chillerEvents, window, 0.65).map(p => ({ x: p.x, y: p.y === 0 ? 0.55 : p.y }));
 
         if (lightsScaled.length) {
           datasets.push({
