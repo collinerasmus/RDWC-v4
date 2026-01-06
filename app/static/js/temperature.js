@@ -138,9 +138,9 @@
     }
 
     listEl.innerHTML = events.map(evt => {
-      const ts = new Date(evt.ts * 1000);
+      const ts = new Date(evt.ts);
       const tsStr = ts.toISOString().replace('T', ' ').split('.')[0];
-      const stateText = evt.state === 'ON' || evt.final === true ? 'ON' : 'OFF';
+      const stateText = (evt.state || '').toUpperCase() === 'ON' ? 'ON' : 'OFF';
       const reason = evt.reason || 'chiller';
       
       // Single-row compact chip: timestamp • state • reason
@@ -157,10 +157,19 @@
 
   async function updateChillerLog() {
     try {
-      const res = await fetch('/api/temperature/events?hours=168', { cache: 'no-store' });
+      const res = await fetch('/api/temperature/events?limit=500', { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const events = (data?.events || []).slice().sort((a,b) => (b.ts||0) - (a.ts||0)).slice(0, 50);
+      const eventsRaw = Array.isArray(data?.events) ? data.events : [];
+      // Map backend shape {ts_utc, prev_state, new_state, reason} to UI shape
+      const events = eventsRaw
+        .map(ev => ({
+          ts: (ev.ts_utc || ev.ts) ? ((ev.ts_utc || ev.ts) * 1000) : Date.now(),
+          state: ev.new_state || ev.state || 'OFF',
+          reason: ev.reason || ev.prev_state || ''
+        }))
+        .sort((a,b) => (b.ts||0) - (a.ts||0))
+        .slice(0, 100);
       renderChillerLog(events);
     } catch (e) {
       if (UI_VERBOSE) console.error('Chiller log fetch failed', e);
@@ -170,6 +179,18 @@
   // Update UI elements
   function updateTemperatureUI() {
     const state = temperatureState;
+    // Runtime / cycles KPIs if present in DOM and state
+    const runtimeEl = q('#temperature-runtime-today');
+    if (runtimeEl && typeof state.total_runtime_today === 'number') {
+      const mins = state.total_runtime_today / 60;
+      const hrs = mins / 60;
+      const display = hrs >= 1 ? `${hrs.toFixed(1)} h` : `${mins.toFixed(0)} min`;
+      runtimeEl.textContent = display;
+    }
+    const cyclesEl = q('#temperature-cycles-today');
+    if (cyclesEl && typeof state.cycles_today === 'number') {
+      cyclesEl.textContent = `${state.cycles_today}`;
+    }
     
     // Auto badge
     const badge = q('#temperature-auto-badge');
