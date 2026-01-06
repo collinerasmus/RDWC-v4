@@ -200,19 +200,20 @@
         console.log('[Overview Combined] EC band:', { ecLow, ecHigh, hasEcBand });
         console.log('[Overview Combined] pH band:', { phLowCurrent, phHighCurrent });
 
-        // Get temperature target + hysteresis (live)
-        // Prefer controller-computed band from temperature status
-        const tempLowLive = parseFloat(tempStatus.low);
-        const tempHighLive = parseFloat(tempStatus.high);
-        const tempTarget = parseFloat(targets['temp_target_c']);
-        const tempHyst = parseFloat(tempSettings['hysteresis']);
-        const resolvedTarget = Number.isFinite(tempTarget) ? tempTarget : 19.0;
-        const resolvedHyst = Number.isFinite(tempHyst) ? tempHyst : 0.6;
-        const tempLowFallback = resolvedTarget - resolvedHyst;
-        const tempHighFallback = resolvedTarget + resolvedHyst;
-        const tempLow = Number.isFinite(tempLowLive) ? tempLowLive : tempLowFallback;
-        const tempHigh = Number.isFinite(tempHighLive) ? tempHighLive : tempHighFallback;
-        console.log('[Overview Combined] Temp targets:', { tempLow, tempHigh, resolvedTarget, resolvedHyst });
+        // Get temperature target band (controller-first, schedule-derived)
+        // Prefer live controller-computed band from /api/temperature/status (low/high)
+        let tempLow = parseFloat(tempStatus.low);
+        let tempHigh = parseFloat(tempStatus.high);
+        if (!Number.isFinite(tempLow) || !Number.isFinite(tempHigh)) {
+          // Fallback: compute band from settings if controller values unavailable
+          const tempTarget = parseFloat((data?.tempStatus?.target_temp) ?? (targets['temp_target_c']));
+          const tempHyst = parseFloat(tempSettings['hysteresis']);
+          const resolvedTarget = Number.isFinite(tempTarget) ? tempTarget : 19.0;
+          const resolvedHyst = Number.isFinite(tempHyst) ? tempHyst : 0.6;
+          tempLow = resolvedTarget - resolvedHyst;
+          tempHigh = resolvedTarget + resolvedHyst;
+        }
+        console.log('[Overview Combined] Temp band:', { tempLow, tempHigh, tempStatus });
 
         const datasets = [];
 
@@ -278,12 +279,10 @@
           });
         }
 
-        // Temperature band - live only
-        if (Number.isFinite(resolvedTarget) && Number.isFinite(resolvedHyst)) {
-          const tempLowLive = resolvedTarget - resolvedHyst;
-          const tempHighLive = resolvedTarget + resolvedHyst;
-          const tempLowData = [{ x: window.start, y: tempLowLive }, { x: window.end, y: tempLowLive }];
-          const tempHighData = [{ x: window.start, y: tempHighLive }, { x: window.end, y: tempHighLive }];
+        // Temperature band - from controller (or computed fallback)
+        if (Number.isFinite(tempLow) && Number.isFinite(tempHigh)) {
+          const tempLowData = [{ x: window.start, y: tempLow }, { x: window.end, y: tempLow }];
+          const tempHighData = [{ x: window.start, y: tempHigh }, { x: window.end, y: tempHigh }];
           datasets.push({
             type: 'line',
             yAxisID: 'yTemp',
