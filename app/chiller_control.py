@@ -13,6 +13,7 @@ from app.temperature_control import (
     get_temperature_state as _get_temperature_state,
     get_setting as _get_setting,
     should_automate_temperature as _should_automate_temperature,
+    _get_schedule_temp_target as _get_schedule_temp_target,
 )
 
 # Expose expected names
@@ -88,16 +89,22 @@ def should_chiller_run() -> Tuple[bool, str]:
     if current_temp is None:
         return False, 'Temperature sensor unavailable'
 
-    # Targets and hysteresis
-    try:
-        from app.settings import get_setting_key as _get_key
-        # Legacy first for test compatibility, then canonical
-        target_temp = _get_key('chiller.target_temp', None)
-        if target_temp is None:
-            target_temp = (_get_key('targets.temp_target_c', None) or _get_key('temperature.target_temp', '19.0'))
-        target_temp = float(target_temp)
-    except Exception:
-        target_temp = 19.0
+    # Get target from scheduler (priority 1) or static setting (fallback)
+    # This matches the pattern in temperature_control.should_temperature_run()
+    schedule_target = _get_schedule_temp_target()
+    if schedule_target is not None:
+        target_temp = schedule_target
+    else:
+        # Fallback: read static settings (test compatibility layer)
+        try:
+            from app.settings import get_setting_key as _get_key
+            # Legacy first for test compatibility, then canonical
+            target_temp = _get_key('chiller.target_temp', None)
+            if target_temp is None:
+                target_temp = (_get_key('targets.temp_target_c', None) or _get_key('temperature.target_temp', '19.0'))
+            target_temp = float(target_temp)
+        except Exception:
+            target_temp = 19.0
     try:
         from app.settings import get_setting_key as _get_key
         # Legacy first for test compatibility, then canonical

@@ -71,6 +71,48 @@ def get_latest_reading():
     except ImportError:
         return None
 
+def _get_schedule_temp_target() -> Optional[float]:
+    """
+    Get temperature target from current week in nutrient schedule.
+    Returns temp_target in °C or None if schedule not available.
+    
+    This matches the pattern used by pH and EC controllers for scheduler-driven targets.
+    """
+    try:
+        from app.settings import get_all_settings
+        from app.schedule_api import DB_PATH as SCHED_DB
+        from datetime import datetime, timezone
+        
+        settings = get_all_settings()
+        start_str = settings.get("general.grow_start_date", "")
+        if not start_str:
+            return None
+        
+        # Calculate current week (aligned with schedule_api logic)
+        try:
+            start_date = datetime.strptime(start_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except Exception:
+            start_date = datetime.fromisoformat(start_str).replace(tzinfo=timezone.utc)
+        
+        now = datetime.now(timezone.utc)
+        days = max(0, (now - start_date).days)
+        current_week = min(12, max(1, (days // 7) + 1))
+        
+        # Query schedule for current week's temp_target
+        with sqlite3.connect(str(SCHED_DB)) as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT temp_target FROM nutrient_schedule WHERE week = ? LIMIT 1",
+                (current_week,)
+            )
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                return float(row[0])
+    except Exception as e:
+        log.debug(f'[temperature] Schedule temp target query failed: {e}')
+    
+    return None
+
 # temperature state tracking
 _temperature_state = {
     'last_on_time': None,      # timestamp when temperature turned ON
@@ -261,12 +303,19 @@ def get_temperature_state() -> Dict[str, Any]:
         if state['last_on_time'] and state['is_running']:
             state['current_runtime'] = int(now - state['last_on_time'])
         
-        # Add settings (single source of truth: targets.temp_target_c + temperature.hysteresis)
-        try:
-            t_val = get_setting('targets.temp_target_c', get_setting('temperature.target_temp', '19.0'))
-            state['target_temp'] = float(t_val or 19.0)
-        except Exception:
-            state['target_temp'] = 19.0
+        # Add settings: temp target from schedule (priority) or static setting (fallback)
+        schedule_target = _get_schedule_temp_target()
+        if schedule_target is not None:
+            state['target_temp'] = schedule_target
+            state['target_source'] = 'schedule'
+        else:
+            try:
+                t_val = get_setting('targets.temp_target_c', get_setting('temperature.target_temp', '19.0'))
+                state['target_temp'] = float(t_val or 19.0)
+                state['target_source'] = 'static_setting'
+            except Exception:
+                state['target_temp'] = 19.0
+                state['target_source'] = 'hardcoded_fallback'
         try:
             h_val = get_setting('temperature.hysteresis', get_setting('chiller.hysteresis', '0.6'))
             state['hysteresis'] = float(h_val or 0.6)
@@ -440,11 +489,20 @@ def should_temperature_run() -> tuple[bool, str]:
     if current_temp is None:
         return False, 'Temperature sensor unavailable'
     
-    # Get target from scheduler-backed setting with legacy fallback
-    try:
-        target_temp = float(get_setting('targets.temp_target_c', get_setting('temperature.target_temp', '19.0')) or 19.0)
-    except Exception:
-        target_temp = 19.0
+    # Get target from scheduler (priority 1) or static setting (fallback)
+    # This matches pH/EC pattern: read directly from current week's schedule
+    schedule_target = _get_schedule_temp_target()
+    if schedule_target is not None:
+        target_temp = schedule_target
+        log.debug(f'[temperature] Using schedule target: {target_temp}°C')
+    else:
+        # Fallback to static setting if scheduler unavailable
+        try:
+            target_temp = float(get_setting('targets.temp_target_c', get_setting('temperature.target_temp', '19.0')) or 19.0)
+            log.debug(f'[temperature] Using static setting target: {target_temp}°C (schedule unavailable)')
+        except Exception:
+            target_temp = 19.0
+            log.warning(f'[temperature] Using hardcoded fallback target: {target_temp}°C')
     # Single hysteresis source with legacy fallback to chiller.hysteresis
     try:
         hyst_raw = get_setting('temperature.hysteresis', get_setting('chiller.hysteresis', '0.6'))
