@@ -1932,19 +1932,28 @@ def api_controllers_status():
         from app.temperature_control import get_temperature_state, get_current_water_temp
         chiller_state = get_temperature_state()
         will_automate = should_automate("chiller")
-        target_temp = get_setting_key("targets.temp_target_c", None)
-        if target_temp is None:
-            target_temp = get_setting_key("temperature.target_temp", "19.0")
+
+        # Hysteresis from settings (single source), legacy fallback retained
         chiller_hyst = get_setting_key("temperature.hysteresis", None)
         if chiller_hyst is None:
             chiller_hyst = get_setting_key("chiller.hysteresis", "0.6")
+
+        # Target temperature: prefer controller's schedule-derived value
+        target_from_ctl = chiller_state.get("target_temp")
+        if target_from_ctl is None:
+            # Fallback to settings for resilience if controller cannot compute
+            fallback_target = get_setting_key("targets.temp_target_c", None)
+            if fallback_target is None:
+                fallback_target = get_setting_key("temperature.target_temp", "19.0")
+            target_from_ctl = float(fallback_target or "19.0")
 
         controllers["chiller"] = {
             "mode": "auto" if will_automate else "manual",  # For backward compatibility
             "auto_enabled": is_controller_auto_enabled("chiller"),  # Use unified auto-enable system
             "will_automate": will_automate,
             "current_temp": get_current_water_temp(),
-            "target_temp": float(target_temp or "19.0"),
+            "target_temp": float(target_from_ctl),
+            "target_source": chiller_state.get("target_source"),
             # Default hysteresis 0.6°C; legacy chiller.* fallback retained
             "hysteresis": float(chiller_hyst or "0.6"),
             "is_running": chiller_state.get("is_running", False),
