@@ -403,15 +403,17 @@
           });
         });
 
-        // Relay overlays (lights and pumps) - positioned low on EC axis to avoid legend overlap
-        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 0.35).map(p => ({ x: p.x, y: p.y === 0 ? 0.25 : p.y }));
-        const mainScaled = buildStepSeries(data?.mainEvents, window, 0.5).map(p => ({ x: p.x, y: p.y === 0 ? 0.4 : p.y }));
-        const chillerScaled = buildStepSeries(data?.chillerEvents, window, 0.65).map(p => ({ x: p.x, y: p.y === 0 ? 0.55 : p.y }));
+        // Relay overlays (lights/pumps) aligned with pH dose markers height on pH axis
+        const relayBase = Number.isFinite(phHighCurrent) ? phHighCurrent + 0.3 : 6.6;
+        const relayGap = 0.12;
+        const lightsScaled = buildStepSeries(data?.lightsEvents, window, relayBase + relayGap * 0).map(p => ({ x: p.x, y: p.y === 0 ? relayBase - relayGap : p.y }));
+        const mainScaled = buildStepSeries(data?.mainEvents, window, relayBase + relayGap * 1).map(p => ({ x: p.x, y: p.y === 0 ? relayBase - relayGap : p.y }));
+        const chillerScaled = buildStepSeries(data?.chillerEvents, window, relayBase + relayGap * 2).map(p => ({ x: p.x, y: p.y === 0 ? relayBase - relayGap : p.y }));
 
         if (lightsScaled.length) {
           datasets.push({
             label: 'Lights',
-            yAxisID: 'yEc',
+            yAxisID: 'yPh',
             data: lightsScaled,
             borderColor: '#22c55e',
             backgroundColor: 'rgba(34,197,94,0.12)',
@@ -425,7 +427,7 @@
         if (mainScaled.length) {
           datasets.push({
             label: 'Main Pump',
-            yAxisID: 'yEc',
+            yAxisID: 'yPh',
             data: mainScaled,
             borderColor: '#3b82f6',
             backgroundColor: 'rgba(59,130,246,0.12)',
@@ -439,7 +441,7 @@
         if (chillerScaled.length) {
           datasets.push({
             label: 'Chiller Pump',
-            yAxisID: 'yEc',
+            yAxisID: 'yPh',
             data: chillerScaled,
             borderColor: '#06b6d4',
             backgroundColor: 'rgba(6,182,212,0.12)',
