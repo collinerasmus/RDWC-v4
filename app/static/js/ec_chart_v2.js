@@ -41,8 +41,8 @@
 
         const trendsUrl = '/api/trends?' + q.toString();
         
-        const doseHours = Math.min(Math.ceil(hours), 168);
-        const doseUrl = `/api/dose/recent?hours=${doseHours}`;
+        // Fetch unified EC dose log using exact chart window
+        const doseUrl = `/api/ec/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`;
 
         try {
           const [trendsRes, doseRes, statusRes] = await Promise.all([
@@ -52,13 +52,13 @@
           ]);
 
           const trendsData = trendsRes.ok ? await trendsRes.json() : { series: { ec: [] } };
-          const doseData = doseRes.ok ? await doseRes.json() : { events: [] };
+          const doseData = doseRes.ok ? await doseRes.json() : [];
           const statusData = statusRes.ok ? await statusRes.json() : {};
           const targets = statusData?.targets || {};
 
           console.log('[EC Chart] Fetched:', {
             ec: trendsData?.series?.ec?.length || 0,
-            doses: doseData?.events?.length || 0,
+            doses: Array.isArray(doseData) ? doseData.length : 0,
             targets: targets
           });
 
@@ -78,25 +78,16 @@
           y: Number(p.value)
         }));
 
-        // Parse dose events (grow, micro, bloom)
-        const allEvents = (doseData?.events || [])
-          .filter(e => !e.blocked_by)
-          .filter(e => {
-            const ts = e.ts * 1000;
-            return ts >= window.start && ts <= window.end;
-          });
+        // Parse dose events from unified EC dose log
+        const unifiedEvents = Array.isArray(doseData) ? doseData : [];
+        const growEvents = unifiedEvents.filter(e => e?.pumps?.grow && e.pumps.grow > 0).map(e => ({ ts: new Date(e.ts).getTime(), ml: e.pumps.grow }));
+        const microEvents = unifiedEvents.filter(e => e?.pumps?.micro && e.pumps.micro > 0).map(e => ({ ts: new Date(e.ts).getTime(), ml: e.pumps.micro }));
+        const bloomEvents = unifiedEvents.filter(e => e?.pumps?.bloom && e.pumps.bloom > 0).map(e => ({ ts: new Date(e.ts).getTime(), ml: e.pumps.bloom }));
 
-        const growEvents = allEvents.filter(e => e.pump === 'grow');
-        const microEvents = allEvents.filter(e => e.pump === 'micro');
-        const bloomEvents = allEvents.filter(e => e.pump === 'bloom');
-
-        // Calculate totals (derive ml from seconds * calibrated ml/s)
-        const rateGrow = parseFloat(window.rdwcSettings?.get('dosing.grow_ml_per_sec') || '20');
-        const rateMicro = parseFloat(window.rdwcSettings?.get('dosing.micro_ml_per_sec') || '20');
-        const rateBloom = parseFloat(window.rdwcSettings?.get('dosing.bloom_ml_per_sec') || '20');
-        totalGrow = growEvents.reduce((sum, e) => sum + ((Number(e.seconds || 0)) * rateGrow), 0);
-        totalMicro = microEvents.reduce((sum, e) => sum + ((Number(e.seconds || 0)) * rateMicro), 0);
-        totalBloom = bloomEvents.reduce((sum, e) => sum + ((Number(e.seconds || 0)) * rateBloom), 0);
+        // Calculate totals directly from ml in pumps
+        totalGrow = growEvents.reduce((sum, e) => sum + (Number(e.ml || 0)), 0);
+        totalMicro = microEvents.reduce((sum, e) => sum + (Number(e.ml || 0)), 0);
+        totalBloom = bloomEvents.reduce((sum, e) => sum + (Number(e.ml || 0)), 0);
 
         // Update total dosed displays
         const totalEl = document.getElementById('ec-total-dosed');
@@ -188,7 +179,7 @@
           datasets.push({
             type: 'scatter',
             label: `Grow (${growEvents.length})`,
-            data: growEvents.map(e => ({ x: e.ts * 1000, y: doseY[0] })),
+            data: growEvents.map(e => ({ x: e.ts, y: doseY[0] })),
             pointRadius: 5,
             pointStyle: 'circle',
             pointBackgroundColor: window.CHART_COLORS?.grow || '#6ee7b7',
@@ -203,7 +194,7 @@
           datasets.push({
             type: 'scatter',
             label: `Micro (${microEvents.length})`,
-            data: microEvents.map(e => ({ x: e.ts * 1000, y: doseY[1] })),
+            data: microEvents.map(e => ({ x: e.ts, y: doseY[1] })),
             pointRadius: 5,
             pointStyle: 'circle',
             pointBackgroundColor: window.CHART_COLORS?.micro || '#67e8f9',
@@ -218,7 +209,7 @@
           datasets.push({
             type: 'scatter',
             label: `Bloom (${bloomEvents.length})`,
-            data: bloomEvents.map(e => ({ x: e.ts * 1000, y: doseY[2] })),
+            data: bloomEvents.map(e => ({ x: e.ts, y: doseY[2] })),
             pointRadius: 5,
             pointStyle: 'circle',
             pointBackgroundColor: window.CHART_COLORS?.bloom || '#c084fc',

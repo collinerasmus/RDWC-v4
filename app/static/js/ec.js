@@ -681,7 +681,17 @@
       const container = el('ec-recent');
       if(!container) return;
       const header = el('ec-recent-header');
-      const res = await fetch('/api/ec/dose_log?grow=1&limit=500', {cache:'no-store'});
+      // Prefer chart window if available for consistent timeframe
+      let url = '/api/ec/dose_log?grow=1&limit=500';
+      try{
+        const tw = window.ecChart?.timeWindow;
+        if (tw && tw.start && tw.end) {
+          const startISO = new Date(tw.start).toISOString();
+          const endISO = new Date(tw.end).toISOString();
+          url = `/api/ec/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=2000`;
+        }
+      }catch(e){ /* fallback to grow preset */ }
+      const res = await fetch(url, {cache:'no-store'});
       if(!res.ok) throw new Error('HTTP ' + res.status);
       const doses = await res.json();
       if(!doses || doses.length === 0){
@@ -695,20 +705,20 @@
       const rows = ordered.map(d => {
         const ts = new Date(d.ts);
         const tsStr = `${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,'0')}-${String(ts.getDate()).padStart(2,'0')} ${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}:${String(ts.getSeconds()).padStart(2,'0')}`;
-        const total = (d.volume_ml != null) ? `${d.volume_ml.toFixed(2)} ml` : '— ml';
-        const g = d.pumps?.grow != null ? `G:${d.pumps.grow.toFixed(2)} ml` : null;
-        const m = d.pumps?.micro != null ? `M:${d.pumps.micro.toFixed(2)} ml` : null;
-        const b = d.pumps?.bloom != null ? `B:${d.pumps.bloom.toFixed(2)} ml` : null;
+        const total = (d.volume_ml != null) ? `${Number(d.volume_ml).toFixed(2)} ml` : '— ml';
+        const g = (d.pumps && d.pumps.grow != null) ? `G:${Number(d.pumps.grow).toFixed(2)} ml` : null;
+        const m = (d.pumps && d.pumps.micro != null) ? `M:${Number(d.pumps.micro).toFixed(2)} ml` : null;
+        const b = (d.pumps && d.pumps.bloom != null) ? `B:${Number(d.pumps.bloom).toFixed(2)} ml` : null;
         const pumpParts = [g, m, b].filter(Boolean).join(' ');
-        const ecBefore = (d.ec_before != null) ? d.ec_before.toFixed(3) : '—';
-        const ecAfter = (d.ec_after != null) ? d.ec_after.toFixed(3) : '—';
+        const ecBefore = (d.ec_before != null) ? Number(d.ec_before).toFixed(3) : '—';
+        const ecAfter = (d.ec_after != null) ? Number(d.ec_after).toFixed(3) : '—';
         const delta = (d.ec_before != null && d.ec_after != null)
-          ? (d.ec_after - d.ec_before)
+          ? (Number(d.ec_after) - Number(d.ec_before))
           : null;
-        const deltaStr = (delta !== null) ? `${delta >= 0 ? '+' : ''}${delta.toFixed(3)}` : '—';
+        const deltaStr = (delta !== null) ? `${delta >= 0 ? '+' : ''}${Number(delta).toFixed(3)}` : '—';
         const detail = d.detail || 'dose';
         const reason = d.reason || detail;
-        const duration = (d.seconds != null) ? `${d.seconds.toFixed(1)}s` : null;
+        const duration = (d.seconds != null) ? `${Number(d.seconds).toFixed(1)}s` : null;
 
         // Single-row compact chip: time • EC • Δ • volume • duration • pumps • reason
         const dot = '<span style="color:#4b5563;">•</span>';
