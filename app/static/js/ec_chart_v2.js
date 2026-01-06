@@ -90,10 +90,13 @@
         const microEvents = allEvents.filter(e => e.pump === 'micro');
         const bloomEvents = allEvents.filter(e => e.pump === 'bloom');
 
-        // Calculate totals
-        totalGrow = growEvents.reduce((sum, e) => sum + (e.ml || 0), 0);
-        totalMicro = microEvents.reduce((sum, e) => sum + (e.ml || 0), 0);
-        totalBloom = bloomEvents.reduce((sum, e) => sum + (e.ml || 0), 0);
+        // Calculate totals (derive ml from seconds * calibrated ml/s)
+        const rateGrow = parseFloat(window.rdwcSettings?.get('dosing.grow_ml_per_sec') || '20');
+        const rateMicro = parseFloat(window.rdwcSettings?.get('dosing.micro_ml_per_sec') || '20');
+        const rateBloom = parseFloat(window.rdwcSettings?.get('dosing.bloom_ml_per_sec') || '20');
+        totalGrow = growEvents.reduce((sum, e) => sum + ((Number(e.seconds || 0)) * rateGrow), 0);
+        totalMicro = microEvents.reduce((sum, e) => sum + ((Number(e.seconds || 0)) * rateMicro), 0);
+        totalBloom = bloomEvents.reduce((sum, e) => sum + ((Number(e.seconds || 0)) * rateBloom), 0);
 
         // Update total dosed displays
         const totalEl = document.getElementById('ec-total-dosed');

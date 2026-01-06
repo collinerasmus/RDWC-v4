@@ -308,6 +308,15 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         
+        # Parse ISO window to unix seconds for dose_events query
+        def _to_unix(iso_s: str) -> int:
+            try:
+                return int(datetime.fromisoformat(iso_s.replace('Z', '+00:00')).timestamp())
+            except Exception:
+                return 0
+        start_ts = _to_unix(start_iso)
+        end_ts = _to_unix(end_iso)
+
         # Get from dose_events
         cur.execute(
             """
@@ -318,11 +327,11 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
             ORDER BY ts DESC
             LIMIT ?
             """,
-            (start_iso, end_iso, int(limit))
+            (start_ts, end_ts, int(limit))
         )
         dose_event_rows = cur.fetchall()
     
-    # Group dose_events by timestamp
+    # Group dose_events by timestamp (use ISO string keys for consistency)
     from collections import defaultdict
     events_by_ts = defaultdict(lambda: {
         "ts": None,
@@ -343,15 +352,16 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
     }
     
     for row in dose_event_rows:
-        ts = row["ts"]
+        # Convert unix seconds to ISO for UI and for consistent keys
+        ts_iso = datetime.fromtimestamp(int(row["ts"]), tz=timezone.utc).isoformat()
         pump = row["pump"]
         seconds = row["seconds"] or 0
         reason = row["reason"]
         ec_before = row["ec_before"]
         ec_after = row["ec_after"]
         
-        key = ts
-        events_by_ts[key]["ts"] = ts
+        key = ts_iso
+        events_by_ts[key]["ts"] = ts_iso
         
         if pump and pump in calibration:
             ml = seconds * (calibration[pump] * 1000.0)
@@ -384,7 +394,7 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
     
     # Parse mix_ratio from ec_dose_log and add to merged dict (if not already in dose_events)
     for ts_utc, action, volume_ml, duration_ms, pre_ec, post_ec, result, reason, mix_ratio in ec_log_rows:
-        # Skip if already in dose_events
+        # Skip if already in dose_events (keys are ISO strings)
         if ts_utc in events_by_ts:
             continue
         
@@ -417,8 +427,8 @@ def _dose_events_from_unified(start: Optional[str] = None, end: Optional[str] = 
     
     # Format as API response
     result = []
-    for ts in sorted(events_by_ts.keys(), reverse=True):  # Newest first
-        event = events_by_ts[ts]
+    for ts_key in sorted(events_by_ts.keys(), reverse=True):  # Newest first
+        event = events_by_ts[ts_key]
         
         ec_before = event["ec_before"]
         ec_after = event["ec_after"]
