@@ -488,7 +488,7 @@
         const phMin = Number.isFinite(phLowCurrent) ? Math.min(phLowCurrent - 0.5, 5.0) : 5.0;
         const phMax = Number.isFinite(phHighCurrent) ? Math.max(phHighCurrent + 0.8, 7.5) : 7.5;
         const ecMin = 0.0;
-        const ecMax = 4.0;
+        const ecMax = 5.0;
         // Fixed temperature axis range: 0-26°C as requested
         const tempAxisMin = 0;
         const tempAxisMax = 26;
