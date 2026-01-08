@@ -294,6 +294,11 @@ def get_temperature_state() -> Dict[str, Any]:
             _temperature_state['is_running'] = False
             _temperature_state['last_off_time'] = now_reconcile
             _temperature_state['min_runtime_active'] = False
+            # Accumulate runtime from this cycle
+            if _temperature_state.get('last_on_time'):
+                runtime = now_reconcile - _temperature_state['last_on_time']
+                _temperature_state['total_runtime_today'] += runtime
+                _temperature_state['last_on_time'] = None
             state = _temperature_state.copy()
         
         # Add computed fields

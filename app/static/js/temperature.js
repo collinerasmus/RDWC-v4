@@ -179,19 +179,28 @@
   // Update UI elements
   function updateTemperatureUI() {
     const state = temperatureState;
-    // Runtime / cycles KPIs if present in DOM and state
-    const runtimeEl = q('#temperature-runtime-today');
+    // Runtime / cycles KPIs if present in DOM and state (match Circulation tab naming)
+    const runtimeEl = q('#chiller-runtime-today');
     if (runtimeEl && typeof state.total_runtime_today === 'number') {
-      const mins = state.total_runtime_today / 60;
-      const hrs = mins / 60;
-      const display = hrs >= 1 ? `${hrs.toFixed(1)} h` : `${mins.toFixed(0)} min`;
+      const secs = Number(state.total_runtime_today) || 0;
+      const mins = Math.floor(secs / 60);
+      const hrs = Math.floor(mins / 60);
+      const remMins = mins % 60;
+      let display = '—';
+      if (hrs > 0) {
+        display = `${hrs}h ${remMins}m`;
+      } else if (mins > 0) {
+        display = `${mins}m`;
+      } else {
+        display = `${secs}s`;
+      }
       runtimeEl.textContent = display;
     }
-    const cyclesEl = q('#temperature-cycles-today');
+    const cyclesEl = q('#chiller-cycles-today');
     if (cyclesEl && typeof state.cycles_today === 'number') {
-      cyclesEl.textContent = `${state.cycles_today}`;
+      cyclesEl.textContent = `${Number(state.cycles_today) || 0}`;
     }
-    
+
     // Auto badge
     const badge = q('#temperature-auto-badge');
     if (badge) {
