@@ -171,7 +171,7 @@
     const warningDiv = document.getElementById('germinationWarning');
     if (stageSelect && warningDiv) {
       stageSelect.addEventListener('change', () => {
-        if (stageSelect.value === 'germination' && weekNum !== 0) {
+        if (stageSelect.value === 'germination' && idx !== 0) {
           warningDiv.style.display = 'block';
           stageSelect.value = week.phase || 'seedling';
         } else {
@@ -180,7 +180,7 @@
       });
       // Disable germination option if not week 0
       const germinationOption = Array.from(stageSelect.options).find(opt => opt.value === 'germination');
-      if (germinationOption && weekNum !== 0) {
+      if (germinationOption && idx !== 0) {
         germinationOption.disabled = true;
       }
     }

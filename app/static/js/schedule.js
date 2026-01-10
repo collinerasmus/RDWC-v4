@@ -224,7 +224,8 @@
       // Header row with phase icon and week number
       html += `<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">`;
       html += `<div style="font-size:1.3rem;line-height:1;">${icon}</div>`;
-      html += `<div style="font-size:0.85rem;font-weight:700;color:#e0e0e0;">W${w.week}</div>`;
+      const displayWeek = phase === 'germination' ? 0 : w.week;
+      html += `<div style="font-size:0.85rem;font-weight:700;color:#e0e0e0;">W${displayWeek}</div>`;
       html += `</div>`;
       
       // Phase name
@@ -262,7 +263,7 @@
       
       // Current week indicator
       if(isCurrent){
-        html += `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#ef4444;color:#fff;padding:4px 10px;border-radius:14px;font-size:0.7rem;font-weight:700;box-shadow:0 4px 12px rgba(239,68,68,0.5);z-index:10;">NOW</div>`;
+        html += `<div style="position:absolute;top:12px;left:50%;transform:translateX(-50%);background:#ef4444;color:#fff;padding:4px 10px;border-radius:14px;font-size:0.7rem;font-weight:700;box-shadow:0 4px 12px rgba(239,68,68,0.5);z-index:10;">NOW</div>`;
       }
       
       html += '</div>';
