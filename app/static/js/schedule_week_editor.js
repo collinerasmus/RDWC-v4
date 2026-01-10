@@ -100,12 +100,14 @@
         <div>
           <label style="display:block;font-size:12px;color:#9ca3af;margin-bottom:6px;">Stage</label>
           <select id="modalStage" style="width:100%;height:36px;padding:0 10px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:14px;">
+            <option value="germination">Germination</option>
             <option value="seedling">Seedling</option>
             <option value="veg">Veg</option>
             <option value="preflower">Preflower</option>
             <option value="flower">Flower</option>
             <option value="flush">Flush</option>
           </select>
+          <div id="germinationWarning" style="font-size:11px;color:#fbbf24;margin-top:4px;display:none;">⚠️ Germination can only be Week 0</div>
         </div>
         <div>
           <label style="display:block;font-size:12px;color:#9ca3af;margin-bottom:6px;">Light Cycle</label>
@@ -163,6 +165,25 @@
     document.getElementById('modalGrow').value = week.grow_ml10 ?? '';
     document.getElementById('modalMicro').value = week.micro_ml10 ?? '';
     document.getElementById('modalBloom').value = week.bloom_ml10 ?? '';
+
+    // Add event listener to phase dropdown for germination validation
+    const stageSelect = document.getElementById('modalStage');
+    const warningDiv = document.getElementById('germinationWarning');
+    if (stageSelect && warningDiv) {
+      stageSelect.addEventListener('change', () => {
+        if (stageSelect.value === 'germination' && weekNum !== 0) {
+          warningDiv.style.display = 'block';
+          stageSelect.value = week.phase || 'seedling';
+        } else {
+          warningDiv.style.display = 'none';
+        }
+      });
+      // Disable germination option if not week 0
+      const germinationOption = Array.from(stageSelect.options).find(opt => opt.value === 'germination');
+      if (germinationOption && weekNum !== 0) {
+        germinationOption.disabled = true;
+      }
+    }
 
     // Attach handlers
     document.getElementById('modalSave').addEventListener('click', () => saveWeek(idx, weekNum, modal));

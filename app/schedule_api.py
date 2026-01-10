@@ -22,6 +22,9 @@ DB_PATH = Path(__file__).parent.parent / "data" / "rdwc.db"
 # EHG Nutrient Guide - 18H and 12H photoperiod schedules
 # Based on EHG official nutrient chart with flush indicators
 AUTO_DEFAULTS = [
+    # Germination (Optional Week 0)
+    {"week": 0, "phase": "germination", "grow_ml10": 0.0, "micro_ml10": 0.0, "bloom_ml10": 0.0, "ec_target": 0.0, "ph_low": 6.0, "ph_high": 6.5, "temp_target": 22.0, "lights": "24/0", "notes": "Germination - water only, high humidity"},
+    
     # 18H Photoperiod - Weeks 1-3 (Seedling/Early Veg)
     {"week": 1, "phase": "seedling", "grow_ml10": 2.5, "micro_ml10": 2.5, "bloom_ml10": 2.5, "ec_target": 0.6, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "18H Week 1 - balanced seedling start"},
     {"week": 2, "phase": "seedling", "grow_ml10": 2.5, "micro_ml10": 2.5, "bloom_ml10": 2.5, "ec_target": 0.8, "ph_low": 5.8, "ph_high": 6.2, "temp_target": 20.0, "lights": "18/6", "notes": "18H Week 2 - root establishment"},

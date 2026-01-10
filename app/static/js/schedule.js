@@ -179,6 +179,7 @@
       const phase = w.phase || 'week';
       const isCurrent = w.week === currentWeek;
       const phaseColors = {
+        germination:'rgba(168,85,247,0.15)',
         seedling:'rgba(147,197,253,0.15)',
         veg:'rgba(34,197,94,0.15)',
         preflower:'rgba(251,191,36,0.18)',
@@ -186,6 +187,7 @@
         flush:'rgba(59,130,246,0.18)'
       };
       const borderColors = {
+        germination:'rgba(168,85,247,0.45)',
         seedling:'rgba(147,197,253,0.45)',
         veg:'rgba(34,197,94,0.45)',
         preflower:'rgba(251,191,36,0.55)',
@@ -193,6 +195,7 @@
         flush:'rgba(59,130,246,0.50)'
       };
       const phaseIcons = {
+        germination:'🌾',
         seedling:'🌱',
         veg:'🌿',
         preflower:'🌸',
@@ -259,7 +262,7 @@
       
       // Current week indicator
       if(isCurrent){
-        html += `<div style="position:absolute;top:8px;right:8px;background:#ef4444;color:#fff;padding:3px 8px;border-radius:12px;font-size:0.65rem;font-weight:700;box-shadow:0 2px 8px rgba(239,68,68,0.4);">NOW</div>`;
+        html += `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#ef4444;color:#fff;padding:4px 10px;border-radius:14px;font-size:0.7rem;font-weight:700;box-shadow:0 4px 12px rgba(239,68,68,0.5);z-index:10;">NOW</div>`;
       }
       
       html += '</div>';
