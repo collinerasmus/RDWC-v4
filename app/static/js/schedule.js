@@ -309,7 +309,7 @@
     }
     
     // Add visual emphasis to active values
-    if(cwEl){n
+    if(cwEl){
       cwEl.textContent = displayWeek;
       cwEl.style.color = '#10b981';
       cwEl.style.textShadow = '0 0 8px rgba(16,185,129,0.4)';
