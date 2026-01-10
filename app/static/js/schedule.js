@@ -302,9 +302,9 @@
     const displayWeek = (firstIsGermination && firstWeekNum !== 0) ? Math.max(0, week - 1) : week;
     const currentWeekRow = sched.weeks?.find(w=>w.week===week);
     
-    // Grow name from settings
-    if(nameEl && window.rdwcSettings){
-      const growName = window.rdwcSettings.get?.('general.grow_name') || 'RDWC v4';
+    // Grow name from schedule API
+    if(nameEl){
+      const growName = sched.grow_name || 'RDWC v4';
       nameEl.textContent = growName;
     }
     

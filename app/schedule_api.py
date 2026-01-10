@@ -172,10 +172,20 @@ def get_nutrient_schedule():
             "notes": r[10] or ""
         })
     
+    # Fetch grow_name from settings
+    grow_name = "RDWC v4"
+    try:
+        from app.settings import get_all_settings
+        s = get_all_settings()
+        grow_name = s.get("general.grow_name", "RDWC v4")
+    except Exception:
+        pass
+    
     return {
         "weeks": weeks,
         "current_week": _get_current_week(),
         "grow_start_date": _format_grow_start_date(_get_grow_start_date()),
+        "grow_name": grow_name,
         "ph_band": {"low": 5.8, "high": 6.2},
         "ec_tolerance": 0.2
     }
