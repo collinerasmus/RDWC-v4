@@ -125,6 +125,23 @@
           <label style="display:block;font-size:12px;color:#9ca3af;margin-bottom:6px;">Temp (°C)</label>
           <input type="number" id="modalTemp" placeholder="20" min="10" max="30" step="0.5" style="width:100%;height:36px;padding:0 10px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:14px;" />
         </div>
+        <div style="border-top:1px solid #374151;padding-top:16px;margin-top:8px;">
+          <label style="display:block;font-size:12px;color:#9ca3af;margin-bottom:12px;font-weight:600;">Nutrient Ratios (ml/10L)</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+            <div>
+              <label style="display:block;font-size:11px;color:#a0aec0;margin-bottom:4px;">Grow</label>
+              <input type="number" id="modalGrow" placeholder="0" min="0" max="50" step="0.5" style="width:100%;height:36px;padding:0 10px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:14px;" />
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;color:#a0aec0;margin-bottom:4px;">Micro</label>
+              <input type="number" id="modalMicro" placeholder="0" min="0" max="50" step="0.5" style="width:100%;height:36px;padding:0 10px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:14px;" />
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;color:#a0aec0;margin-bottom:4px;">Bloom</label>
+              <input type="number" id="modalBloom" placeholder="0" min="0" max="50" step="0.5" style="width:100%;height:36px;padding:0 10px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:14px;" />
+            </div>
+          </div>
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
         <button id="modalSave" class="btn-secondary" style="padding:10px 16px;">💾 Save</button>
@@ -143,6 +160,9 @@
     document.getElementById('modalPh').value = week.ph_low ?? '';
     document.getElementById('modalEc').value = week.ec_target ?? '';
     document.getElementById('modalTemp').value = week.temp_target ?? '';
+    document.getElementById('modalGrow').value = week.grow_ml10 ?? '';
+    document.getElementById('modalMicro').value = week.micro_ml10 ?? '';
+    document.getElementById('modalBloom').value = week.bloom_ml10 ?? '';
 
     // Attach handlers
     document.getElementById('modalSave').addEventListener('click', () => saveWeek(idx, weekNum, modal));
@@ -171,6 +191,9 @@
     const phInput = document.getElementById('modalPh').value;
     const ecInput = document.getElementById('modalEc').value;
     const tempInput = document.getElementById('modalTemp').value;
+    const growInput = document.getElementById('modalGrow').value;
+    const microInput = document.getElementById('modalMicro').value;
+    const bloomInput = document.getElementById('modalBloom').value;
 
     const updates = {
       phase: document.getElementById('modalStage').value,
@@ -178,7 +201,10 @@
       ph_low: parseNumber(phInput, week.ph_low ?? 5.8),
       ph_high: parseNumber(phInput, week.ph_high ?? 6.2),
       ec_target: parseNumber(ecInput, week.ec_target ?? null),
-      temp_target: parseNumber(tempInput, week.temp_target ?? null)
+      temp_target: parseNumber(tempInput, week.temp_target ?? null),
+      grow_ml10: parseNumber(growInput, week.grow_ml10 ?? null),
+      micro_ml10: parseNumber(microInput, week.micro_ml10 ?? null),
+      bloom_ml10: parseNumber(bloomInput, week.bloom_ml10 ?? null)
     };
 
     console.log('[Week Editor] Sending updates for week', weekNum, updates);
@@ -201,6 +227,9 @@
       week.ph_high = updates.ph_high;
       week.ec_target = updates.ec_target;
       week.temp_target = updates.temp_target;
+      week.grow_ml10 = updates.grow_ml10;
+      week.micro_ml10 = updates.micro_ml10;
+      week.bloom_ml10 = updates.bloom_ml10;
 
       // Re-render from cache
       if (window.renderTimeline) window.renderTimeline();
