@@ -170,6 +170,9 @@
     }
 
     const currentWeek = sched.current_week || 1;
+    const firstWeekNum = sched.weeks[0]?.week ?? null;
+    const firstIsGermination = (sched.weeks[0]?.phase === 'germination');
+    const subtractOne = firstIsGermination && firstWeekNum !== 0; // If first week is germination but numbered 1, shift display
 
     // Calendar-style grid layout (4 columns x 3 rows for 12 weeks)
     let html = '<div style="padding:16px 0;">';
@@ -225,6 +228,7 @@
       html += `<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">`;
       html += `<div style="font-size:1.3rem;line-height:1;">${icon}</div>`;
       const displayWeek = phase === 'germination' ? 0 : w.week;
+      const displayWeek = phase === 'germination' ? 0 : (subtractOne ? (w.week - 1) : w.week);
       html += `<div style="font-size:0.85rem;font-weight:700;color:#e0e0e0;">W${displayWeek}</div>`;
       html += `</div>`;
       
@@ -292,11 +296,14 @@
     const startEl = el('schedule-grow-start-kpi');
     const dayEl = el('schedule-grow-day-kpi');
     const week = sched.current_week || 1;
+    const firstWeekNum = sched.weeks?.[0]?.week ?? null;
+    const firstIsGermination = (sched.weeks?.[0]?.phase === 'germination');
+    const displayWeek = (firstIsGermination && firstWeekNum !== 0) ? Math.max(0, week - 1) : week;
     const currentWeekRow = sched.weeks?.find(w=>w.week===week);
     
     // Add visual emphasis to active values
     if(cwEl){
-      cwEl.textContent = week;
+      cwEl.textContent = displayWeek;
       cwEl.style.color = '#10b981';
       cwEl.style.textShadow = '0 0 8px rgba(16,185,129,0.4)';
     }
