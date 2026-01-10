@@ -227,9 +227,9 @@
       // Header row with phase icon and week number
       html += `<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">`;
       html += `<div style="font-size:1.3rem;line-height:1;">${icon}</div>`;
-      const displayWeek = phase === 'germination' ? 0 : w.week;
       const displayWeek = phase === 'germination' ? 0 : (subtractOne ? (w.week - 1) : w.week);
       html += `<div style="font-size:0.85rem;font-weight:700;color:#e0e0e0;">W${displayWeek}</div>`;
+
       html += `</div>`;
       
       // Phase name
