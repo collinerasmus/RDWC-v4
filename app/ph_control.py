@@ -1108,21 +1108,22 @@ def ph_trend(minutes: int = Query(10, ge=1, le=60)):
         ph_change = last_ph - first_ph
         rate_per_min = ph_change / time_span_min if time_span_min > 0 else 0.0
         
-        # Determine direction and stability
-        if abs(ph_change) < 0.05:
+        # Determine direction and stability using configurable threshold
+        stable_delta = _settings_get_float("ph.trend_stable_delta", 0.01)  # pH change over window considered stable
+        if abs(ph_change) < stable_delta:
             direction = "→"
             stable_in_min = 0
         elif ph_change > 0:
             direction = "↑"
             # Estimate minutes to reach 0.05 change rate (stability threshold)
             if rate_per_min > 0:
-                stable_in_min = max(0, int((0.05 - abs(ph_change)) / rate_per_min)) if abs(ph_change) < 0.05 else int(0.05 / rate_per_min)
+                stable_in_min = max(0, int((stable_delta - abs(ph_change)) / rate_per_min)) if abs(ph_change) < stable_delta else int(stable_delta / rate_per_min)
             else:
                 stable_in_min = None
         else:
             direction = "↓"
             if rate_per_min < 0:
-                stable_in_min = max(0, int((0.05 - abs(ph_change)) / abs(rate_per_min))) if abs(ph_change) < 0.05 else int(0.05 / abs(rate_per_min))
+                stable_in_min = max(0, int((stable_delta - abs(ph_change)) / abs(rate_per_min))) if abs(ph_change) < stable_delta else int(stable_delta / abs(rate_per_min))
             else:
                 stable_in_min = None
         
