@@ -1042,6 +1042,89 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
     return {"ok": True, "rowid": rowid, "pre_ph": pre_ph, "volume_ml": None if volume_ml is None else float(volume_ml), "duration_ms": int(duration_ms), "clamped_ms": min(duration_ms, MAX_MS), "override": bool(maint_override or (force_req and allow_force))}
 
 
+@router.get("/api/ph/trend")
+def ph_trend(minutes: int = Query(10, ge=1, le=60)):
+    """Calculate pH rate of change over the last N minutes.
+    Returns: {
+        "direction": "↑" (rising) | "→" (stable) | "↓" (falling),
+        "change": float (pH change in period),
+        "change_str": string (e.g., "+0.3 in 10m"),
+        "rate_per_min": float (pH/min),
+        "stable_in_minutes": int or null (estimate of when stable),
+        "samples": int (number of readings used)
+    }
+    """
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            # Get readings from last N minutes
+            cutoff_ts = time.time() - (minutes * 60)
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT ts, ph FROM readings WHERE ts >= ? AND ph IS NOT NULL ORDER BY ts ASC",
+                (cutoff_ts,)
+            )
+            rows = cur.fetchall()
+        
+        if len(rows) < 2:
+            return {
+                "direction": "→",
+                "change": 0.0,
+                "change_str": "—",
+                "rate_per_min": 0.0,
+                "stable_in_minutes": None,
+                "samples": len(rows)
+            }
+        
+        # Calculate change from first to last
+        first_ts, first_ph = rows[0]
+        last_ts, last_ph = rows[-1]
+        time_span_min = (last_ts - first_ts) / 60.0
+        ph_change = last_ph - first_ph
+        rate_per_min = ph_change / time_span_min if time_span_min > 0 else 0.0
+        
+        # Determine direction and stability
+        if abs(ph_change) < 0.05:
+            direction = "→"
+            stable_in_min = 0
+        elif ph_change > 0:
+            direction = "↑"
+            # Estimate minutes to reach 0.05 change rate (stability threshold)
+            if rate_per_min > 0:
+                stable_in_min = max(0, int((0.05 - abs(ph_change)) / rate_per_min)) if abs(ph_change) < 0.05 else int(0.05 / rate_per_min)
+            else:
+                stable_in_min = None
+        else:
+            direction = "↓"
+            if rate_per_min < 0:
+                stable_in_min = max(0, int((0.05 - abs(ph_change)) / abs(rate_per_min))) if abs(ph_change) < 0.05 else int(0.05 / abs(rate_per_min))
+            else:
+                stable_in_min = None
+        
+        # Format change string
+        sign = "+" if ph_change >= 0 else ""
+        change_str = f"{sign}{ph_change:.2f} in {minutes}m"
+        
+        return {
+            "direction": direction,
+            "change": round(ph_change, 3),
+            "change_str": change_str,
+            "rate_per_min": round(rate_per_min, 4),
+            "stable_in_minutes": stable_in_min if stable_in_min and stable_in_min > 0 else None,
+            "samples": len(rows)
+        }
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("/api/ph/trend failed")
+        return {
+            "direction": "?",
+            "change": 0.0,
+            "change_str": "Error",
+            "rate_per_min": 0.0,
+            "stable_in_minutes": None,
+            "samples": 0
+        }
+
+
 @router.post("/api/ph/dose")
 def ph_dose(body: Dict[str, Any] = Body(...)):
     """Manual dose endpoint.

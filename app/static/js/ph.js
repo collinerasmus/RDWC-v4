@@ -114,6 +114,56 @@
     }catch(e){ return null; }
   }
 
+  async function fetchTrend(minutes = 10){
+    try{
+      const r = await fetch(`/api/ph/trend?minutes=${minutes}`, {cache: 'no-store'});
+      if(!r.ok) throw new Error('trend');
+      return await r.json();
+    }catch(e){ return null; }
+  }
+
+  function renderTrend(trend){
+    if(!trend) return;
+    
+    const dirEl = el('ph-trend-direction');
+    const changeEl = el('ph-trend-change');
+    const stableEl = el('ph-trend-stable');
+    
+    if(dirEl) dirEl.textContent = trend.direction || '?';
+    if(changeEl) changeEl.textContent = trend.change_str || '—';
+    
+    // Color code based on stability
+    let color = '#94a3b8'; // neutral
+    let stableText = '';
+    
+    if(trend.direction === '→'){
+      color = '#16a34a'; // green - stable
+      stableText = 'Stable';
+    } else if(Math.abs(trend.rate_per_min || 0) < 0.1){
+      color = '#fbbf24'; // yellow - stabilizing
+      if(trend.stable_in_minutes){
+        stableText = `~${trend.stable_in_minutes}m to stable`;
+      } else {
+        stableText = 'Stabilizing';
+      }
+    } else {
+      color = '#ef4444'; // red - actively changing
+      if(trend.stable_in_minutes){
+        stableText = `~${trend.stable_in_minutes}m to stable`;
+      } else {
+        stableText = 'Changing';
+      }
+    }
+    
+    if(dirEl) dirEl.style.color = color;
+    if(changeEl) changeEl.style.color = color;
+    if(stableEl){
+      stableEl.textContent = stableText;
+      stableEl.style.color = color;
+    }
+  }
+
+
   function guardActive(g){
     if(!g) return false;
     return g.estop || g.safe_off || g.sensor_stale || g.interval || g.daily_cap || g.reservoir;
@@ -436,6 +486,9 @@
   async function tick(){
     const s = await fetchStatus();
     renderStatus(s||{});
+    // Fetch and render pH trend
+    const trend = await fetchTrend(10);
+    renderTrend(trend);
     // Refresh chart on each polling tick (not just on init/manual)
     // This ensures live updates as sensor readings change
     try {
