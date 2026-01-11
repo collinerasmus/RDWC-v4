@@ -1246,7 +1246,13 @@ def _derive_holding_reason(ph_val: Optional[float], guards: Dict[str, Any], targ
         return "daily_cap"
     if g.get("interval"):
         return "cooldown"
+    # Near-target informational reason (UI only): pH slightly below band
     try:
+        if ph_val is not None:
+            low = float(targets.get("low", 5.95))
+            near_delta = _settings_get_float("ph.near_target_delta", 0.05)
+            if (low - ph_val) >= 0.0 and (low - ph_val) <= near_delta:
+                return "near_target"
         if ph_val is not None and (ph_val > float(targets.get("high", 6.2))):
             return "above_high"
     except Exception:
