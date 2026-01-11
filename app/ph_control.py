@@ -1131,7 +1131,8 @@ def ph_trend(minutes: int = Query(10, ge=1, le=60)):
         
         # Format change string
         sign = "+" if ph_change >= 0 else ""
-        change_str = f"{sign}{ph_change:.2f} in {minutes}m"
+        # Show finer resolution in UI (3 decimal places)
+        change_str = f"{sign}{ph_change:.3f} in {minutes}m"
         
         return {
             "direction": direction,
