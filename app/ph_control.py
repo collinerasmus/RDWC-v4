@@ -444,6 +444,32 @@ def _ec_compensated_ml_per_pH(base_ml_per_pH: float, ec_current: Optional[float]
     except Exception:
         return base_ml_per_pH
 
+
+def _get_dose_scale_factor(ec_val: Optional[float]) -> float:
+    """Return dose scaling factor based on EC level.
+    Low EC = conservative dosing (0.5x) to avoid overshooting during germination.
+    Normal EC = full dosing (1.0x).
+    """
+    allow_low_ec = _settings_get_bool("ph_control.allow_low_ec_dosing", True)
+    if not allow_low_ec:
+        return 1.0  # No scaling if feature disabled
+    
+    ec_baseline_min = _settings_get_float("dosing.ec_baseline_min", 0.2)
+    if ec_val is None or ec_val < ec_baseline_min:
+        return 0.5  # Conservative dosing at low EC
+    return 1.0  # Normal dosing
+
+
+def _get_stabilization_wait_s(ec_val: Optional[float]) -> int:
+    """Return stabilization wait time based on EC level.
+    Low EC = longer wait (600s/10min) for safer dosing.
+    Normal EC = standard wait (300s/5min).
+    """
+    ec_baseline_min = _settings_get_float("dosing.ec_baseline_min", 0.2)
+    if ec_val is None or ec_val < ec_baseline_min:
+        return 600  # 10 minutes for low EC
+    return _settings_get_int("dosing.ph_up_stab_wait_s", 300)  # Standard 5 minutes
+
 # --- Guards ------------------------------------------------------------------
 def _compute_guards(now: float) -> Dict[str, Any]:
     from app.relays_core import get_estop_status
@@ -1199,7 +1225,8 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
 
 
 def _derive_holding_reason(ph_val: Optional[float], guards: Dict[str, Any], targets: Dict[str, float]) -> Optional[str]:
-    """Priority order: estop → reservoir → safe_off → stale → ec_baseline_low → daily_cap → interval → above_high → None"""
+    """Priority order: estop → reservoir → safe_off → stale → ec_settle → daily_cap → interval → above_high → None
+    Note: ec_baseline_low removed - system now doses conservatively at low EC instead of blocking entirely"""
     g = guards or {}
     if g.get("estop"):
         return "estop"
@@ -1209,8 +1236,6 @@ def _derive_holding_reason(ph_val: Optional[float], guards: Dict[str, Any], targ
         return "safe_off"
     if g.get("sensor_stale"):
         return "stale"
-    if g.get("ec_baseline_low"):
-        return "ec_baseline_low"
     if g.get("ec_settle"):
         return "ec_settle"
     if g.get("daily_cap"):
@@ -1411,10 +1436,6 @@ def _auto_loop():
                     _set_auto_block("safe_off")
                     if _auto_last_block_count == 3:
                         skip_next_poll = True
-                elif g.get("ec_baseline_low"):
-                    _set_auto_block("ec_baseline_low")
-                    if _auto_last_block_count == 3:
-                        skip_next_poll = True
                 elif g.get("ec_settle"):
                     _set_auto_block("ec_settle")
                     if _auto_last_block_count == 3:
@@ -1446,6 +1467,14 @@ def _auto_loop():
                             ml_per_pH = _ec_compensated_ml_per_pH(est_val, _ec_now)
                             ml_est = safety * need_dpH * ml_per_pH
                             ml = max(step_min, min(step_max, ml_est))
+                        
+                        # Apply dose scaling for low EC conditions
+                        dose_scale = _get_dose_scale_factor(_ec_now)
+                        if dose_scale < 1.0:
+                            ml = ml * dose_scale
+                            ec_baseline_min = _settings_get_float("dosing.ec_baseline_min", 0.2)
+                            print(f"[pH Auto] Low EC detected ({_ec_now:.3f} < {ec_baseline_min:.1f} mS/cm) - conservative dosing at {dose_scale*100:.0f}% ({ml:.3f}ml)")
+                        
                         _print_auto_decision("dose", ph_val, _get_latest_ec()[0], targets, ml, g)
                         _perform_dose({"ml": ml, "reason": "auto", "nonblocking": True})
                         _auto_last_holding_reason = None
