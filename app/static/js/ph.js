@@ -114,7 +114,7 @@
     }catch(e){ return null; }
   }
 
-  async function fetchTrend(minutes = 10){
+  async function fetchTrend(minutes = 20){
     try{
       const r = await fetch(`/api/ph/trend?minutes=${minutes}`, {cache: 'no-store'});
       if(!r.ok) throw new Error('trend');
@@ -487,7 +487,7 @@
     const s = await fetchStatus();
     renderStatus(s||{});
     // Fetch and render pH trend
-    const trend = await fetchTrend(10);
+    const trend = await fetchTrend(20);
     renderTrend(trend);
     // Refresh chart on each polling tick (not just on init/manual)
     // This ensures live updates as sensor readings change
