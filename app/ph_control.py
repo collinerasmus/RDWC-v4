@@ -1069,7 +1069,7 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @router.get("/api/ph/trend")
-def ph_trend(minutes: int = Query(20, ge=1, le=60)):
+def ph_trend(minutes: int = Query(30, ge=1, le=60)):
     """Calculate pH rate of change over the last N minutes.
     Returns: {
         "direction": "↑" (rising) | "→" (stable) | "↓" (falling),
