@@ -281,14 +281,19 @@
       console.log('[Week Editor] Delete response:', result);
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${result.error || 'unknown'}`);
 
-      // Remove locally
-      sched.weeks.splice(idx, 1);
+      // Reload schedule from server first to ensure consistency
+      if (window.scheduleRefresh) {
+        try { 
+          await window.scheduleRefresh();
+          console.log('[Week Editor] Schedule refreshed after delete');
+        } catch (e) {
+          console.error('[Week Editor] Refresh after delete failed:', e);
+        }
+      }
 
+      // Re-render after refresh completes
       if (window.renderTimeline) window.renderTimeline();
       if (window.updateKpis) window.updateKpis();
-      if (window.scheduleRefresh) {
-        try { await window.scheduleRefresh(); } catch (_) {}
-      }
 
       closeModal(modal);
     } catch (e) {
