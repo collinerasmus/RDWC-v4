@@ -861,11 +861,9 @@ def _check_guards() -> Tuple[bool, Optional[str]]:
         if temp_val < 16.0 or temp_val > 28.0:
             return (False, f"temp_range ({temp_val:.1f}°C)")
     
-    # pH range gate (5.5-6.5) - always enforced (nutrient uptake safety)
-    ph_val, ph_ts = _get_latest_ph()
-    if ph_val is not None:
-        if ph_val < 5.5 or ph_val > 6.5:
-            return (False, f"ph_range ({ph_val:.2f})")
+    # NOTE: Removed pH range gate for EC dosing
+    # Nutrient dosing naturally lowers pH, so high pH should not prevent EC dosing
+    # The pH controller will adjust pH down after nutrients are added
     
     # === AUTO-ONLY GUARDS ===
     if is_auto_mode:
