@@ -231,8 +231,8 @@ def seed_nutrient_schedule(source: str = Query("ehg-defaults")):
 @router.put("/api/nutrient_schedule/week/{week_num}")
 def update_week(week_num: int, updates: dict):
     """Update specific week parameters in the nutrient schedule."""
-    if week_num < 1 or week_num > 12:
-        return JSONResponse(status_code=400, content={"ok": False, "error": "Week must be 1-12"})
+    if week_num < 0 or week_num > 52:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "Week must be 0-52"})
 
     _ensure_table()
 
@@ -267,8 +267,8 @@ def upsert_week(payload: dict):
         week_num = int(payload.get("week", 0))
     except Exception:
         week_num = 0
-    if week_num < 1 or week_num > 52:
-        return JSONResponse(status_code=400, content={"ok": False, "error": "Week must be 1-52"})
+    if week_num < 0 or week_num > 52:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "Week must be 0-52"})
 
     _ensure_table()
 
@@ -303,8 +303,8 @@ def upsert_week(payload: dict):
 @router.delete("/api/nutrient_schedule/week/{week_num}")
 def delete_week(week_num: int):
     """Delete a specific week from the nutrient schedule."""
-    if week_num < 1 or week_num > 52:
-        return JSONResponse(status_code=400, content={"ok": False, "error": "Week must be 1-52"})
+    if week_num < 0 or week_num > 52:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "Week must be 0-52"})
 
     _ensure_table()
     with sqlite3.connect(str(DB_PATH)) as conn:
