@@ -1,42 +1,199 @@
-name: Slow Tests
+name: Daily Grow Report
 
 on:
   schedule:
-    - cron: '30 5 * * *'  # Daily at 05:30 UTC
+    - cron: '0 7 * * *'  # Daily at 07:00 UTC (adjust for your timezone)
   workflow_dispatch:
 
 concurrency:
-  group: ci-slow-${{ github.ref }}
+  group: daily-report-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  slow:
-    timeout-minutes: 40
+  grow-report:
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      
       - name: Set up Python
         uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
         with:
           python-version: '3.11'
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-slow-${{ runner.os }}-${{ hashFiles('requirements.txt', 'requirements-dev.txt') }}
-          restore-keys: |
-            pip-slow-${{ runner.os }}-
+      
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-      - name: Run slow tests
-        timeout-minutes: 30
+          pip install requests
+      
+      - name: Generate Grow Progress Report
+        env:
+          RDWC_HOST: ${{ secrets.RDWC_HOST }}
+          RDWC_PORT: ${{ secrets.RDWC_PORT }}
         run: |
-          pytest -vv -m slow --maxfail=1 --durations=25 tests/ | tee slow-tests-report.txt
-      - name: Upload slow test report
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+          python - << 'EOF'
+          import os
+          import json
+          import requests
+          from datetime import datetime, timedelta
+          
+          host = os.getenv('RDWC_HOST', 'localhost')
+          port = os.getenv('RDWC_PORT', '8080')
+          base_url = f"http://{host}:{port}"
+          
+          try:
+              # Fetch all data
+              schedule = requests.get(f"{base_url}/api/nutrient_schedule", timeout=5).json()
+              sensors = requests.get(f"{base_url}/api/sensors", timeout=5).json()
+              ph_status = requests.get(f"{base_url}/api/ph/status", timeout=5).json()
+              ec_status = requests.get(f"{base_url}/api/ec/status", timeout=5).json()
+              relays = requests.get(f"{base_url}/api/relays/status", timeout=5).json()
+              auto_status = requests.get(f"{base_url}/api/auto/status", timeout=5).json()
+              
+              # Parse schedule
+              current_week = schedule.get('current_week', 1)
+              grow_name = schedule.get('grow_name', 'Unknown')
+              grow_start_date = schedule.get('grow_start_date', 'N/A')
+              weeks = schedule.get('weeks', [])
+              current_schedule = next((w for w in weeks if w['week'] == current_week), {})
+              
+              # Calculate days elapsed
+              if grow_start_date != 'N/A':
+                  start = datetime.strptime(grow_start_date, '%Y-%m-%d')
+                  days_elapsed = (datetime.now() - start).days
+              else:
+                  days_elapsed = 0
+              
+              # Get recent doses
+              ph_recent = ph_status.get('recent', [])[:3]
+              ec_recent = ec_status.get('recent', [])[:3]
+              
+              # Build HTML report
+              html = f"""
+              <!DOCTYPE html>
+              <html>
+              <head>
+                  <style>
+                      body {{ font-family: Arial, sans-serif; background: #0f172a; color: #e0e0e0; }}
+                      .container {{ max-width: 900px; margin: 0 auto; padding: 20px; }}
+                      .header {{ background: #1e293b; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3b82f6; }}
+                      .status-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }}
+                      .status-box {{ background: #1e293b; padding: 15px; border-radius: 8px; border-left: 3px solid #10b981; }}
+                      .status-box.warning {{ border-left-color: #f59e0b; }}
+                      .status-box.error {{ border-left-color: #ef4444; }}
+                      .label {{ color: #94a3b8; font-size: 12px; text-transform: uppercase; margin-bottom: 5px; }}
+                      .value {{ font-size: 24px; font-weight: bold; color: #fff; }}
+                      .unit {{ font-size: 14px; color: #64748b; margin-left: 5px; }}
+                      .section {{ background: #1e293b; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
+                      .section-title {{ font-size: 18px; font-weight: bold; color: #60a5fa; margin-bottom: 15px; border-bottom: 2px solid #334155; padding-bottom: 10px; }}
+                      .row {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; font-size: 14px; }}
+                      .dose-item {{ background: #0f172a; padding: 10px; border-radius: 4px; margin-bottom: 8px; border-left: 2px solid #3b82f6; }}
+                      .dose-time {{ color: #94a3b8; font-size: 12px; }}
+                      .dose-vol {{ color: #10b981; font-weight: bold; }}
+                      .footer {{ text-align: center; color: #64748b; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #334155; }}
+                  </style>
+              </head>
+              <body>
+                  <div class="container">
+                      <div class="header">
+                          <h1 style="margin: 0; color: #60a5fa;">🌱 Daily Grow Report: {grow_name}</h1>
+                          <p style="margin: 5px 0; color: #94a3b8;">Week {current_week} | Day {days_elapsed} | {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}</p>
+                      </div>
+                      
+                      <div class="status-grid">
+                          <div class="status-box">
+                              <div class="label">Current Phase</div>
+                              <div class="value">{current_schedule.get('phase', 'N/A').title()}</div>
+                          </div>
+                          <div class="status-box">
+                              <div class="label">Light Cycle</div>
+                              <div class="value">{current_schedule.get('lights', 'N/A')}</div>
+                          </div>
+                          <div class="status-box">
+                              <div class="label">Water Temp</div>
+                              <div class="value">{sensors.get('temperature_c', 0):.1f}<span class="unit">°C</span></div>
+                          </div>
+                          <div class="status-box">
+                              <div class="label">pH Level</div>
+                              <div class="value">{sensors.get('ph', 0):.2f}</div>
+                          </div>
+                          <div class="status-box">
+                              <div class="label">EC / Nutrients</div>
+                              <div class="value">{sensors.get('ec_mscm', 0):.2f}<span class="unit">mS/cm</span></div>
+                          </div>
+                          <div class="status-box">
+                              <div class="label">Auto-Dosing</div>
+                              <div class="value" style="color: #10b981;">{'ON' if auto_status.get('global_auto') else 'OFF'}</div>
+                          </div>
+                      </div>
+                      
+                      <div class="section">
+                          <div class="section-title">📊 This Week's Targets</div>
+                          <div class="row">
+                              <div><strong>pH:</strong> {current_schedule.get('ph_low', 'N/A')} - {current_schedule.get('ph_high', 'N/A')}</div>
+                              <div><strong>EC:</strong> {current_schedule.get('ec_target', 'N/A')} mS/cm</div>
+                              <div><strong>Temp:</strong> {current_schedule.get('temp_target', 'N/A')}°C</div>
+                          </div>
+                          <div class="row">
+                              <div><strong>Grow:</strong> {current_schedule.get('grow_ml10', 0)}/10L</div>
+                              <div><strong>Micro:</strong> {current_schedule.get('micro_ml10', 0)}/10L</div>
+                              <div><strong>Bloom:</strong> {current_schedule.get('bloom_ml10', 0)}/10L</div>
+                          </div>
+                      </div>
+                      
+                      <div class="section">
+                          <div class="section-title">💊 Recent pH Doses (Last 24h)</div>
+                          {''.join([f'<div class="dose-item"><span class="dose-time">{d.get("ts_utc", "N/A")[:10]}</span> • <span class="dose-vol">{d.get("volume_ml", 0):.2f}ml</span> → {d.get("pre_ph", 0):.2f} to {d.get("post_ph", 0):.2f} pH</div>' for d in ph_recent]) if ph_recent else '<p style="color: #64748b;">No recent doses</p>'}
+                      </div>
+                      
+                      <div class="section">
+                          <div class="section-title">🧪 Recent EC Doses (Last 24h)</div>
+                          {''.join([f'<div class="dose-item"><span class="dose-time">{d.get("ts_utc", "N/A")[:10]}</span> • <span class="dose-vol">{d.get("volume_ml", 0):.1f}ml</span> ({d.get("mix_ratio", "N/A")}) → {d.get("pre_ec", 0):.2f} to {d.get("post_ec", 0):.2f} EC</div>' for d in ec_recent]) if ec_recent else '<p style="color: #64748b;">No recent doses</p>'}
+                      </div>
+                      
+                      <div class="section">
+                          <div class="section-title">⚙️ System Status</div>
+                          <div class="row">
+                              <div><strong>Main Pump:</strong> {'✅ ON' if relays.get('relays', {}).get('main_pump', {}).get('is_on') else '❌ OFF'}</div>
+                              <div><strong>Lights:</strong> {'✅ ON' if relays.get('relays', {}).get('lights', {}).get('is_on') else '❌ OFF'}</div>
+                              <div><strong>Chiller:</strong> {'✅ ON' if relays.get('relays', {}).get('chiller_power', {}).get('is_on') else '❌ IDLE'}</div>
+                          </div>
+                          <div class="row">
+                              <div><strong>Mode:</strong> {relays.get('mode', 'N/A').upper()}</div>
+                              <div><strong>E-STOP:</strong> {'🔴 ACTIVE' if relays.get('estop') else '✅ Clear'}</div>
+                              <div></div>
+                          </div>
+                      </div>
+                      
+                      <div class="footer">
+                          RDWC-v4 Daily Digest | Report generated automatically
+                      </div>
+                  </div>
+              </body>
+              </html>
+              """
+              
+              with open('grow-report.html', 'w') as f:
+                  f.write(html)
+              
+              print("✅ Grow report generated successfully")
+              
+          except Exception as e:
+              print(f"❌ Error generating report: {e}")
+              raise
+          EOF
+      
+      - name: Send Report Email
+        if: always()
+        uses: dawidd6/action-send-mail@6bdc42ec66008be01a190a2b51816b1c5470b7fc # v3.11.0
         with:
-          name: slow-tests-report
-          path: slow-tests-report.txt
+          server_address: ${{ secrets.EMAIL_SERVER }}
+          server_port: ${{ secrets.EMAIL_PORT }}
+          username: ${{ secrets.EMAIL_USER }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: '🌱 Daily Grow Report: Week ${{ env.WEEK_NUM }} - ${{ env.GROW_NAME }}'
+          to: ${{ secrets.EMAIL_TO }}
+          from: ${{ secrets.EMAIL_FROM }}
+          body: 'See attached HTML report for today''s grow status'
+          html_body: ${{ env.HTML_BODY }}
+          attachments: grow-report.html
