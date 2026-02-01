@@ -1304,6 +1304,10 @@ def _auto_loop():
     margin = _settings_get_float("ph_auto.margin", 0.05)  # aim to stop slightly inside band
     step_min = _settings_get_float("dosing.ph_up_step_min_ml", 0.05)
     step_max = _settings_get_float("dosing.ph_up_step_max_ml", 10.0)
+    # Align auto-dose cap with hard single-dose limit to avoid silent no-op
+    max_single = _settings_get_float("dosing.ph_up_max_single_ml", 5.0)
+    if max_single > 0:
+        step_max = min(step_max, max_single)
     safety = _settings_get_float("dosing.ph_up_safety_factor", 0.85)  # under-dose fraction (increased to 0.85 for more aggressive response)
     warmup_done = False
     skip_next_poll = False  # For backoff
