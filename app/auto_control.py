@@ -17,11 +17,13 @@ Automation runs = global_auto AND controller_auto
 """
 import sqlite3
 import logging
+import threading
 from pathlib import Path
 from typing import Dict, List
 import os
 
 logger = logging.getLogger(__name__)
+_db_lock = threading.Lock()
 
 # Controllers that support automation
 # Note: sensors are always active ("always sensoring") - no mode required
@@ -34,51 +36,49 @@ def _get_db_path() -> Path:
     return Path(__file__).parent.parent / "data" / "rdwc.db"
 
 def _ensure_db():
-    """Initialize controls table using db_pool for consistency"""
+    """Initialize controls table with a dedicated connection (thread-safe)."""
     db_path = _get_db_path()
     db_path.parent.mkdir(exist_ok=True)
-    
+
     try:
-        from app.db_pool import get_conn
-        conn = get_conn()  # Uses autocommit mode
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            )
-        """)
-        # Default: global OFF (safety first)
-        # pH/EC/Chiller default OFF (require explicit enable for dosing/thermal control)
-        # Circulation/Lights default ON (schedule-driven, always safe to automate)
-        conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("controls.global_auto", "false"))
-        for ctrl in CONTROLLERS:
-            default = "true" if ctrl in ("circulation", "lights") else "false"
-            conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (f"controls.{ctrl}_auto", default))
-        # No commit needed - db_pool uses autocommit mode (isolation_level=None)
+        with _db_lock:
+            with sqlite3.connect(str(db_path), timeout=5.0, isolation_level=None, check_same_thread=False) as conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS settings (
+                        key TEXT PRIMARY KEY,
+                        value TEXT NOT NULL
+                    )
+                """)
+                # Default: global OFF (safety first)
+                # pH/EC/Chiller default OFF (require explicit enable for dosing/thermal control)
+                # Circulation/Lights default ON (schedule-driven, always safe to automate)
+                conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ("controls.global_auto", "false"))
+                for ctrl in CONTROLLERS:
+                    default = "true" if ctrl in ("circulation", "lights") else "false"
+                    conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (f"controls.{ctrl}_auto", default))
         logger.debug("Auto-enable controls initialized")
     except Exception as e:
         logger.error(f"Failed to initialize auto-enable controls: {e}")
 
 def _get_setting(key: str, default: str = "false") -> str:
-    """Get setting value"""
+    """Get setting value (thread-safe)."""
     _ensure_db()
     try:
-        from app.db_pool import get_conn
-        conn = get_conn(readonly=True)
-        row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
-        return row[0] if row else default
+        with _db_lock:
+            with sqlite3.connect(str(_get_db_path()), timeout=5.0, isolation_level=None, check_same_thread=False) as conn:
+                row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+                return row[0] if row else default
     except Exception as e:
         logger.error(f"Failed to get {key}: {e}")
         return default
 
 def _set_setting(key: str, value: str) -> bool:
-    """Set setting value using db_pool (autocommit mode)"""
+    """Set setting value (thread-safe)."""
     _ensure_db()
     try:
-        from app.db_pool import get_conn
-        conn = get_conn()  # Uses autocommit mode
-        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
-        # No commit needed - db_pool uses autocommit mode (isolation_level=None)
+        with _db_lock:
+            with sqlite3.connect(str(_get_db_path()), timeout=5.0, isolation_level=None, check_same_thread=False) as conn:
+                conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
         return True
     except Exception as e:
         logger.error(f"Failed to set {key}: {e}")
