@@ -389,6 +389,13 @@ def _settings_get_int(key: str, default: int) -> int:
     except Exception:
         return default
 
+def _settings_get_bool(key: str, default: bool) -> bool:
+    try:
+        v = _settings_get(key, "true" if default else "false")
+        return str(v).strip().lower() in ("1", "true", "yes", "on")
+    except Exception:
+        return default
+
 # --- Shared Target & EC Compensation Helpers (after settings helpers) -------
 def _get_ph_targets() -> Dict[str, float]:
     """Get pH target band from nutrient schedule (if available) or settings.
