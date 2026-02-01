@@ -1490,13 +1490,16 @@ def _auto_loop():
                             print(f"[pH Auto] Low EC detected ({_ec_now:.3f} < {ec_baseline_min:.1f} mS/cm) - conservative dosing at {dose_scale*100:.0f}% ({ml:.3f}ml)")
                         
                         _print_auto_decision("dose", ph_val, _get_latest_ec()[0], targets, ml, g)
-                        _perform_dose({"ml": ml, "reason": "auto", "nonblocking": True})
+                        res = _perform_dose({"ml": ml, "reason": "auto", "nonblocking": True})
+                        if not res.get("ok"):
+                            print(f"[AUTO pH] Dose failed: {res}")
                         _auto_last_holding_reason = None
             else:
                 # pH above band: clear holding reason
                 _auto_last_holding_reason = None
             time.sleep(poll_s)
         except Exception as e:
+            print(f"[AUTO pH] Loop error: {e}")
             time.sleep(poll_s)
 
 
