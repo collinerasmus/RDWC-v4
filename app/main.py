@@ -2585,6 +2585,15 @@ def api_settings_put(body: dict = Body(...)):
     if not ok:
         return JSONResponse(status_code=422, content={"ok": False, **(err or {})})
     updated = upsert_settings(body or {})
+    
+    # Refresh scheduler if any lights settings were updated (CRITICAL FIX)
+    lights_keys = {'general.lights_on_time', 'general.lights_duration_hours', 'lights_on_time', 'lights_duration_hours'}
+    if updated and any(k in updated for k in lights_keys):
+        try:
+            _scheduler._update_lights_schedule()
+        except Exception:
+            pass
+    
     # Inform other modules (e.g., relays_core) to refresh lockouts if needed
     try:
         from app.relays_core import MIN_OFF as _X  # noqa
