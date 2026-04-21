@@ -269,11 +269,27 @@ def get_settings_grouped() -> Dict[str, Dict[str, Any]]:
 
 def upsert_settings(partial: Dict[str, Any]) -> Dict[str, Any]:
     """Upsert partial settings dict where keys are fully qualified (e.g. 'ui.relays_poll_ms').
+    Automatically syncs lights settings between legacy and namespaced keys.
     Returns dict of actually updated keys.
     """
     # DON'T call _ensure_table_seed_defaults() here - too slow on every save
     # Table initialization happens once at startup via get_all_settings
     _sync_db_pool_path()
+    
+    # SYNC LIGHTS SETTINGS: If any lights key is updated, sync both legacy and namespaced versions
+    # This ensures root.lights_duration_hours stays in sync with general.lights_duration_hours
+    lights_keys = {'lights_on_time', 'lights_duration_hours', 'general.lights_on_time', 'general.lights_duration_hours'}
+    if lights_keys & set(partial.keys()):
+        # User is updating lights settings; ensure both legacy and namespaced keys are synced
+        duration_val = partial.get('lights_duration_hours') or partial.get('general.lights_duration_hours')
+        on_time_val = partial.get('lights_on_time') or partial.get('general.lights_on_time')
+        if duration_val:
+            partial['lights_duration_hours'] = duration_val
+            partial['general.lights_duration_hours'] = duration_val
+        if on_time_val:
+            partial['lights_on_time'] = on_time_val
+            partial['general.lights_on_time'] = on_time_val
+    
     changed: Dict[str, Any] = {}
     from app.db_pool import get_conn
     import time
