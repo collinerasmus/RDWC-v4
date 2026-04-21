@@ -157,10 +157,25 @@ async def get_sensors():
         else:
             health_state = "red"
 
+        from app.unified_mode import get_sensor_mode, get_overrides
+        mode = get_sensor_mode()
+        overrides = get_overrides()
+
+        ph_val   = d.get("ph")
+        temp_val = d.get("temperature_c")
+        ec_val   = d.get("ec_mscm")
+        if mode == "maintenance":
+            if "ph" in overrides:
+                ph_val = overrides["ph"]
+            if "temperature_c" in overrides:
+                temp_val = overrides["temperature_c"]
+            if "ec_mscm" in overrides:
+                ec_val = overrides["ec_mscm"]
+
         result = {
-            "temperature_c": d.get("temperature_c"),
-            "ec_mscm": d.get("ec_mscm"),
-            "ph": d.get("ph"),
+            "temperature_c": temp_val,
+            "ec_mscm": ec_val,
+            "ph": ph_val,
             "online": online,
             "ts": d.get("ts"),
             "age_seconds": age_sec,
@@ -171,14 +186,14 @@ async def get_sensors():
             # Calibration status from database
             "cal": _get_calibration_status(),
             # Mode/overrides and original/effective echo for diagnostics/UI
-            "mode": d.get("mode"),
-            "overrides": d.get("overrides", {}),
+            "mode": mode,
+            "overrides": overrides,
             "original_temperature_c": d.get("original_temperature_c"),
             "original_ph": d.get("original_ph"),
             "original_ec_mscm": d.get("original_ec_mscm"),
-            "effective_temperature_c": d.get("temperature_c"),
-            "effective_ph": d.get("ph"),
-            "effective_ec_mscm": d.get("ec_mscm"),
+            "effective_temperature_c": temp_val,
+            "effective_ph": ph_val,
+            "effective_ec_mscm": ec_val,
         }
         return JSONResponse(content=result, status_code=200)
     except Exception as e:

@@ -154,9 +154,9 @@ def read_sensors_from_db(db_path: str = None, max_age_sec: int = 60) -> Dict[str
             "ec_mscm": row["ec_ms_cm"],
         }
         effective = dict(original)
-        # NOTE: Sensor readings are always returned. The auto-enable system
-        # controls controller automation, not sensor data visibility.
-        # Mode overrides are deprecated - return actual sensor values.
+        # NOTE: This function returns the raw cached sensor values from the DB.
+        # Maintenance-mode display overrides are applied by the API layer so the
+        # underlying reading remains intact for diagnostics and auditability.
         overrides = {"temperature_c": None, "ph": None, "ec_mscm": None, "updated_ts": None}
         return {
             "temperature_c": effective["temperature_c"],

@@ -558,9 +558,9 @@ async def _start_tasks():
     try:
         from app.relay_guard import init_safe
         init_safe()
-        print("[RelayGuard] Initialized with shadow state tracking")
+        logger.info("[RelayGuard] Initialized with shadow state tracking")
     except Exception as e:
-        print(f"[RelayGuard] WARNING: Failed to initialize: {e}")
+        logger.warning(f"[RelayGuard] WARNING: Failed to initialize: {e}")
     
     # E-STOP persisted state: honor before any auto-restore
     estop_persisted = False
@@ -577,9 +577,9 @@ async def _start_tasks():
             engage_estop()
         except Exception:
             pass
-        print("E-STOP persisted: ACTIVE")
+        logger.info("E-STOP persisted: ACTIVE")
     else:
-        print("E-STOP persisted: INACTIVE")
+        logger.info("E-STOP persisted: INACTIVE")
         # Smart restore relay states based on system_mode (auto/manual)
         # This replaces the old _load_state() with mode-aware restoration
         from app.relays_core import smart_restore_critical_relays
@@ -589,16 +589,16 @@ async def _start_tasks():
     try:
         from app.relay_guard import sync_from_actual
         sync_from_actual()
-        print("[RelayGuard] Synced shadow state from actual pin levels")
+        logger.info("[RelayGuard] Synced shadow state from actual pin levels")
     except Exception as e:
-        print(f"[RelayGuard] WARNING: Failed to sync from actual: {e}")
+        logger.warning(f"[RelayGuard] WARNING: Failed to sync from actual: {e}")
     
     # Start async sensor loop (single reader) - DISABLED by default in production
     # (standalone sensor poller runs as rdwc-sensors.service)
     SENSOR_LOOP_ENABLED = os.environ.get("SENSOR_LOOP_ENABLED", "false").lower() == "true"
     if SENSOR_LOOP_ENABLED:
         sensor_task = asyncio.create_task(sensor_loop(), name="sensor_loop")
-        print("Web sensor_loop ENABLED (legacy mode)")
+        logger.info("Web sensor_loop ENABLED (legacy mode)")
         
         # Start sensors watchdog (auto-heal if stale) - only when sensor_loop is enabled
         async def sensors_watchdog():
@@ -632,7 +632,7 @@ async def _start_tasks():
                     await asyncio.sleep(INTERVAL)
         watchdog_task = asyncio.create_task(sensors_watchdog(), name="sensors_watchdog")
     else:
-        print("Web sensor_loop DISABLED (using standalone poller)")
+        logger.info("Web sensor_loop DISABLED (using standalone poller)")
     _scheduler.start()
     # Start alert monitoring
     start_monitoring()
@@ -650,7 +650,7 @@ async def _start_tasks():
         from app.temperature_control import start_auto_control
         start_auto_control()
     except Exception as e:
-        print(f"[Temperature] Failed to start control loop: {e}")
+        logger.error(f"[Temperature] Failed to start control loop: {e}")
 
     # Start relay watchdog (detect unexpected relay energization)
     async def relay_watchdog():
@@ -694,7 +694,7 @@ async def _start_tasks():
                 await asyncio.sleep(1.0)  # Back off on error
     
     relay_watchdog_task = asyncio.create_task(relay_watchdog(), name="relay_watchdog")
-    print("[RelayWatchdog] Started 250ms polling for unexpected relay energization")
+    logger.info("[RelayWatchdog] Started 250ms polling for unexpected relay energization")
 
 @app.on_event("shutdown")  
 async def _stop_tasks():
@@ -2260,7 +2260,7 @@ def api_trends(
             dt = datetime.fromisoformat(s)
             return int(dt.timestamp())
         except Exception as e:
-            print(f"[Trends API] Failed to parse timestamp '{s}': {e}")
+            logger.debug(f"[Trends API] Failed to parse timestamp '{s}': {e}")
             return None
     
     # Parse and validate parameters
@@ -2277,14 +2277,14 @@ def api_trends(
     gran_val = max(1, int(gran or 300))
     max_points = max(100, int(max_param or 2000))
     
-    print(f"[Trends API] from={from_ts}, to={to_ts}, gran={gran_val}s, max={max_points}")
+    logger.debug(f"[Trends API] from={from_ts}, to={to_ts}, gran={gran_val}s, max={max_points}")
     
     # Fetch historical data
     try:
         rows = fetch_history_since(from_ts)
-        print(f"[Trends API] Fetched {len(rows)} rows from DB")
+        logger.debug(f"[Trends API] Fetched {len(rows)} rows from DB")
     except Exception as e:
-        print(f"[Trends API] Error fetching history: {e}")
+        logger.error(f"[Trends API] Error fetching history: {e}")
         return {
             "series": {"ph": [], "ec": [], "temp": []},
             "error": str(e)
@@ -2292,7 +2292,7 @@ def api_trends(
     
     # Filter by end time
     rows_filtered = [r for r in rows if r.get("ts") and r["ts"] <= to_ts]
-    print(f"[Trends API] After time filter: {len(rows_filtered)} rows")
+    logger.debug(f"[Trends API] After time filter: {len(rows_filtered)} rows")
     
     # Bucket data by time granularity
     buckets = {}  # key: bucket start epoch (int seconds)
@@ -2362,7 +2362,7 @@ def api_trends(
                 "value": round(obj['temp_sum'] / obj['temp_count'], 2)
             })
     
-    print(f"[Trends API] After bucketing: ph={len(ph_series)}, ec={len(ec_series)}, temp={len(temp_series)}")
+    logger.debug(f"[Trends API] After bucketing: ph={len(ph_series)}, ec={len(ec_series)}, temp={len(temp_series)}")
     
     # Downsample if still too many points (even stride)
     def cap(arr, max_pts):
@@ -2377,7 +2377,7 @@ def api_trends(
     ec_series = cap(ec_series, max_points)
     temp_series = cap(temp_series, max_points)
     
-    print(f"[Trends API] After capping: ph={len(ph_series)}, ec={len(ec_series)}, temp={len(temp_series)}")
+    logger.debug(f"[Trends API] After capping: ph={len(ph_series)}, ec={len(ec_series)}, temp={len(temp_series)}")
     
     result: dict[str, Any] = {
         "series": {
@@ -2414,18 +2414,18 @@ def grow_start():
             if earliest_ts:
                 earliest_dt = datetime.fromtimestamp(earliest_ts, tz=timezone.utc)
                 start_iso = earliest_dt.isoformat().replace('+00:00', 'Z')
-                print(f"[Grow API] Earliest timestamp: {start_iso} (ts={earliest_ts})")
+                logger.debug(f"[Grow API] Earliest timestamp: {start_iso} (ts={earliest_ts})")
                 return {"start": start_iso}
         
         # Fallback: 30 days ago if no data
         fallback_ts = int(time.time()) - (30 * 24 * 3600)
         fallback_dt = datetime.fromtimestamp(fallback_ts, tz=timezone.utc)
         start_iso = fallback_dt.isoformat().replace('+00:00', 'Z')
-        print(f"[Grow API] No data found, using 30d fallback: {start_iso}")
+        logger.debug(f"[Grow API] No data found, using 30d fallback: {start_iso}")
         return {"start": start_iso, "note": "no_data_fallback"}
         
     except Exception as e:
-        print(f"[Grow API] Error: {e}")
+        logger.error(f"[Grow API] Error: {e}")
         # Fallback: 30 days ago on error
         fallback_ts = int(time.time()) - (30 * 24 * 3600)
         fallback_dt = datetime.fromtimestamp(fallback_ts, tz=timezone.utc)
@@ -3554,9 +3554,6 @@ def api_sensors():
     Never hits I²C bus directly to prevent contention.
     Returns most recent DB reading with online flag based on freshness.
     """
-    import sys
-    print("▬▬ API_SENSORS CALLED ▬▬", file=sys.stderr, flush=True)
-    
     from app.sensors_core import read_sensors_from_db
     from app.settings import get_all_settings, get_settings_grouped, DB_PATH
     import sqlite3
@@ -3609,12 +3606,8 @@ def api_sensors():
     except (ValueError, TypeError):
         ec_calibrated = False
     
-    # Force output for debugging
-    import sys
-    print(f"DEBUG API_SENSORS: pH={ph_calibrated} (mid={ph_mid}, low={ph_low}), EC={ec_calibrated} (low_us={ec_low_us})", file=sys.stderr, flush=True)
-    
-    logger.info(f"Calibration check: pH mid={settings.get('cal.ph.mid')}, low={settings.get('cal.ph.low')}, ph_calibrated={ph_calibrated}")
-    logger.info(f"Calibration check: EC low_us={settings.get('ec.cal_low_us')}, ec_calibrated={ec_calibrated}")
+    logger.debug(f"Calibration check: pH mid={settings.get('cal.ph.mid')}, low={settings.get('cal.ph.low')}, ph_calibrated={ph_calibrated}")
+    logger.debug(f"Calibration check: EC low_us={settings.get('ec.cal_low_us')}, ec_calibrated={ec_calibrated}")
     
     cal_state = {
         "temp": {"is_calibrated": False, "detail": "db"},
@@ -3633,12 +3626,26 @@ def api_sensors():
     else:
         health_state = "red"
 
-    overrides = data.get("overrides", {})
-    mode = data.get("mode")
+    from app.unified_mode import get_sensor_mode, get_overrides
+    mode = get_sensor_mode()
+    overrides = get_overrides()
+
+    # Apply overrides when in maintenance mode
+    ph_val   = data.get("ph")
+    temp_val = data.get("temperature_c")
+    ec_val   = data.get("ec_mscm")
+    if mode == "maintenance":
+        if "ph" in overrides:
+            ph_val = overrides["ph"]
+        if "temperature_c" in overrides:
+            temp_val = overrides["temperature_c"]
+        if "ec_mscm" in overrides:
+            ec_val = overrides["ec_mscm"]
+
     result = {
-        "temperature_c": data.get("temperature_c"),
-        "ec_mscm": data.get("ec_mscm"),
-        "ph": data.get("ph"),
+        "temperature_c": temp_val,
+        "ec_mscm": ec_val,
+        "ph": ph_val,
         "online": online,
         "ts": data.get("ts"),
         "age_seconds": age_sec,
@@ -3653,9 +3660,9 @@ def api_sensors():
         "original_temperature_c": data.get("original_temperature_c"),
         "original_ph": data.get("original_ph"),
         "original_ec_mscm": data.get("original_ec_mscm"),
-        "effective_temperature_c": data.get("temperature_c"),
-        "effective_ph": data.get("ph"),
-        "effective_ec_mscm": data.get("ec_mscm")
+        "effective_temperature_c": temp_val,
+        "effective_ph": ph_val,
+        "effective_ec_mscm": ec_val
     }
     return result
 

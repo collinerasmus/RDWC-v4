@@ -85,3 +85,12 @@ def test_import_all_success():
             os.unlink(tmp_path)
         except Exception:
             pass
+
+
+def test_default_ec_target_matches_seedling_band():
+    ec_low = float(settings.DEFAULTS['targets.ec_low'])
+    ec_high = float(settings.DEFAULTS['targets.ec_high'])
+    ec_target = float(settings.DEFAULTS['targets.ec_target'])
+
+    assert ec_low < ec_high
+    assert ec_low <= ec_target <= ec_high

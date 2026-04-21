@@ -24,8 +24,10 @@ All new code should use app/auto_control.py.
 """
 import sqlite3
 import logging
+import threading
+import time
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 import os
 
 logger = logging.getLogger(__name__)
@@ -202,24 +204,49 @@ def get_all_modes() -> Dict[str, str]:
         return {controller: mode for controller in CONTROLLERS}
 
 
-def get_overrides() -> Dict[str, str]:
-    """Legacy compatibility - sensors module compatibility"""
-    return {}  # No per-sensor overrides in unified system
+# In-memory override store (maintenance mode sensor substitution)
+_overrides_lock: threading.Lock = threading.Lock()
+_overrides: Dict[str, float] = {}
+_overrides_ts: float = 0.0
+
+_OVERRIDE_FIELDS = {"ph", "temperature_c", "ec_mscm"}
+
+
+def get_overrides() -> Dict[str, Any]:
+    """Return a snapshot of the current in-memory sensor overrides."""
+    with _overrides_lock:
+        return dict(_overrides)
 
 
 def overrides_effective_age() -> int:
-    """Legacy compatibility - return age of overrides (always 0 since unused)"""
-    return 0
+    """Return seconds since overrides were last modified (0 if never set)."""
+    global _overrides_ts
+    with _overrides_lock:
+        if _overrides_ts == 0.0:
+            return 0
+        return int(time.time() - _overrides_ts)
 
 
 def set_overrides(payload: dict) -> dict:
-    """Legacy compatibility - ignore override attempts in unified system"""
-    return {}
+    """Store validated sensor overrides in memory."""
+    global _overrides_ts
+    if not isinstance(payload, dict):
+        return {}
+    with _overrides_lock:
+        for k, v in payload.items():
+            if k in _OVERRIDE_FIELDS and v is not None:
+                try:
+                    _overrides[k] = float(v)
+                except (TypeError, ValueError):
+                    pass
+        _overrides_ts = time.time()
+        return dict(_overrides)
 
 
 def clear_override_field(field: str) -> bool:
-    """Legacy compatibility - no-op since no overrides exist"""
-    return True
+    """Remove a single field from the active overrides."""
+    with _overrides_lock:
+        return _overrides.pop(field, None) is not None
 
 
 # Legacy relay state persistence functions (moved from system_mode.py)

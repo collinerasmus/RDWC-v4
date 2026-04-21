@@ -63,7 +63,7 @@ DEFAULTS: Dict[str, str] = {
     "targets.ph_band": "0.2",
     "targets.ec_low": "0.4",
     "targets.ec_high": "0.6",
-    "targets.ec_target": "1.8",
+    "targets.ec_target": "0.5",
     "targets.ec_tolerance": "0.2",
     "targets.temp_target_c": "19.0",
     

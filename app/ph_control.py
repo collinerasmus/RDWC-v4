@@ -15,11 +15,14 @@ from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse, PlainTextResponse
 from typing import Dict, Any, Optional, Tuple, List
 from datetime import datetime, timedelta, timezone
+import logging
 import time
 import sqlite3
 import threading
 from pathlib import Path
 import os
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -156,9 +159,9 @@ def _mark_dose_faulty_and_retry(rowid: int, pre_ph: float, post_ph: float) -> No
                 (now_utc, "dose", retry_ml, "pending_retry", f"retry_for_faulty_dose_id_{rowid}")
             )
             conn.commit()
-        print(f"[pH Dose Validation] rowid={rowid} marked FAULTY (delta={abs(post_ph - pre_ph):.4f}), retry queued with {retry_ml} ml")
+        logger.info(f"[pH Dose Validation] rowid={rowid} marked FAULTY (delta={abs(post_ph - pre_ph):.4f}), retry queued with {retry_ml} ml")
     except Exception as e:
-        print(f"[pH Dose Validation] Error marking dose faulty: {e}")
+        logger.warning(f"[pH Dose Validation] Error marking dose faulty: {e}")
 
 def _recent_doses(limit: int = 5) -> List[Dict[str, Any]]:
     """Return recent complete dose log entries (post_ph must not be NULL).
@@ -662,6 +665,7 @@ def _actuate_ph_up(duration_ms: int) -> Dict[str, Any]:
     # Active-low handled in relays_core
     try:
         print(f"[pH] GPIO LOW (ON) ms={duration_ms} on dosing_ph_up")
+        logger.debug(f"[pH] GPIO LOW (ON) ms={duration_ms} on dosing_ph_up")
         on = set_dosing_ph_up(True, reason="ph_dose", force=True)
         if not on.get("changed") and not on.get("state"):
             # Could be blocked by estop or cooldown
@@ -673,6 +677,7 @@ def _actuate_ph_up(duration_ms: int) -> Dict[str, Any]:
         try:
             set_dosing_ph_up(False, reason="ph_dose", force=True)
             print("[pH] GPIO HIGH (OFF) dosing_ph_up")
+            logger.debug("[pH] GPIO HIGH (OFF) dosing_ph_up")
         except Exception:
             pass
 
@@ -714,8 +719,7 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
     and incorrectly treats successful doses as ineffective.
     """
     try:
-        print(f"[pH Stabilization] THREAD STARTED for rowid={rowid}")
-        import sys; sys.stderr.flush()
+        logger.debug(f"[pH Stabilization] THREAD STARTED for rowid={rowid}")
         # Configuration
         # Use canonical stabilization keys with fallback to legacy duplicates
         stabilize_wait_s = _settings_get_int("dosing.ph_stabilization_window_s", _settings_get_int("dosing.stabilize_wait_s", 300))
@@ -748,9 +752,10 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
         delivery_window_expired = False  # Becomes True after early window passes
         poll_interval = early_poll_interval  # Start with fast polling
         
-        print(f"[pH Stabilization] Starting 2-phase observation for rowid={rowid} (pre_ph={pre_ph:.3f})")
-        print(f"[pH Stabilization]  Phase 1: Early spike detection (0-{early_spike_window_s}s, threshold={early_spike_threshold})")
-        print(f"[pH Stabilization]  Phase 2: Settling observation ({early_spike_window_s}s-{stabilize_wait_s}s, delta={stability_delta})")
+        pre_ph_str = f"{pre_ph:.3f}" if pre_ph is not None else "None"
+        logger.debug(f"[pH Stabilization] Starting 2-phase observation for rowid={rowid} (pre_ph={pre_ph_str})")
+        logger.debug(f"[pH Stabilization]  Phase 1: Early spike detection (0-{early_spike_window_s}s, threshold={early_spike_threshold})")
+        logger.debug(f"[pH Stabilization]  Phase 2: Settling observation ({early_spike_window_s}s-{stabilize_wait_s}s, delta={stability_delta})")
         
         while time.time() < deadline:
             ph_val, ts = _get_latest_ph()
@@ -776,15 +781,15 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
                             # Spike detected! Solution reached reservoir
                             delivery_confirmed = True
                             poll_interval = settling_poll_interval  # Slow down polling after confirmation
-                            print(f"[pH Stabilization] ✓ DELIVERY CONFIRMED for rowid={rowid}: spike detected! pH {pre_ph:.3f} → {ph_val:.3f} (Δ={delta:.3f})")
-                            print(f"[pH Stabilization] Switching to Phase 2: waiting for settling to measure final effect...")
+                            logger.info(f"[pH Stabilization] ✓ DELIVERY CONFIRMED for rowid={rowid}: spike detected! pH {pre_ph:.3f} → {ph_val:.3f} (Δ={delta:.3f})")
+                            logger.debug(f"[pH Stabilization] Switching to Phase 2: waiting for settling to measure final effect...")
                 
                 # Transition: Early window expired without spike — continue, but keep unconfirmed
                 if not delivery_confirmed and not delivery_window_expired and time.time() >= early_spike_deadline:
                     delivery_window_expired = True
                     poll_interval = settling_poll_interval
-                    print(f"[pH Stabilization] ⚠ No early spike detected for rowid={rowid} within {early_spike_window_s}s")
-                    print(f"[pH Stabilization] Will treat as unconfirmed delivery; if effect is zero, will mark faulty and retry")
+                    logger.info(f"[pH Stabilization] ⚠ No early spike detected for rowid={rowid} within {early_spike_window_s}s")
+                    logger.debug(f"[pH Stabilization] Will treat as unconfirmed delivery; if effect is zero, will mark faulty and retry")
                 
                 # PHASE 2: Stability check (after minimum settling time)
                 if time.time() >= stabilize_deadline and len(samples) >= stability_samples:
@@ -798,7 +803,7 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
                         if sample_range <= stability_delta:
                             # Stable! Record the average of recent samples
                             stable_ph = sum(recent) / len(recent)
-                            print(f"[pH Stabilization] rowid={rowid} STABLE: ph={stable_ph:.3f}, range={sample_range:.4f}")
+                            logger.info(f"[pH Stabilization] rowid={rowid} STABLE: ph={stable_ph:.3f}, range={sample_range:.4f}")
                             _update_post_ph_with_flag(rowid, round(stable_ph, 3), stable=True)
                             
                             # Validate dose effectiveness: check if pH changed sufficiently in correct direction (up)
@@ -810,7 +815,7 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
                                     # This prevents small doses (e.g., 0.1ml) from being discarded when they produce small but valid movement.
                                     if delta > 0:
                                         tag = " [LOW_EFFECT]" if delivery_confirmed else " [LOW_EFFECT_UNCONFIRMED]"
-                                        print(f"[pH Dose Validation] rowid={rowid} LOW EFFECT: delta={delta:.4f} (< {dose_effectiveness_threshold}); keeping for learning{tag}")
+                                        logger.debug(f"[pH Dose Validation] rowid={rowid} LOW EFFECT: delta={delta:.4f} (< {dose_effectiveness_threshold}); keeping for learning{tag}")
                                         try:
                                             with sqlite3.connect(str(DB_PATH)) as conn:
                                                 conn.execute(
@@ -823,27 +828,27 @@ def _background_observe_and_update(rowid: int, baseline_ts_unix: Optional[int], 
                                         return
                                     else:
                                         # Zero or negative effect and no spike confirmation → treat as faulty to retry
-                                        print(f"[pH Dose Validation] rowid={rowid} INEFFECTIVE: delta={delta:.4f} (expected >= {dose_effectiveness_threshold}), pre={pre_ph:.3f}, post={stable_ph:.3f}")
+                                        logger.warning(f"[pH Dose Validation] rowid={rowid} INEFFECTIVE: delta={delta:.4f} (expected >= {dose_effectiveness_threshold}), pre={pre_ph:.3f}, post={stable_ph:.3f}")
                                         _mark_dose_faulty_and_retry(rowid, pre_ph, stable_ph)
                                 else:
-                                    print(f"[pH Dose Validation] rowid={rowid} EFFECTIVE: delta={delta:.4f}, learning updated")
+                                    logger.info(f"[pH Dose Validation] rowid={rowid} EFFECTIVE: delta={delta:.4f}, learning updated")
                             return
                         else:
-                            print(f"[pH Stabilization] rowid={rowid} still settling: range={sample_range:.4f} > {stability_delta}")
+                            logger.debug(f"[pH Stabilization] rowid={rowid} still settling: range={sample_range:.4f} > {stability_delta}")
             
             time.sleep(poll_interval)
         
         # Timeout: record last value as unsettled
         ph_final, ts_final = _get_latest_ph()
         if ph_final is not None:
-            print(f"[pH Stabilization] rowid={rowid} TIMEOUT (unsettled): last_ph={ph_final:.3f}")
+            logger.info(f"[pH Stabilization] rowid={rowid} TIMEOUT (unsettled): last_ph={ph_final:.3f}")
             _update_post_ph_with_flag(rowid, ph_final, stable=False)
         else:
-            print(f"[pH Stabilization] rowid={rowid} TIMEOUT: no pH reading available")
+            logger.warning(f"[pH Stabilization] rowid={rowid} TIMEOUT: no pH reading available")
             
             
     except Exception as e:
-        print(f"[pH Stabilization] Error for rowid={rowid}: {e}")
+        logger.exception(f"[pH Stabilization] Error for rowid={rowid}: {e}")
 
 
 def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
@@ -956,7 +961,7 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
                     }
         except Exception as e:
             if str(e) != "skip_estimated_guard_default_manual":
-                print(f"[pH] Estimated change guard error (continuing): {e}")
+                logger.warning(f"[pH] Estimated change guard error (continuing): {e}")
 
     # Guards
     g = _compute_guards(time.time())
@@ -1098,7 +1103,7 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
             )
             conn.commit()
     except Exception as e:
-        print(f"[pH] Warning: Failed to insert into dose_events: {e}")
+        logger.warning(f"[pH] Warning: Failed to insert into dose_events: {e}")
 
     # Schedule background observe to update post_ph with next sample (avoid request blocking)
     observe_s = max(1, min(1800, _settings_get_int("dosing.observe_s_after_dose", 600)))
@@ -1325,7 +1330,7 @@ def _set_auto_block(reason: str) -> None:
     
     # Backoff: if same non-interval guard repeats 3×, log once then skip one extra poll
     if _auto_last_block_count == 3 and reason not in ("cooldown", "above_high"):
-        print(f"[AUTO pH] Backoff: {reason} repeated 3× — skipping one extra poll to reduce log spam")
+        logger.info(f"[AUTO pH] Backoff: {reason} repeated 3x - skipping one extra poll to reduce log spam")
 
 
 def _print_auto_decision(action: str, ph: Optional[float], ec: Optional[float], targets: Dict[str, float], ml: float, guards: Dict[str, Any]) -> None:
@@ -1342,7 +1347,7 @@ def _print_auto_decision(action: str, ph: Optional[float], ec: Optional[float], 
             "active_guards": [k for k, v in (guards or {}).items() if v]
         }
         _auto_last_decision = decision
-        print(f"[AUTO pH] {ts} action={action} ph={ph} ec={ec} -> dose_ml={round(ml,3)} band=[{targets.get('low')},{targets.get('high')}] guards={ {k:v for k,v in (guards or {}).items() if v} }")
+        logger.info(f"[AUTO pH] {ts} action={action} ph={ph} ec={ec} -> dose_ml={round(ml,3)} band=[{targets.get('low')},{targets.get('high')}] guards={ {k:v for k,v in (guards or {}).items() if v} }")
     except Exception:
         pass
 
@@ -1428,7 +1433,7 @@ def _auto_loop():
                         targets = _get_ph_targets()
                         setpoint = (targets["low"] + targets["high"]) / 2.0
                         if ph_val is not None and ph_val >= setpoint:
-                            print(f"[pH Auto] Aborting retry id={retry_id}: pH {ph_val:.3f} already >= setpoint {setpoint:.3f}")
+                            logger.info(f"[pH Auto] Aborting retry id={retry_id}: pH {ph_val:.3f} already >= setpoint {setpoint:.3f}")
                             conn.execute("UPDATE ph_dose_log SET result='retry_aborted_at_target' WHERE id=?", (retry_id,))
                             conn.commit()
                             attempts += 1
@@ -1437,7 +1442,7 @@ def _auto_loop():
                         # Mark as executing retry
                         conn.execute("UPDATE ph_dose_log SET result='executing_retry' WHERE id=?", (retry_id,))
                         conn.commit()
-                        print(f"[pH Auto] Processing pending retry for dose id={retry_id}, attempt #{attempts+1} (bypassing interval guard)")
+                        logger.info(f"[pH Auto] Processing pending retry for dose id={retry_id}, attempt #{attempts+1} (bypassing interval guard)")
 
                         # Execute via shared performer to ensure consistent logging/locking
                         try:
@@ -1449,11 +1454,11 @@ def _auto_loop():
                             retry_step_max = _settings_get_float("dosing.ph_up_step_max_ml", 0.5)
                             retry_ml = min(retry_ml, retry_step_max)  # cap at step_max (use local var to avoid shadowing outer step_max)
                             
-                            print(f"[pH Auto] Retry dose #{attempts+1}: {retry_ml:.3f}ml (escalation x{escalation_factor:.1f})")
+                            logger.info(f"[pH Auto] Retry dose #{attempts+1}: {retry_ml:.3f}ml (escalation x{escalation_factor:.1f})")
                             
                             res = _perform_dose({"ml": retry_ml, "reason": f"retry_for_faulty_dose_id_{retry_id}", "nonblocking": True})
                             if res.get("ok"):
-                                print(f"[pH Auto] Retry dose executed successfully for id={retry_id}: {retry_ml:.3f}ml")
+                                logger.info(f"[pH Auto] Retry dose executed successfully for id={retry_id}: {retry_ml:.3f}ml")
                                 # Mark retry success and schedule stabilization with tighter window for fast re-eval
                                 with sqlite3.connect(str(DB_PATH)) as conn2:
                                     now_utc = datetime.now(timezone.utc).isoformat()
@@ -1465,12 +1470,12 @@ def _auto_loop():
                                     daemon=True,
                                 ).start()
                             else:
-                                print(f"[pH Auto] Retry dose FAILED for id={retry_id}: {res}")
+                                logger.warning(f"[pH Auto] Retry dose FAILED for id={retry_id}: {res}")
                                 with sqlite3.connect(str(DB_PATH)) as conn2:
                                     conn2.execute("UPDATE ph_dose_log SET result='retry_failed' WHERE id=?", (retry_id,))
                                     conn2.commit()
                         except Exception as e:
-                            print(f"[pH Auto] Exception during retry: {e}")
+                            logger.exception(f"[pH Auto] Exception during retry: {e}")
                             with sqlite3.connect(str(DB_PATH)) as conn2:
                                 conn2.execute("UPDATE ph_dose_log SET result='retry_error' WHERE id=?", (retry_id,))
                                 conn2.commit()
@@ -1482,7 +1487,7 @@ def _auto_loop():
                 if attempts:
                     continue
             except Exception as e:
-                print(f"[pH Auto] Error checking retries: {e}")
+                logger.exception(f"[pH Auto] Error checking retries: {e}")
             
             # Only act when below band
             if ph_val < targets["low"]:
@@ -1536,19 +1541,19 @@ def _auto_loop():
                         if dose_scale < 1.0:
                             ml = ml * dose_scale
                             ec_baseline_min = _settings_get_float("dosing.ec_baseline_min", 0.2)
-                            print(f"[pH Auto] Low EC detected ({_ec_now:.3f} < {ec_baseline_min:.1f} mS/cm) - conservative dosing at {dose_scale*100:.0f}% ({ml:.3f}ml)")
+                            logger.info(f"[pH Auto] Low EC detected ({_ec_now:.3f} < {ec_baseline_min:.1f} mS/cm) - conservative dosing at {dose_scale*100:.0f}% ({ml:.3f}ml)")
                         
                         _print_auto_decision("dose", ph_val, _get_latest_ec()[0], targets, ml, g)
                         res = _perform_dose({"ml": ml, "reason": "auto", "nonblocking": True})
                         if not res.get("ok"):
-                            print(f"[AUTO pH] Dose failed: {res}")
+                            logger.warning(f"[AUTO pH] Dose failed: {res}")
                         _auto_last_holding_reason = None
             else:
                 # pH above band: clear holding reason
                 _auto_last_holding_reason = None
             time.sleep(poll_s)
         except Exception as e:
-            print(f"[AUTO pH] Loop error: {e}")
+            logger.exception(f"[AUTO pH] Loop error: {e}")
             time.sleep(poll_s)
 
 
@@ -1596,11 +1601,11 @@ def start_ph_auto_if_enabled():
         from app.auto_control import should_automate
         if should_automate("ph"):
             _auto_enable(True)
-            print("[pH Auto] Started automation loop (enabled in settings)")
+            logger.info("[pH Auto] Started automation loop (enabled in settings)")
         else:
-            print("[pH Auto] Not starting (disabled in settings)")
+            logger.info("[pH Auto] Not starting (disabled in settings)")
     except Exception as e:
-        print(f"[pH Auto] Failed to auto-start: {e}")
+        logger.exception(f"[pH Auto] Failed to auto-start: {e}")
 
 
 @router.get("/api/ph/auto/enable")
