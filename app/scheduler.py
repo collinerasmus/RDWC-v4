@@ -67,6 +67,7 @@ class Scheduler:
         self._last_lights_config = None  # track when to update lights schedule
         self._current_lights_on_time = None
         self._current_lights_off_time = None
+        self._edge_seen: Dict[str, str] = {}
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -89,8 +90,19 @@ class Scheduler:
             self.daily_used = {}
             # clear any leftover pulses
             self._pulse_work = {}
+            self._edge_seen = {}
             # recompute lights schedule for new day
             self._update_lights_schedule()
+
+    def _edge_key(self, name: str, h: int, m: int) -> str:
+        return f"{self.daily_key}:{name}:{h:02d}:{m:02d}"
+
+    def _claim_edge(self, name: str, h: int, m: int) -> bool:
+        key = self._edge_key(name, h, m)
+        if self._edge_seen.get(name) == key:
+            return False
+        self._edge_seen[name] = key
+        return True
 
     def _update_lights_schedule(self):
         """Update lights schedule based on current settings"""
@@ -207,6 +219,8 @@ class Scheduler:
 
     def _tick(self):
         self._reset_daily_if_needed()
+        # Refresh dynamic lights schedule in case settings changed mid-day.
+        self._update_lights_schedule()
         cfg = load_cfg()
         if not cfg.get("enabled", False):
             # ensure dosing pumps are off when disabled
@@ -232,9 +246,10 @@ class Scheduler:
                 on_h, on_m = map(int, self._current_lights_on_time.split(":"))
                 off_h, off_m = map(int, self._current_lights_off_time.split(":"))
                 
-                # EDGE DETECTION: Act at exact scheduled times (s == 0)
-                if s == 0:  # Exact minute boundaries
-                    if h == on_h and m == on_m:
+                # EDGE DETECTION: fire once when the scheduler first observes the
+                # edge in the first 5s window, then allow idempotent guard asserts.
+                if 0 <= s <= 5:
+                    if h == on_h and m == on_m and self._claim_edge("lights_on", h, m):
                         # Lights ON edge - execute once and trust it
                         result = set_lights(True, REASON_SCHEDULE_ON)
                         try:
@@ -246,8 +261,8 @@ class Scheduler:
                         log_event({"kind": "lights_schedule_on", "time": f"{h:02d}:{m:02d}", "changed": result["changed"]})
                         if result["changed"]:
                             self.daily_used["grow_lights"] = self.daily_used.get("grow_lights", 0) + 1
-                    
-                    elif h == off_h and m == off_m:
+
+                    elif h == off_h and m == off_m and self._claim_edge("lights_off", h, m):
                         # Lights OFF edge - execute once and trust it
                         result = set_lights(False, REASON_SCHEDULE_OFF)
                         try:
@@ -258,28 +273,26 @@ class Scheduler:
                             pass
                         log_event({"kind": "lights_schedule_off", "time": f"{h:02d}:{m:02d}", "changed": result["changed"]})
 
-                # ±5s GUARDS: Re-assert intended state up to 5s after edge
-                # Guards are idempotent and only run within s in 1..5 to avoid periodic dips
-                else:
-                    if 1 <= s <= 5:
-                        if h == on_h and m == on_m:
-                            # Guard ON
-                            set_lights(True, "schedule_guard_on")
-                            try:
-                                from app.relay_guard import sync_from_actual
-                                sync_from_actual()
-                                log_event({"kind": "GuardSync", "relays": ["lights"]})
-                            except Exception:
-                                pass
-                        elif h == off_h and m == off_m:
-                            # Guard OFF
-                            set_lights(False, "schedule_guard_off")
-                            try:
-                                from app.relay_guard import sync_from_actual
-                                sync_from_actual()
-                                log_event({"kind": "GuardSync", "relays": ["lights"]})
-                            except Exception:
-                                pass
+                # ±5s GUARDS: Re-assert intended state after the initial edge fire.
+                if 1 <= s <= 5:
+                    if h == on_h and m == on_m:
+                        # Guard ON
+                        set_lights(True, "schedule_guard_on")
+                        try:
+                            from app.relay_guard import sync_from_actual
+                            sync_from_actual()
+                            log_event({"kind": "GuardSync", "relays": ["lights"]})
+                        except Exception:
+                            pass
+                    elif h == off_h and m == off_m:
+                        # Guard OFF
+                        set_lights(False, "schedule_guard_off")
+                        try:
+                            from app.relay_guard import sync_from_actual
+                            sync_from_actual()
+                            log_event({"kind": "GuardSync", "relays": ["lights"]})
+                        except Exception:
+                            pass
                     
             except Exception as e:
                 log_event({"kind": "lights_error", "error": str(e)})
@@ -292,15 +305,15 @@ class Scheduler:
                 on_h, on_m = map(int, e["on_at"].split(":"))
                 off_h, off_m = map(int, e["off_at"].split(":"))
                 
-                # EDGE-ONLY: Only act at exact on/off times (s == 0)
-                if s == 0:
-                    if h == on_h and m == on_m:
+                # Fire once when first observed in the first 5s window.
+                if 0 <= s <= 5:
+                    if h == on_h and m == on_m and self._claim_edge(f"span_on:{e['name']}", h, m):
                         # Span ON edge
                         self.relays.set(e["name"], True)
                         self.daily_used[e["name"]] = min(caps.get(e["name"], 10**9),
                                                          self.daily_used.get(e["name"],0)+1)
                         log_event({"kind": "span_schedule_on", "relay": e["name"], "time": f"{h:02d}:{m:02d}"})
-                    elif h == off_h and m == off_m:
+                    elif h == off_h and m == off_m and self._claim_edge(f"span_off:{e['name']}", h, m):
                         # Span OFF edge
                         self.relays.set(e["name"], False)
                         log_event({"kind": "span_schedule_off", "relay": e["name"], "time": f"{h:02d}:{m:02d}"})
@@ -312,7 +325,7 @@ class Scheduler:
             if wday not in e.get("days",[0,1,2,3,4,5,6]):
                 continue
             hh,mm = map(int, e["at"].split(":"))
-            if h==hh and m==mm and s==0:
+            if h==hh and m==mm and 0 <= s <= 5 and self._claim_edge(f"pulse:{e['name']}", h, m):
                 cap = caps.get(e["name"], 0)
                 used = self.daily_used.get(e["name"],0)
                 dur  = int(e.get("duration_sec",60))

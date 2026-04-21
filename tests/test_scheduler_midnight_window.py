@@ -78,35 +78,36 @@ def test_lights_edge_only_no_catchup():
     
     # Simulate multiple ticks at the same time (should only trigger once at s=0)
     with patch('app.scheduler.load_cfg', return_value={'enabled': True, 'entries': [], 'daily_caps': {}}):
-        with patch('app.controller_modes.get_mode', return_value='auto'):
-            with patch('app.relays_core.set_lights', side_effect=mock_set_lights):
-                with patch('app.scheduler._now_tuple') as mock_time:
-                    # Simulate ON edge at 18:00:00
-                    mock_time.return_value = (0, 18, 0, 0)  # Mon, 18:00:00
-                    s._tick()
-                    
-                    # Only 1 edge call should happen at s=0
-                    assert len([c for c in edge_calls if 'schedule_on' in c['reason']]) == 1
-                    
-                    edge_calls.clear()
-                    
-                    # Simulate guards (s=1..5) - should call set_lights but with guard reason
-                    for sec in range(1, 6):
-                        mock_time.return_value = (0, 18, 0, sec)
+        with patch.object(s, '_update_lights_schedule'):
+            with patch('app.controller_modes.get_mode', return_value='auto'):
+                with patch('app.relays_core.set_lights', side_effect=mock_set_lights):
+                    with patch('app.scheduler._now_tuple') as mock_time:
+                        # Simulate ON edge at 18:00:00
+                        mock_time.return_value = (0, 18, 0, 0)  # Mon, 18:00:00
                         s._tick()
-                    
-                    # Guards should have been called 5 times
-                    guard_calls = [c for c in edge_calls if 'guard' in c['reason']]
-                    assert len(guard_calls) == 5
-                    
-                    edge_calls.clear()
-                    
-                    # Simulate time outside guard window (s > 5)
-                    mock_time.return_value = (0, 18, 0, 10)
-                    s._tick()
-                    
-                    # No calls should happen outside edge and guard windows
-                    assert len(edge_calls) == 0
+
+                        # Only 1 edge call should happen at s=0
+                        assert len([c for c in edge_calls if 'schedule_on' in c['reason']]) == 1
+
+                        edge_calls.clear()
+
+                        # Simulate guards (s=1..5) - should call set_lights but with guard reason
+                        for sec in range(1, 6):
+                            mock_time.return_value = (0, 18, 0, sec)
+                            s._tick()
+
+                        # Guards should have been called 5 times
+                        guard_calls = [c for c in edge_calls if 'guard' in c['reason']]
+                        assert len(guard_calls) == 5
+
+                        edge_calls.clear()
+
+                        # Simulate time outside guard window (s > 5)
+                        mock_time.return_value = (0, 18, 0, 10)
+                        s._tick()
+
+                        # No calls should happen outside edge and guard windows
+                        assert len(edge_calls) == 0
 
 
 def test_midnight_transition_no_phantom_edges():
@@ -125,23 +126,24 @@ def test_midnight_transition_no_phantom_edges():
         return {'changed': True}
     
     with patch('app.scheduler.load_cfg', return_value={'enabled': True, 'entries': [], 'daily_caps': {}}):
-        with patch('app.controller_modes.get_mode', return_value='auto'):
-            with patch('app.relays_core.set_lights', side_effect=mock_set_lights):
-                with patch('app.scheduler._now_tuple') as mock_time:
-                    # Just before midnight
-                    mock_time.return_value = (0, 23, 59, 0)
-                    s._tick()
-                    
-                    # At midnight exactly (no edge expected here)
-                    mock_time.return_value = (1, 0, 0, 0)  # Next day
-                    s._tick()
-                    
-                    # One minute after midnight
-                    mock_time.return_value = (1, 0, 1, 0)
-                    s._tick()
-                    
-                    # Should have NO edge calls at midnight transition
-                    assert len(edge_calls) == 0
+        with patch.object(s, '_update_lights_schedule'):
+            with patch('app.controller_modes.get_mode', return_value='auto'):
+                with patch('app.relays_core.set_lights', side_effect=mock_set_lights):
+                    with patch('app.scheduler._now_tuple') as mock_time:
+                        # Just before midnight
+                        mock_time.return_value = (0, 23, 59, 0)
+                        s._tick()
+
+                        # At midnight exactly (no edge expected here)
+                        mock_time.return_value = (1, 0, 0, 0)  # Next day
+                        s._tick()
+
+                        # One minute after midnight
+                        mock_time.return_value = (1, 0, 1, 0)
+                        s._tick()
+
+                        # Should have NO edge calls at midnight transition
+                        assert len(edge_calls) == 0
 
 
 def test_exactly_two_edges_per_day():
@@ -160,22 +162,23 @@ def test_exactly_two_edges_per_day():
         return {'changed': True}
     
     with patch('app.scheduler.load_cfg', return_value={'enabled': True, 'entries': [], 'daily_caps': {}}):
-        with patch('app.controller_modes.get_mode', return_value='auto'):
-            with patch('app.relays_core.set_lights', side_effect=mock_set_lights):
-                with patch('app.scheduler._now_tuple') as mock_time:
-                    # Simulate a full day, checking every minute at s=0 only
-                    for hour in range(24):
-                        for minute in range(60):
-                            mock_time.return_value = (0, hour, minute, 0)
-                            s._tick()
-                    
-                    # Count actual edge triggers (not guards)
-                    on_edges = [c for c in edge_calls if 'schedule_on' in c['reason'] and 'guard' not in c['reason']]
-                    off_edges = [c for c in edge_calls if 'schedule_off' in c['reason'] and 'guard' not in c['reason']]
-                    
-                    # Should have exactly 1 ON edge and 1 OFF edge
-                    assert len(on_edges) == 1, f"Expected 1 ON edge, got {len(on_edges)}"
-                    assert len(off_edges) == 1, f"Expected 1 OFF edge, got {len(off_edges)}"
+        with patch.object(s, '_update_lights_schedule'):
+            with patch('app.controller_modes.get_mode', return_value='auto'):
+                with patch('app.relays_core.set_lights', side_effect=mock_set_lights):
+                    with patch('app.scheduler._now_tuple') as mock_time:
+                        # Simulate a full day, checking every minute at s=0 only
+                        for hour in range(24):
+                            for minute in range(60):
+                                mock_time.return_value = (0, hour, minute, 0)
+                                s._tick()
+
+                        # Count actual edge triggers (not guards)
+                        on_edges = [c for c in edge_calls if 'schedule_on' in c['reason'] and 'guard' not in c['reason']]
+                        off_edges = [c for c in edge_calls if 'schedule_off' in c['reason'] and 'guard' not in c['reason']]
+
+                        # Should have exactly 1 ON edge and 1 OFF edge
+                        assert len(on_edges) == 1, f"Expected 1 ON edge, got {len(on_edges)}"
+                        assert len(off_edges) == 1, f"Expected 1 OFF edge, got {len(off_edges)}"
 
 
 def test_midnight_spanning_schedule_two_edges():
@@ -197,23 +200,97 @@ def test_midnight_spanning_schedule_two_edges():
         return {'changed': True}
     
     with patch('app.scheduler.load_cfg', return_value={'enabled': True, 'entries': [], 'daily_caps': {}}):
-        with patch('app.controller_modes.get_mode', return_value='auto'):
-            with patch('app.relays_core.set_lights', side_effect=mock_set_lights):
-                with patch('app.scheduler._now_tuple') as mock_time:
-                    # Simulate a full 24-hour period at s=0 only
-                    for hour in range(24):
-                        for minute in range(60):
-                            mock_time.return_value = (0, hour, minute, 0)
+        with patch.object(s, '_update_lights_schedule'):
+            with patch('app.controller_modes.get_mode', return_value='auto'):
+                with patch('app.relays_core.set_lights', side_effect=mock_set_lights):
+                    with patch('app.scheduler._now_tuple') as mock_time:
+                        # Simulate a full 24-hour period at s=0 only
+                        for hour in range(24):
+                            for minute in range(60):
+                                mock_time.return_value = (0, hour, minute, 0)
+                                s._tick()
+
+                        # Count edge triggers (excluding guards)
+                        on_edges = [c for c in edge_calls if 'schedule_on' in c['reason'] and 'guard' not in c['reason']]
+                        off_edges = [c for c in edge_calls if 'schedule_off' in c['reason'] and 'guard' not in c['reason']]
+
+                        # Should have exactly 1 ON edge at 20:00 and 1 OFF edge at 04:00
+                        assert len(on_edges) == 1, f"Expected 1 ON edge, got {len(on_edges)}"
+                        assert len(off_edges) == 1, f"Expected 1 OFF edge, got {len(off_edges)}"
+
+                        # Verify timing
+                        assert on_edges[0]['hour'] == 20 and on_edges[0]['minute'] == 0
+                        assert off_edges[0]['hour'] == 4 and off_edges[0]['minute'] == 0
+
+
+def test_lights_edge_tolerates_jitter_within_guard_window():
+    rb = RelayBank()
+    s = Scheduler(rb)
+    s._current_lights_on_time = "18:00"
+    s._current_lights_off_time = "06:00"
+
+    calls = []
+
+    def mock_set_lights(state, reason):
+        calls.append({"state": state, "reason": reason})
+        return {"changed": True}
+
+    with patch('app.scheduler.load_cfg', return_value={'enabled': True, 'entries': [], 'daily_caps': {}}):
+        with patch.object(s, '_update_lights_schedule'):
+            with patch('app.scheduler.log_event'):
+                with patch('app.auto_control.should_automate', return_value=True):
+                    with patch('app.relays_core.set_lights', side_effect=mock_set_lights):
+                        with patch('app.relay_guard.sync_from_actual'):
+                            with patch('app.scheduler._now_tuple', return_value=(0, 18, 0, 2)):
+                                s._tick()
+
+    edge_calls = [c for c in calls if c['reason'] == 'schedule_on']
+    guard_calls = [c for c in calls if c['reason'] == 'schedule_guard_on']
+    assert len(edge_calls) == 1
+    assert len(guard_calls) == 1
+
+
+def test_tick_refreshes_lights_schedule_when_settings_change():
+    rb = RelayBank()
+    s = Scheduler(rb)
+
+    settings_seq = [
+        types.SimpleNamespace(lights_on_time='06:00', lights_duration_hours=16),
+        types.SimpleNamespace(lights_on_time='08:00', lights_duration_hours=12),
+    ]
+    window_seq = [
+        ('06:00', '22:00'),
+        ('08:00', '20:00'),
+    ]
+
+    def fake_get_settings():
+        if settings_seq:
+            return settings_seq.pop(0)
+        return types.SimpleNamespace(lights_on_time='08:00', lights_duration_hours=12)
+
+    def fake_get_window():
+        on_s, off_s = window_seq.pop(0)
+
+        class FakeDt:
+            def __init__(self, hm):
+                self.hm = hm
+            def strftime(self, fmt):
+                return self.hm
+            def isoformat(self):
+                return self.hm
+
+        return FakeDt(on_s), FakeDt(off_s)
+
+    with patch('app.scheduler.load_cfg', return_value={'enabled': True, 'entries': [], 'daily_caps': {}}):
+        with patch('app.scheduler.log_event'):
+            with patch('app.auto_control.should_automate', return_value=False):
+                with patch('app.settings.get_settings', side_effect=fake_get_settings):
+                    with patch('app.settings.get_todays_lights_window', side_effect=fake_get_window):
+                        with patch('app.scheduler._now_tuple', return_value=(0, 12, 0, 0)):
+                            s._update_lights_schedule()
+                            assert s._current_lights_on_time == '06:00'
+                            assert s._current_lights_off_time == '22:00'
+
                             s._tick()
-                    
-                    # Count edge triggers (excluding guards)
-                    on_edges = [c for c in edge_calls if 'schedule_on' in c['reason'] and 'guard' not in c['reason']]
-                    off_edges = [c for c in edge_calls if 'schedule_off' in c['reason'] and 'guard' not in c['reason']]
-                    
-                    # Should have exactly 1 ON edge at 20:00 and 1 OFF edge at 04:00
-                    assert len(on_edges) == 1, f"Expected 1 ON edge, got {len(on_edges)}"
-                    assert len(off_edges) == 1, f"Expected 1 OFF edge, got {len(off_edges)}"
-                    
-                    # Verify timing
-                    assert on_edges[0]['hour'] == 20 and on_edges[0]['minute'] == 0
-                    assert off_edges[0]['hour'] == 4 and off_edges[0]['minute'] == 0
+                            assert s._current_lights_on_time == '08:00'
+                            assert s._current_lights_off_time == '20:00'
