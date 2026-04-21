@@ -1446,8 +1446,8 @@ def _auto_loop():
                             base_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.1)
                             escalation_factor = 1.0 + (0.5 * attempts)  # 1.0, 1.5, 2.0, 2.5...
                             retry_ml = base_ml * escalation_factor
-                            step_max = _settings_get_float("dosing.ph_up_step_max_ml", 0.5)
-                            retry_ml = min(retry_ml, step_max)  # cap at step_max
+                            retry_step_max = _settings_get_float("dosing.ph_up_step_max_ml", 0.5)
+                            retry_ml = min(retry_ml, retry_step_max)  # cap at step_max (use local var to avoid shadowing outer step_max)
                             
                             print(f"[pH Auto] Retry dose #{attempts+1}: {retry_ml:.3f}ml (escalation x{escalation_factor:.1f})")
                             

@@ -2,7 +2,7 @@ name: Daily Grow Report
 
 on:
   schedule:
-    - cron: '0 7 * * *'  # Daily at 07:00 UTC (adjust for your timezone)
+    - cron: '0 7 * * *'  # Daily at 07:00 UTC
   workflow_dispatch:
 
 concurrency:
@@ -15,174 +15,297 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
-      
+
       - name: Set up Python
         uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests
-      
-      - name: Generate Grow Progress Report
+
+      - name: Generate Grow Report
         env:
           RDWC_HOST: ${{ secrets.RDWC_HOST }}
           RDWC_PORT: ${{ secrets.RDWC_PORT }}
         run: |
-          python - << 'EOF'
-          import os
-          import json
+          python - << 'PYEOF'
+          import os, sys
           import requests
-          from datetime import datetime, timedelta
-          
-          host = os.getenv('RDWC_HOST', 'localhost')
-          port = os.getenv('RDWC_PORT', '8080')
+          from datetime import datetime
+
+          host     = os.getenv('RDWC_HOST', 'localhost')
+          port     = os.getenv('RDWC_PORT', '8080')
           base_url = f"http://{host}:{port}"
-          
+          gh_env   = os.getenv('GITHUB_ENV', '')
+
+          def safe_get(path, default=None):
+              try:
+                  r = requests.get(f"{base_url}{path}", timeout=8)
+                  r.raise_for_status()
+                  return r.json()
+              except Exception as e:
+                  print(f"  WARNING {path}: {e}", file=sys.stderr)
+                  return default if default is not None else {}
+
+          settings    = safe_get('/api/settings')
+          sensors     = safe_get('/api/sensors')
+          ph_status   = safe_get('/api/ph/status')
+          ec_status   = safe_get('/api/ec/status')
+          relays      = safe_get('/api/relays/status')
+          auto_status = safe_get('/api/auto/status')
+          schedule    = safe_get('/api/nutrient_schedule')
+          sched_st    = safe_get('/api/scheduler/status')
+          ph_trend    = safe_get('/api/ph/trend?minutes=1440')
+
+          general          = settings.get('general', {})
+          grow_name        = general.get('grow_name', 'RDWC Grow')
+          grow_start_str   = general.get('grow_start_date', '')
+          reservoir_liters = general.get('reservoir_liters', 'N/A')
+          lights_on_time   = general.get('lights_on_time', sched_st.get('lights_on_time', 'N/A'))
+          lights_dur       = general.get('lights_duration_hours', 'N/A')
+          lights_off_time  = sched_st.get('lights_off_time', 'N/A')
+
+          current_week = 1
+          days_elapsed = 0
+          if grow_start_str:
+              try:
+                  start        = datetime.strptime(grow_start_str, '%Y-%m-%d')
+                  days_elapsed = (datetime.utcnow() - start).days
+                  current_week = max(1, days_elapsed // 7 + 1)
+              except Exception:
+                  pass
+
+          weeks       = schedule.get('weeks', [])
+          capped_week = min(current_week, max((w['week'] for w in weeks), default=1))
+          cur_sched   = next((w for w in weeks if w['week'] == capped_week), {})
+
+          temp_c        = sensors.get('temperature_c')
+          ph_now        = sensors.get('ph')
+          ec_now        = sensors.get('ec_mscm')
+          age_s         = sensors.get('age_seconds', 0)
+          sensor_online = sensors.get('online', False)
+
+          def fmt(v, decimals=2, unit=''):
+              if v is None: return 'N/A'
+              try:    return f"{float(v):.{decimals}f}{unit}"
+              except: return str(v)
+
+          ph_targets    = ph_status.get('targets', {})
+          ph_low_t      = ph_targets.get('low', 'N/A')
+          ph_high_t     = ph_targets.get('high', 'N/A')
+          ph_auto_info  = ph_status.get('auto', {})
+          ph_auto_on    = ph_auto_info.get('enabled', False)
+          ph_holding    = ph_auto_info.get('holding_reason')
+          ph_guards     = ph_status.get('guards', {})
+          today_ph_ml   = ph_guards.get('today_total_ml', 0)
+          today_str     = datetime.utcnow().strftime('%Y-%m-%d')
+          all_ph_recent = ph_status.get('recent', [])
+          today_ph_ok   = [d for d in all_ph_recent
+                           if str(d.get('ts_utc', '')).startswith(today_str)
+                           and d.get('result') == 'ok']
+          today_ph_count = len(today_ph_ok)
+          last5_ph       = today_ph_ok[:5]
+
+          ec_targets_d  = ec_status.get('targets', {})
+          ec_low_t      = ec_targets_d.get('low', 'N/A')
+          ec_high_t     = ec_targets_d.get('high', 'N/A')
+          ec_auto_info  = ec_status.get('auto', {})
+          ec_holding    = ec_auto_info.get('holding_reason')
+          ec_today_ml   = ec_status.get('guards', {}).get('today_total_ml', 0)
+          last3_ec      = ec_status.get('recent', [])[:3]
+
+          trend_dir    = ph_trend.get('direction', '-')
+          trend_change = ph_trend.get('change_str', 'N/A')
+
+          relay_data    = relays.get('relays', {})
+          main_pump_on  = relay_data.get('main_pump', {}).get('is_on', False)
+          lights_now_on = relay_data.get('lights', {}).get('is_on', False)
+          chiller_on    = relay_data.get('chiller_power', {}).get('is_on', False)
+          estop         = relays.get('estop', False)
+          relay_mode    = relays.get('mode', 'N/A').upper()
+          global_auto   = auto_status.get('global_auto', False)
+
+          def in_range(val, low, high):
+              try:    return float(low) <= float(val) <= float(high)
+              except: return None
+
+          ph_ok   = in_range(ph_now,  ph_low_t,  ph_high_t)
+          ec_ok   = in_range(ec_now,  ec_low_t,  ec_high_t)
+          temp_ok = in_range(temp_c,  16, 24) if temp_c is not None else None
+
+          def kpi_color(ok):
+              if ok is True:  return '#10b981'
+              if ok is False: return '#f59e0b'
+              return '#94a3b8'
+
+          def status_txt(ok):
+              return 'OK' if ok is True else ('OUT OF RANGE' if ok is False else 'N/A')
+
+          alerts = []
+          if estop:               alerts.append(('error',   'E-STOP is ACTIVE - system is halted'))
+          if not sensor_online:   alerts.append(('error',   'Sensors OFFLINE - readings may be stale'))
+          if not main_pump_on:    alerts.append(('warning', 'Main circulation pump is OFF'))
+          if not ph_auto_on:      alerts.append(('warning', 'pH auto-dosing is DISABLED'))
+          if ph_ok is False:      alerts.append(('warning', f'pH {fmt(ph_now)} is outside target {ph_low_t}-{ph_high_t}'))
+          if today_ph_ml > 250:   alerts.append(('warning', f'High pH dose volume today: {today_ph_ml:.1f} ml'))
           try:
-              # Fetch all data
-              schedule = requests.get(f"{base_url}/api/nutrient_schedule", timeout=5).json()
-              sensors = requests.get(f"{base_url}/api/sensors", timeout=5).json()
-              ph_status = requests.get(f"{base_url}/api/ph/status", timeout=5).json()
-              ec_status = requests.get(f"{base_url}/api/ec/status", timeout=5).json()
-              relays = requests.get(f"{base_url}/api/relays/status", timeout=5).json()
-              auto_status = requests.get(f"{base_url}/api/auto/status", timeout=5).json()
-              
-              # Parse schedule
-              current_week = schedule.get('current_week', 1)
-              grow_name = schedule.get('grow_name', 'Unknown')
-              grow_start_date = schedule.get('grow_start_date', 'N/A')
-              weeks = schedule.get('weeks', [])
-              current_schedule = next((w for w in weeks if w['week'] == current_week), {})
-              
-              # Calculate days elapsed
-              if grow_start_date != 'N/A':
-                  start = datetime.strptime(grow_start_date, '%Y-%m-%d')
-                  days_elapsed = (datetime.now() - start).days
-              else:
-                  days_elapsed = 0
-              
-              # Get recent doses
-              ph_recent = ph_status.get('recent', [])[:3]
-              ec_recent = ec_status.get('recent', [])[:3]
-              
-              # Build HTML report
-              html = f"""
-              <!DOCTYPE html>
-              <html>
-              <head>
-                  <style>
-                      body {{ font-family: Arial, sans-serif; background: #0f172a; color: #e0e0e0; }}
-                      .container {{ max-width: 900px; margin: 0 auto; padding: 20px; }}
-                      .header {{ background: #1e293b; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3b82f6; }}
-                      .status-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }}
-                      .status-box {{ background: #1e293b; padding: 15px; border-radius: 8px; border-left: 3px solid #10b981; }}
-                      .status-box.warning {{ border-left-color: #f59e0b; }}
-                      .status-box.error {{ border-left-color: #ef4444; }}
-                      .label {{ color: #94a3b8; font-size: 12px; text-transform: uppercase; margin-bottom: 5px; }}
-                      .value {{ font-size: 24px; font-weight: bold; color: #fff; }}
-                      .unit {{ font-size: 14px; color: #64748b; margin-left: 5px; }}
-                      .section {{ background: #1e293b; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
-                      .section-title {{ font-size: 18px; font-weight: bold; color: #60a5fa; margin-bottom: 15px; border-bottom: 2px solid #334155; padding-bottom: 10px; }}
-                      .row {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; font-size: 14px; }}
-                      .dose-item {{ background: #0f172a; padding: 10px; border-radius: 4px; margin-bottom: 8px; border-left: 2px solid #3b82f6; }}
-                      .dose-time {{ color: #94a3b8; font-size: 12px; }}
-                      .dose-vol {{ color: #10b981; font-weight: bold; }}
-                      .footer {{ text-align: center; color: #64748b; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #334155; }}
-                  </style>
-              </head>
-              <body>
-                  <div class="container">
-                      <div class="header">
-                          <h1 style="margin: 0; color: #60a5fa;">🌱 Daily Grow Report: {grow_name}</h1>
-                          <p style="margin: 5px 0; color: #94a3b8;">Week {current_week} | Day {days_elapsed} | {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}</p>
-                      </div>
-                      
-                      <div class="status-grid">
-                          <div class="status-box">
-                              <div class="label">Current Phase</div>
-                              <div class="value">{current_schedule.get('phase', 'N/A').title()}</div>
-                          </div>
-                          <div class="status-box">
-                              <div class="label">Light Cycle</div>
-                              <div class="value">{current_schedule.get('lights', 'N/A')}</div>
-                          </div>
-                          <div class="status-box">
-                              <div class="label">Water Temp</div>
-                              <div class="value">{sensors.get('temperature_c', 0):.1f}<span class="unit">°C</span></div>
-                          </div>
-                          <div class="status-box">
-                              <div class="label">pH Level</div>
-                              <div class="value">{sensors.get('ph', 0):.2f}</div>
-                          </div>
-                          <div class="status-box">
-                              <div class="label">EC / Nutrients</div>
-                              <div class="value">{sensors.get('ec_mscm', 0):.2f}<span class="unit">mS/cm</span></div>
-                          </div>
-                          <div class="status-box">
-                              <div class="label">Auto-Dosing</div>
-                              <div class="value" style="color: #10b981;">{'ON' if auto_status.get('global_auto') else 'OFF'}</div>
-                          </div>
-                      </div>
-                      
-                      <div class="section">
-                          <div class="section-title">📊 This Week's Targets</div>
-                          <div class="row">
-                              <div><strong>pH:</strong> {current_schedule.get('ph_low', 'N/A')} - {current_schedule.get('ph_high', 'N/A')}</div>
-                              <div><strong>EC:</strong> {current_schedule.get('ec_target', 'N/A')} mS/cm</div>
-                              <div><strong>Temp:</strong> {current_schedule.get('temp_target', 'N/A')}°C</div>
-                          </div>
-                          <div class="row">
-                              <div><strong>Grow:</strong> {current_schedule.get('grow_ml10', 0)}/10L</div>
-                              <div><strong>Micro:</strong> {current_schedule.get('micro_ml10', 0)}/10L</div>
-                              <div><strong>Bloom:</strong> {current_schedule.get('bloom_ml10', 0)}/10L</div>
-                          </div>
-                      </div>
-                      
-                      <div class="section">
-                          <div class="section-title">💊 Recent pH Doses (Last 24h)</div>
-                          {''.join([f'<div class="dose-item"><span class="dose-time">{d.get("ts_utc", "N/A")[:10]}</span> • <span class="dose-vol">{d.get("volume_ml", 0):.2f}ml</span> → {d.get("pre_ph", 0):.2f} to {d.get("post_ph", 0):.2f} pH</div>' for d in ph_recent]) if ph_recent else '<p style="color: #64748b;">No recent doses</p>'}
-                      </div>
-                      
-                      <div class="section">
-                          <div class="section-title">🧪 Recent EC Doses (Last 24h)</div>
-                          {''.join([f'<div class="dose-item"><span class="dose-time">{d.get("ts_utc", "N/A")[:10]}</span> • <span class="dose-vol">{d.get("volume_ml", 0):.1f}ml</span> ({d.get("mix_ratio", "N/A")}) → {d.get("pre_ec", 0):.2f} to {d.get("post_ec", 0):.2f} EC</div>' for d in ec_recent]) if ec_recent else '<p style="color: #64748b;">No recent doses</p>'}
-                      </div>
-                      
-                      <div class="section">
-                          <div class="section-title">⚙️ System Status</div>
-                          <div class="row">
-                              <div><strong>Main Pump:</strong> {'✅ ON' if relays.get('relays', {}).get('main_pump', {}).get('is_on') else '❌ OFF'}</div>
-                              <div><strong>Lights:</strong> {'✅ ON' if relays.get('relays', {}).get('lights', {}).get('is_on') else '❌ OFF'}</div>
-                              <div><strong>Chiller:</strong> {'✅ ON' if relays.get('relays', {}).get('chiller_power', {}).get('is_on') else '❌ IDLE'}</div>
-                          </div>
-                          <div class="row">
-                              <div><strong>Mode:</strong> {relays.get('mode', 'N/A').upper()}</div>
-                              <div><strong>E-STOP:</strong> {'🔴 ACTIVE' if relays.get('estop') else '✅ Clear'}</div>
-                              <div></div>
-                          </div>
-                      </div>
-                      
-                      <div class="footer">
-                          RDWC-v4 Daily Digest | Report generated automatically
-                      </div>
-                  </div>
-              </body>
-              </html>
-              """
-              
-              with open('grow-report.html', 'w') as f:
-                  f.write(html)
-              
-              print("✅ Grow report generated successfully")
-              
-          except Exception as e:
-              print(f"❌ Error generating report: {e}")
-              raise
-          EOF
-      
+              if int(age_s) > 300: alerts.append(('warning', f'Sensor data is {int(age_s)}s old'))
+          except Exception: pass
+
+          def badge(on, on_lbl, off_lbl):
+              if on:
+                  return (f'<span style="background:#065f46;color:#6ee7b7;padding:2px 8px;'
+                          f'border-radius:4px;font-size:12px;font-weight:bold">{on_lbl}</span>')
+              return (f'<span style="background:#450a0a;color:#fca5a5;padding:2px 8px;'
+                      f'border-radius:4px;font-size:12px;font-weight:bold">{off_lbl}</span>')
+
+          def alert_row(level, msg):
+              bg     = '#450a0a' if level == 'error' else '#422006'
+              border = '#ef4444' if level == 'error' else '#f59e0b'
+              icon   = 'ERROR:' if level == 'error' else 'WARNING:'
+              return (f'<div style="background:{bg};border-left:4px solid {border};'
+                      f'padding:10px 14px;border-radius:4px;margin-bottom:8px;font-size:14px">'
+                      f'<strong>{icon}</strong> {msg}</div>')
+
+          def ph_dose_row(d):
+              ts = str(d.get('ts_utc', ''))
+              tp = ts[11:19] if len(ts) > 10 else ts
+              vol  = fmt(d.get('volume_ml'), 2)
+              pre  = fmt(d.get('pre_ph'))
+              post = fmt(d.get('post_ph'))
+              delta = ''
+              try:
+                  dv    = float(d.get('post_ph', 0)) - float(d.get('pre_ph', 0))
+                  delta = f' (d{dv:+.3f})'
+              except Exception: pass
+              return (f'<tr><td style="color:#94a3b8;font-size:12px;padding:5px 8px">{tp}</td>'
+                      f'<td style="color:#34d399;font-weight:bold;padding:5px 8px">{vol} ml</td>'
+                      f'<td style="padding:5px 8px">{pre} to {post}{delta}</td></tr>')
+
+          def ec_dose_row(d):
+              ts = str(d.get('ts_utc', ''))
+              tp = ts[11:19] if len(ts) > 10 else ts
+              vol  = fmt(d.get('volume_ml'), 1)
+              pre  = fmt(d.get('pre_ec'))
+              post = fmt(d.get('post_ec'))
+              return (f'<tr><td style="color:#94a3b8;font-size:12px;padding:5px 8px">{tp}</td>'
+                      f'<td style="color:#34d399;font-weight:bold;padding:5px 8px">{vol} ml</td>'
+                      f'<td style="padding:5px 8px">{pre} to {post} mS/cm</td></tr>')
+
+          TH = 'style="color:#64748b;padding:5px 8px;border-bottom:1px solid #334155;text-align:left"'
+
+          alerts_block = (''.join(alert_row(lv, msg) for lv, msg in alerts)
+                          if alerts else
+                          '<div style="color:#10b981;padding:8px 0">No issues detected</div>')
+
+          ph_table = (
+              f'<table style="width:100%;border-collapse:collapse;font-size:13px">'
+              f'<tr><th {TH}>Time (UTC)</th><th {TH}>Volume</th><th {TH}>pH change</th></tr>'
+              + ''.join(ph_dose_row(d) for d in last5_ph)
+              + '</table>'
+          ) if last5_ph else '<p style="color:#64748b;margin:0">No successful pH doses today</p>'
+
+          ec_table = (
+              f'<table style="width:100%;border-collapse:collapse;font-size:13px">'
+              f'<tr><th {TH}>Time (UTC)</th><th {TH}>Volume</th><th {TH}>EC change</th></tr>'
+              + ''.join(ec_dose_row(d) for d in last3_ec)
+              + '</table>'
+          ) if last3_ec else '<p style="color:#64748b;margin:0">No EC doses recently</p>'
+
+          ph_col  = kpi_color(ph_ok)
+          ec_col  = kpi_color(ec_ok)
+          tp_col  = kpi_color(temp_ok)
+          now_utc = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+
+          holding_ph = (f'<div style="font-size:12px;color:#f59e0b;margin-top:4px">Holding: {ph_holding}</div>'
+                        if ph_holding else '')
+          holding_ec = (f'<div style="font-size:12px;color:#f59e0b;margin-top:4px">Holding: {ec_holding}</div>'
+                        if ec_holding else '')
+          auto_ph_span = ('<span style="color:#10b981">Enabled</span>' if ph_auto_on
+                          else '<span style="color:#ef4444">Disabled</span>')
+          estop_badge  = (badge(False, '', 'ACTIVE') if estop else badge(True, 'Clear', ''))
+
+          parts = [
+              '<!DOCTYPE html><html lang="en"><head>',
+              '<meta charset="utf-8">',
+              '<meta name="viewport" content="width=device-width,initial-scale=1">',
+              '<title>RDWC Daily Report</title>',
+              '<style>',
+              'body{font-family:Arial,Helvetica,sans-serif;background:#0f172a;color:#e2e8f0;margin:0;padding:0}',
+              '.wrap{max-width:860px;margin:0 auto;padding:24px 16px}',
+              '.card{background:#1e293b;border-radius:8px;padding:20px;margin-bottom:16px}',
+              '.ct{font-size:16px;font-weight:bold;color:#60a5fa;margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid #334155}',
+              '.kg{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}',
+              '.kpi{background:#1e293b;border-radius:8px;padding:14px;border-top:3px solid #334155}',
+              '.kl{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}',
+              '.kv{font-size:28px;font-weight:bold;line-height:1.1}',
+              '.ks{font-size:12px;color:#64748b;margin-top:4px}',
+              '.footer{text-align:center;color:#334155;font-size:11px;padding-top:16px}',
+              '</style></head><body><div class="wrap">',
+              f'<div class="card" style="border-left:4px solid #3b82f6">',
+              f'<h1 style="margin:0 0 4px;color:#60a5fa;font-size:22px">RDWC Daily Report: {grow_name}</h1>',
+              f'<p style="margin:0;color:#94a3b8;font-size:14px">Week {current_week} | Day {days_elapsed} | {now_utc}</p>',
+              f'<p style="margin:4px 0 0;color:#64748b;font-size:13px">Reservoir: {reservoir_liters} L | Phase: {cur_sched.get("phase","N/A").title()} | Lights: {lights_on_time} to {lights_off_time} ({lights_dur} h)</p>',
+              '</div>',
+              f'<div class="card" style="padding:16px 20px">{alerts_block}</div>',
+              '<div class="kg">',
+              f'<div class="kpi" style="border-top-color:{ph_col}">',
+              f'<div class="kl">pH &mdash; {status_txt(ph_ok)}</div>',
+              f'<div class="kv" style="color:{ph_col}">{fmt(ph_now)}</div>',
+              f'<div class="ks">target {ph_low_t}&ndash;{ph_high_t}</div>',
+              f'<div class="ks">24h trend: {trend_dir} {trend_change}</div>',
+              f'{holding_ph}</div>',
+              f'<div class="kpi" style="border-top-color:{ec_col}">',
+              f'<div class="kl">EC &mdash; {status_txt(ec_ok)}</div>',
+              f'<div class="kv" style="color:{ec_col}">{fmt(ec_now)} <span style="font-size:14px;font-weight:normal;color:#64748b">mS/cm</span></div>',
+              f'<div class="ks">target {ec_low_t}&ndash;{ec_high_t}</div>',
+              f'{holding_ec}</div>',
+              f'<div class="kpi" style="border-top-color:{tp_col}">',
+              f'<div class="kl">Water Temp &mdash; {status_txt(temp_ok)}</div>',
+              f'<div class="kv" style="color:{tp_col}">{fmt(temp_c, 1)} <span style="font-size:14px;font-weight:normal;color:#64748b">&#8451;</span></div>',
+              '<div class="ks">target 16&ndash;24 &#8451;</div>',
+              '</div></div>',
+              f'<div class="card"><div class="ct">Week {capped_week} Schedule Targets</div>',
+              f'<table style="width:100%;border-collapse:collapse;font-size:14px">',
+              f'<tr><td style="color:#64748b;padding:5px 8px;width:40%">pH</td><td style="padding:5px 8px">{cur_sched.get("ph_low","N/A")} &ndash; {cur_sched.get("ph_high","N/A")}</td></tr>',
+              f'<tr><td style="color:#64748b;padding:5px 8px">EC target</td><td style="padding:5px 8px">{cur_sched.get("ec_target","N/A")} mS/cm</td></tr>',
+              f'<tr><td style="color:#64748b;padding:5px 8px">Temp</td><td style="padding:5px 8px">{cur_sched.get("temp_target","N/A")} &#8451;</td></tr>',
+              f'<tr><td style="color:#64748b;padding:5px 8px">Lights cycle</td><td style="padding:5px 8px">{cur_sched.get("lights","N/A")}</td></tr>',
+              f'<tr><td style="color:#64748b;padding:5px 8px">Nutrients / 10 L</td><td style="padding:5px 8px">Grow {cur_sched.get("grow_ml10",0)} ml | Micro {cur_sched.get("micro_ml10",0)} ml | Bloom {cur_sched.get("bloom_ml10",0)} ml</td></tr>',
+              '</table></div>',
+              '<div class="card"><div class="ct">pH Dosing &mdash; Today</div>',
+              f'<p style="margin:0 0 12px;font-size:14px;color:#94a3b8">Successful doses: <strong style="color:#e2e8f0">{today_ph_count}</strong> | Total volume: <strong style="color:#e2e8f0">{today_ph_ml:.1f} ml</strong> | Auto: {auto_ph_span}</p>',
+              f'{ph_table}</div>',
+              '<div class="card"><div class="ct">EC Dosing &mdash; Recent</div>',
+              f'<p style="margin:0 0 12px;font-size:14px;color:#94a3b8">Today total: <strong style="color:#e2e8f0">{ec_today_ml:.1f} ml</strong></p>',
+              f'{ec_table}</div>',
+              '<div class="card"><div class="ct">System Status</div>',
+              '<table style="width:100%;border-collapse:collapse;font-size:14px">',
+              f'<tr><td style="color:#64748b;padding:6px 8px">Main Pump</td><td style="padding:6px 8px">{badge(main_pump_on,"ON","OFF")}</td><td style="color:#64748b;padding:6px 8px">Lights</td><td style="padding:6px 8px">{badge(lights_now_on,"ON","OFF")}</td></tr>',
+              f'<tr><td style="color:#64748b;padding:6px 8px">Chiller</td><td style="padding:6px 8px">{badge(chiller_on,"COOLING","IDLE")}</td><td style="color:#64748b;padding:6px 8px">E-STOP</td><td style="padding:6px 8px">{estop_badge}</td></tr>',
+              f'<tr><td style="color:#64748b;padding:6px 8px">Mode</td><td style="padding:6px 8px">{relay_mode}</td><td style="color:#64748b;padding:6px 8px">Global Auto</td><td style="padding:6px 8px">{badge(global_auto,"Enabled","Disabled")}</td></tr>',
+              f'<tr><td style="color:#64748b;padding:6px 8px">Sensors</td><td colspan="3" style="padding:6px 8px">{badge(sensor_online,"Online","Offline")} <span style="color:#64748b;font-size:12px;margin-left:8px">Data age: {age_s} s</span></td></tr>',
+              '</table></div>',
+              f'<div class="footer">RDWC-v4 | Auto-generated daily digest | {now_utc}</div>',
+              '</div></body></html>',
+          ]
+
+          html = '\n'.join(parts)
+
+          with open('grow-report.html', 'w', encoding='utf-8') as f:
+              f.write(html)
+
+          if gh_env:
+              with open(gh_env, 'a') as genv:
+                  genv.write(f"WEEK_NUM={current_week}\n")
+                  genv.write(f"GROW_NAME={grow_name}\n")
+
+          print(f"Report OK: Week {current_week}, {grow_name}, pH={fmt(ph_now)}, EC={fmt(ec_now)}, temp={fmt(temp_c,1)} C")
+          PYEOF
+
       - name: Send Report Email
         if: always()
         uses: dawidd6/action-send-mail@6bdc42ec66008be01a190a2b51816b1c5470b7fc # v3.11.0
@@ -191,9 +314,9 @@ jobs:
           server_port: ${{ secrets.EMAIL_PORT }}
           username: ${{ secrets.EMAIL_USER }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: '🌱 Daily Grow Report: Week ${{ env.WEEK_NUM }} - ${{ env.GROW_NAME }}'
+          subject: 'RDWC Daily Report: Week ${{ env.WEEK_NUM }} - ${{ env.GROW_NAME }}'
           to: ${{ secrets.EMAIL_TO }}
           from: ${{ secrets.EMAIL_FROM }}
-          body: 'See attached HTML report for today''s grow status'
-          html_body: ${{ env.HTML_BODY }}
+          body: 'Your RDWC grow report is attached. Open grow-report.html in a browser to view the full HTML report.'
+          html_body: file://grow-report.html
           attachments: grow-report.html
