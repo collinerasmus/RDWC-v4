@@ -185,6 +185,24 @@ DEFAULTS: Dict[str, str] = {
 # Module-level flag to ensure we only seed defaults once per process
 _defaults_seeded = False
 
+
+def _sync_db_pool_path() -> None:
+    """Ensure db_pool uses the same database path as this settings module.
+
+    Tests and some deployment flows override app.settings.DB_PATH directly.
+    Without this sync, pooled connections can silently point to a different DB.
+    """
+    try:
+        from app import db_pool
+        if Path(db_pool.DB_PATH) != Path(DB_PATH):
+            try:
+                db_pool.close_all()
+            except Exception:
+                pass
+            db_pool.DB_PATH = Path(DB_PATH)
+    except Exception:
+        pass
+
 def _ensure_table_seed_defaults() -> None:
     """Ensure settings table exists and seed DEFAULTS using the shared pooled connection.
     This avoids diverging DB paths when tests override app.db_pool.DB_PATH.
@@ -212,6 +230,7 @@ def _ensure_table_seed_defaults() -> None:
 def get_all_settings() -> Dict[str, str]:
     """Return flat dict of all settings (string values)."""
     _ensure_table_seed_defaults()
+    _sync_db_pool_path()
     from app.db_pool import get_conn
     conn = get_conn(readonly=True)
     cur = conn.execute("SELECT key, value FROM settings")
@@ -254,6 +273,7 @@ def upsert_settings(partial: Dict[str, Any]) -> Dict[str, Any]:
     """
     # DON'T call _ensure_table_seed_defaults() here - too slow on every save
     # Table initialization happens once at startup via get_all_settings
+    _sync_db_pool_path()
     changed: Dict[str, Any] = {}
     from app.db_pool import get_conn
     import time
@@ -489,6 +509,7 @@ def import_all(payload: Dict[str, Any]) -> Dict[str, Any]:
 def _init_settings_table():
     """Initialize settings table if it doesn't exist"""
     DB_PATH.parent.mkdir(exist_ok=True)
+    _sync_db_pool_path()
     
     from app.db_pool import get_conn
     conn = get_conn()
@@ -523,12 +544,14 @@ def _init_settings_table():
 def get_setting_key(key: str, default: Optional[str] = None) -> Optional[str]:
     """Get a raw setting value by key (string), or default if missing."""
     _init_settings_table()
-    from app.db_pool import get_conn
-    conn = get_conn(readonly=True)
-    cur = conn.execute("SELECT value FROM settings WHERE key = ?", (key,))
-    row = cur.fetchone()
-    if row and row[0] is not None:
-        return str(row[0])
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            cur = conn.execute("SELECT value FROM settings WHERE key = ?", (key,))
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                return str(row[0])
+    except Exception:
+        pass
     return default
 
 def set_setting_key(key: str, value: str) -> None:
@@ -537,11 +560,10 @@ def set_setting_key(key: str, value: str) -> None:
     If database is locked, silently skip (callers treat persistence as best-effort).
     """
     _init_settings_table()
-    from app.db_pool import get_conn
     try:
-        conn = get_conn()
-        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
-        conn.commit()
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+            conn.commit()
     except sqlite3.OperationalError:
         return
 
@@ -622,23 +644,6 @@ def update_settings(
     conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('general.lights_duration_hours', ?)", 
                  (str(new_settings.lights_duration_hours),))
     
-    conn.commit()
-    
-    # Update cache
-    _settings_cache = new_settings
-    
-    return new_settings
-    from app.db_pool import get_conn
-    conn = get_conn()
-    updates = {}
-    if system_volume_liters is not None:
-        updates['system_volume_liters'] = str(system_volume_liters)
-    if lights_on_time is not None:
-        updates['lights_on_time'] = lights_on_time
-    if lights_duration_hours is not None:
-        updates['lights_duration_hours'] = str(lights_duration_hours)
-    for key, value in updates.items():
-        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
     conn.commit()
     
     # Update cache

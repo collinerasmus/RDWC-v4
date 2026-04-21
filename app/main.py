@@ -2683,6 +2683,16 @@ def api_scheduler_status():
         except Exception:
             pass  # Scheduler not initialized yet
         
+        # Fallback: compute from settings if scheduler not available
+        if status["lights_on_time"] is None or status["lights_off_time"] is None:
+            try:
+                from app.settings import get_todays_lights_window
+                on_dt, off_dt = get_todays_lights_window()
+                status["lights_on_time"] = on_dt.strftime("%H:%M")
+                status["lights_off_time"] = off_dt.strftime("%H:%M")
+            except Exception:
+                pass
+        
         return status
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
@@ -2723,7 +2733,13 @@ def health_override():
 def get_system_mode_api():
     """Get current system mode - UNIFIED"""
     from app.unified_mode import get_mode
+    from app.settings import upsert_settings
     mode = get_mode()
+    # Sync legacy system.mode key to prevent drift
+    try:
+        upsert_settings({"system.mode": mode})
+    except Exception:
+        pass
     return {"mode": mode}
 
 @app.post("/api/system_mode")
@@ -2769,7 +2785,7 @@ def api_system_mode_fast(body: dict = Body(...)):
     if success and mode == "auto":
         try:
             smart_restore_critical_relays()
-        except:
+        except Exception:
             pass
     return {"mode": mode, "success": success, "fast": True}
 
@@ -2785,7 +2801,7 @@ def api_system_mode_set(mode: str = Query("manual")):
     if success and m == "auto":
         try:
             smart_restore_critical_relays()
-        except:
+        except Exception:
             pass
     return {"mode": m, "ok": success, "method": "GET"}
 
@@ -3368,8 +3384,10 @@ def status():
 @app.get("/api/sensors/health")
 def api_sensors_health():
     """Sensor health summary for UI badges and monitoring."""
-    age = max(0.0, time.time() - _last_t)
-    fresh = (_last.get("temp_c") is not None) and (age < 60.0)
+    # Fix: _last_t may be 0 if sensor_poller is used instead of internal loop
+    # Use DB reading age as authoritative source
+    age = max(0.0, time.time() - _last_t) if _last_t > 0 else None
+    fresh = (_last.get("temp_c") is not None) and (age is not None and age < 60.0) if age is not None else False
     # Get DB last reading age
     db_age = None
     db_ts = None
@@ -3390,7 +3408,7 @@ def api_sensors_health():
         "last_cache_ts": _last_t,
     }
     return {
-        "cache_age_s": round(age, 1),
+        "cache_age_s": (round(age, 1) if age is not None else None),
         "cache_fresh": bool(fresh),
         "cache_has_data": _last.get("temp_c") is not None,
         "db_ts": db_ts,
@@ -3531,7 +3549,8 @@ def api_sensors():
     print("▬▬ API_SENSORS CALLED ▬▬", file=sys.stderr, flush=True)
     
     from app.sensors_core import read_sensors_from_db
-    from app.settings import get_all_settings
+    from app.settings import get_all_settings, get_settings_grouped, DB_PATH
+    import sqlite3
     from app.logger import get_logger
     logger = get_logger(__name__)
     # Read cached (max 60s)
@@ -3539,15 +3558,47 @@ def api_sensors():
 
     # Check actual calibration state from database  
     settings = get_all_settings()
+    grouped = get_settings_grouped() or {}
+    cal_group = grouped.get("cal", {}) if isinstance(grouped, dict) else {}
+    ec_group = grouped.get("ec", {}) if isinstance(grouped, dict) else {}
     
+    # pH/EC calibration keys are read directly from SQLite here to avoid
+    # stale pooled settings connections producing mismatched calibration flags.
+    def _read_setting_direct(key: str, default: str) -> str:
+        try:
+            with sqlite3.connect(str(DB_PATH), timeout=1.0) as conn:
+                row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+                if row and row[0] is not None:
+                    return str(row[0])
+        except Exception:
+            pass
+        return str(default)
+
     # pH: check for mid OR low point (2-point calibration typical)
-    ph_mid = settings.get("cal.ph.mid")
-    ph_low = settings.get("cal.ph.low")
-    ph_calibrated = bool(ph_mid or ph_low)
+    ph_mid = _read_setting_direct("cal.ph.mid", settings.get("cal.ph.mid", ""))
+    ph_low = _read_setting_direct("cal.ph.low", settings.get("cal.ph.low", ""))
+    ph_candidates = [
+        ph_mid,
+        ph_low,
+        settings.get("cal.ph.mid", ""),
+        settings.get("cal.ph.low", ""),
+        cal_group.get("ph.mid", ""),
+        cal_group.get("ph.low", ""),
+    ]
+    # Treat any non-empty, non-zero pH calibration point as calibrated.
+    ph_calibrated = any(str(v).strip() not in ("", "0", "0.0", "None") for v in ph_candidates)
     
     # EC: check for low calibration value (stored as µS/cm, "0" = not calibrated)
-    ec_low_us = settings.get("ec.cal_low_us", "0")
-    ec_calibrated = (ec_low_us != "0" and ec_low_us != "" and ec_low_us is not None)
+    ec_low_us = _read_setting_direct("ec.cal_low_us", settings.get("ec.cal_low_us", "0"))
+    ec_candidates = [
+        ec_low_us,
+        settings.get("ec.cal_low_us", "0"),
+        ec_group.get("cal_low_us", "0"),
+    ]
+    try:
+        ec_calibrated = any(float(str(v).strip()) > 0 for v in ec_candidates if str(v).strip() not in ("", "None"))
+    except (ValueError, TypeError):
+        ec_calibrated = False
     
     # Force output for debugging
     import sys

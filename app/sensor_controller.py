@@ -1325,3 +1325,38 @@ def calibrate_ph_point(point: str, value: float) -> Dict[str, Any]:
         return {"ok": False, "note": str(e)}
     finally:
         _READ_MUTEX.release()
+
+
+def is_ph_calibrated() -> bool:
+    """Check if pH sensor has any calibration points in database. Quick check for API status."""
+    try:
+        from app.settings import get_all_settings
+        settings = get_all_settings()
+        # pH is calibrated if it has at least "mid" point
+        return bool(settings.get("cal.ph.mid"))
+    except Exception:
+        return False
+
+
+def is_ec_calibrated() -> bool:
+    """Check if EC sensor has any calibration points in database. Quick check for API status."""
+    try:
+        from app.settings import get_all_settings
+        settings = get_all_settings()
+        # EC is calibrated if it has at least "dry" point or low/high
+        has_dry = bool(settings.get("ec.cal_dry"))
+        has_low = bool(settings.get("ec.cal_low_us"))
+        return bool(has_dry or has_low)
+    except Exception:
+        return False
+
+
+def is_temp_calibrated() -> bool:
+    """Check if RTD temperature sensor is calibrated. RTD calibration stored as ref point."""
+    try:
+        from app.settings import get_all_settings
+        settings = get_all_settings()
+        # RTD is calibrated if it has reference temp point
+        return bool(settings.get("cal.rtd.ref"))
+    except Exception:
+        return False

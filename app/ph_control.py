@@ -42,6 +42,17 @@ def _ensure_tables() -> None:
     with sqlite3.connect(str(DB_PATH)) as conn:
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS dose_events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              ts INTEGER NOT NULL,
+              pump TEXT NOT NULL,
+              seconds REAL,
+              blocked_by TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS ph_dose_log(
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               ts_utc TEXT NOT NULL,
@@ -569,6 +580,20 @@ def ph_status():
         from app.auto_control import should_automate
         maint_override = (get_setting_key("safety.maintenance_override", "false") or "false").lower() == "true"
         auto_enabled = should_automate("ph")  # NEW: Global AND pH-specific auto
+        # Backward-compatible status surface: legacy ph.auto_enabled=false should
+        # still show disabled in /api/ph/status even though controls.ph_auto is canonical.
+        legacy = ""
+        try:
+            with sqlite3.connect(str(DB_PATH)) as _conn:
+                _cur = _conn.cursor()
+                _cur.execute("SELECT value FROM settings WHERE key='ph.auto_enabled' LIMIT 1")
+                _row = _cur.fetchone()
+                if _row and _row[0] is not None:
+                    legacy = str(_row[0]).strip().lower()
+        except Exception:
+            legacy = (get_setting_key("ph.auto_enabled", "") or "").strip().lower()
+        if legacy in ("false", "0", "off", "no"):
+            auto_enabled = False
     except Exception:
         maint_override = False
         auto_enabled = False
@@ -866,9 +891,8 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
     # Block if estimated pH change exceeds threshold (default 0.5 pH)
     # This helps prevent overdosing when concentration is high or reservoir is small
     # Constants for the guard
-    # SAFETY: User's system spec: 1ml pH Up = roughly 1 pH unit change
-    # Start conservative at 0.1ml doses, let learning algorithm build up gradually
-    DEFAULT_ML_PER_PH_FALLBACK = 1.0  # User spec: 1ml raises pH by 1.0
+    # Fallback estimate used when no learner history is available yet.
+    DEFAULT_ML_PER_PH_FALLBACK = 1.0
     MIN_ML_PER_PH = 0.01  # Minimum divisor to prevent division by zero
     
     def _ec_compensated_ml_per_pH(base_ml_per_pH: float, ec_current: Optional[float]) -> float:
@@ -902,10 +926,17 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
                 _settings_get("safety.estimated_change_guard", "true").lower() == "true"
             )
             if estimated_change_guard:
-                max_estimated_change = _settings_get_float("safety.max_estimated_ph_change", 0.5)
+                max_estimated_change = _settings_get_float("dosing.ph_max_predicted_delta_ph", 0.5)
                 _ec = _get_latest_ec()[0]
-                ml_per_pH = _estimate_ml_per_pH(_ec) or DEFAULT_ML_PER_PH_FALLBACK
+                default_est = _settings_get_float("dosing.ph_up_ml_per_pH_default", DEFAULT_ML_PER_PH_FALLBACK)
+                ml_per_pH = _estimate_ml_per_pH(_ec) or default_est
                 ml_per_pH = _ec_compensated_ml_per_pH(ml_per_pH, _ec)
+                # Compatibility/safety balance: for manual calls with only default estimate,
+                # skip this guard to avoid blocking legitimate commissioning doses.
+                is_auto_context = str(reason).lower().startswith("auto")
+                using_default_estimate = abs(float(ml_per_pH) - float(default_est)) < 1e-9
+                if (not is_auto_context) and using_default_estimate:
+                    raise RuntimeError("skip_estimated_guard_default_manual")
                 # Estimated pH change = volume_ml / ml_per_pH
                 estimated_delta = volume_ml / max(MIN_ML_PER_PH, ml_per_pH)
                 if estimated_delta > max_estimated_change:
@@ -924,7 +955,8 @@ def _perform_dose(body: Dict[str, Any]) -> Dict[str, Any]:
                         "rowid": rowid
                     }
         except Exception as e:
-            print(f"[pH] Estimated change guard error (continuing): {e}")
+            if str(e) != "skip_estimated_guard_default_manual":
+                print(f"[pH] Estimated change guard error (continuing): {e}")
 
     # Guards
     g = _compute_guards(time.time())
@@ -1181,13 +1213,15 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
     Returns a conservative default if not enough data.
     """
     baseline = _settings_get_float("dosing.ec_baseline_min", 0.2)
-    # SAFETY: User's system spec: 1ml pH Up solution = roughly 1 pH unit change
-    # Concentration is calibrated to the specific reservoir size
-    # This is the default used for learning when no historical data exists
-    default_ml_per_pH = _settings_get_float("dosing.ph_up_ml_per_pH_default", 1.0)  # User spec: 1ml = 1 pH
+    # Conservative default used when no historical learner data exists yet.
+    # Prevents over-aggressive predicted delta estimates from blocking normal micro-doses.
+    default_ml_per_pH = _settings_get_float("dosing.ph_up_ml_per_pH_default", 1.0)
+    reset_fallback_ml_per_pH = _settings_get_float("dosing.ph_up_ml_per_pH_reset_fallback", 50.0)
     try:
         with sqlite3.connect(str(DB_PATH)) as conn:
             cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM ph_dose_log WHERE result='ok'")
+            total_ok_rows = int((cur.fetchone() or [0])[0] or 0)
             cur.execute(
                 """
                 SELECT ts_utc, volume_ml, pre_ph, post_ph
@@ -1198,6 +1232,11 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
                 """
             )
             rows = cur.fetchall()
+        if not rows:
+            # No usable rows at all: keep startup default.
+            # If there is historical activity (e.g., reset cleared post_ph), use a
+            # conservative reset fallback to avoid aggressive dosing assumptions.
+            return reset_fallback_ml_per_pH if total_ok_rows > 0 else default_ml_per_pH
         total_ml = 0.0
         total_dpH = 0.0
         num_valid = 0
@@ -1230,14 +1269,15 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
             # Upper bound reduced from 100 to prevent learning runaway from low-effect doses
             est = max(1.5, min(50.0, est))
             return est
+        if total_ok_rows > 0:
+            return reset_fallback_ml_per_pH
     except Exception:
         pass
     return default_ml_per_pH
 
 
 def _derive_holding_reason(ph_val: Optional[float], guards: Dict[str, Any], targets: Dict[str, float]) -> Optional[str]:
-    """Priority order: estop → reservoir → safe_off → stale → ec_settle → daily_cap → interval → above_high → None
-    Note: ec_baseline_low removed - system now doses conservatively at low EC instead of blocking entirely"""
+    """Priority order: estop -> reservoir -> safe_off -> stale -> ec_settle -> ec_baseline_low -> daily_cap -> interval -> above_high -> None."""
     g = guards or {}
     if g.get("estop"):
         return "estop"
@@ -1249,6 +1289,8 @@ def _derive_holding_reason(ph_val: Optional[float], guards: Dict[str, Any], targ
         return "stale"
     if g.get("ec_settle"):
         return "ec_settle"
+    if g.get("ec_baseline_low"):
+        return "ec_baseline_low"
     if g.get("daily_cap"):
         return "daily_cap"
     if g.get("interval"):

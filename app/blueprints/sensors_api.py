@@ -22,6 +22,29 @@ _provider = SensorsProvider(use_mock=USE_MOCK)
 
 logger.info(f"[SensorsAPI] Initialized with mock={USE_MOCK}")
 
+
+def _get_calibration_status() -> dict:
+    """
+    Get calibration status from database for all sensors.
+    Returns dict with temp, ec, ph keys, each with is_calibrated and detail.
+    """
+    try:
+        from app.sensor_controller import is_ph_calibrated, is_ec_calibrated, is_temp_calibrated
+        return {
+            "temp": {"is_calibrated": is_temp_calibrated(), "detail": "db"},
+            "ec": {"is_calibrated": is_ec_calibrated(), "detail": "db"},
+            "ph": {"is_calibrated": is_ph_calibrated(), "detail": "db"}
+        }
+    except Exception as e:
+        logger.debug(f"[SensorsAPI] Failed to get calibration status: {e}")
+        # Fallback to uncalibrated if error
+        return {
+            "temp": {"is_calibrated": False, "detail": "db"},
+            "ec": {"is_calibrated": False, "detail": "db"},
+            "ph": {"is_calibrated": False, "detail": "db"}
+        }
+
+
 def _get_sensors_data():
     """
     Return sensor data without touching I2C directly.
@@ -145,12 +168,8 @@ async def get_sensors():
             "health_state": health_state,
             "temp_comp_applied": online,
             "temp_comp_reason": "sensor_poller" if online else f"stale (age:{d.get('age_sec','?')}s)",
-            # Calibration placeholder for UI
-            "cal": {
-                "temp": {"is_calibrated": False, "detail": "db"},
-                "ec": {"is_calibrated": False, "detail": "db"},
-                "ph": {"is_calibrated": False, "detail": "db"}
-            },
+            # Calibration status from database
+            "cal": _get_calibration_status(),
             # Mode/overrides and original/effective echo for diagnostics/UI
             "mode": d.get("mode"),
             "overrides": d.get("overrides", {}),
