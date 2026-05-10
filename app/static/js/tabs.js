@@ -43,6 +43,9 @@
         try{ window.trendsRefresh(); }catch(e){ console.warn('Trends refresh error', e); }
       }
     }
+    try {
+      window.dispatchEvent(new CustomEvent('tab-changed', { detail: { tab: name } }));
+    } catch(_){}
   }
   function init(){
     const nav = qs('#tabs-nav');

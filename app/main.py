@@ -4050,6 +4050,37 @@ def camera_stream_health():
     else:
         return JSONResponse(status_code=503, content={"healthy": False})
 
+
+@app.get("/camera/timelapse/status")
+def camera_timelapse_status():
+    from app.camera import CameraManager
+    return CameraManager.timelapse_status()
+
+
+@app.post("/camera/timelapse/start")
+def camera_timelapse_start(body: dict = Body(default={})):
+    from app.camera import CameraManager
+    return CameraManager.start_timelapse(body or {})
+
+
+@app.post("/camera/timelapse/stop")
+def camera_timelapse_stop():
+    from app.camera import CameraManager
+    return CameraManager.stop_timelapse(reason="manual")
+
+
+@app.post("/camera/timelapse/capture")
+def camera_timelapse_capture(body: dict = Body(default={})):
+    from app.camera import CameraManager
+    quality = body.get("quality") if isinstance(body, dict) else None
+    return CameraManager.capture_now(quality=quality)
+
+
+@app.get("/camera/timelapse/sessions")
+def camera_timelapse_sessions(limit: int = Query(20, ge=1, le=100)):
+    from app.camera import CameraManager
+    return {"items": CameraManager.list_sessions(limit=limit)}
+
 # --- Dose jog endpoint ---
 _jog_last = {}
 _jog_locks = {name: threading.Lock() for name in [

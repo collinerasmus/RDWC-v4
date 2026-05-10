@@ -110,17 +110,25 @@
     return {state:'ok', title: relays.mode};
   }
 
+  function classifyCamera(camera, timelapse){
+    if(!camera || !camera.available) return {state:'bad', title:'Unavailable'};
+    if(timelapse && timelapse.running) return {state:'ok', title:'Timelapse running'};
+    return {state:'ok', title:'Ready'};
+  }
+
   async function poll(){
     try {
       // Use polling manager for deduplicated requests
       const fetchJSON = window.pollingManager?.fetchJSON || (url => fetch(url,{cache:'no-store'}).then(r=>r.ok?r.json():null));
       
-      const [relays, sensorsStatus, ph, ec, chiller] = await Promise.all([
+      const [relays, sensorsStatus, ph, ec, chiller, camera, timelapse] = await Promise.all([
         fetchJSON('/api/relays/status').catch(()=>null),
         fetchJSON('/api/sensors/status').catch(()=>null),
         fetchJSON('/api/ph/status').catch(()=>null),
         fetchJSON('/api/ec/status').catch(()=>null),
-        fetchJSON('/api/temperature/status').catch(()=>null)
+        fetchJSON('/api/temperature/status').catch(()=>null),
+        fetchJSON('/camera/status').catch(()=>null),
+        fetchJSON('/camera/timelapse/status').catch(()=>null)
       ]);
 
   const sSensors = classifySensorsFromStatus(sensorsStatus);
@@ -131,6 +139,7 @@
       const sCirc = classifyCirc(relays);
       const sSchedule = classifySchedule(relays);
       const sSystem = classifySystem(relays);
+      const sCamera = classifyCamera(camera, timelapse);
 
       setDot('sensors', sSensors.state, sSensors.title);
       setDot('ph', sPh.state, sPh.title);
@@ -139,10 +148,11 @@
       setDot('lights', sLights.state, sLights.title);
       setDot('circulation', sCirc.state, sCirc.title);
       setDot('schedule', sSchedule.state, sSchedule.title);
+      setDot('camera', sCamera.state, sCamera.title);
       setDot('settings', sSystem.state, sSystem.title);
       // Overview dot summarises worst state severity excluding maintenance using unified precedence
       // Precedence: bad > offline > warn > ok
-      const states = [sSensors.state,sPh.state,sEc.state,sEnv.state,sLights.state,sCirc.state,sSchedule.state,sSystem.state]
+      const states = [sSensors.state,sPh.state,sEc.state,sEnv.state,sLights.state,sCirc.state,sSchedule.state,sCamera.state,sSystem.state]
         .filter(x=>x!=='maint');
       let overviewState = 'ok';
       if(states.includes('bad')) overviewState='bad';

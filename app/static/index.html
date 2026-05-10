@@ -802,6 +802,10 @@ body{
     <span class="ctrl-label">🔬 Sensors</span>
     <span class="ctrl-health-dot" data-controller="sensors" aria-label="Sensors status"></span>
   </button>
+  <button class="btn-chip ctrl-with-dot" data-tab="camera" aria-label="Camera">
+    <span class="ctrl-label">📷 Camera</span>
+    <span class="ctrl-health-dot" data-controller="camera" aria-label="Camera status"></span>
+  </button>
   <button class="btn-chip ctrl-with-dot" data-tab="ph" aria-label="pH">
     <span class="ctrl-label">🧪 pH</span>
     <span class="ctrl-health-dot" data-controller="ph" aria-label="pH status"></span>
@@ -1262,17 +1266,86 @@ body{
       </div>
 
     
-    <!-- Camera (moved to bottom and height-limited) -->
-    <div style="margin-top:16px;">
-      <h3>Camera — Live (USB/OpenCV)</h3>
-      <div class="muted" style="font-size:var(--font-sm);margin-top:-6px;margin-bottom:8px;">
-        <span id="camera-status-pill">Status: streaming</span>
+  </section>
+
+  <!-- Camera Tab -->
+  <section id="camera-card" class="card card-wide tab-section" data-tab="camera" style="display:none;">
+    <div class="card-header">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <h3 class="card-title" style="margin:0;">Camera & Timelapse</h3>
+        <span id="camera-status-pill" class="ui-status-chip neutral" title="Live camera state">Status: idle</span>
       </div>
-      <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;height:var(--h-camera);max-height:calc(100vh - 520px);overflow:hidden;width:100%;">
-        <!-- Use object element - browsers don't cancel these for MJPEG streams -->
-  <object id="camera-object" type="multipart/x-mixed-replace" style="display:none;width:100%;height:100%;max-height:100%;object-fit:fill;" aria-label="Live camera stream"></object>
-  <img id="camera-stream" alt="Camera stream" style="width:100%;height:100%;max-height:100%;object-fit:fill;display:block;" aria-label="Live camera stream fallback"/>
-        <div id="camera-overlay" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">Connecting...</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr);gap:14px;align-items:start;">
+      <div style="padding:12px;border-radius:12px;background:rgba(15,23,42,0.7);border:1px solid rgba(148,163,184,0.22);">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+          <div class="muted" style="font-weight:600;">Live Feed</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <label class="muted" for="cam-view-mode" style="font-size:var(--font-xs);">Mode</label>
+            <select id="cam-view-mode" style="height:30px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);">
+              <option value="auto" selected>Auto (health)</option>
+              <option value="stream">Force stream</option>
+              <option value="snapshot">Snapshot</option>
+            </select>
+            <label class="muted" for="cam-snapshot-every" style="font-size:var(--font-xs);">Snapshot every (s)</label>
+            <input id="cam-snapshot-every" type="number" min="5" max="300" step="1" value="20" style="width:76px;height:30px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);" />
+          </div>
+        </div>
+
+        <div class="camera-frame" style="display:flex;align-items:center;justify-content:center;position:relative;height:var(--h-camera);max-height:calc(100vh - 420px);overflow:hidden;width:100%;border-radius:10px;border:1px solid rgba(148,163,184,0.2);background:#020617;">
+          <object id="camera-object" type="multipart/x-mixed-replace" style="display:none;width:100%;height:100%;max-height:100%;object-fit:cover;" aria-label="Live camera stream"></object>
+          <img id="camera-stream" alt="Camera stream" style="width:100%;height:100%;max-height:100%;object-fit:cover;display:block;" aria-label="Live camera stream fallback"/>
+          <div id="camera-overlay" class="muted" style="position:absolute;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">Open Camera tab to start feed</div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;">
+          <div class="muted" id="camera-timelapse-note" style="font-size:var(--font-sm);">Ready</div>
+          <a href="/camera/snapshot.jpg" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="text-decoration:none;">Open Snapshot</a>
+        </div>
+      </div>
+
+      <div style="padding:12px;border-radius:12px;background:rgba(15,23,42,0.7);border:1px solid rgba(148,163,184,0.22);">
+        <div class="muted" style="font-weight:600;margin-bottom:8px;">Timelapse Settings</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;">
+          <div>
+            <label class="muted" for="cam-interval-s" style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Interval (s)</label>
+            <input id="cam-interval-s" type="number" min="10" max="86400" step="1" value="300" style="width:100%;height:30px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);" />
+          </div>
+          <div>
+            <label class="muted" for="cam-quality" style="display:block;font-size:var(--font-xs);margin-bottom:2px;">JPEG Quality</label>
+            <input id="cam-quality" type="number" min="30" max="95" step="1" value="80" style="width:100%;height:30px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);" />
+          </div>
+          <div>
+            <label class="muted" for="cam-max-frames" style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Max Frames (0=off)</label>
+            <input id="cam-max-frames" type="number" min="0" max="100000" step="1" value="0" style="width:100%;height:30px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);" />
+          </div>
+          <div>
+            <label class="muted" for="cam-label" style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Session Label</label>
+            <input id="cam-label" type="text" value="grow" style="width:100%;height:30px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);" />
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+          <button id="btn-camera-start" class="btn-secondary primary">Start Timelapse</button>
+          <button id="btn-camera-stop" class="btn-secondary danger" disabled>Stop</button>
+          <button id="btn-camera-capture" class="btn-secondary">Capture Now</button>
+          <button id="btn-camera-refresh" class="btn-secondary">Refresh</button>
+        </div>
+
+        <div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(2,6,23,0.55);border:1px solid rgba(148,163,184,0.2);display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <div class="muted" style="font-size:var(--font-xs);">Running</div><div id="camera-running" style="font-size:var(--font-sm);font-weight:600;">—</div>
+          <div class="muted" style="font-size:var(--font-xs);">Frames</div><div id="camera-frame-count" style="font-size:var(--font-sm);font-weight:600;">—</div>
+          <div class="muted" style="font-size:var(--font-xs);">Next capture</div><div id="camera-next-capture" style="font-size:var(--font-sm);font-weight:600;">—</div>
+          <div class="muted" style="font-size:var(--font-xs);">Last capture</div><div id="camera-last-capture" style="font-size:var(--font-sm);font-weight:600;">—</div>
+          <div class="muted" style="font-size:var(--font-xs);">Session</div><div id="camera-session-id" style="font-size:var(--font-sm);font-weight:600;">—</div>
+          <div class="muted" style="font-size:var(--font-xs);">Last frame</div><a id="camera-last-frame-link" class="muted" style="font-size:var(--font-sm);">—</a>
+        </div>
+
+        <div style="margin-top:10px;">
+          <div class="muted" style="font-size:var(--font-sm);font-weight:600;margin-bottom:6px;">Recent Sessions</div>
+          <div id="camera-sessions"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -2856,169 +2929,6 @@ function toggleRecentReadings(){
   }
 }
 
-// Camera: robust MJPEG streaming with health-based mode switching
-(function initCameraStream(){
-  const pill = document.getElementById('camera-status-pill');
-  const img = document.getElementById('camera-stream');
-  const overlay = document.getElementById('camera-overlay');
-  const obj = document.getElementById('camera-object');
-  
-  // State management
-  let currentMode = 'none'; // 'none', 'snapshot', 'streaming'
-  let healthCheckInterval = null;
-  let lastHealthy = false;
-  let switchDebounce = 0; // Debounce counter to prevent flapping
-  
-  // Placeholder SVG as data URI (gray camera icon)
-  const PLACEHOLDER_SVG = 'data:image/svg+xml,' + encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="200" height="150">' +
-    '<rect fill="#374151" width="100" height="100"/>' +
-    '<text x="50" y="55" text-anchor="middle" fill="#9ca3af" font-size="12">Camera Unavailable</text>' +
-    '</svg>'
-  );
-  
-  function updatePill(mode){
-    if(!pill) return;
-    const labels = { none: 'Status: unavailable', snapshot: 'Status: snapshot', streaming: 'Status: streaming' };
-    pill.textContent = labels[mode] || labels.none;
-  }
-  
-  function usePlaceholder(){
-    if(currentMode === 'none') return; // Already showing placeholder
-    currentMode = 'none';
-    if(obj){ obj.style.display = 'none'; obj.data = ''; }
-    if(img){ img.src = PLACEHOLDER_SVG; img.style.display = 'block'; }
-    if(overlay){ overlay.textContent = 'Camera Unavailable'; overlay.style.display = 'flex'; }
-    updatePill('none');
-  }
-  
-  function useSnapshot(){
-    if(currentMode === 'snapshot') return; // Already in snapshot mode
-    currentMode = 'snapshot';
-    if(obj){ obj.style.display = 'none'; obj.data = ''; }
-    if(img){ 
-      img.src = '/camera/snapshot.jpg?t=' + Date.now();
-      img.style.display = 'block';
-      img.onerror = function(){ usePlaceholder(); };
-    }
-    if(overlay){ overlay.style.display = 'none'; }
-    updatePill('snapshot');
-  }
-  
-  function useStream(){
-    if(currentMode === 'streaming') return; // Already streaming
-    currentMode = 'streaming';
-    const streamUrl = '/camera/stream?t=' + Date.now();
-    // Use only img element - object element causes chunked encoding issues
-    if(obj){ obj.style.display = 'none'; obj.data = ''; }
-    if(img){
-      img.src = streamUrl;
-      img.style.display = 'block';
-      // Fallback to snapshot on stream error (prevents console errors)
-      img.onerror = function(){
-        console.log('[Camera] Stream error - falling back to snapshot');
-        switchDebounce = 3; // Prevent immediate retry
-        useSnapshot();
-      };
-    }
-    if(overlay){ overlay.style.display = 'none'; }
-    updatePill('streaming');
-  }
-  
-  function checkHealthAndSwitch(){
-    // Debounce: skip if recently switched
-    if(switchDebounce > 0){
-      switchDebounce--;
-      return;
-    }
-    
-    // First check availability
-    fetch('/camera/status', { method: 'GET' })
-      .then(r => r.json())
-      .then(st => {
-        if(!st || !st.available){
-          lastHealthy = false;
-          if(currentMode !== 'none') usePlaceholder();
-          return;
-        }
-        // Camera available - check stream health
-        return fetch('/camera/stream/health', { method: 'GET' })
-          .then(r => {
-            const healthy = (r.status === 204);
-            if(healthy && !lastHealthy){
-              // Became healthy - switch to stream after grace period
-              switchDebounce = 2; // Wait 2 cycles before streaming
-              lastHealthy = true;
-              useSnapshot(); // Use snapshot during grace period
-            } else if(healthy && lastHealthy && switchDebounce === 0){
-              // Consistently healthy - use stream
-              if(currentMode !== 'streaming') useStream();
-            } else if(!healthy){
-              // Unhealthy - use snapshot
-              lastHealthy = false;
-              if(currentMode === 'streaming'){
-                console.log('[Camera] Health check failed - switching to snapshot');
-                useSnapshot();
-              } else if(currentMode === 'none'){
-                useSnapshot();
-              }
-            }
-          })
-          .catch(() => {
-            lastHealthy = false;
-            if(currentMode === 'streaming') useSnapshot();
-          });
-      })
-      .catch(() => {
-        lastHealthy = false;
-        if(currentMode !== 'none') usePlaceholder();
-      });
-  }
-  
-  function startHealthPolling(){
-    if(healthCheckInterval) clearInterval(healthCheckInterval);
-    // Check health every 5 seconds
-    healthCheckInterval = setInterval(checkHealthAndSwitch, 5000);
-  }
-  
-  function stopHealthPolling(){
-    if(healthCheckInterval){
-      clearInterval(healthCheckInterval);
-      healthCheckInterval = null;
-    }
-  }
-  
-  // Initial setup
-  if(overlay){ overlay.textContent = 'Connecting...'; overlay.style.display = 'flex'; }
-  
-  // Initial health check and start polling
-  checkHealthAndSwitch();
-  startHealthPolling();
-  
-  // Pause polling when tab hidden, resume when visible
-  document.addEventListener('visibilitychange', function(){
-    if(document.hidden){
-      stopHealthPolling();
-      // Stop stream to prevent console errors in background
-      if(currentMode === 'streaming' && img){
-        img.src = PLACEHOLDER_SVG;
-        currentMode = 'none';
-      }
-    } else {
-      checkHealthAndSwitch();
-      startHealthPolling();
-    }
-  });
-  
-  // Expose camera control
-  window.cameraControl = { 
-    checkHealth: checkHealthAndSwitch,
-    useSnapshot: useSnapshot,
-    useStream: useStream,
-    usePlaceholder: usePlaceholder,
-    getMode: function(){ return currentMode; }
-  };
-})();
 // Calibration functions moved into Settings > Calibration panel (settings.js)
 
 // Layout Debug Overlay
@@ -3147,11 +3057,11 @@ window.CircControl = (function(){
             // Reordered: range.js immediately after core to satisfy rdwcRange dependency for pH & EC charts before sensors/ph/ec modules run.
           // Instrumented loader: log each script as it begins loading (sequence is synchronous via promises)
             window.BUILD_COMMIT = '1764522441';
-              return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','schedule_week_editor.js','lights_v2.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','overview_combined_chart.js','chart_adapter.js','lights_chart.js','circulation_chart.js'], window.__app_version);
+              return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','camera.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','schedule_week_editor.js','lights_v2.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','overview_combined_chart.js','chart_adapter.js','lights_chart.js','circulation_chart.js'], window.__app_version);
       })
       .catch(function(){
         window.__app_version = (new Date()).toISOString().slice(0,10);
-            return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','schedule_week_editor.js','lights_v2.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','overview_combined_chart.js','chart_adapter.js','lights_chart.js','circulation_chart.js'], window.__app_version);
+            return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','camera.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','schedule_week_editor.js','lights_v2.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','overview_combined_chart.js','chart_adapter.js','lights_chart.js','circulation_chart.js'], window.__app_version);
       })
       .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();
