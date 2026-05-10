@@ -3990,17 +3990,20 @@ def camera_status():
     return CameraManager.status()
 
 @app.get("/camera/stream")
-def camera_stream():
+def camera_stream(
+    fps: int = Query(10, ge=2, le=24),
+    quality: int = Query(85, ge=40, le=95),
+    width: Optional[int] = Query(None, ge=320, le=1920),
+    height: Optional[int] = Query(None, ge=240, le=1080),
+):
     from app.camera import CameraManager
     info = CameraManager.status()
     if not info.get("available", False):
         return JSONResponse(status_code=404, content={"error": "camera unavailable", **info})
-
-    fps = int(os.environ.get("CAM_FPS", "8"))
     boundary = "frame"
 
     def _gen():
-        for part in CameraManager.mjpeg_generator(fps=fps):
+        for part in CameraManager.mjpeg_generator(fps=fps, quality=quality, width=width, height=height):
             yield part
 
     return StreamingResponse(
@@ -4067,6 +4070,12 @@ def camera_timelapse_status():
     return CameraManager.timelapse_status()
 
 
+@app.get("/camera/timelapse/recommendation")
+def camera_timelapse_recommendation(grow_days: int = Query(56, ge=14, le=120), output_fps: int = Query(24, ge=12, le=60)):
+    from app.camera import CameraManager
+    return CameraManager.recommended_timelapse(grow_days=grow_days, output_fps=output_fps)
+
+
 @app.post("/camera/timelapse/start")
 def camera_timelapse_start(body: Optional[dict] = Body(default=None)):
     from app.camera import CameraManager
@@ -4091,6 +4100,15 @@ def camera_timelapse_capture(body: Optional[dict] = Body(default=None)):
 def camera_timelapse_sessions(limit: int = Query(20, ge=1, le=100)):
     from app.camera import CameraManager
     return {"items": CameraManager.list_sessions(limit=limit)}
+
+
+@app.get("/camera/timelapse/insights")
+def camera_timelapse_insights(session_id: Optional[str] = Query(None), sample_frames: int = Query(8, ge=3, le=24)):
+    from app.camera import CameraManager
+    res = CameraManager.analyze_timelapse(session_id=session_id, sample_frames=sample_frames)
+    if not res.get("ok", False):
+        return JSONResponse(status_code=400, content=res)
+    return res
 
 # --- Dose jog endpoint ---
 _jog_last = {}

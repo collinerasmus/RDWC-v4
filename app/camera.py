@@ -1,10 +1,11 @@
 ﻿"""Camera manager with live stream and timelapse session support."""
-import io
 import json
 import os
 import re
 import threading
 import time
+import math
+from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -21,8 +22,15 @@ class CameraManager:
     _camera_index = None
     _last_init_attempt = 0.0
     _init_retry_s = 5.0
-    _default_max_frames = int(os.environ.get("CAM_TIMELAPSE_DEFAULT_MAX_FRAMES", "12000"))
+    _default_interval_s = int(os.environ.get("CAM_TIMELAPSE_DEFAULT_INTERVAL_S", "600"))
+    _default_quality = int(os.environ.get("CAM_TIMELAPSE_DEFAULT_QUALITY", "88"))
+    _default_max_frames = int(os.environ.get("CAM_TIMELAPSE_DEFAULT_MAX_FRAMES", str(max(1000, int((56 * 86400) / max(10, _default_interval_s))))))
     _max_total_bytes = int(os.environ.get("CAM_TIMELAPSE_MAX_TOTAL_MB", "4096")) * 1024 * 1024
+    _default_stream_fps = int(os.environ.get("CAM_STREAM_FPS", "10"))
+    _default_stream_quality = int(os.environ.get("CAM_STREAM_QUALITY", "85"))
+    _default_snapshot_quality = int(os.environ.get("CAM_SNAPSHOT_QUALITY", "90"))
+    _default_width = int(os.environ.get("CAM_WIDTH", "1920"))
+    _default_height = int(os.environ.get("CAM_HEIGHT", "1080"))
 
     _store_dir = Path(__file__).resolve().parent.parent / "data" / "timelapse"
     _settings_path = _store_dir / "settings.json"
@@ -31,8 +39,8 @@ class CameraManager:
     _tl_thread: Optional[threading.Thread] = None
     _tl_state: Dict[str, Any] = {
         "running": False,
-        "interval_s": 300,
-        "quality": 80,
+        "interval_s": _default_interval_s,
+        "quality": _default_quality,
         "max_frames": _default_max_frames,
         "frame_count": 0,
         "label": "grow",
@@ -114,8 +122,13 @@ class CameraManager:
             try:
                 cap = cls._cv2.VideoCapture(idx, cls._cv2.CAP_V4L2) if hasattr(cls._cv2, "CAP_V4L2") else cls._cv2.VideoCapture(idx)
                 if cap is not None and cap.isOpened():
-                    cap.set(3, 1280)
-                    cap.set(4, 720)
+                    # Tune capture path for sharper, lower-latency feed on Pi cameras.
+                    with suppress(Exception):
+                        cap.set(cls._cv2.CAP_PROP_FOURCC, cls._cv2.VideoWriter_fourcc(*"MJPG"))
+                    with suppress(Exception):
+                        cap.set(cls._cv2.CAP_PROP_BUFFERSIZE, 1)
+                    cap.set(3, max(640, cls._default_width))
+                    cap.set(4, max(480, cls._default_height))
                     with cls._lock:
                         cls._cap = cap
                     cls.available = True
@@ -245,6 +258,31 @@ class CameraManager:
             "quality": quality,
             "max_frames": max_frames,
             "label": label,
+        }
+
+    @classmethod
+    def recommended_timelapse(cls, grow_days: int = 56, output_fps: int = 24) -> Dict[str, Any]:
+        grow_days = max(14, min(120, int(grow_days)))
+        output_fps = max(12, min(60, int(output_fps)))
+        interval_s = max(120, min(1800, cls._default_interval_s))
+        frames = int(math.ceil((grow_days * 86400) / float(interval_s)))
+        max_frames = min(100000, max(frames, cls._default_max_frames))
+        est_seconds = round(frames / float(output_fps), 1)
+        est_minutes = round(est_seconds / 60.0, 1)
+        return {
+            "grow_days": grow_days,
+            "interval_s": interval_s,
+            "quality": max(80, min(95, cls._default_quality)),
+            "max_frames": max_frames,
+            "expected_frames": frames,
+            "output_fps": output_fps,
+            "estimated_video_seconds": est_seconds,
+            "estimated_video_minutes": est_minutes,
+            "notes": [
+                "10-minute cadence captures canopy and flower development without overloading storage.",
+                "Target output of roughly 4-8 minutes keeps weekly changes visible.",
+                "Use stable camera position and fixed lights-on capture window for best comparisons.",
+            ],
         }
 
     @classmethod
@@ -521,16 +559,17 @@ class CameraManager:
     def capture_single_frame(cls) -> Optional[bytes]:
         if not cls._is_open() and not cls.ensure_ready():
             return None
-        if cls._Image is None or cls._cap is None:
+        if cls._cv2 is None or cls._cap is None:
             return None
+
+        q = max(40, min(95, cls._default_snapshot_quality))
         with cls._lock:
             try:
                 ret, frame = cls._cap.read()
                 if ret and frame is not None:
-                    img = cls._Image.fromarray(frame[:, :, ::-1])  # BGR->RGB
-                    buf = io.BytesIO()
-                    img.save(buf, format="JPEG", quality=70)
-                    return buf.getvalue()
+                    ok, jpeg = cls._cv2.imencode(".jpg", frame, [int(cls._cv2.IMWRITE_JPEG_QUALITY), int(q)])
+                    if ok:
+                        return jpeg.tobytes()
             except Exception as e:
                 cls.last_error = f"snapshot_error: {e}"
         return None
@@ -540,7 +579,7 @@ class CameraManager:
         return cls._is_open()
 
     @classmethod
-    def mjpeg_generator(cls, fps: int = 8):
+    def mjpeg_generator(cls, fps: int = 10, quality: int = 85, width: Optional[int] = None, height: Optional[int] = None):
         """Lightweight MJPEG streaming generator for /camera/stream endpoint.
         Uses OpenCV frame capture with configurable FPS throttling."""
         import time
@@ -551,7 +590,16 @@ class CameraManager:
             yield b''
             return
         
-        frame_delay = 1.0 / fps if fps > 0 else 0.125
+        fps = max(2, min(24, int(fps)))
+        quality = max(40, min(95, int(quality)))
+        target_w = int(width) if width else None
+        target_h = int(height) if height else None
+        if target_w is not None:
+            target_w = max(320, min(1920, target_w))
+        if target_h is not None:
+            target_h = max(240, min(1080, target_h))
+
+        frame_delay = 1.0 / fps
         boundary = b"frame"
         
         while True:
@@ -564,9 +612,12 @@ class CameraManager:
                     if not ret or frame is None:
                         time.sleep(frame_delay)
                         continue
+
+                    if target_w and target_h:
+                        frame = cls._cv2.resize(frame, (target_w, target_h), interpolation=cls._cv2.INTER_AREA)
                     
                     # Encode frame as JPEG
-                    ret, jpeg = cls._cv2.imencode('.jpg', frame, [int(cls._cv2.IMWRITE_JPEG_QUALITY), 70])
+                    ret, jpeg = cls._cv2.imencode('.jpg', frame, [int(cls._cv2.IMWRITE_JPEG_QUALITY), int(quality)])
                     if not ret:
                         time.sleep(frame_delay)
                         continue
@@ -584,3 +635,129 @@ class CameraManager:
                     break
             
             time.sleep(frame_delay)
+
+    @classmethod
+    def analyze_timelapse(cls, session_id: Optional[str] = None, sample_frames: int = 8) -> Dict[str, Any]:
+        if cls._cv2 is None and not cls._import_drivers():
+            return {"ok": False, "error": "opencv_unavailable"}
+
+        cls._ensure_store_dir()
+        target_dir: Optional[Path] = None
+        if session_id:
+            candidate = cls._store_dir / str(session_id)
+            if candidate.exists() and candidate.is_dir():
+                target_dir = candidate
+        if target_dir is None:
+            sessions = cls.list_sessions(limit=1)
+            if sessions:
+                target_dir = Path(sessions[0]["path"])
+
+        if target_dir is None:
+            return {"ok": False, "error": "no_sessions"}
+
+        frames = sorted(target_dir.glob("frame_*.jpg"))
+        if len(frames) < 2:
+            return {"ok": False, "error": "insufficient_frames", "session_id": target_dir.name, "frames": len(frames)}
+
+        sample_frames = max(3, min(24, int(sample_frames)))
+        if len(frames) <= sample_frames:
+            picked = frames
+        else:
+            idxs = sorted({int(round(i * (len(frames) - 1) / float(sample_frames - 1))) for i in range(sample_frames)})
+            picked = [frames[i] for i in idxs]
+
+        brightness_vals = []
+        contrast_vals = []
+        blur_vals = []
+        green_vals = []
+
+        for fp in picked:
+            img = cls._cv2.imread(str(fp))
+            if img is None:
+                continue
+            h, w = img.shape[:2]
+            y0 = int(h * 0.1)
+            y1 = int(h * 0.9)
+            x0 = int(w * 0.1)
+            x1 = int(w * 0.9)
+            roi = img[y0:y1, x0:x1]
+            if roi.size == 0:
+                continue
+
+            gray = cls._cv2.cvtColor(roi, cls._cv2.COLOR_BGR2GRAY)
+            hsv = cls._cv2.cvtColor(roi, cls._cv2.COLOR_BGR2HSV)
+            green_mask = cls._cv2.inRange(hsv, (35, 35, 30), (95, 255, 255))
+
+            brightness_vals.append(float(gray.mean()))
+            contrast_vals.append(float(gray.std()))
+            blur_vals.append(float(cls._cv2.Laplacian(gray, cls._cv2.CV_64F).var()))
+            green_vals.append(float((green_mask > 0).sum()) / float(green_mask.size))
+
+        if len(green_vals) < 2:
+            return {"ok": False, "error": "analysis_failed", "session_id": target_dir.name}
+
+        mean_brightness = sum(brightness_vals) / len(brightness_vals)
+        mean_contrast = sum(contrast_vals) / len(contrast_vals)
+        mean_blur = sum(blur_vals) / len(blur_vals)
+        mean_green = sum(green_vals) / len(green_vals)
+        green_delta = green_vals[-1] - green_vals[0]
+
+        observations = []
+        recommendations = []
+        confidence = 0.8
+
+        if mean_blur < 80:
+            observations.append("Image sharpness is low; fine flower detail is likely being lost.")
+            recommendations.append("Refocus the lens and keep camera rigid to reduce blur in timelapse frames.")
+            confidence -= 0.1
+        else:
+            observations.append("Image sharpness is good enough to track flower structure over time.")
+
+        if mean_brightness < 60:
+            observations.append("Canopy appears underexposed.")
+            recommendations.append("Increase grow-light period capture brightness or add fixed supplemental fill light.")
+            confidence -= 0.1
+        elif mean_brightness > 200:
+            observations.append("Canopy appears overexposed.")
+            recommendations.append("Lower exposure or reduce direct glare to preserve bud and leaf texture.")
+            confidence -= 0.1
+        else:
+            observations.append("Exposure is in a usable range for visual comparisons.")
+
+        if green_delta > 0.03:
+            observations.append("Visible canopy expansion trend detected across sampled frames.")
+        elif green_delta < -0.02:
+            observations.append("Green canopy coverage appears to be declining.")
+            recommendations.append("Inspect for nutrient, pH, or light stress if this decline persists for multiple days.")
+            confidence -= 0.1
+        else:
+            observations.append("Canopy coverage trend is mostly stable in this sample window.")
+
+        if mean_contrast < 22:
+            recommendations.append("Increase scene contrast by stabilizing camera angle and reducing lens haze or condensation.")
+
+        if not recommendations:
+            recommendations.append("Keep the camera fixed, capture during consistent lighting, and review trend snapshots weekly.")
+
+        score = max(0, min(100, int(round(65 + (mean_green * 50) + (green_delta * 300) + min(mean_blur, 180) / 6.0))))
+
+        return {
+            "ok": True,
+            "session_id": target_dir.name,
+            "sampled_frames": len(green_vals),
+            "frames_total": len(frames),
+            "metrics": {
+                "green_ratio_mean": round(mean_green, 4),
+                "green_ratio_delta": round(green_delta, 4),
+                "brightness_mean": round(mean_brightness, 1),
+                "contrast_mean": round(mean_contrast, 1),
+                "sharpness_laplacian_var": round(mean_blur, 1),
+            },
+            "grow_feedback": {
+                "visual_progress_score": score,
+                "confidence": round(max(0.4, min(0.95, confidence)), 2),
+                "observations": observations,
+                "recommendations": recommendations,
+                "disclaimer": "Heuristic vision-only feedback. Confirm plant health with pH, EC, temperature, and in-person inspection.",
+            },
+        }

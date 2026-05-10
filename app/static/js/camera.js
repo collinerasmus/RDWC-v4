@@ -18,6 +18,7 @@
     snapshotTimer: null,
     switchDebounce: 0,
     timelapse: null,
+    recommendation: null,
   };
 
   const el = (id) => document.getElementById(id);
@@ -73,10 +74,12 @@
   function useStream(){
     const img = el('camera-stream');
     const obj = el('camera-object');
+    const fps = Math.max(2, Math.min(24, parseInt(el('cam-stream-fps')?.value || '10', 10) || 10));
+    const quality = Math.max(40, Math.min(95, parseInt(el('cam-stream-quality')?.value || '85', 10) || 85));
     state.currentMode = 'streaming';
     if (obj){ obj.style.display = 'none'; obj.data = ''; }
     if (img){
-      img.src = '/camera/stream?t=' + Date.now();
+      img.src = '/camera/stream?fps=' + fps + '&quality=' + quality + '&t=' + Date.now();
       img.style.display = 'block';
       img.onerror = function(){
         state.switchDebounce = 2;
@@ -228,6 +231,71 @@
     if (note) note.textContent = msg || 'Ready';
   }
 
+  function renderGrowPlan(rec){
+    const plan = el('camera-grow-plan');
+    if (!plan || !rec) return;
+    const mins = Number(rec.estimated_video_minutes || 0).toFixed(1);
+    plan.textContent = 'Estimated render: ' + rec.expected_frames + ' frames over ' + rec.grow_days + ' days (~' + mins + ' min at ' + rec.output_fps + ' fps).';
+  }
+
+  async function fetchRecommendation(){
+    try {
+      const r = await fetch('/camera/timelapse/recommendation?grow_days=56&output_fps=24', { cache: 'no-store' });
+      if (!r.ok) return null;
+      return await r.json();
+    } catch(_) {
+      return null;
+    }
+  }
+
+  function applyRecommendationToInputs(rec){
+    if (!rec) return;
+    const intervalEl = el('cam-interval-s');
+    const qualityEl = el('cam-quality');
+    const maxEl = el('cam-max-frames');
+    if (intervalEl) intervalEl.value = String(rec.interval_s || 600);
+    if (qualityEl) qualityEl.value = String(rec.quality || 88);
+    if (maxEl) maxEl.value = String(rec.max_frames || 8000);
+    renderGrowPlan(rec);
+    setTimelapseNote('Applied 8-week grow preset');
+  }
+
+  function renderInsights(payload){
+    const summary = el('camera-insights-summary');
+    const points = el('camera-insights-points');
+    if (!summary || !points) return;
+    if (!payload || !payload.ok){
+      summary.textContent = 'Analysis unavailable.';
+      points.innerHTML = '';
+      return;
+    }
+
+    const fb = payload.grow_feedback || {};
+    const m = payload.metrics || {};
+    summary.textContent = 'Score ' + (fb.visual_progress_score ?? '--') + '/100, confidence ' + Math.round((fb.confidence || 0) * 100) + '%, green trend ' + (m.green_ratio_delta ?? 0) + '.';
+
+    const obs = Array.isArray(fb.observations) ? fb.observations : [];
+    const recs = Array.isArray(fb.recommendations) ? fb.recommendations : [];
+    const lines = [];
+    obs.slice(0, 2).forEach(function(x){ lines.push('<div>Observation: ' + x + '</div>'); });
+    recs.slice(0, 2).forEach(function(x){ lines.push('<div>Action: ' + x + '</div>'); });
+    points.innerHTML = lines.join('');
+  }
+
+  async function refreshInsights(){
+    try {
+      const r = await fetch('/camera/timelapse/insights?sample_frames=8', { cache: 'no-store' });
+      if (!r.ok) {
+        renderInsights(null);
+        return;
+      }
+      const j = await r.json();
+      renderInsights(j);
+    } catch(_) {
+      renderInsights(null);
+    }
+  }
+
   async function refreshSessions(){
     const list = el('camera-sessions');
     if (!list) return;
@@ -328,9 +396,16 @@
   }
 
   async function refreshAll(){
+    if (!state.recommendation){
+      state.recommendation = await fetchRecommendation();
+      if (state.recommendation) {
+        renderGrowPlan(state.recommendation);
+      }
+    }
     const st = await fetchTimelapseStatus();
     if (st) renderTimelapseStatus(st);
     await refreshSessions();
+    await refreshInsights();
     await applyCameraMode();
   }
 
@@ -354,15 +429,30 @@
     const stopBtn = el('btn-camera-stop');
     const capBtn = el('btn-camera-capture');
     const refreshBtn = el('btn-camera-refresh');
+    const analyzeBtn = el('btn-camera-insights');
+    const presetBtn = el('btn-camera-apply-grow-preset');
     const modeSel = el('cam-view-mode');
     const snapEvery = el('cam-snapshot-every');
+    const streamFps = el('cam-stream-fps');
+    const streamQuality = el('cam-stream-quality');
 
     if (startBtn && !startBtn.__bound){ startBtn.__bound = true; startBtn.addEventListener('click', function(){ startTimelapse(); }); }
     if (stopBtn && !stopBtn.__bound){ stopBtn.__bound = true; stopBtn.addEventListener('click', function(){ stopTimelapse(); }); }
     if (capBtn && !capBtn.__bound){ capBtn.__bound = true; capBtn.addEventListener('click', function(){ captureNow(); }); }
     if (refreshBtn && !refreshBtn.__bound){ refreshBtn.__bound = true; refreshBtn.addEventListener('click', function(){ refreshAll().catch(function(){ setTimelapseNote('Refresh failed'); }); }); }
+    if (analyzeBtn && !analyzeBtn.__bound){ analyzeBtn.__bound = true; analyzeBtn.addEventListener('click', function(){ refreshInsights(); }); }
+    if (presetBtn && !presetBtn.__bound){ presetBtn.__bound = true; presetBtn.addEventListener('click', function(){
+      const rec = state.recommendation;
+      if (rec) {
+        applyRecommendationToInputs(rec);
+      } else {
+        fetchRecommendation().then(function(r){ state.recommendation = r; applyRecommendationToInputs(r); }).catch(function(){ setTimelapseNote('Preset fetch failed'); });
+      }
+    }); }
     if (modeSel && !modeSel.__bound){ modeSel.__bound = true; modeSel.addEventListener('change', onModeChange); }
     if (snapEvery && !snapEvery.__bound){ snapEvery.__bound = true; snapEvery.addEventListener('change', function(){ if (state.selectedMode === 'snapshot') startSnapshotTimer(); }); }
+    if (streamFps && !streamFps.__bound){ streamFps.__bound = true; streamFps.addEventListener('change', function(){ if (state.active && state.currentMode === 'streaming') useStream(); }); }
+    if (streamQuality && !streamQuality.__bound){ streamQuality.__bound = true; streamQuality.addEventListener('change', function(){ if (state.active && state.currentMode === 'streaming') useStream(); }); }
 
     window.addEventListener('tab-changed', function(ev){
       const tab = ev && ev.detail && ev.detail.tab;
