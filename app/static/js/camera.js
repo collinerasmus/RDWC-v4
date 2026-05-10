@@ -221,6 +221,11 @@
     if (stopBtn) stopBtn.disabled = !st.running;
   }
 
+  function setTimelapseNote(msg){
+    const note = el('camera-timelapse-note');
+    if (note) note.textContent = msg || 'Ready';
+  }
+
   async function refreshSessions(){
     const list = el('camera-sessions');
     if (!list) return;
@@ -265,20 +270,29 @@
     };
     const res = await postJSON('/camera/timelapse/start', payload);
     if (res && res.status) renderTimelapseStatus(res.status);
+    else if (res && res.error) setTimelapseNote('Start failed: ' + res.error);
+    else setTimelapseNote('Start failed');
     await refreshSessions();
   }
 
   async function stopTimelapse(){
     const res = await postJSON('/camera/timelapse/stop', {});
     if (res && res.status) renderTimelapseStatus(res.status);
+    else setTimelapseNote('Stop failed');
     await refreshSessions();
   }
 
   async function captureNow(){
     const quality = parseInt(el('cam-quality')?.value || '80', 10);
     const res = await postJSON('/camera/timelapse/capture', { quality: quality });
-    if (res && res.status) renderTimelapseStatus(res.status);
-    useSnapshot();
+    if (res && res.status) {
+      renderTimelapseStatus(res.status);
+      useSnapshot();
+    } else if (res && res.error) {
+      setTimelapseNote('Capture failed: ' + res.error);
+    } else {
+      setTimelapseNote('Capture failed');
+    }
     await refreshSessions();
   }
 
