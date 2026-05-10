@@ -37,6 +37,57 @@
     return `${Math.floor(diff/86400)}d ago`;
   }
 
+  function buildStateSegments(events, label, color, windowStart, windowEnd) {
+    const segments = [];
+    const sorted = (events || [])
+      .map((evt) => ({ ts: new Date(evt.ts).getTime(), final: !!evt.final }))
+      .filter((evt) => Number.isFinite(evt.ts))
+      .sort((a, b) => a.ts - b.ts);
+
+    if (!sorted.length) {
+      return segments;
+    }
+
+    const prior = [...sorted].filter((evt) => evt.ts <= windowStart).pop();
+    let currentState = prior ? prior.final : false;
+    let cursor = windowStart;
+    const within = sorted.filter((evt) => evt.ts >= windowStart && evt.ts <= windowEnd);
+
+    const pushSegment = (start, end, isOn) => {
+      if (end <= start) {
+        return;
+      }
+
+      const duration = (end - start) / 1000;
+      const durationHours = Math.floor(duration / 3600);
+      const durationMinutes = Math.floor((duration % 3600) / 60);
+      const durationSeconds = Math.floor(duration % 60);
+      const durationLabel = durationHours > 0
+        ? `${durationHours}h ${durationMinutes}m`
+        : durationMinutes > 0
+          ? `${durationMinutes}m ${durationSeconds}s`
+          : `${durationSeconds}s`;
+
+      segments.push({
+        x: [start, end],
+        y: label,
+        state: isOn ? 'ON' : 'OFF',
+        duration: durationLabel,
+        backgroundColor: isOn ? color : 'rgba(148, 163, 184, 0.14)',
+        borderColor: isOn ? color : 'rgba(148, 163, 184, 0.22)'
+      });
+    };
+
+    for (const evt of within) {
+      pushSegment(cursor, evt.ts, currentState);
+      currentState = evt.final;
+      cursor = evt.ts;
+    }
+
+    pushSegment(cursor, windowEnd, currentState);
+    return segments;
+  }
+
   async function updateRuntimeStats() {
     console.log('[Circulation] Updating runtime stats...');
     try {
@@ -175,6 +226,7 @@
     console.log('[Circulation] Updating timeline chart...');
     try {
       const canvas = document.getElementById('circTimelineChart');
+      const emptyEl = document.getElementById('circ-chart-empty');
       if (!canvas) {
         console.warn('[Circulation] Timeline canvas not found');
         return;
@@ -203,51 +255,20 @@
       
       const mainFiltered = filterAndNormalize(mainEvents);
       const chillerFiltered = filterAndNormalize(chillerEvents);
-      
-      // Build bar data for each ON period
-      const buildBars = (events, label, color) => {
-        const bars = [];
-        for (let i = 0; i < events.length - 1; i++) {
-          if (events[i].final === true) {
-            const onStart = events[i].ts;
-            const onEnd = events[i + 1].ts;
-            const duration = (onEnd - onStart) / 1000;
-            
-            const durationHrs = Math.floor(duration / 3600);
-            const durationMins = Math.floor((duration % 3600) / 60);
-            const durationLabel = durationHrs > 0 ? `${durationHrs}h ${durationMins}m` : `${durationMins}m`;
-            
-            bars.push({
-              x: [onStart, onEnd],
-              y: label,
-              duration: durationLabel,
-              backgroundColor: color
-            });
-          }
+      const mainBars = buildStateSegments(mainFiltered, 'Main Pump', '#60a5fa', dayAgo, now);
+      const chillerBars = buildStateSegments(chillerFiltered, 'Chiller Pump', '#22d3ee', dayAgo, now);
+
+      const hasData = mainBars.length > 0 || chillerBars.length > 0;
+      if (emptyEl) {
+        emptyEl.style.display = hasData ? 'none' : 'block';
+      }
+      if (!hasData) {
+        if (timelineChart) {
+          timelineChart.destroy();
+          timelineChart = null;
         }
-        
-        // Handle ongoing ON period
-        if (events.length > 0 && events[events.length - 1].final === true) {
-          const onStart = events[events.length - 1].ts;
-          const duration = (now - onStart) / 1000;
-          
-          const durationHrs = Math.floor(duration / 3600);
-          const durationMins = Math.floor((duration % 3600) / 60);
-          const durationLabel = durationHrs > 0 ? `${durationHrs}h ${durationMins}m` : `${durationMins}m`;
-          
-          bars.push({
-            x: [onStart, now],
-            y: label,
-            duration: durationLabel,
-            backgroundColor: color
-          });
-        }
-        
-        return bars;
-      };
-      
-      const mainBars = buildBars(mainFiltered, 'Main Pump', '#60a5fa');
-      const chillerBars = buildBars(chillerFiltered, 'Chiller Pump', '#22d3ee');
+        return;
+      }
       
       const ctx = canvas.getContext('2d');
       
@@ -263,16 +284,26 @@
               label: 'Main Pump',
               data: mainBars,
               backgroundColor: mainBars.map(b => b.backgroundColor),
-              barThickness: 20,
-              borderRadius: 4,
+              borderColor: mainBars.map(b => b.borderColor),
+              borderWidth: 1,
+              barThickness: 18,
+              maxBarThickness: 22,
+              categoryPercentage: 1,
+              barPercentage: 1,
+              borderRadius: 0,
               borderSkipped: false
             },
             {
               label: 'Chiller Pump',
               data: chillerBars,
               backgroundColor: chillerBars.map(b => b.backgroundColor),
-              barThickness: 20,
-              borderRadius: 4,
+              borderColor: chillerBars.map(b => b.borderColor),
+              borderWidth: 1,
+              barThickness: 18,
+              maxBarThickness: 22,
+              categoryPercentage: 1,
+              barPercentage: 1,
+              borderRadius: 0,
               borderSkipped: false
             }
           ]
@@ -292,10 +323,11 @@
               grid: { color: 'rgba(148,163,184,0.1)' },
               ticks: { color: '#9ca3af', maxTicksLimit: 12 },
               min: dayAgo,
-              max: now
+              max: now,
+              stacked: true
             },
             y: {
-              stacked: false,
+              stacked: true,
               grid: { display: false },
               ticks: { color: '#9ca3af' }
             }
@@ -307,7 +339,7 @@
                 title: () => '',
                 label: (ctx) => {
                   const bar = ctx.raw;
-                  return `${ctx.dataset.label}: ON for ${bar.duration}`;
+                  return `${ctx.dataset.label}: ${bar.state} for ${bar.duration}`;
                 }
               }
             }
