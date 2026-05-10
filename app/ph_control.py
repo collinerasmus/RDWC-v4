@@ -1270,9 +1270,10 @@ def _estimate_ml_per_pH(ec_current: Optional[float]) -> Optional[float]:
                 continue
         if total_dpH > 0.02 and total_ml > 0 and num_valid >= 2:
             est = float(total_ml / total_dpH)  # ml for 1.0 pH
-            # Clamp to [1.5,50] ml per 1.0 pH — conservative range given user spec of ~1ml = 1 pH
-            # Upper bound reduced from 100 to prevent learning runaway from low-effect doses
-            est = max(1.5, min(50.0, est))
+            # Clamp lower bound to 1.5; upper bound is settable (default 500) to
+            # support large or heavily-buffered reservoirs where real ml/pH >> 50.
+            clamp_max = _settings_get_float("dosing.ph_up_ml_per_pH_clamp_max", 500.0)
+            est = max(1.5, min(clamp_max, est))
             return est
         if total_ok_rows > 0:
             return reset_fallback_ml_per_pH
