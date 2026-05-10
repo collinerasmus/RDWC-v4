@@ -223,6 +223,24 @@
     }
   }
 
+  function updateLearnedDisplay(s){
+    const displayBox = el('ec-learned-display');
+    const displayValue = el('ec-learned-display-value');
+    if(!displayBox || !displayValue) return;
+
+    const learned = (s && s.auto && s.auto.learned_ml_per_mScm != null)
+      ? s.auto.learned_ml_per_mScm
+      : (s && s.learned_ml_per_mScm);
+
+    if(learned !== null && learned !== undefined && Number(learned) > 0){
+      displayBox.style.display = 'block';
+      displayValue.textContent = Number(learned).toFixed(2);
+    } else {
+      displayBox.style.display = 'none';
+      displayValue.textContent = '—';
+    }
+  }
+
   // Toggle EC automation (header button)
   async function toggleAuto(){
     try{
@@ -543,9 +561,8 @@
       const r = await fetch('/api/ec/auto/learn/reset', {method:'POST'});
       let j = null; try{ j = await r.json(); }catch(e){}
       if(window.showToast){ showToast(j?.ok ? 'EC learner reset' : 'Error resetting learner', j?.ok ? 'success':'error'); }
-      // Update the learned display in Settings section
-      updateLearnedDisplay();
-      tick();
+      const s2 = await fetchStatus();
+      if(s2) renderStatus(s2);
     });
     // Export uses displayed window range
     el('btnEcExport')?.addEventListener('click', ()=>{
