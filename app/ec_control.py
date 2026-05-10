@@ -1000,15 +1000,12 @@ def dose_ec(body: dict = Body(...)):
         
         # Pre-read EC
         ec_before, ec_ts_before = _get_latest_ec()
-        # Hard guardrail: disallow nutrient if EC already above target band
+        # Hard guardrail: disallow nutrient if EC already above target band.
+        # Use _get_ec_targets() to stay consistent with the auto loop's source.
         try:
-            # Prefer target±tolerance if present
-            ec_tgt = _f("targets.ec_target", 0.0)
-            ec_tol = _f("targets.ec_tolerance", 0.0)
-            ec_hi = _f("targets.ec_high", 1.2)
-            threshold = (ec_tgt + ec_tol) if (ec_tgt > 0 and ec_tol > 0) else ec_hi
-            if (ec_before is not None) and (threshold > 0) and (ec_before >= threshold):
-                return JSONResponse(status_code=409, content={"error": f"blocked: ec_high_guard ({ec_before:.2f} >= {threshold:.2f})"})
+            _, ec_hi = _get_ec_targets()
+            if (ec_before is not None) and (ec_hi > 0) and (ec_before >= ec_hi):
+                return JSONResponse(status_code=409, content={"error": f"blocked: ec_high_guard ({ec_before:.2f} >= {ec_hi:.2f})"})
         except Exception:
             pass
         
@@ -1116,15 +1113,14 @@ def dose_ec(body: dict = Body(...)):
         if not _b("safety.maintenance_override", False):
             return JSONResponse(status_code=409, content={"error": f"blocked by {guard}"})
 
-    # Hard guardrail before dosing in ml-mode as well
+    # Hard guardrail before dosing in ml-mode as well.
+    # Use the same target source as the auto loop (_get_ec_targets) so that
+    # schedule-derived targets don't desync from the raw settings keys.
     try:
         ec_before, _ = _get_latest_ec()
-        ec_tgt = _f("targets.ec_target", 0.0)
-        ec_tol = _f("targets.ec_tolerance", 0.0)
-        ec_hi = _f("targets.ec_high", 1.2)
-        threshold = (ec_tgt + ec_tol) if (ec_tgt > 0 and ec_tol > 0) else ec_hi
-        if (ec_before is not None) and (threshold > 0) and (ec_before >= threshold):
-            return JSONResponse(status_code=409, content={"error": f"blocked: ec_high_guard ({ec_before:.2f} >= {threshold:.2f})"})
+        _, ec_hi = _get_ec_targets()
+        if (ec_before is not None) and (ec_hi > 0) and (ec_before >= ec_hi):
+            return JSONResponse(status_code=409, content={"error": f"blocked: ec_high_guard ({ec_before:.2f} >= {ec_hi:.2f})"})
     except Exception:
         pass
     
