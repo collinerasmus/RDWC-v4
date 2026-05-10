@@ -6,7 +6,7 @@ import threading
 import time
 import math
 from contextlib import suppress
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -31,6 +31,7 @@ class CameraManager:
     _default_snapshot_quality = int(os.environ.get("CAM_SNAPSHOT_QUALITY", "90"))
     _default_width = int(os.environ.get("CAM_WIDTH", "1920"))
     _default_height = int(os.environ.get("CAM_HEIGHT", "1080"))
+    _default_lights_on_only = os.environ.get("CAM_TIMELAPSE_LIGHTS_ON_ONLY", "true").strip().lower() in ("1", "true", "yes", "on")
 
     _store_dir = Path(__file__).resolve().parent.parent / "data" / "timelapse"
     _settings_path = _store_dir / "settings.json"
@@ -42,17 +43,28 @@ class CameraManager:
         "interval_s": _default_interval_s,
         "quality": _default_quality,
         "max_frames": _default_max_frames,
+        "lights_on_only": _default_lights_on_only,
         "frame_count": 0,
+        "skipped_captures": 0,
         "label": "grow",
         "session_id": None,
         "session_dir": None,
         "last_capture_ts": None,
         "last_frame": None,
+        "last_skip_reason": None,
         "next_capture_ts": None,
         "last_error": None,
         "started_at": None,
         "stopped_reason": None,
     }
+
+    @classmethod
+    def _to_bool(cls, value: Any, default: bool = False) -> bool:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return default
+        return str(value).strip().lower() in ("1", "true", "yes", "on")
 
     @classmethod
     def _import_drivers(cls) -> bool:
@@ -166,6 +178,7 @@ class CameraManager:
                 cls._tl_state["interval_s"] = int(data.get("interval_s", cls._tl_state["interval_s"]))
                 cls._tl_state["quality"] = int(data.get("quality", cls._tl_state["quality"]))
                 cls._tl_state["max_frames"] = int(data.get("max_frames", cls._tl_state["max_frames"]))
+                cls._tl_state["lights_on_only"] = cls._to_bool(data.get("lights_on_only", cls._tl_state.get("lights_on_only", cls._default_lights_on_only)), default=cls._default_lights_on_only)
                 cls._tl_state["label"] = str(data.get("label", cls._tl_state["label"]))
                 if cls._tl_state["max_frames"] <= 0:
                     cls._tl_state["max_frames"] = cls._default_max_frames
@@ -179,6 +192,7 @@ class CameraManager:
             "interval_s": cls._tl_state["interval_s"],
             "quality": cls._tl_state["quality"],
             "max_frames": cls._tl_state["max_frames"],
+            "lights_on_only": bool(cls._tl_state.get("lights_on_only", cls._default_lights_on_only)),
             "label": cls._tl_state["label"],
         }
         try:
@@ -245,6 +259,7 @@ class CameraManager:
         interval_s = int(settings.get("interval_s", cls._tl_state["interval_s"]))
         quality = int(settings.get("quality", cls._tl_state["quality"]))
         max_frames = int(settings.get("max_frames", cls._tl_state["max_frames"]))
+        lights_on_only = cls._to_bool(settings.get("lights_on_only", cls._tl_state.get("lights_on_only", cls._default_lights_on_only)), default=cls._default_lights_on_only)
         label = cls._sanitize_label(str(settings.get("label", cls._tl_state["label"])))
 
         interval_s = max(10, min(86400, interval_s))
@@ -257,8 +272,38 @@ class CameraManager:
             "interval_s": interval_s,
             "quality": quality,
             "max_frames": max_frames,
+            "lights_on_only": lights_on_only,
             "label": label,
         }
+
+    @classmethod
+    def _capture_allowed_now(cls, lights_on_only: bool) -> Dict[str, Any]:
+        if not lights_on_only:
+            return {"allowed": True, "reason": "always"}
+        try:
+            from app.settings import get_todays_lights_window
+
+            now = datetime.now().astimezone()
+            on_dt, off_dt = get_todays_lights_window()
+            if on_dt.tzinfo is None:
+                on_dt = on_dt.replace(tzinfo=now.tzinfo)
+            if off_dt.tzinfo is None:
+                off_dt = off_dt.replace(tzinfo=now.tzinfo)
+
+            if off_dt <= on_dt:
+                off_dt = off_dt + timedelta(days=1)
+            in_window = on_dt <= now < off_dt
+            return {
+                "allowed": bool(in_window),
+                "reason": "lights_on" if in_window else "lights_off",
+                "window": {
+                    "on": on_dt.isoformat(),
+                    "off": off_dt.isoformat(),
+                },
+            }
+        except Exception:
+            # Fail-open so capture continues if schedule lookup fails.
+            return {"allowed": True, "reason": "schedule_unknown"}
 
     @classmethod
     def recommended_timelapse(cls, grow_days: int = 56, output_fps: int = 24) -> Dict[str, Any]:
@@ -385,13 +430,17 @@ class CameraManager:
                 interval_s = int(cls._tl_state.get("interval_s", 300))
                 quality = int(cls._tl_state.get("quality", 80))
                 max_frames = int(cls._tl_state.get("max_frames", 0))
+                lights_on_only = bool(cls._tl_state.get("lights_on_only", cls._default_lights_on_only))
 
             if not session_dir:
                 cls._tl_state["last_error"] = "missing_session_dir"
                 time.sleep(1)
                 continue
 
-            out = cls._write_frame(Path(session_dir), frame_no=frame_no, quality=quality)
+            allowed = cls._capture_allowed_now(lights_on_only=lights_on_only)
+            out = None
+            if allowed.get("allowed", True):
+                out = cls._write_frame(Path(session_dir), frame_no=frame_no, quality=quality)
             now = time.time()
 
             with cls._tl_lock:
@@ -399,9 +448,15 @@ class CameraManager:
                     cls._tl_state["frame_count"] = frame_no
                     cls._tl_state["last_capture_ts"] = now
                     cls._tl_state["last_frame"] = out
+                    cls._tl_state["last_skip_reason"] = None
                     cls._tl_state["last_error"] = None
                 else:
-                    cls._tl_state["last_error"] = "capture_failed"
+                    if not allowed.get("allowed", True):
+                        cls._tl_state["last_skip_reason"] = str(allowed.get("reason", "capture_skipped"))
+                        cls._tl_state["skipped_captures"] = int(cls._tl_state.get("skipped_captures", 0)) + 1
+                        cls._tl_state["last_error"] = None
+                    else:
+                        cls._tl_state["last_error"] = "capture_failed"
 
                 if max_frames > 0 and int(cls._tl_state["frame_count"]) >= max_frames:
                     cls._tl_state["stopped_reason"] = "max_frames"
@@ -428,6 +483,11 @@ class CameraManager:
             next_in = max(0, int(float(st["next_capture_ts"]) - time.time()))
         st["next_capture_in_s"] = next_in
         st["available"] = cls._is_open()
+        cap = cls._capture_allowed_now(lights_on_only=bool(st.get("lights_on_only", cls._default_lights_on_only)))
+        st["capture_allowed_now"] = bool(cap.get("allowed", True))
+        st["capture_policy_reason"] = cap.get("reason", "always")
+        if "window" in cap:
+            st["capture_window"] = cap.get("window")
         return st
 
     @classmethod
@@ -451,12 +511,15 @@ class CameraManager:
                     "interval_s": valid["interval_s"],
                     "quality": valid["quality"],
                     "max_frames": valid["max_frames"],
+                    "lights_on_only": valid["lights_on_only"],
                     "label": valid["label"],
                     "session_id": session_id,
                     "session_dir": str(session_dir),
                     "frame_count": 0,
+                    "skipped_captures": 0,
                     "last_capture_ts": None,
                     "last_frame": None,
+                    "last_skip_reason": None,
                     "last_error": None,
                     "started_at": cls._now_iso(),
                     "stopped_reason": None,

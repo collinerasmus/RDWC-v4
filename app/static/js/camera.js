@@ -194,14 +194,29 @@
     const countEl = el('camera-frame-count');
     const nextEl = el('camera-next-capture');
     const lastEl = el('camera-last-capture');
+    const skippedEl = el('camera-skipped-count');
+    const policyEl = el('camera-capture-policy');
     const sessEl = el('camera-session-id');
     const note = el('camera-timelapse-note');
     const lastFrameLink = el('camera-last-frame-link');
+    const lightsOnlyEl = el('cam-lights-on-only');
 
-    if (runEl) runEl.textContent = st.running ? 'Running' : 'Stopped';
+    if (runEl) {
+      if (st.running && st.capture_allowed_now === false && st.capture_policy_reason === 'lights_off') runEl.textContent = 'Running (waiting lights-on)';
+      else runEl.textContent = st.running ? 'Running' : 'Stopped';
+    }
     if (countEl) countEl.textContent = String(st.frame_count || 0);
+    if (skippedEl) skippedEl.textContent = String(st.skipped_captures || 0);
     if (nextEl) nextEl.textContent = st.running ? ((st.next_capture_in_s ?? '\u2014') + 's') : '\u2014';
     if (lastEl) lastEl.textContent = st.last_capture_ts ? fmtAgo(st.last_capture_ts) : '\u2014';
+    if (policyEl) {
+      if (st.lights_on_only) {
+        policyEl.textContent = (st.capture_allowed_now === false) ? 'Lights-off hold' : 'Lights-on only';
+      } else {
+        policyEl.textContent = 'Always capture';
+      }
+    }
+    if (lightsOnlyEl && !st.running) lightsOnlyEl.checked = !!st.lights_on_only;
     if (sessEl) sessEl.textContent = st.session_id || '\u2014';
 
     if (lastFrameLink){
@@ -217,7 +232,10 @@
       }
     }
 
-    const msg = st.last_error || st.stopped_reason || (st.running ? 'Timelapse active' : 'Ready');
+    let msg = st.last_error || st.stopped_reason || (st.running ? 'Timelapse active' : 'Ready');
+    if (st.running && st.capture_allowed_now === false && st.capture_policy_reason === 'lights_off') {
+      msg = 'Running, waiting for lights-on window';
+    }
     if (note) note.textContent = msg;
 
     const startBtn = el('btn-camera-start');
@@ -339,10 +357,12 @@
   }
 
   async function startTimelapse(){
+    const lightsOnly = !!el('cam-lights-on-only')?.checked;
     const payload = {
       interval_s: parseInt(el('cam-interval-s')?.value || '300', 10),
       quality: parseInt(el('cam-quality')?.value || '80', 10),
       max_frames: parseInt(el('cam-max-frames')?.value || '0', 10),
+      lights_on_only: lightsOnly,
       label: (el('cam-label')?.value || 'grow').trim(),
     };
     try {

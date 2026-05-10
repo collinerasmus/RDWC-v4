@@ -1331,6 +1331,11 @@ body{
           </div>
         </div>
 
+        <label class="muted" style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:var(--font-xs);">
+          <input id="cam-lights-on-only" type="checkbox" checked />
+          Capture only during lights-on window (recommended)
+        </label>
+
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
           <button id="btn-camera-apply-grow-preset" class="btn-secondary">Apply 8-Week Preset</button>
           <button id="btn-camera-start" class="btn-secondary primary">Start Timelapse</button>
@@ -1344,8 +1349,10 @@ body{
         <div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(2,6,23,0.55);border:1px solid rgba(148,163,184,0.2);display:grid;grid-template-columns:1fr 1fr;gap:6px;">
           <div class="muted" style="font-size:var(--font-xs);">Running</div><div id="camera-running" style="font-size:var(--font-sm);font-weight:600;">—</div>
           <div class="muted" style="font-size:var(--font-xs);">Frames</div><div id="camera-frame-count" style="font-size:var(--font-sm);font-weight:600;">—</div>
+          <div class="muted" style="font-size:var(--font-xs);">Skipped</div><div id="camera-skipped-count" style="font-size:var(--font-sm);font-weight:600;">—</div>
           <div class="muted" style="font-size:var(--font-xs);">Next capture</div><div id="camera-next-capture" style="font-size:var(--font-sm);font-weight:600;">—</div>
           <div class="muted" style="font-size:var(--font-xs);">Last capture</div><div id="camera-last-capture" style="font-size:var(--font-sm);font-weight:600;">—</div>
+          <div class="muted" style="font-size:var(--font-xs);">Policy</div><div id="camera-capture-policy" style="font-size:var(--font-sm);font-weight:600;">—</div>
           <div class="muted" style="font-size:var(--font-xs);">Session</div><div id="camera-session-id" style="font-size:var(--font-sm);font-weight:600;">—</div>
           <div class="muted" style="font-size:var(--font-xs);">Last frame</div><a id="camera-last-frame-link" class="muted" style="font-size:var(--font-sm);">—</a>
         </div>
