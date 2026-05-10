@@ -415,11 +415,8 @@
           });
         });
 
-        // Relay states — staggered at different y-levels so they don't overlap.
-        // Lights=0.85, Main Pump=0.55, Chiller=0.25 within the yState 0–1 axis.
-        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 0.85);
-        const mainScaled = buildStepSeries(data?.mainEvents, window, 0.55);
-        const chillerScaled = buildStepSeries(data?.chillerEvents, window, 0.25);
+        // Relay state — Lights only.
+        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 0.5);
 
         if (lightsScaled.length) {
           datasets.push({
@@ -428,36 +425,6 @@
             data: lightsScaled,
             borderColor: 'rgba(34,197,94,0.55)',
             backgroundColor: 'rgba(34,197,94,0.10)',
-            stepped: false,
-            spanGaps: false,
-            borderWidth: 2,
-            fill: false,
-            pointRadius: 0,
-            order: 2
-          });
-        }
-        if (mainScaled.length) {
-          datasets.push({
-            label: 'Main Pump',
-            yAxisID: 'yState',
-            data: mainScaled,
-            borderColor: 'rgba(59,130,246,0.55)',
-            backgroundColor: 'rgba(59,130,246,0.10)',
-            stepped: false,
-            spanGaps: false,
-            borderWidth: 2,
-            fill: false,
-            pointRadius: 0,
-            order: 2
-          });
-        }
-        if (chillerScaled.length) {
-          datasets.push({
-            label: 'Chiller Pump',
-            yAxisID: 'yState',
-            data: chillerScaled,
-            borderColor: 'rgba(6,182,212,0.55)',
-            backgroundColor: 'rgba(6,182,212,0.10)',
             stepped: false,
             spanGaps: false,
             borderWidth: 2,
@@ -509,9 +476,7 @@
               color: '#6b7280',
               callback: (v) => {
                 const pct = Math.round(v * 100);
-                if (pct === 85) return 'Lights';
-                if (pct === 55) return 'Pump';
-                if (pct === 25) return 'Chiller';
+                if (pct === 50) return 'Lights';
                 if (pct === 0)  return 'OFF';
                 return '';
               }
