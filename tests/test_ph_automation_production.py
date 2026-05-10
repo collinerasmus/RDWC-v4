@@ -167,6 +167,23 @@ def test_ph_auto_holds_on_ec_baseline_low(db_path, client, monkeypatch):
     assert data["auto"]["holding_reason"] == "ec_baseline_low"
 
 
+def test_auto_dose_targets_setpoint_not_band_edge(db_path, monkeypatch):
+    """Auto dose sizing should aim for the band midpoint when pH falls below the band."""
+    # Use a deterministic learner so the math is visible.
+    monkeypatch.setattr(ph_control, "_estimate_ml_per_pH", lambda ec: 10.0)
+
+    targets = {"low": 5.8, "high": 6.2}
+    plan = ph_control._compute_auto_ph_up_dose_ml(ph_val=5.5, targets=targets, ec_current=1.8)
+
+    # Midpoint is 6.0, so a 10 ml/pH learner should request 5 ml.
+    assert plan["setpoint"] == 6.0
+    assert plan["need_dpH"] == 0.5
+    assert plan["ml"] == 5.0
+
+    # Sanity check: if it were only targeting the low edge it would be 3.0 ml.
+    assert plan["ml"] != 3.0
+
+
 def test_ph_auto_learning_applied(db_path, client, monkeypatch):
     """Test that learning estimator uses historical doses and is exported in status."""
     # Mock relays

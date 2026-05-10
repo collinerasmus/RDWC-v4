@@ -605,6 +605,10 @@ def ph_status():
         learned = _estimate_ml_per_pH(_get_latest_ec()[0])
     except Exception:
         learned = None
+    try:
+        target_ph = round((float(targets.get("low", 5.8)) + float(targets.get("high", 6.2))) / 2.0, 3)
+    except Exception:
+        target_ph = None
     # Holding reason (deterministic by guards + band), allow lock to signal cooldown
     holding_reason = _derive_holding_reason(ph_val, guards, targets)
     if not auto_enabled and holding_reason is None:
@@ -630,7 +634,7 @@ def ph_status():
         "ph": ph_val,
         "ts": ts,
         "targets": targets,
-        "auto": {"enabled": bool(auto_enabled), "guard": None, "holding_reason": holding_reason, "learned_ml_per_pH": learned},
+        "auto": {"enabled": bool(auto_enabled), "guard": None, "holding_reason": holding_reason, "learned_ml_per_pH": learned, "target_ph": target_ph},
         "guards": guards,
         "recent": recent,
         "remaining_cooldown_s": remaining,
@@ -1315,6 +1319,52 @@ def _derive_holding_reason(ph_val: Optional[float], guards: Dict[str, Any], targ
     return None
 
 
+def _compute_auto_ph_up_dose_ml(ph_val: float, targets: Dict[str, float], ec_current: Optional[float], step_min: Optional[float] = None, step_max: Optional[float] = None) -> Dict[str, Any]:
+    """Compute an auto pH-up dose that aims for the target setpoint.
+
+    The band remains the trigger, but the dose is sized to reach the midpoint
+    of the band rather than just nudging back to the low edge.
+    """
+    low = float(targets.get("low", 5.8))
+    high = float(targets.get("high", 6.2))
+    setpoint = (low + high) / 2.0
+    if ph_val >= low:
+        return {
+            "ml": 0.0,
+            "setpoint": setpoint,
+            "need_dpH": 0.0,
+            "ml_per_pH": None,
+            "ec_current": ec_current,
+        }
+
+    step_min = _settings_get_float("dosing.ph_up_step_min_ml", 0.05) if step_min is None else float(step_min)
+    step_max = _settings_get_float("dosing.ph_up_step_max_ml", 10.0) if step_max is None else float(step_max)
+    if _settings_get_float("dosing.ph_up_max_single_ml", 5.0) > 0:
+        step_max = min(step_max, _settings_get_float("dosing.ph_up_max_single_ml", 5.0))
+
+    need_dpH = max(0.0, setpoint - float(ph_val))
+    learned = _estimate_ml_per_pH(ec_current)
+    initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.10)
+    ml_per_pH = learned if learned is not None else initial_ml
+    ml_per_pH = _ec_compensated_ml_per_pH(ml_per_pH, ec_current)
+
+    # Use a direct, setpoint-aimed dose. Safety factor defaults to 1.0 so we do not
+    # intentionally under-dose back to the low edge of the band.
+    target_factor = _settings_get_float("ph_auto.target_dose_factor", 1.0)
+    target_factor = max(0.75, min(1.15, target_factor))
+    ml_est = target_factor * need_dpH * ml_per_pH
+    ml = max(step_min, min(step_max, ml_est))
+
+    return {
+        "ml": round(ml, 3),
+        "setpoint": round(setpoint, 3),
+        "need_dpH": round(need_dpH, 4),
+        "ml_per_pH": round(float(ml_per_pH), 4),
+        "ec_current": ec_current,
+        "target_factor": target_factor,
+    }
+
+
 def _set_auto_block(reason: str) -> None:
     """Track last auto holding reason and simple backoff counters."""
     global _auto_last_holding_reason, _auto_last_block, _auto_last_block_count
@@ -1356,14 +1406,6 @@ def _print_auto_decision(action: str, ph: Optional[float], ec: Optional[float], 
 def _auto_loop():
     global _auto_stop_evt, _auto_enabled_at, _auto_last_holding_reason, _auto_last_block, _auto_last_block_count
     poll_s = _settings_get_int("dosing.poll_interval_s", 30)
-    margin = _settings_get_float("ph_auto.margin", 0.05)  # aim to stop slightly inside band
-    step_min = _settings_get_float("dosing.ph_up_step_min_ml", 0.05)
-    step_max = _settings_get_float("dosing.ph_up_step_max_ml", 10.0)
-    # Align auto-dose cap with hard single-dose limit to avoid silent no-op
-    max_single = _settings_get_float("dosing.ph_up_max_single_ml", 5.0)
-    if max_single > 0:
-        step_max = min(step_max, max_single)
-    safety = _settings_get_float("dosing.ph_up_safety_factor", 0.85)  # under-dose fraction (increased to 0.85 for more aggressive response)
     warmup_done = False
     skip_next_poll = False  # For backoff
     
@@ -1520,22 +1562,9 @@ def _auto_loop():
                     if _dose_lock.locked():
                         _set_auto_block("cooldown")
                     else:
-                        # Aim for setpoint (midpoint of band), not the low edge
-                        setpoint = (targets["low"] + targets["high"]) / 2.0
-                        need_dpH = max(0.0, setpoint - ph_val)
-                        # Safe initial micro-dose when learner unknown/default
-                        # SAFETY: 0.10ml provides faster response while remaining conservative
-                        initial_ml = _settings_get_float("dosing.ph_up_initial_ml", 0.10)
                         _ec_now = _get_latest_ec()[0]
-                        est_val = _estimate_ml_per_pH(_ec_now)
-                        # SAFETY: If no estimator available, use conservative micro-dose
-                        if est_val is None:
-                            ml = initial_ml
-                        else:
-                            # Apply EC compensation using shared helper
-                            ml_per_pH = _ec_compensated_ml_per_pH(est_val, _ec_now)
-                            ml_est = safety * need_dpH * ml_per_pH
-                            ml = max(step_min, min(step_max, ml_est))
+                        dose_plan = _compute_auto_ph_up_dose_ml(ph_val, targets, _ec_now)
+                        ml = dose_plan["ml"]
                         
                         # Apply dose scaling for low EC conditions
                         dose_scale = _get_dose_scale_factor(_ec_now)
@@ -1543,6 +1572,9 @@ def _auto_loop():
                             ml = ml * dose_scale
                             ec_baseline_min = _settings_get_float("dosing.ec_baseline_min", 0.2)
                             logger.info(f"[pH Auto] Low EC detected ({_ec_now:.3f} < {ec_baseline_min:.1f} mS/cm) - conservative dosing at {dose_scale*100:.0f}% ({ml:.3f}ml)")
+
+                        setpoint = dose_plan["setpoint"]
+                        need_dpH = dose_plan["need_dpH"]
                         
                         _print_auto_decision("dose", ph_val, _get_latest_ec()[0], targets, ml, g)
                         res = _perform_dose({"ml": ml, "reason": "auto", "nonblocking": True})
