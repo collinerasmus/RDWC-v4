@@ -167,7 +167,9 @@
   function startHealthPolling(){
     stopHealthPolling();
     state.healthTimer = setInterval(function(){
-      applyCameraMode().catch(function(){});
+      applyCameraMode().catch(function(e){
+        setTimelapseNote('Camera check failed: ' + (e && e.message ? e.message : 'request error'));
+      });
     }, 5000);
   }
 
@@ -318,7 +320,9 @@
   function onModeChange(){
     const modeEl = el('cam-view-mode');
     state.selectedMode = modeEl ? modeEl.value : 'auto';
-    applyCameraMode().catch(function(){});
+    applyCameraMode().catch(function(e){
+      setTimelapseNote('Mode apply failed: ' + (e && e.message ? e.message : 'request error'));
+    });
     if (state.selectedMode === 'snapshot') startSnapshotTimer();
     else stopSnapshotTimer();
   }
@@ -333,7 +337,9 @@
   function setActive(active){
     state.active = !!active;
     if (state.active){
-      refreshAll().catch(function(){});
+      refreshAll().catch(function(e){
+        setTimelapseNote('Refresh failed: ' + (e && e.message ? e.message : 'request error'));
+      });
       startHealthPolling();
       if (state.selectedMode === 'snapshot') startSnapshotTimer();
     } else {
@@ -370,7 +376,9 @@
       } else if (state.active) {
         startHealthPolling();
         if (state.selectedMode === 'snapshot') startSnapshotTimer();
-        refreshAll().catch(function(){});
+        refreshAll().catch(function(e){
+          setTimelapseNote('Refresh failed: ' + (e && e.message ? e.message : 'request error'));
+        });
       }
     });
 

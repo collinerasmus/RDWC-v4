@@ -742,8 +742,18 @@ def health():
     
     # Check camera (non-blocking unless env var set)
     try:
-        # Simple check - we don't have camera module yet, so assume ready
-        camera_status = {"ready": True, "note": "assumed ready"}
+        from app.camera import CameraManager
+
+        cam = CameraManager.status()
+        camera_status = {
+            "ready": bool(cam.get("available", False)),
+            "available": bool(cam.get("available", False)),
+            "running": bool(cam.get("running", False)),
+            "timelapse_running": bool(cam.get("timelapse", {}).get("running", False)),
+            "mode": cam.get("mode", "unknown"),
+            "camera_index": cam.get("camera_index"),
+            "note": "ok" if cam.get("available", False) else "camera unavailable",
+        }
     except Exception as e:
         camera_status = {"ready": False, "note": f"camera error: {str(e)}"}
     
