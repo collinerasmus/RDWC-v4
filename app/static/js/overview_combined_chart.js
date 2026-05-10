@@ -414,7 +414,7 @@
             yAxisID: 'yState',
             data: lightsScaled,
             borderColor: '#22c55e',
-            backgroundColor: 'rgba(34,197,94,0.22)',
+            backgroundColor: 'rgba(34,197,94,0.40)',
             stepped: true,
             borderWidth: 2,
             fill: 'origin',
@@ -428,7 +428,7 @@
             yAxisID: 'yState',
             data: mainScaled,
             borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59,130,246,0.22)',
+            backgroundColor: 'rgba(59,130,246,0.40)',
             stepped: true,
             borderWidth: 2,
             fill: 'origin',
@@ -442,7 +442,7 @@
             yAxisID: 'yState',
             data: chillerScaled,
             borderColor: '#06b6d4',
-            backgroundColor: 'rgba(6,182,212,0.22)',
+            backgroundColor: 'rgba(6,182,212,0.40)',
             stepped: true,
             borderWidth: 2,
             fill: 'origin',
@@ -480,7 +480,20 @@
           };
         }
         if (!chartInstance.options.scales.yState) {
-          chartInstance.options.scales.yState = { type: 'linear', position: 'right', display: false, min: 0, max: 1.0, grid: { display: false } };
+          chartInstance.options.scales.yState = {
+            type: 'linear',
+            position: 'right',
+            display: true,
+            min: 0,
+            max: 1.0,
+            grid: { color: 'rgba(148,163,184,0.08)' },
+            title: { display: true, text: 'Relay State', color: '#9ca3af' },
+            ticks: {
+              color: '#9ca3af',
+              stepSize: 1,
+              callback: (value) => (Number(value) === 0 ? 'OFF' : 'ON')
+            }
+          };
         }
 
         const phMin = Number.isFinite(phLowCurrent) ? Math.min(phLowCurrent - 0.5, 5.0) : 5.0;
