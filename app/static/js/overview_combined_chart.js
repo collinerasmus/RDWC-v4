@@ -403,23 +403,21 @@
           });
         });
 
-        // Relay overlays (lights/pumps) aligned with pH dose markers height on pH axis
-        const relayBase = Number.isFinite(phHighCurrent) ? phHighCurrent + 0.3 : 6.6;
-        const relayGap = 0.12;
-        const lightsScaled = buildStepSeries(data?.lightsEvents, window, relayBase + relayGap * 0).map(p => ({ x: p.x, y: p.y === 0 ? relayBase - relayGap : p.y }));
-        const mainScaled = buildStepSeries(data?.mainEvents, window, relayBase + relayGap * 1).map(p => ({ x: p.x, y: p.y === 0 ? relayBase - relayGap : p.y }));
-        const chillerScaled = buildStepSeries(data?.chillerEvents, window, relayBase + relayGap * 2).map(p => ({ x: p.x, y: p.y === 0 ? relayBase - relayGap : p.y }));
+        // Relay states as binary ribbons instead of thin overlays on the pH band.
+        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 1);
+        const mainScaled = buildStepSeries(data?.mainEvents, window, 1);
+        const chillerScaled = buildStepSeries(data?.chillerEvents, window, 1);
 
         if (lightsScaled.length) {
           datasets.push({
             label: 'Lights',
-            yAxisID: 'yPh',
+            yAxisID: 'yState',
             data: lightsScaled,
             borderColor: '#22c55e',
-            backgroundColor: 'rgba(34,197,94,0.12)',
+            backgroundColor: 'rgba(34,197,94,0.22)',
             stepped: true,
             borderWidth: 2,
-            fill: false,
+            fill: 'origin',
             pointRadius: 0,
             order: 2
           });
@@ -427,13 +425,13 @@
         if (mainScaled.length) {
           datasets.push({
             label: 'Main Pump',
-            yAxisID: 'yPh',
+            yAxisID: 'yState',
             data: mainScaled,
             borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59,130,246,0.12)',
+            backgroundColor: 'rgba(59,130,246,0.22)',
             stepped: true,
             borderWidth: 2,
-            fill: false,
+            fill: 'origin',
             pointRadius: 0,
             order: 2
           });
@@ -441,13 +439,13 @@
         if (chillerScaled.length) {
           datasets.push({
             label: 'Chiller Pump',
-            yAxisID: 'yPh',
+            yAxisID: 'yState',
             data: chillerScaled,
             borderColor: '#06b6d4',
-            backgroundColor: 'rgba(6,182,212,0.12)',
+            backgroundColor: 'rgba(6,182,212,0.22)',
             stepped: true,
             borderWidth: 2,
-            fill: false,
+            fill: 'origin',
             pointRadius: 0,
             order: 2
           });
@@ -482,7 +480,7 @@
           };
         }
         if (!chartInstance.options.scales.yState) {
-          chartInstance.options.scales.yState = { type: 'linear', position: 'right', display: false, min: 0, max: 4.0, grid: { display: false } };
+          chartInstance.options.scales.yState = { type: 'linear', position: 'right', display: false, min: 0, max: 1.0, grid: { display: false } };
         }
 
         const phMin = Number.isFinite(phLowCurrent) ? Math.min(phLowCurrent - 0.5, 5.0) : 5.0;
