@@ -1000,6 +1000,14 @@ def dose_ec(body: dict = Body(...)):
         
         # Pre-read EC
         ec_before, ec_ts_before = _get_latest_ec()
+        # Hard guardrail: disallow nutrient if EC already above the absolute safety ceiling.
+        try:
+            ec_limit = _f("dosing.ec_high_limit_mscm", 3.0)
+            if (ec_before is not None) and (ec_limit > 0) and (ec_before >= ec_limit):
+                return JSONResponse(status_code=409, content={"error": f"blocked: ec_high_limit ({ec_before:.2f} >= {ec_limit:.2f})"})
+        except Exception:
+            pass
+
         # Hard guardrail: disallow nutrient if EC already above target band.
         # Use _get_ec_targets() to stay consistent with the auto loop's source.
         try:
@@ -1118,6 +1126,9 @@ def dose_ec(body: dict = Body(...)):
     # schedule-derived targets don't desync from the raw settings keys.
     try:
         ec_before, _ = _get_latest_ec()
+        ec_limit = _f("dosing.ec_high_limit_mscm", 3.0)
+        if (ec_before is not None) and (ec_limit > 0) and (ec_before >= ec_limit):
+            return JSONResponse(status_code=409, content={"error": f"blocked: ec_high_limit ({ec_before:.2f} >= {ec_limit:.2f})"})
         _, ec_hi = _get_ec_targets()
         if (ec_before is not None) and (ec_hi > 0) and (ec_before >= ec_hi):
             return JSONResponse(status_code=409, content={"error": f"blocked: ec_high_guard ({ec_before:.2f} >= {ec_hi:.2f})"})
@@ -1324,12 +1335,13 @@ def update_ec_settings(body: dict = Body(...)):
         else:
             updates["ec.min_interval_sec"] = str(val)
     
-    if "ec.max_ml_day" in body:
-        val = float(body["ec.max_ml_day"])
+    if "ec.max_ml_day" in body or "dosing.ec_max_ml_day" in body:
+        raw_val = body.get("dosing.ec_max_ml_day", body.get("ec.max_ml_day"))
+        val = float(raw_val)
         if val < 0:
-            errors.append("ec.max_ml_day must be >= 0")
+            errors.append("dosing.ec_max_ml_day must be >= 0")
         else:
-            updates["ec.max_ml_day"] = str(val)
+            updates["dosing.ec_max_ml_day"] = str(val)
     
     if "dosing.ec_high_limit_mscm" in body:
         val = float(body["dosing.ec_high_limit_mscm"])
@@ -1370,7 +1382,7 @@ def get_ec_status():
     guards["daily_cap"] = not ok_cap
 
     # Hard dose-block guard: EC at or above user-configured hard limit (0 = disabled)
-    ec_high_limit = _f("dosing.ec_high_limit_mscm", 0.0)
+    ec_high_limit = _f("dosing.ec_high_limit_mscm", 3.0)
     guards["ec_high"] = bool(ec_high_limit > 0 and ec_val is not None and ec_val >= ec_high_limit)
 
     # Auto state (NEW: unified system)
@@ -1866,6 +1878,12 @@ def _auto_worker():
         # Check if below target
         ec_low, ec_high = _get_ec_targets()
         target_mid = (ec_low + ec_high) / 2.0
+
+        ec_limit = _f("dosing.ec_high_limit_mscm", 3.0)
+        if (ec_limit > 0) and (ec_val >= ec_limit):
+            with _auto_lock:
+                _auto_last_holding_reason = "ec_high"
+            continue
         
         if ec_val >= ec_low:
             with _auto_lock:

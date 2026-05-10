@@ -48,13 +48,15 @@
 
   function guardActive(g){
     if(!g) return false;
-    return g.estop || g.sensor_stale || g.interval || g.daily_cap || g.reservoir || g.mix_lock;
+    return g.estop || g.sensor_stale || g.interval || g.daily_cap || g.reservoir || g.mix_lock || g.ph_settle || g.ec_high;
   }
 
   function guardList(g){
     const out = [];
     if(g.estop) out.push('E-STOP');
     if(g.sensor_stale) out.push('Sensor stale');
+    if(g.ec_high) out.push('EC hard limit');
+    if(g.ph_settle) out.push('pH settling');
     if(g.interval) out.push('Min interval');
     if(g.daily_cap) out.push('Daily cap');
     if(g.reservoir) out.push('Reservoir');
@@ -66,6 +68,8 @@
     const tips = [];
     if(g.estop) tips.push('E-STOP: Emergency stop is active; all dosing blocked.');
     if(g.sensor_stale) tips.push('Sensor stale: EC reading is older than 5 min.');
+    if(g.ec_high) tips.push('EC hard limit: EC is at or above the configured safety ceiling.');
+    if(g.ph_settle) tips.push('pH settling: waiting for pH dosing to settle before EC dosing.');
     if(g.interval) tips.push('Min interval: Waiting between doses.');
     if(g.daily_cap) tips.push('Daily cap reached.');
     if(g.reservoir) tips.push('Reservoir set to 0 L; dosing disabled.');
@@ -132,7 +136,15 @@
         statusEl.style.color = '#16a34a';
         stopCountdown();
       } else if (holding) {
-        statusEl.textContent = holding.replace(/_/g, ' ');
+        const holdingLabels = {
+          ec_high: 'EC hard limit',
+          ph_settle: 'pH settling',
+          sensor_stale: 'Sensor stale',
+          mix_lock: 'Mix lock',
+          reservoir: 'Reservoir',
+          estop: 'E-STOP'
+        };
+        statusEl.textContent = holdingLabels[holding] || holding.replace(/_/g, ' ');
         statusEl.style.color = '#f59e0b';
         stopCountdown();
       } else if (auto.enabled) {
@@ -197,44 +209,20 @@
         kChip.className = 'ui-status-chip ' + (Math.abs(k - 0.1) < 0.01 ? 'success' : (k > 0 ? 'warning' : 'neutral'));
         kChip.title = Math.abs(k - 0.1) < 0.01 ? 'K=0.1 (correct for K=0.1 probe)' : (k > 0 ? `K=${k} (verify probe type)` : 'K factor not set');
       }
-      
+
       // Update Cal chip
       const calChip = el('ecCalChip');
       if (calChip) {
         calChip.textContent = cal ? `Cal: ${cal}` : 'Cal: —';
-        // Success if calibrated (dry, one-point, two-point, or dry+two-point)
         const isCalibrated = cal && (cal.includes('one-point') || cal.includes('two-point') || cal.includes('dry'));
         calChip.className = 'ui-status-chip ' + (isCalibrated ? 'success' : 'neutral');
-    function guardActive(g){
-      if(!g) return false;
-      return g.estop || g.sensor_stale || g.interval || g.daily_cap || g.reservoir || g.mix_lock || g.ph_settle || g.ec_high;
+        calChip.title = cal || 'Calibration status unknown';
+      }
+    } catch (e) {
+      // Silently fail - chips will show default values
     }
+  }
 
-    function guardList(g){
-      const out = [];
-      if(g.estop) out.push('E-STOP');
-      if(g.sensor_stale) out.push('Sensor stale');
-      if(g.ec_high) out.push('EC hard limit');
-      if(g.ph_settle) out.push('pH settling');
-      if(g.interval) out.push('Min interval');
-      if(g.daily_cap) out.push('Daily cap');
-      if(g.reservoir) out.push('Reservoir');
-      if(g.mix_lock) out.push('Mix lock');
-      return out;
-    }
-
-    function guardHints(g){
-      const tips = [];
-      if(g.estop) tips.push('E-STOP: Emergency stop is active; all dosing blocked.');
-      if(g.sensor_stale) tips.push('Sensor stale: EC reading is older than 5 min.');
-      if(g.ec_high) tips.push('EC Hard Limit: EC is at or above the configured safety ceiling. Raise the limit or wait for dilution.');
-      if(g.ph_settle) tips.push('pH settling: pH was recently dosed; waiting for EC to stabilise before dosing.');
-      if(g.interval) tips.push('Min interval: Waiting between doses.');
-      if(g.daily_cap) tips.push('Daily cap reached.');
-      if(g.reservoir) tips.push('Reservoir set to 0 L; dosing disabled.');
-      if(g.mix_lock) tips.push('pH or EC dose in progress.');
-      return tips.join('\n');
-    }
   // Toggle EC automation (header button)
   async function toggleAuto(){
     try{
@@ -404,8 +392,7 @@
   function showCalibMessage(msg, type='info'){
     const msgEl = el('ecPumpsCalibMsg');
     if(!msgEl) return;
-    
-    // Color mapping for message types
+
     const styles = {
       error: { bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.3)' },
       success: { bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.3)' },
@@ -800,7 +787,7 @@
     setVal('ecStepMaxMl', 'dosing.ec_step_ml_max', '10');
     setVal('ecSafetyFactor', 'dosing.ec_safety_factor', '0.7');
     setVal('ecMinInterval', 'dosing.ec_min_interval_s', '600');
-    setVal('ecHighLimitMscm', 'dosing.ec_high_limit_mscm', '0');
+    setVal('ecHighLimitMscm', 'dosing.ec_high_limit_mscm', '3.0');
     setVal('ecMaxMlDay', 'dosing.ec_max_ml_day', '0');
     const obs = getter('dosing.ec_observe_s_after_dose', getter('dosing.observe_s_after_dose', '300'));
     const obsEl = el('ecObserveAfterDose');
