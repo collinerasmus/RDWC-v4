@@ -81,7 +81,9 @@
     
     // Setpoint from targets midpoint
     if (setpointEl && status.targets) {
-      const setpoint = ((status.targets.low + status.targets.high) / 2).toFixed(2);
+      const setpoint = (status.auto && status.auto.target_ph !== null && status.auto.target_ph !== undefined)
+        ? Number(status.auto.target_ph).toFixed(2)
+        : ((status.targets.low + status.targets.high) / 2).toFixed(2);
       setpointEl.textContent = setpoint;
     }
     

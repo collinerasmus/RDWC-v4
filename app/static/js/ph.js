@@ -196,6 +196,7 @@
     lastStatus = s;
     lastPollAt = Date.now();
     const p = el('ph-current');
+    const setpointEl = el('ph-setpoint');
     const band = el('ph-band');
     const guards = el('ph-guards');
     const pumpEl = el('ph-pump');
@@ -229,7 +230,14 @@
     updateParamChips();
     const cdPill = el('ph-countdown-pill');
     if(p){ p.textContent = (s && s.ph!=null) ? s.ph.toFixed(2) : '—'; }
-    if(band && s){ band.textContent = `Targets ${s.targets.low} – ${s.targets.high}`; }
+    if(setpointEl && s){
+      const targetPh = (s.auto && s.auto.target_ph !== null && s.auto.target_ph !== undefined)
+        ? Number(s.auto.target_ph)
+        : (s.targets ? ((Number(s.targets.low) + Number(s.targets.high)) / 2) : null);
+      setpointEl.textContent = targetPh !== null && !Number.isNaN(targetPh) ? targetPh.toFixed(2) : '—';
+      setpointEl.title = 'Dose aim: move pH back to this setpoint';
+    }
+    if(band && s){ band.textContent = `Trigger ${s.targets.low} – ${s.targets.high}`; }
     
     // Fetch relay status for pump ON/OFF (object schema with is_on)
     fetch('/api/relays/status', {cache:'no-store'})
