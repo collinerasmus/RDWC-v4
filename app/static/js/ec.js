@@ -593,7 +593,9 @@
         'dosing.ec_step_ml_max': el('ecStepMaxMl')?.value,
         'dosing.ec_safety_factor': el('ecSafetyFactor')?.value,
         'dosing.ec_min_interval_s': el('ecMinInterval')?.value,
-        'dosing.ec_observe_s_after_dose': el('ecObserveAfterDose')?.value
+        'dosing.ec_observe_s_after_dose': el('ecObserveAfterDose')?.value,
+        'dosing.ec_high_limit_mscm': el('ecHighLimitMscm')?.value,
+        'dosing.ec_max_ml_day': el('ecMaxMlDay')?.value
       };
       try{
         const r = await fetch('/api/settings', {
@@ -601,11 +603,9 @@
           headers: {'Content-Type':'application/json'},
           body: JSON.stringify(payload)
         });
-            'dosing.ec_min_interval_s': el('ecMinInterval')?.value,
-            'dosing.ec_observe_s_after_dose': el('ecObserveAfterDose')?.value,
-            'dosing.ec_high_limit_mscm': el('ecHighLimitMscm')?.value,
-            'dosing.ec_max_ml_day': el('ecMaxMlDay')?.value
-          };
+        if(!r.ok){
+          const e = await r.json().catch(()=>({}));
+          showToast(`Save failed: ${e.error||e.message||'unknown'}`, 'error');
           return;
         }
         showToast('EC settings saved', 'success');
