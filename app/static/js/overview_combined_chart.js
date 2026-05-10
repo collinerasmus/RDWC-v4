@@ -17,23 +17,35 @@
   }
 
   function buildStepSeries(events, window, level) {
+    // Returns horizontal-only segments: y=level when ON, y=null when OFF.
+    // null values break the line so no vertical drop lines are drawn.
     if (!Array.isArray(events) || !events.length) return [];
     const sorted = events
       .map(e => ({ ts: new Date(e.ts).getTime(), final: !!e.final }))
       .sort((a, b) => a.ts - b.ts);
 
-    // Find the last known state before the window start to preserve visibility on small ranges
     const prior = [...sorted].filter(e => e.ts <= window.start).pop();
     let lastState = prior ? (prior.final ? 1 : 0) : 0;
 
     const within = sorted.filter(e => e.ts >= window.start && e.ts <= window.end);
     const pts = [];
-    pts.push({ x: window.start, y: lastState ? level : 0 });
+    pts.push({ x: window.start, y: lastState ? level : null });
     for (const ev of within) {
-      lastState = ev.final ? 1 : 0;
-      pts.push({ x: ev.ts, y: lastState ? level : 0 });
+      const newState = ev.final ? 1 : 0;
+      if (newState !== lastState) {
+        if (newState === 1) {
+          // OFF → ON: close null segment, open ON segment
+          pts.push({ x: ev.ts - 1, y: null });
+          pts.push({ x: ev.ts,     y: level });
+        } else {
+          // ON → OFF: close ON segment, open null segment
+          pts.push({ x: ev.ts,     y: level });
+          pts.push({ x: ev.ts + 1, y: null });
+        }
+        lastState = newState;
+      }
     }
-    pts.push({ x: window.end, y: lastState ? level : 0 });
+    pts.push({ x: window.end, y: lastState ? level : null });
     return pts;
   }
 
@@ -416,8 +428,9 @@
             data: lightsScaled,
             borderColor: 'rgba(34,197,94,0.55)',
             backgroundColor: 'rgba(34,197,94,0.10)',
-            stepped: true,
-            borderWidth: 1.5,
+            stepped: false,
+            spanGaps: false,
+            borderWidth: 2,
             fill: false,
             pointRadius: 0,
             order: 2
@@ -430,8 +443,9 @@
             data: mainScaled,
             borderColor: 'rgba(59,130,246,0.55)',
             backgroundColor: 'rgba(59,130,246,0.10)',
-            stepped: true,
-            borderWidth: 1.5,
+            stepped: false,
+            spanGaps: false,
+            borderWidth: 2,
             fill: false,
             pointRadius: 0,
             order: 2
@@ -444,8 +458,9 @@
             data: chillerScaled,
             borderColor: 'rgba(6,182,212,0.55)',
             backgroundColor: 'rgba(6,182,212,0.10)',
-            stepped: true,
-            borderWidth: 1.5,
+            stepped: false,
+            spanGaps: false,
+            borderWidth: 2,
             fill: false,
             pointRadius: 0,
             order: 2
@@ -504,13 +519,29 @@
           };
         }
 
-        const phMin = Number.isFinite(phLowCurrent) ? Math.min(phLowCurrent - 0.5, 5.0) : 5.0;
-        const phMax = Number.isFinite(phHighCurrent) ? Math.max(phHighCurrent + 0.8, 7.5) : 7.5;
-        const ecMin = 0.0;
-        const ecMax = 5.0;
-        // Fixed temperature axis range: 0-26°C as requested
-        const tempAxisMin = 0;
-        const tempAxisMax = 26;
+        // Auto-scale axes tightly around actual data + target band, with a small margin.
+        const phVals = ph.map(p => p.y).filter(Number.isFinite);
+        const ecVals = ec.map(p => p.y).filter(Number.isFinite);
+        const tempVals = temp.map(p => p.y).filter(Number.isFinite);
+
+        const phDataMin = phVals.length ? Math.min(...phVals) : (phLowCurrent || 5.5);
+        const phDataMax = phVals.length ? Math.max(...phVals) : (phHighCurrent || 6.5);
+        const phBandLow  = Number.isFinite(phLowCurrent)  ? phLowCurrent  : phDataMin;
+        const phBandHigh = Number.isFinite(phHighCurrent) ? phHighCurrent : phDataMax;
+        const phMin = Math.min(phDataMin, phBandLow)  - 0.15;
+        const phMax = Math.max(phDataMax, phBandHigh) + 0.15;
+
+        const ecDataMin = ecVals.length ? Math.min(...ecVals) : (ecLow || 0);
+        const ecDataMax = ecVals.length ? Math.max(...ecVals) : (ecHigh || 3);
+        const ecBandLow  = Number.isFinite(ecLow)  ? ecLow  : ecDataMin;
+        const ecBandHigh = Number.isFinite(ecHigh) ? ecHigh : ecDataMax;
+        const ecMin = Math.max(0, Math.min(ecDataMin, ecBandLow)  - 0.2);
+        const ecMax =            Math.max(ecDataMax, ecBandHigh) + 0.2;
+
+        const tempDataMin = tempVals.length ? Math.min(...tempVals) : 15;
+        const tempDataMax = tempVals.length ? Math.max(...tempVals) : 25;
+        const tempAxisMin = Math.max(0, tempDataMin - 1.0);
+        const tempAxisMax = tempDataMax + 1.0;
 
         chartInstance.options.scales.yPh.min = phMin;
         chartInstance.options.scales.yPh.max = phMax;
