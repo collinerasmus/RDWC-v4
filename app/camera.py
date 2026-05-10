@@ -1,6 +1,7 @@
 ﻿"""Camera manager with live stream and timelapse session support."""
 import io
 import json
+import os
 import re
 import threading
 import time
@@ -17,6 +18,9 @@ class CameraManager:
     _Image = None
     _cv2 = None
     _lock = threading.Lock()
+    _camera_index = None
+    _last_init_attempt = 0.0
+    _init_retry_s = 5.0
 
     _store_dir = Path(__file__).resolve().parent.parent / "data" / "timelapse"
     _settings_path = _store_dir / "settings.json"
@@ -58,13 +62,79 @@ class CameraManager:
 
     @classmethod
     def init(cls):
-        if cls.available:
+        if cls.available and cls._cap is not None:
             return
         if not cls._import_drivers():
             cls.available = False
             cls.mode = "unavailable"
+            return
+
+        cls._open_camera()
 
         cls._load_settings()
+
+    @classmethod
+    def _candidate_indexes(cls):
+        raw = os.environ.get("CAM_INDEX", "0,1")
+        out = []
+        for part in str(raw).split(","):
+            p = part.strip()
+            if not p:
+                continue
+            try:
+                out.append(int(p))
+            except Exception:
+                continue
+        if not out:
+            out = [0, 1]
+        return out
+
+    @classmethod
+    def _open_camera(cls):
+        if cls._cv2 is None:
+            cls.available = False
+            cls.mode = "unavailable"
+            cls.last_error = cls.last_error or "opencv_not_loaded"
+            return
+
+        # Release stale handle before retrying open
+        with cls._lock:
+            try:
+                if cls._cap is not None:
+                    cls._cap.release()
+            except Exception:
+                pass
+            cls._cap = None
+
+        errors = []
+        for idx in cls._candidate_indexes():
+            cap = None
+            try:
+                cap = cls._cv2.VideoCapture(idx, cls._cv2.CAP_V4L2) if hasattr(cls._cv2, "CAP_V4L2") else cls._cv2.VideoCapture(idx)
+                if cap is not None and cap.isOpened():
+                    cap.set(3, 1280)
+                    cap.set(4, 720)
+                    with cls._lock:
+                        cls._cap = cap
+                    cls.available = True
+                    cls.mode = "opencv"
+                    cls.last_error = None
+                    cls._camera_index = idx
+                    return
+                errors.append(f"idx{idx}:not_open")
+            except Exception as e:
+                errors.append(f"idx{idx}:{e}")
+            finally:
+                try:
+                    if cap is not None and (cls._cap is None or cap is not cls._cap):
+                        cap.release()
+                except Exception:
+                    pass
+
+        cls.available = False
+        cls.mode = "unavailable"
+        cls._camera_index = None
+        cls.last_error = "start_failed: " + ";".join(errors or ["camera_not_opened"])
 
     @classmethod
     def _ensure_store_dir(cls):
@@ -98,22 +168,24 @@ class CameraManager:
             cls._settings_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         except Exception:
             pass
-            return
+
+    @classmethod
+    def _is_open(cls) -> bool:
         try:
-            cap = cls._cv2.VideoCapture(0, cls._cv2.CAP_V4L2) if hasattr(cls._cv2, "CAP_V4L2") else cls._cv2.VideoCapture(0)
-            if cap is not None and cap.isOpened():
-                cap.set(3, 1280)
-                cap.set(4, 720)
-                cls._cap = cap
-                cls.available = True
-                cls.mode = "opencv"
-                cls.last_error = None
-            else:
-                cls.last_error = "start_failed: camera not opened"
-        except Exception as e:
-            cls.last_error = f"start_failed: {e}"
-            cls.available = False
-            cls.mode = "unavailable"
+            return bool(cls.available and cls._cap is not None and cls._cap.isOpened())
+        except Exception:
+            return False
+
+    @classmethod
+    def ensure_ready(cls) -> bool:
+        if cls._is_open():
+            return True
+        now = time.time()
+        if (now - cls._last_init_attempt) < cls._init_retry_s:
+            return False
+        cls._last_init_attempt = now
+        cls.init()
+        return cls._is_open()
 
     @classmethod
     def shutdown(cls):
@@ -131,11 +203,14 @@ class CameraManager:
 
     @classmethod
     def status(cls) -> Dict:
+        if not cls._is_open():
+            cls.ensure_ready()
         return {
-            "available": cls.available,
+            "available": cls._is_open(),
             "mode": cls.mode,
+            "camera_index": cls._camera_index,
             "last_error": cls.last_error,
-            "note": cls.last_error or ("Camera ready" if cls.available else "Unavailable"),
+            "note": cls.last_error or ("Camera ready" if cls._is_open() else "Unavailable"),
         }
 
     @classmethod
@@ -168,7 +243,9 @@ class CameraManager:
 
     @classmethod
     def _capture_jpeg(cls, quality: int) -> Optional[bytes]:
-        if not cls.available or cls._cv2 is None or cls._cap is None:
+        if not cls._is_open() and not cls.ensure_ready():
+            return None
+        if cls._cv2 is None or cls._cap is None:
             return None
         with cls._lock:
             try:
@@ -266,7 +343,7 @@ class CameraManager:
 
     @classmethod
     def start_timelapse(cls, settings: Optional[dict] = None) -> Dict[str, Any]:
-        if not cls.is_healthy():
+        if not cls.ensure_ready():
             with cls._tl_lock:
                 cls._tl_state["last_error"] = "camera_unavailable"
             return {"ok": False, "error": "camera_unavailable", "status": cls.timelapse_status()}
@@ -323,7 +400,7 @@ class CameraManager:
 
     @classmethod
     def capture_now(cls, quality: Optional[int] = None) -> Dict[str, Any]:
-        if not cls.is_healthy():
+        if not cls.ensure_ready():
             with cls._tl_lock:
                 cls._tl_state["last_error"] = "camera_unavailable"
             return {"ok": False, "error": "camera_unavailable", "status": cls.timelapse_status()}
@@ -380,7 +457,9 @@ class CameraManager:
 
     @classmethod
     def capture_single_frame(cls) -> Optional[bytes]:
-        if not cls.available or cls._Image is None or cls._cap is None:
+        if not cls._is_open() and not cls.ensure_ready():
+            return None
+        if cls._Image is None or cls._cap is None:
             return None
         with cls._lock:
             try:
@@ -396,14 +475,17 @@ class CameraManager:
 
     @classmethod
     def is_healthy(cls) -> bool:
-        return bool(cls.available and cls._cap is not None and cls._cap.isOpened())
+        return cls._is_open()
 
     @classmethod
     def mjpeg_generator(cls, fps: int = 8):
         """Lightweight MJPEG streaming generator for /camera/stream endpoint.
         Uses OpenCV frame capture with configurable FPS throttling."""
         import time
-        if not cls.available or cls._cap is None:
+        if not cls._is_open() and not cls.ensure_ready():
+            yield b''
+            return
+        if cls._cap is None:
             yield b''
             return
         
