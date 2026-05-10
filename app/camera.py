@@ -32,10 +32,10 @@ class CameraManager:
     _default_width = int(os.environ.get("CAM_WIDTH", "1920"))
     _default_height = int(os.environ.get("CAM_HEIGHT", "1080"))
     _default_lights_on_only = os.environ.get("CAM_TIMELAPSE_LIGHTS_ON_ONLY", "true").strip().lower() in ("1", "true", "yes", "on")
-    _auto_exposure_tune = os.environ.get("CAM_EXPOSURE_AUTO_TUNE", "true").strip().lower() in ("1", "true", "yes", "on")
+    _auto_exposure_tune = os.environ.get("CAM_EXPOSURE_AUTO_TUNE", "false").strip().lower() in ("1", "true", "yes", "on")
     _exposure_target_luma = float(os.environ.get("CAM_EXPOSURE_TARGET_LUMA", "140"))
-    _exposure_alpha_min = float(os.environ.get("CAM_EXPOSURE_ALPHA_MIN", "0.6"))
-    _exposure_alpha_max = float(os.environ.get("CAM_EXPOSURE_ALPHA_MAX", "1.25"))
+    _exposure_alpha_min = float(os.environ.get("CAM_EXPOSURE_ALPHA_MIN", "0.85"))
+    _exposure_alpha_max = float(os.environ.get("CAM_EXPOSURE_ALPHA_MAX", "1.10"))
 
     _store_dir = Path(__file__).resolve().parent.parent / "data" / "timelapse"
     _settings_path = _store_dir / "settings.json"
