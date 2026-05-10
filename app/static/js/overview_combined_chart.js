@@ -417,7 +417,7 @@
             backgroundColor: 'rgba(34,197,94,0.40)',
             stepped: true,
             borderWidth: 2,
-            fill: 'origin',
+            fill: false,
             pointRadius: 0,
             order: 2
           });
@@ -431,7 +431,7 @@
             backgroundColor: 'rgba(59,130,246,0.40)',
             stepped: true,
             borderWidth: 2,
-            fill: 'origin',
+            fill: false,
             pointRadius: 0,
             order: 2
           });
@@ -445,7 +445,7 @@
             backgroundColor: 'rgba(6,182,212,0.40)',
             stepped: true,
             borderWidth: 2,
-            fill: 'origin',
+            fill: false,
             pointRadius: 0,
             order: 2
           });
