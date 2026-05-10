@@ -205,32 +205,36 @@
         // Success if calibrated (dry, one-point, two-point, or dry+two-point)
         const isCalibrated = cal && (cal.includes('one-point') || cal.includes('two-point') || cal.includes('dry'));
         calChip.className = 'ui-status-chip ' + (isCalibrated ? 'success' : 'neutral');
-        calChip.title = cal || 'Calibration status unknown';
-      }
-    } catch (e) {
-      // Silently fail - chips will show default values
+    function guardActive(g){
+      if(!g) return false;
+      return g.estop || g.sensor_stale || g.interval || g.daily_cap || g.reservoir || g.mix_lock || g.ph_settle || g.ec_high;
     }
-  }
-  
-  function updateLearnedDisplay(s) {
-    // Update learned value display in Settings > Automation section
-    const displayBox = el('ec-learned-display');
-    const displayValue = el('ec-learned-display-value');
-    if (!displayBox || !displayValue) return;
 
-    const learned = (s && s.auto && s.auto.learned_ml_per_mScm != null)
-      ? s.auto.learned_ml_per_mScm
-      : (s && s.learned_ml_per_mScm);
-
-    if (learned !== null && learned !== undefined && learned > 0) {
-      displayBox.style.display = 'block';
-      displayValue.textContent = Number(learned).toFixed(2);
-    } else {
-      displayBox.style.display = 'none';
-      displayValue.textContent = '—';
+    function guardList(g){
+      const out = [];
+      if(g.estop) out.push('E-STOP');
+      if(g.sensor_stale) out.push('Sensor stale');
+      if(g.ec_high) out.push('EC hard limit');
+      if(g.ph_settle) out.push('pH settling');
+      if(g.interval) out.push('Min interval');
+      if(g.daily_cap) out.push('Daily cap');
+      if(g.reservoir) out.push('Reservoir');
+      if(g.mix_lock) out.push('Mix lock');
+      return out;
     }
-  }
 
+    function guardHints(g){
+      const tips = [];
+      if(g.estop) tips.push('E-STOP: Emergency stop is active; all dosing blocked.');
+      if(g.sensor_stale) tips.push('Sensor stale: EC reading is older than 5 min.');
+      if(g.ec_high) tips.push('EC Hard Limit: EC is at or above the configured safety ceiling. Raise the limit or wait for dilution.');
+      if(g.ph_settle) tips.push('pH settling: pH was recently dosed; waiting for EC to stabilise before dosing.');
+      if(g.interval) tips.push('Min interval: Waiting between doses.');
+      if(g.daily_cap) tips.push('Daily cap reached.');
+      if(g.reservoir) tips.push('Reservoir set to 0 L; dosing disabled.');
+      if(g.mix_lock) tips.push('pH or EC dose in progress.');
+      return tips.join('\n');
+    }
   // Toggle EC automation (header button)
   async function toggleAuto(){
     try{
@@ -610,9 +614,11 @@
           headers: {'Content-Type':'application/json'},
           body: JSON.stringify(payload)
         });
-        if(!r.ok){
-          const e = await r.json();
-          showToast(`Save failed: ${e.error||e.message||'unknown'}`, 'error');
+            'dosing.ec_min_interval_s': el('ecMinInterval')?.value,
+            'dosing.ec_observe_s_after_dose': el('ecObserveAfterDose')?.value,
+            'dosing.ec_high_limit_mscm': el('ecHighLimitMscm')?.value,
+            'dosing.ec_max_ml_day': el('ecMaxMlDay')?.value
+          };
           return;
         }
         showToast('EC settings saved', 'success');
@@ -794,6 +800,8 @@
     setVal('ecStepMaxMl', 'dosing.ec_step_ml_max', '10');
     setVal('ecSafetyFactor', 'dosing.ec_safety_factor', '0.7');
     setVal('ecMinInterval', 'dosing.ec_min_interval_s', '600');
+    setVal('ecHighLimitMscm', 'dosing.ec_high_limit_mscm', '0');
+    setVal('ecMaxMlDay', 'dosing.ec_max_ml_day', '0');
     const obs = getter('dosing.ec_observe_s_after_dose', getter('dosing.observe_s_after_dose', '300'));
     const obsEl = el('ecObserveAfterDose');
     if(obsEl) obsEl.value = obs;
@@ -822,7 +830,9 @@
         ['ecSafetyFactor', 'dosing.ec_safety_factor'],
         ['ecMinInterval', 'dosing.ec_min_interval_s'],
         ['ecObserveAfterDose', 'dosing.ec_observe_s_after_dose'],
-        ['ecTolerance', 'targets.ec_tolerance']
+        ['ecTolerance', 'targets.ec_tolerance'],
+        ['ecHighLimitMscm', 'dosing.ec_high_limit_mscm'],
+        ['ecMaxMlDay', 'dosing.ec_max_ml_day']
       ];
       for(const [elemId, settingKey] of fields){
         const v = parseFloat(el(elemId)?.value||'');

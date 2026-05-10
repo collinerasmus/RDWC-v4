@@ -1331,9 +1331,16 @@ def update_ec_settings(body: dict = Body(...)):
         else:
             updates["ec.max_ml_day"] = str(val)
     
+    if "dosing.ec_high_limit_mscm" in body:
+        val = float(body["dosing.ec_high_limit_mscm"])
+        if val < 0:
+            errors.append("dosing.ec_high_limit_mscm must be >= 0 (0 = disabled)")
+        else:
+            updates["dosing.ec_high_limit_mscm"] = str(val)
+
     if errors:
         return JSONResponse(status_code=400, content={"ok": False, "errors": errors})
-    
+
     if updates:
         try:
             upsert_settings(updates)
@@ -1361,7 +1368,11 @@ def get_ec_status():
     
     ok_cap, cap_reason = _check_daily_cap(now_dt)
     guards["daily_cap"] = not ok_cap
-    
+
+    # Hard dose-block guard: EC at or above user-configured hard limit (0 = disabled)
+    ec_high_limit = _f("dosing.ec_high_limit_mscm", 0.0)
+    guards["ec_high"] = bool(ec_high_limit > 0 and ec_val is not None and ec_val >= ec_high_limit)
+
     # Auto state (NEW: unified system)
     try:
         from app.auto_control import should_automate
@@ -1392,6 +1403,7 @@ def get_ec_status():
         "ec_ms_cm": ec_val,
         "ec_ts": ec_ts,
         "targets": {"low": ec_low, "high": ec_high},
+        "ec_high_limit": ec_high_limit if ec_high_limit > 0 else None,
         "auto": {
             "enabled": auto_enabled,
             "holding_reason": holding_reason,
