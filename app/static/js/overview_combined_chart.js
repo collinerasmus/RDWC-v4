@@ -403,20 +403,21 @@
           });
         });
 
-        // Relay states as binary ribbons instead of thin overlays on the pH band.
-        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 1);
-        const mainScaled = buildStepSeries(data?.mainEvents, window, 1);
-        const chillerScaled = buildStepSeries(data?.chillerEvents, window, 1);
+        // Relay states — staggered at different y-levels so they don't overlap.
+        // Lights=0.85, Main Pump=0.55, Chiller=0.25 within the yState 0–1 axis.
+        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 0.85);
+        const mainScaled = buildStepSeries(data?.mainEvents, window, 0.55);
+        const chillerScaled = buildStepSeries(data?.chillerEvents, window, 0.25);
 
         if (lightsScaled.length) {
           datasets.push({
             label: 'Lights',
             yAxisID: 'yState',
             data: lightsScaled,
-            borderColor: '#22c55e',
-            backgroundColor: 'rgba(34,197,94,0.40)',
+            borderColor: 'rgba(34,197,94,0.55)',
+            backgroundColor: 'rgba(34,197,94,0.10)',
             stepped: true,
-            borderWidth: 2,
+            borderWidth: 1.5,
             fill: false,
             pointRadius: 0,
             order: 2
@@ -427,10 +428,10 @@
             label: 'Main Pump',
             yAxisID: 'yState',
             data: mainScaled,
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59,130,246,0.40)',
+            borderColor: 'rgba(59,130,246,0.55)',
+            backgroundColor: 'rgba(59,130,246,0.10)',
             stepped: true,
-            borderWidth: 2,
+            borderWidth: 1.5,
             fill: false,
             pointRadius: 0,
             order: 2
@@ -441,10 +442,10 @@
             label: 'Chiller Pump',
             yAxisID: 'yState',
             data: chillerScaled,
-            borderColor: '#06b6d4',
-            backgroundColor: 'rgba(6,182,212,0.40)',
+            borderColor: 'rgba(6,182,212,0.55)',
+            backgroundColor: 'rgba(6,182,212,0.10)',
             stepped: true,
-            borderWidth: 2,
+            borderWidth: 1.5,
             fill: false,
             pointRadius: 0,
             order: 2
@@ -486,12 +487,19 @@
             display: true,
             min: 0,
             max: 1.0,
-            grid: { color: 'rgba(148,163,184,0.08)' },
-            title: { display: true, text: 'Relay State', color: '#9ca3af' },
+            grid: { drawOnChartArea: false },
+            title: { display: false },
             ticks: {
-              color: '#9ca3af',
-              stepSize: 1,
-              callback: (value) => (Number(value) === 0 ? 'OFF' : 'ON')
+              display: true,
+              color: '#6b7280',
+              callback: (v) => {
+                const pct = Math.round(v * 100);
+                if (pct === 85) return 'Lights';
+                if (pct === 55) return 'Pump';
+                if (pct === 25) return 'Chiller';
+                if (pct === 0)  return 'OFF';
+                return '';
+              }
             }
           };
         }
