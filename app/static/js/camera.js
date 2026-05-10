@@ -19,6 +19,7 @@
     switchDebounce: 0,
     timelapse: null,
     recommendation: null,
+    sessions: [],
   };
 
   const el = (id) => document.getElementById(id);
@@ -253,7 +254,8 @@
     const plan = el('camera-grow-plan');
     if (!plan || !rec) return;
     const mins = Number(rec.estimated_video_minutes || 0).toFixed(1);
-    plan.textContent = 'Estimated render: ' + rec.expected_frames + ' frames over ' + rec.grow_days + ' days (~' + mins + ' min at ' + rec.output_fps + ' fps).';
+    const gb = Number(rec.estimated_storage_gb || 0).toFixed(2);
+    plan.textContent = 'Estimated render: ' + rec.expected_frames + ' frames over ' + rec.grow_days + ' days (~' + mins + ' min at ' + rec.output_fps + ' fps, about ' + gb + ' GB storage).';
   }
 
   async function fetchRecommendation(){
@@ -283,7 +285,8 @@
     const points = el('camera-insights-points');
     if (!summary || !points) return;
     if (!payload || !payload.ok){
-      summary.textContent = 'Analysis unavailable.';
+      const err = payload && (payload.error || payload.detail || 'unavailable');
+      summary.textContent = 'Analysis unavailable: ' + err;
       points.innerHTML = '';
       return;
     }
@@ -301,10 +304,20 @@
   }
 
   async function refreshInsights(){
+    const sid = (state.timelapse && state.timelapse.session_id) || '';
+    const hasEnoughCurrent = !!(state.timelapse && Number(state.timelapse.frame_count || 0) >= 2);
+    let pick = sid;
+    if (!hasEnoughCurrent) {
+      const recent = (state.sessions || []).find(function(s){ return Number(s.frames || 0) >= 2; });
+      if (recent && recent.session_id) pick = recent.session_id;
+    }
     try {
-      const r = await fetch('/camera/timelapse/insights?sample_frames=8', { cache: 'no-store' });
+      const qsid = pick ? ('&session_id=' + encodeURIComponent(pick)) : '';
+      const r = await fetch('/camera/timelapse/insights?sample_frames=8' + qsid, { cache: 'no-store' });
       if (!r.ok) {
-        renderInsights(null);
+        let err = null;
+        try { err = await r.json(); } catch(_) { err = null; }
+        renderInsights(err || { ok: false, error: 'request_failed' });
         return;
       }
       const j = await r.json();
@@ -322,6 +335,7 @@
       if (!r.ok) throw new Error('sessions_failed');
       const j = await r.json();
       const items = (j && j.items) || [];
+      state.sessions = items;
       if (!items.length){
         list.innerHTML = '<div class="muted" style="font-size:var(--font-xs);">No timelapse sessions yet.</div>';
         return;

@@ -32,6 +32,10 @@ class CameraManager:
     _default_width = int(os.environ.get("CAM_WIDTH", "1920"))
     _default_height = int(os.environ.get("CAM_HEIGHT", "1080"))
     _default_lights_on_only = os.environ.get("CAM_TIMELAPSE_LIGHTS_ON_ONLY", "true").strip().lower() in ("1", "true", "yes", "on")
+    _auto_exposure_tune = os.environ.get("CAM_EXPOSURE_AUTO_TUNE", "true").strip().lower() in ("1", "true", "yes", "on")
+    _exposure_target_luma = float(os.environ.get("CAM_EXPOSURE_TARGET_LUMA", "140"))
+    _exposure_alpha_min = float(os.environ.get("CAM_EXPOSURE_ALPHA_MIN", "0.6"))
+    _exposure_alpha_max = float(os.environ.get("CAM_EXPOSURE_ALPHA_MAX", "1.25"))
 
     _store_dir = Path(__file__).resolve().parent.parent / "data" / "timelapse"
     _settings_path = _store_dir / "settings.json"
@@ -306,6 +310,46 @@ class CameraManager:
             return {"allowed": True, "reason": "schedule_unknown"}
 
     @classmethod
+    def _estimate_bytes_per_frame(cls, quality: int) -> int:
+        # Prefer measured frame sizes from recent sessions; otherwise use a conservative heuristic.
+        measured = []
+        try:
+            for s in cls.list_sessions(limit=5):
+                p = Path(s.get("path", ""))
+                if not p.exists() or not p.is_dir():
+                    continue
+                frame_sizes = [f.stat().st_size for f in sorted(p.glob("frame_*.jpg"))[:20] if f.is_file()]
+                if frame_sizes:
+                    measured.append(sum(frame_sizes) / float(len(frame_sizes)))
+        except Exception:
+            measured = []
+
+        if measured:
+            return int(sum(measured) / float(len(measured)))
+
+        megapixels = (max(640, cls._default_width) * max(480, cls._default_height)) / 1_000_000.0
+        q_factor = max(0.5, min(1.5, quality / 85.0))
+        # Rough JPEG size estimate for foliage-rich scenes at 1080p range.
+        return int(max(60_000, 120_000 * megapixels * q_factor))
+
+    @classmethod
+    def _auto_tune_exposure(cls, frame):
+        if not cls._auto_exposure_tune or cls._cv2 is None or frame is None:
+            return frame
+        try:
+            gray = cls._cv2.cvtColor(frame, cls._cv2.COLOR_BGR2GRAY)
+            mean_luma = float(gray.mean())
+            if mean_luma <= 1:
+                return frame
+            alpha = cls._exposure_target_luma / mean_luma
+            alpha = max(cls._exposure_alpha_min, min(cls._exposure_alpha_max, alpha))
+            if abs(alpha - 1.0) < 0.03:
+                return frame
+            return cls._cv2.convertScaleAbs(frame, alpha=alpha, beta=0)
+        except Exception:
+            return frame
+
+    @classmethod
     def recommended_timelapse(cls, grow_days: int = 56, output_fps: int = 24) -> Dict[str, Any]:
         grow_days = max(14, min(120, int(grow_days)))
         output_fps = max(12, min(60, int(output_fps)))
@@ -314,6 +358,8 @@ class CameraManager:
         max_frames = min(100000, max(frames, cls._default_max_frames))
         est_seconds = round(frames / float(output_fps), 1)
         est_minutes = round(est_seconds / 60.0, 1)
+        est_bytes_per_frame = cls._estimate_bytes_per_frame(quality=max(80, min(95, cls._default_quality)))
+        est_storage_mb = round((frames * est_bytes_per_frame) / (1024.0 * 1024.0), 1)
         return {
             "grow_days": grow_days,
             "interval_s": interval_s,
@@ -323,6 +369,8 @@ class CameraManager:
             "output_fps": output_fps,
             "estimated_video_seconds": est_seconds,
             "estimated_video_minutes": est_minutes,
+            "estimated_storage_mb": est_storage_mb,
+            "estimated_storage_gb": round(est_storage_mb / 1024.0, 2),
             "notes": [
                 "10-minute cadence captures canopy and flower development without overloading storage.",
                 "Target output of roughly 4-8 minutes keeps weekly changes visible.",
@@ -341,6 +389,7 @@ class CameraManager:
                 ret, frame = cls._cap.read()
                 if not ret or frame is None:
                     return None
+                frame = cls._auto_tune_exposure(frame)
                 ok, jpeg = cls._cv2.imencode(".jpg", frame, [int(cls._cv2.IMWRITE_JPEG_QUALITY), int(quality)])
                 if not ok:
                     return None
@@ -630,6 +679,7 @@ class CameraManager:
             try:
                 ret, frame = cls._cap.read()
                 if ret and frame is not None:
+                    frame = cls._auto_tune_exposure(frame)
                     ok, jpeg = cls._cv2.imencode(".jpg", frame, [int(cls._cv2.IMWRITE_JPEG_QUALITY), int(q)])
                     if ok:
                         return jpeg.tobytes()
@@ -676,6 +726,8 @@ class CameraManager:
                         time.sleep(frame_delay)
                         continue
 
+                    frame = cls._auto_tune_exposure(frame)
+
                     if target_w and target_h:
                         frame = cls._cv2.resize(frame, (target_w, target_h), interpolation=cls._cv2.INTER_AREA)
                     
@@ -711,8 +763,12 @@ class CameraManager:
             if candidate.exists() and candidate.is_dir():
                 target_dir = candidate
         if target_dir is None:
-            sessions = cls.list_sessions(limit=1)
-            if sessions:
+            sessions = cls.list_sessions(limit=20)
+            for s in sessions:
+                if int(s.get("frames", 0)) >= 2:
+                    target_dir = Path(s["path"])
+                    break
+            if target_dir is None and sessions:
                 target_dir = Path(sessions[0]["path"])
 
         if target_dir is None:
