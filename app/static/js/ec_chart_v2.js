@@ -220,11 +220,21 @@
           });
         }
 
-        // Set fixed y-axis (EC range)
-        const defaultMin = 0.0;
-        const defaultMax = 3.0;
-        const ecMin = hasValidBand ? Math.min(ecLow - 0.2, defaultMin) : defaultMin;
-        const ecMax = hasValidBand ? Math.max(ecHigh + 0.5, defaultMax) : defaultMax;
+        // Auto-scale the EC tab tightly to visible data, target band, and dose markers.
+        const ecValues = ec.map(point => point.y).filter(Number.isFinite);
+        if (Number.isFinite(currentEC)) ecValues.push(currentEC);
+        if (hasValidBand) {
+          ecValues.push(ecLow, ecHigh);
+        }
+        doseY.forEach(value => {
+          if (Number.isFinite(value)) ecValues.push(value);
+        });
+
+        const ecFloor = ecValues.length ? Math.min(...ecValues) : 1.0;
+        const ecCeil = ecValues.length ? Math.max(...ecValues) : 2.0;
+        const ecPadding = Math.max((ecCeil - ecFloor) * 0.12, 0.05);
+        const ecMin = Math.max(0, ecFloor - ecPadding);
+        const ecMax = ecCeil + ecPadding;
 
         if (!chart.options.scales.y) {
           chart.options.scales.y = {

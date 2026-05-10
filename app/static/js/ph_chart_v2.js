@@ -202,9 +202,21 @@
           });
         }
 
-        // Set fixed y-axis (pH range)
-        const phMin = Math.min(phLow - 0.5, 5.0);
-        const phMax = Math.max(phHigh + 0.8, 7.5);
+        // Auto-scale the pH tab tightly to visible data, target band, and dose markers.
+        const phValues = ph.map(point => point.y).filter(Number.isFinite);
+        if (Number.isFinite(currentPH)) phValues.push(currentPH);
+        if (Number.isFinite(phLow)) phValues.push(phLow);
+        if (Number.isFinite(phHigh)) phValues.push(phHigh);
+        if (doseEvents.length) {
+          const doseY = (phHigh != null && !Number.isNaN(phHigh)) ? (phHigh + 0.3) : 6.6;
+          if (Number.isFinite(doseY)) phValues.push(doseY);
+        }
+
+        const phFloor = phValues.length ? Math.min(...phValues) : 5.8;
+        const phCeil = phValues.length ? Math.max(...phValues) : 6.2;
+        const phPadding = Math.max((phCeil - phFloor) * 0.12, 0.05);
+        const phMin = phFloor - phPadding;
+        const phMax = phCeil + phPadding;
 
         if (!chart.options.scales.y) {
           chart.options.scales.y = {

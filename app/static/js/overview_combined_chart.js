@@ -484,14 +484,35 @@
           };
         }
 
-        // Auto-scale axes tightly around actual data + target band, with a small margin.
-        // Let Chart.js autoscale all axes from the data.
-        chartInstance.options.scales.yPh.min = undefined;
-        chartInstance.options.scales.yPh.max = undefined;
-        chartInstance.options.scales.yEc.min = undefined;
-        chartInstance.options.scales.yEc.max = undefined;
-        chartInstance.options.scales.yTemp.min = undefined;
-        chartInstance.options.scales.yTemp.max = undefined;
+        const phVals = ph.map(p => p.y).filter(Number.isFinite);
+        const ecVals = ec.map(p => p.y).filter(Number.isFinite);
+        const tempVals = temp.map(p => p.y).filter(Number.isFinite);
+
+        const phDataMin = phVals.length ? Math.min(...phVals) : (phLowCurrent || 5.5);
+        const phDataMax = phVals.length ? Math.max(...phVals) : (phHighCurrent || 6.5);
+        const phBandLow = Number.isFinite(phLowCurrent) ? phLowCurrent : phDataMin;
+        const phBandHigh = Number.isFinite(phHighCurrent) ? phHighCurrent : phDataMax;
+        const phMin = Math.min(phDataMin, phBandLow) - 0.15;
+        const phMax = Math.max(phDataMax, phBandHigh) + 0.15;
+
+        const ecDataMin = ecVals.length ? Math.min(...ecVals) : (ecLow || 0);
+        const ecDataMax = ecVals.length ? Math.max(...ecVals) : (ecHigh || 3);
+        const ecBandLow = Number.isFinite(ecLow) ? ecLow : ecDataMin;
+        const ecBandHigh = Number.isFinite(ecHigh) ? ecHigh : ecDataMax;
+        const ecMin = Math.max(0, Math.min(ecDataMin, ecBandLow) - 0.2);
+        const ecMax = Math.max(ecDataMax, ecBandHigh) + 0.2;
+
+        const tempDataMin = tempVals.length ? Math.min(...tempVals) : 15;
+        const tempDataMax = tempVals.length ? Math.max(...tempVals) : 25;
+        const tempAxisMin = Math.max(0, tempDataMin - 1.0);
+        const tempAxisMax = tempDataMax + 1.0;
+
+        chartInstance.options.scales.yPh.min = phMin;
+        chartInstance.options.scales.yPh.max = phMax;
+        chartInstance.options.scales.yEc.min = ecMin;
+        chartInstance.options.scales.yEc.max = ecMax;
+        chartInstance.options.scales.yTemp.min = tempAxisMin;
+        chartInstance.options.scales.yTemp.max = tempAxisMax;
 
         return datasets;
       }
