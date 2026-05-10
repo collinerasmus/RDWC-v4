@@ -4058,7 +4058,7 @@ def camera_timelapse_status():
 
 
 @app.post("/camera/timelapse/start")
-def camera_timelapse_start(body: dict = Body(default={})):
+def camera_timelapse_start(body: Optional[dict] = Body(default=None)):
     from app.camera import CameraManager
     return CameraManager.start_timelapse(body or {})
 
@@ -4070,9 +4070,10 @@ def camera_timelapse_stop():
 
 
 @app.post("/camera/timelapse/capture")
-def camera_timelapse_capture(body: dict = Body(default={})):
+def camera_timelapse_capture(body: Optional[dict] = Body(default=None)):
     from app.camera import CameraManager
-    quality = body.get("quality") if isinstance(body, dict) else None
+    payload = body or {}
+    quality = payload.get("quality") if isinstance(payload, dict) else None
     return CameraManager.capture_now(quality=quality)
 
 

@@ -21,6 +21,8 @@ class CameraManager:
     _camera_index = None
     _last_init_attempt = 0.0
     _init_retry_s = 5.0
+    _default_max_frames = int(os.environ.get("CAM_TIMELAPSE_DEFAULT_MAX_FRAMES", "12000"))
+    _max_total_bytes = int(os.environ.get("CAM_TIMELAPSE_MAX_TOTAL_MB", "4096")) * 1024 * 1024
 
     _store_dir = Path(__file__).resolve().parent.parent / "data" / "timelapse"
     _settings_path = _store_dir / "settings.json"
@@ -31,7 +33,7 @@ class CameraManager:
         "running": False,
         "interval_s": 300,
         "quality": 80,
-        "max_frames": 0,
+        "max_frames": _default_max_frames,
         "frame_count": 0,
         "label": "grow",
         "session_id": None,
@@ -152,6 +154,8 @@ class CameraManager:
                 cls._tl_state["quality"] = int(data.get("quality", cls._tl_state["quality"]))
                 cls._tl_state["max_frames"] = int(data.get("max_frames", cls._tl_state["max_frames"]))
                 cls._tl_state["label"] = str(data.get("label", cls._tl_state["label"]))
+                if cls._tl_state["max_frames"] <= 0:
+                    cls._tl_state["max_frames"] = cls._default_max_frames
         except Exception:
             pass
 
@@ -232,7 +236,9 @@ class CameraManager:
 
         interval_s = max(10, min(86400, interval_s))
         quality = max(30, min(95, quality))
-        max_frames = max(0, min(100000, max_frames))
+        if max_frames <= 0:
+            max_frames = cls._default_max_frames
+        max_frames = max(100, min(100000, max_frames))
 
         return {
             "interval_s": interval_s,
@@ -274,6 +280,51 @@ class CameraManager:
         }
         (path / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
         return path
+
+    @classmethod
+    def _session_size_bytes(cls, p: Path) -> int:
+        total = 0
+        try:
+            for e in p.iterdir():
+                if e.is_file():
+                    total += e.stat().st_size
+        except Exception:
+            return total
+        return total
+
+    @classmethod
+    def _prune_sessions(cls, keep_session_id: Optional[str] = None):
+        if cls._max_total_bytes <= 0:
+            return
+        try:
+            dirs = [p for p in cls._store_dir.iterdir() if p.is_dir()]
+        except Exception:
+            return
+
+        sessions = []
+        total = 0
+        for p in dirs:
+            size = cls._session_size_bytes(p)
+            total += size
+            sessions.append((p, size))
+
+        if total <= cls._max_total_bytes:
+            return
+
+        sessions.sort(key=lambda item: item[0].name)
+        for p, size in sessions:
+            if total <= cls._max_total_bytes:
+                break
+            if keep_session_id and p.name == keep_session_id:
+                continue
+            try:
+                for e in p.iterdir():
+                    if e.is_file():
+                        e.unlink(missing_ok=True)
+                p.rmdir()
+                total -= size
+            except Exception:
+                continue
 
     @classmethod
     def _write_frame(cls, session_dir: Path, frame_no: int, quality: int) -> Optional[str]:
@@ -338,7 +389,7 @@ class CameraManager:
         if st.get("running") and st.get("next_capture_ts"):
             next_in = max(0, int(float(st["next_capture_ts"]) - time.time()))
         st["next_capture_in_s"] = next_in
-        st["available"] = cls.available
+        st["available"] = cls._is_open()
         return st
 
     @classmethod
@@ -375,6 +426,7 @@ class CameraManager:
                 }
             )
             cls._save_settings()
+            cls._prune_sessions(keep_session_id=session_id)
 
             cls._tl_stop.clear()
             cls._tl_thread = threading.Thread(target=cls._timelapse_loop, name="camera_timelapse", daemon=True)
@@ -441,14 +493,24 @@ class CameraManager:
         dirs.sort(key=lambda p: p.name, reverse=True)
         out = []
         for p in dirs[: max(1, min(100, int(limit)) )]:
-            frames = list(p.glob("frame_*.jpg"))
-            first = frames[0].name if frames else None
-            last = frames[-1].name if frames else None
+            frame_count = 0
+            first = None
+            last = None
+            try:
+                for f in p.glob("frame_*.jpg"):
+                    name = f.name
+                    frame_count += 1
+                    if first is None or name < first:
+                        first = name
+                    if last is None or name > last:
+                        last = name
+            except Exception:
+                pass
             out.append(
                 {
                     "session_id": p.name,
                     "path": str(p),
-                    "frames": len(frames),
+                    "frames": frame_count,
                     "first_frame": first,
                     "last_frame": last,
                 }

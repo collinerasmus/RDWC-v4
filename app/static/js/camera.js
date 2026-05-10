@@ -258,7 +258,14 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body || {}),
     });
-    return r.json();
+    const txt = await r.text();
+    let data = null;
+    try { data = txt ? JSON.parse(txt) : null; } catch(_){ data = null; }
+    if (!r.ok) {
+      const msg = (data && (data.error || data.detail)) || ('HTTP ' + r.status);
+      throw new Error(msg);
+    }
+    return data || {};
   }
 
   async function startTimelapse(){
@@ -268,30 +275,42 @@
       max_frames: parseInt(el('cam-max-frames')?.value || '0', 10),
       label: (el('cam-label')?.value || 'grow').trim(),
     };
-    const res = await postJSON('/camera/timelapse/start', payload);
-    if (res && res.status) renderTimelapseStatus(res.status);
-    else if (res && res.error) setTimelapseNote('Start failed: ' + res.error);
-    else setTimelapseNote('Start failed');
+    try {
+      const res = await postJSON('/camera/timelapse/start', payload);
+      if (res && res.status) renderTimelapseStatus(res.status);
+      else if (res && res.error) setTimelapseNote('Start failed: ' + res.error);
+      else setTimelapseNote('Start failed');
+    } catch(e) {
+      setTimelapseNote('Start failed: ' + (e && e.message ? e.message : 'request error'));
+    }
     await refreshSessions();
   }
 
   async function stopTimelapse(){
-    const res = await postJSON('/camera/timelapse/stop', {});
-    if (res && res.status) renderTimelapseStatus(res.status);
-    else setTimelapseNote('Stop failed');
+    try {
+      const res = await postJSON('/camera/timelapse/stop', {});
+      if (res && res.status) renderTimelapseStatus(res.status);
+      else setTimelapseNote('Stop failed');
+    } catch(e) {
+      setTimelapseNote('Stop failed: ' + (e && e.message ? e.message : 'request error'));
+    }
     await refreshSessions();
   }
 
   async function captureNow(){
     const quality = parseInt(el('cam-quality')?.value || '80', 10);
-    const res = await postJSON('/camera/timelapse/capture', { quality: quality });
-    if (res && res.status) {
-      renderTimelapseStatus(res.status);
-      useSnapshot();
-    } else if (res && res.error) {
-      setTimelapseNote('Capture failed: ' + res.error);
-    } else {
-      setTimelapseNote('Capture failed');
+    try {
+      const res = await postJSON('/camera/timelapse/capture', { quality: quality });
+      if (res && res.status) {
+        renderTimelapseStatus(res.status);
+        useSnapshot();
+      } else if (res && res.error) {
+        setTimelapseNote('Capture failed: ' + res.error);
+      } else {
+        setTimelapseNote('Capture failed');
+      }
+    } catch(e) {
+      setTimelapseNote('Capture failed: ' + (e && e.message ? e.message : 'request error'));
     }
     await refreshSessions();
   }
@@ -332,10 +351,10 @@
     const modeSel = el('cam-view-mode');
     const snapEvery = el('cam-snapshot-every');
 
-    if (startBtn && !startBtn.__bound){ startBtn.__bound = true; startBtn.addEventListener('click', function(){ startTimelapse().catch(function(){}); }); }
-    if (stopBtn && !stopBtn.__bound){ stopBtn.__bound = true; stopBtn.addEventListener('click', function(){ stopTimelapse().catch(function(){}); }); }
-    if (capBtn && !capBtn.__bound){ capBtn.__bound = true; capBtn.addEventListener('click', function(){ captureNow().catch(function(){}); }); }
-    if (refreshBtn && !refreshBtn.__bound){ refreshBtn.__bound = true; refreshBtn.addEventListener('click', function(){ refreshAll().catch(function(){}); }); }
+    if (startBtn && !startBtn.__bound){ startBtn.__bound = true; startBtn.addEventListener('click', function(){ startTimelapse(); }); }
+    if (stopBtn && !stopBtn.__bound){ stopBtn.__bound = true; stopBtn.addEventListener('click', function(){ stopTimelapse(); }); }
+    if (capBtn && !capBtn.__bound){ capBtn.__bound = true; capBtn.addEventListener('click', function(){ captureNow(); }); }
+    if (refreshBtn && !refreshBtn.__bound){ refreshBtn.__bound = true; refreshBtn.addEventListener('click', function(){ refreshAll().catch(function(){ setTimelapseNote('Refresh failed'); }); }); }
     if (modeSel && !modeSel.__bound){ modeSel.__bound = true; modeSel.addEventListener('change', onModeChange); }
     if (snapEvery && !snapEvery.__bound){ snapEvery.__bound = true; snapEvery.addEventListener('change', function(){ if (state.selectedMode === 'snapshot') startSnapshotTimer(); }); }
 
