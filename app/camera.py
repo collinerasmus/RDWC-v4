@@ -267,7 +267,9 @@ class CameraManager:
     @classmethod
     def start_timelapse(cls, settings: Optional[dict] = None) -> Dict[str, Any]:
         if not cls.is_healthy():
-            return {"ok": False, "error": "camera_unavailable", "status": cls.status()}
+            with cls._tl_lock:
+                cls._tl_state["last_error"] = "camera_unavailable"
+            return {"ok": False, "error": "camera_unavailable", "status": cls.timelapse_status()}
 
         valid = cls._validate_timelapse_settings(settings)
         with cls._tl_lock:
@@ -322,7 +324,9 @@ class CameraManager:
     @classmethod
     def capture_now(cls, quality: Optional[int] = None) -> Dict[str, Any]:
         if not cls.is_healthy():
-            return {"ok": False, "error": "camera_unavailable", "status": cls.status()}
+            with cls._tl_lock:
+                cls._tl_state["last_error"] = "camera_unavailable"
+            return {"ok": False, "error": "camera_unavailable", "status": cls.timelapse_status()}
 
         with cls._tl_lock:
             q = int(quality or cls._tl_state.get("quality", 80))
