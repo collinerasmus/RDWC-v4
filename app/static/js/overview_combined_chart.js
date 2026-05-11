@@ -418,7 +418,7 @@
         }
 
         // Relay state — Lights only.
-        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 0.5);
+        const lightsScaled = buildStepSeries(data?.lightsEvents, window, 0.86);
 
         if (lightsScaled.length) {
           datasets.push({
@@ -478,7 +478,7 @@
               color: '#6b7280',
               callback: (v) => {
                 const pct = Math.round(v * 100);
-                if (pct === 50) return 'Lights';
+                if (pct === 86) return 'Lights';
                 if (pct === 0)  return 'OFF';
                 return '';
               }
