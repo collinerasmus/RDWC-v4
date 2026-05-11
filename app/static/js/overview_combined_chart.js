@@ -371,50 +371,6 @@
           });
         }
 
-        // pH dose markers
-        if (phDoseEvents.length) {
-          const phDoseY = Number.isFinite(phHighCurrent) ? phHighCurrent + 0.3 : 6.6;
-          datasets.push({
-            type: 'scatter',
-            yAxisID: 'yPh',
-            label: `pH Doses (${phDoseEvents.length})`,
-            data: phDoseEvents.map(e => ({ x: e.ts, y: phDoseY })),
-            pointRadius: 5,
-            pointStyle: 'triangle',
-            pointBackgroundColor: window.CHART_COLORS?.phUp || '#fbbf24',
-            pointBorderColor: window.CHART_COLORS?.phUp || '#fbbf24',
-            pointBorderWidth: 1,
-            showLine: false,
-            order: 2
-          });
-        }
-
-        // EC dose markers
-        const ecDoseBase = hasEcBand ? ecHigh : (ec.length ? Math.max(...ec.map(p => p.y)) : 1.0);
-        const doseLevels = {
-          grow: ecDoseBase + 0.3,
-          micro: ecDoseBase + 0.2,
-          bloom: ecDoseBase + 0.1
-        };
-        const pumps = ['grow', 'micro', 'bloom'];
-        pumps.forEach(pump => {
-          const evs = ecDoseEvents.filter(e => e.pump === pump);
-          if (!evs.length) return;
-          datasets.push({
-            type: 'scatter',
-            yAxisID: 'yEc',
-            label: `${pump} (${evs.length})`,
-            data: evs.map(e => ({ x: e.ts, y: doseLevels[pump] })),
-            pointRadius: 5,
-            pointStyle: 'circle',
-            pointBackgroundColor: window.CHART_COLORS?.[pump] || '#6ee7b7',
-            pointBorderColor: window.CHART_COLORS?.[pump] || '#6ee7b7',
-            pointBorderWidth: 1,
-            showLine: false,
-            order: 2
-          });
-        });
-
         // Relay state — Lights only.
         const lightsScaled = buildStepSeries(data?.lightsEvents, window, 0.5);
 
@@ -513,6 +469,54 @@
         chartInstance.options.scales.yEc.max = ecMax;
         chartInstance.options.scales.yTemp.min = tempAxisMin;
         chartInstance.options.scales.yTemp.max = tempAxisMax;
+
+        // Dose markers anchored to top 1/8th of each axis so they stay visually stable
+        // when timeline/data range changes.
+        const phSpan = Math.max(phMax - phMin, 0.001);
+        const ecSpan = Math.max(ecMax - ecMin, 0.001);
+
+        // pH lane centered in the top eighth.
+        const phDoseY = phMax - (phSpan * 0.0625);
+        if (phDoseEvents.length) {
+          datasets.push({
+            type: 'scatter',
+            yAxisID: 'yPh',
+            label: `pH Doses (${phDoseEvents.length})`,
+            data: phDoseEvents.map(e => ({ x: e.ts, y: phDoseY })),
+            pointRadius: 5,
+            pointStyle: 'triangle',
+            pointBackgroundColor: window.CHART_COLORS?.phUp || '#fbbf24',
+            pointBorderColor: window.CHART_COLORS?.phUp || '#fbbf24',
+            pointBorderWidth: 1,
+            showLine: false,
+            order: 2
+          });
+        }
+
+        // EC lanes staggered inside the top eighth.
+        const doseLevels = {
+          grow: ecMax - (ecSpan * 0.020),
+          micro: ecMax - (ecSpan * 0.060),
+          bloom: ecMax - (ecSpan * 0.100)
+        };
+        const pumps = ['grow', 'micro', 'bloom'];
+        pumps.forEach(pump => {
+          const evs = ecDoseEvents.filter(e => e.pump === pump);
+          if (!evs.length) return;
+          datasets.push({
+            type: 'scatter',
+            yAxisID: 'yEc',
+            label: `${pump} (${evs.length})`,
+            data: evs.map(e => ({ x: e.ts, y: doseLevels[pump] })),
+            pointRadius: 5,
+            pointStyle: 'circle',
+            pointBackgroundColor: window.CHART_COLORS?.[pump] || '#6ee7b7',
+            pointBorderColor: window.CHART_COLORS?.[pump] || '#6ee7b7',
+            pointBorderWidth: 1,
+            showLine: false,
+            order: 2
+          });
+        });
 
         return datasets;
       }
