@@ -99,6 +99,26 @@
     return result;
   }
 
+  function buildMovingAverageSeries(points, windowSize) {
+    if (!Array.isArray(points) || !points.length) return [];
+    const size = Math.max(2, Number(windowSize) || 2);
+    const out = [];
+    let sum = 0;
+    const queue = [];
+
+    for (const p of points) {
+      const y = Number(p.y);
+      if (!Number.isFinite(y)) continue;
+      queue.push(y);
+      sum += y;
+      if (queue.length > size) {
+        sum -= queue.shift();
+      }
+      out.push({ x: p.x, y: sum / queue.length });
+    }
+    return out;
+  }
+
   function init() {
     if (typeof RDWCChart === 'undefined') return;
 
@@ -330,12 +350,12 @@
             yAxisID: 'yPh',
             label: 'pH',
             data: ph,
-            borderWidth: 2,
-            borderColor: window.CHART_COLORS?.ph || '#3b82f6',
-            backgroundColor: window.CHART_COLORS?.ph || '#3b82f6',
+            borderWidth: 1.5,
+            borderColor: 'rgba(59,130,246,0.75)',
+            backgroundColor: 'rgba(59,130,246,0.75)',
             pointRadius: 0,
             spanGaps: true,
-            order: 1
+            order: 2
           });
         }
 
@@ -346,9 +366,9 @@
             yAxisID: 'yEc',
             label: 'EC',
             data: ec,
-            borderWidth: 2,
-            borderColor: window.CHART_COLORS?.ec || '#10b981',
-            backgroundColor: window.CHART_COLORS?.ec || '#10b981',
+            borderWidth: 2.2,
+            borderColor: 'rgba(16,185,129,0.95)',
+            backgroundColor: 'rgba(16,185,129,0.95)',
             pointRadius: 0,
             spanGaps: true,
             order: 1
@@ -357,18 +377,35 @@
 
         // Temp series
         if (temp.length) {
+          const tempAvg = buildMovingAverageSeries(temp, 12);
           datasets.push({
             id: 'temp',
             yAxisID: 'yTemp',
-            label: 'Temp (°C)',
+            label: 'Temp Raw (°C)',
             data: temp,
-            borderWidth: 2,
-            borderColor: window.CHART_COLORS?.temp || '#ef4444',
-            backgroundColor: window.CHART_COLORS?.temp || '#ef4444',
+            borderWidth: 1,
+            borderColor: 'rgba(239,68,68,0.25)',
+            backgroundColor: 'rgba(239,68,68,0.25)',
+            borderDash: [3, 3],
             pointRadius: 0,
             spanGaps: true,
-            order: 1
+            order: 3
           });
+
+          if (tempAvg.length) {
+            datasets.push({
+              id: 'tempAvg',
+              yAxisID: 'yTemp',
+              label: 'Temp Avg (°C)',
+              data: tempAvg,
+              borderWidth: 2.4,
+              borderColor: 'rgba(251,146,60,0.95)',
+              backgroundColor: 'rgba(251,146,60,0.95)',
+              pointRadius: 0,
+              spanGaps: true,
+              order: 1
+            });
+          }
         }
 
         // Relay state — Lights only.
