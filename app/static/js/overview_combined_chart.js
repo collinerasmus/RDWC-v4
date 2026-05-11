@@ -99,22 +99,31 @@
     return result;
   }
 
-  function buildMovingAverageSeries(points, windowSize) {
+  function buildMovingAverageSeries(points, windowMs) {
     if (!Array.isArray(points) || !points.length) return [];
-    const size = Math.max(2, Number(windowSize) || 2);
+    const ms = Math.max(60 * 1000, Number(windowMs) || (60 * 1000));
+    const sorted = [...points]
+      .map(p => ({ x: Number(p.x), y: Number(p.y) }))
+      .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y))
+      .sort((a, b) => a.x - b.x);
+
+    if (!sorted.length) return [];
+
     const out = [];
     let sum = 0;
-    const queue = [];
+    let startIdx = 0;
 
-    for (const p of points) {
-      const y = Number(p.y);
-      if (!Number.isFinite(y)) continue;
-      queue.push(y);
-      sum += y;
-      if (queue.length > size) {
-        sum -= queue.shift();
+    for (let i = 0; i < sorted.length; i++) {
+      const p = sorted[i];
+      sum += p.y;
+
+      while (startIdx <= i && (p.x - sorted[startIdx].x) > ms) {
+        sum -= sorted[startIdx].y;
+        startIdx += 1;
       }
-      out.push({ x: p.x, y: sum / queue.length });
+
+      const count = i - startIdx + 1;
+      out.push({ x: p.x, y: sum / Math.max(1, count) });
     }
     return out;
   }
@@ -377,7 +386,7 @@
 
         // Temp series
         if (temp.length) {
-          const tempAvg = buildMovingAverageSeries(temp, 12);
+          const tempAvg = buildMovingAverageSeries(temp, 6 * 60 * 60 * 1000);
           datasets.push({
             id: 'temp',
             yAxisID: 'yTemp',
