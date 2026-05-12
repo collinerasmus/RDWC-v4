@@ -20,6 +20,7 @@
     timelapse: null,
     recommendation: null,
     sessions: [],
+    playbackUrl: null,
   };
 
   const el = (id) => document.getElementById(id);
@@ -224,12 +225,23 @@
       if (st.last_frame){
         const rel = String(st.last_frame).replace(/\\\\/g, '/');
         lastFrameLink.textContent = 'Last frame saved';
-        lastFrameLink.href = '/camera/snapshot.jpg?t=' + Date.now();
+        lastFrameLink.href = '/camera/timelapse/preview?t=' + Date.now();
         lastFrameLink.title = rel;
       } else {
         lastFrameLink.textContent = '\u2014';
         lastFrameLink.removeAttribute('href');
         lastFrameLink.removeAttribute('title');
+      }
+    }
+
+    const preview = el('camera-timelapse-preview');
+    if (preview) {
+      if (st.last_frame) {
+        preview.src = '/camera/timelapse/preview?t=' + Date.now();
+        preview.style.display = 'block';
+      } else {
+        preview.removeAttribute('src');
+        preview.style.display = 'none';
       }
     }
 
@@ -248,6 +260,50 @@
   function setTimelapseNote(msg){
     const note = el('camera-timelapse-note');
     if (note) note.textContent = msg || 'Ready';
+  }
+
+  function setPlaybackState(url, note){
+    const video = el('camera-playback-video');
+    const open = el('btn-camera-open-playback');
+    const download = el('btn-camera-download-playback');
+    const msg = el('camera-playback-note');
+
+    state.playbackUrl = url || null;
+    if (msg) msg.textContent = note || 'No render yet.';
+
+    if (video) {
+      if (url) {
+        video.src = url;
+        video.style.display = 'block';
+      } else {
+        video.removeAttribute('src');
+        video.style.display = 'none';
+      }
+    }
+
+    if (open) {
+      if (url) {
+        open.href = url;
+        open.style.pointerEvents = 'auto';
+        open.style.opacity = '1';
+      } else {
+        open.removeAttribute('href');
+        open.style.pointerEvents = 'none';
+        open.style.opacity = '0.6';
+      }
+    }
+
+    if (download) {
+      if (url) {
+        download.href = url;
+        download.style.pointerEvents = 'auto';
+        download.style.opacity = '1';
+      } else {
+        download.removeAttribute('href');
+        download.style.pointerEvents = 'none';
+        download.style.opacity = '0.6';
+      }
+    }
   }
 
   function renderGrowPlan(rec){
@@ -340,7 +396,10 @@
         list.innerHTML = '<div class="muted" style="font-size:var(--font-xs);">No timelapse sessions yet.</div>';
         return;
       }
-      list.innerHTML = items.map(function(s){
+      const valid = items.filter(function(s){ return Number(s.frames || 0) >= 2; });
+      const tiny = items.length - valid.length;
+      const shown = valid.slice(0, 6);
+      list.innerHTML = shown.map(function(s){
         return '<div style="padding:6px 8px;border-radius:6px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.2);margin-bottom:6px;">' +
           '<div style="display:flex;justify-content:space-between;gap:8px;">' +
           '<span style="font-weight:600;">' + s.session_id + '</span>' +
@@ -348,9 +407,41 @@
           '</div>' +
           '<div class="muted" style="font-size:var(--font-xs);margin-top:2px;">' + s.path + '</div>' +
           '</div>';
-      }).join('');
+      }).join('') +
+      '<div class="muted" style="font-size:var(--font-xs);margin-top:4px;">Using sessions with 2+ frames. Skipping ' + tiny + ' tiny sessions.</div>';
     } catch(_) {
       list.innerHTML = '<div class="muted" style="font-size:var(--font-xs);">Session history unavailable.</div>';
+    }
+  }
+
+  async function renderPlayback(){
+    const days = Math.max(1, Math.min(120, parseInt(el('cam-playback-days')?.value || '56', 10) || 56));
+    const fps = Math.max(12, Math.min(60, parseInt(el('cam-playback-fps')?.value || '24', 10) || 24));
+    const btn = el('btn-camera-render-playback');
+
+    try {
+      if (btn) btn.disabled = true;
+      setPlaybackState(state.playbackUrl, 'Rendering video...');
+
+      const res = await postJSON('/camera/timelapse/render', {
+        days: days,
+        fps: fps,
+        min_session_frames: 2,
+        max_frames: 5000,
+      });
+
+      if (!res || !res.ok || !res.video || !res.video.url) {
+        setPlaybackState(null, 'Render failed. Try a larger window or capture more frames.');
+        return;
+      }
+
+      const url = res.video.url + '?t=' + Date.now();
+      const note = 'Rendered ' + res.frames_written + ' frames from ' + res.used_sessions + ' sessions (skipped ' + res.skipped_sessions + ').';
+      setPlaybackState(url, note);
+    } catch (e) {
+      setPlaybackState(null, 'Render failed: ' + (e && e.message ? e.message : 'request error'));
+    } finally {
+      if (btn) btn.disabled = false;
     }
   }
 
@@ -465,6 +556,7 @@
     const refreshBtn = el('btn-camera-refresh');
     const analyzeBtn = el('btn-camera-insights');
     const presetBtn = el('btn-camera-apply-grow-preset');
+    const renderBtn = el('btn-camera-render-playback');
     const modeSel = el('cam-view-mode');
     const snapEvery = el('cam-snapshot-every');
     const streamFps = el('cam-stream-fps');
@@ -475,10 +567,13 @@
     if (capBtn && !capBtn.__bound){ capBtn.__bound = true; capBtn.addEventListener('click', function(){ captureNow(); }); }
     if (refreshBtn && !refreshBtn.__bound){ refreshBtn.__bound = true; refreshBtn.addEventListener('click', function(){ refreshAll().catch(function(){ setTimelapseNote('Refresh failed'); }); }); }
     if (analyzeBtn && !analyzeBtn.__bound){ analyzeBtn.__bound = true; analyzeBtn.addEventListener('click', function(){ refreshInsights(); }); }
+    if (renderBtn && !renderBtn.__bound){ renderBtn.__bound = true; renderBtn.addEventListener('click', function(){ renderPlayback(); }); }
     if (presetBtn && !presetBtn.__bound){ presetBtn.__bound = true; presetBtn.addEventListener('click', function(){
       const rec = state.recommendation;
       if (rec) {
         applyRecommendationToInputs(rec);
+        const dayInput = el('cam-playback-days');
+        if (dayInput && rec.grow_days) dayInput.value = String(rec.grow_days);
       } else {
         fetchRecommendation().then(function(r){ state.recommendation = r; applyRecommendationToInputs(r); }).catch(function(){ setTimelapseNote('Preset fetch failed'); });
       }

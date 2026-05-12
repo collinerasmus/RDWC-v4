@@ -128,6 +128,53 @@
     return out;
   }
 
+  function computeAdaptiveAxisRange(values, bandLow, bandHigh, windowHours, options) {
+    const finiteValues = (values || []).filter(Number.isFinite);
+    const hasBand = Number.isFinite(bandLow) && Number.isFinite(bandHigh) && bandHigh > bandLow;
+    const floor = finiteValues.length ? Math.min(...finiteValues) : (hasBand ? bandLow : 0);
+    const ceil = finiteValues.length ? Math.max(...finiteValues) : (hasBand ? bandHigh : 1);
+    const baseMin = hasBand ? Math.min(floor, bandLow) : floor;
+    const baseMax = hasBand ? Math.max(ceil, bandHigh) : ceil;
+    const dataSpan = Math.max(baseMax - baseMin, 0);
+
+    let minSpan;
+    let minPad;
+    if (windowHours <= 1.5) {
+      minSpan = options.hourSpan;
+      minPad = options.hourPad;
+    } else if (windowHours <= 24) {
+      minSpan = options.daySpan;
+      minPad = options.dayPad;
+    } else if (windowHours <= 168) {
+      minSpan = options.weekSpan;
+      minPad = options.weekPad;
+    } else {
+      minSpan = options.monthSpan;
+      minPad = options.monthPad;
+    }
+
+    const bandSpan = hasBand ? (bandHigh - bandLow) : 0;
+    const desiredSpanForBand = bandSpan > 0 ? (bandSpan / (options.bandRatio || 0.5)) : 0;
+    const padding = Math.max(dataSpan * 0.10, minPad);
+    let span = Math.max((baseMax - baseMin) + (padding * 2), minSpan, desiredSpanForBand);
+    let mid = (baseMin + baseMax) / 2;
+
+    if (hasBand) {
+      const bandMid = (bandLow + bandHigh) / 2;
+      mid = (mid + bandMid) / 2;
+    }
+
+    let min = mid - (span / 2);
+    let max = mid + (span / 2);
+
+    if (options.zeroFloor && min < 0) {
+      max += Math.abs(min);
+      min = 0;
+    }
+
+    return { min, max };
+  }
+
   function init() {
     if (typeof RDWCChart === 'undefined') return;
 
@@ -141,8 +188,8 @@
         const spanMs = new Date(endISO) - new Date(startISO);
         const hours = spanMs / 3600000;
         let gran, max;
-        if (hours <= 1) { gran = 30; max = 300; }
-        else if (hours <= 6) { gran = 45; max = 800; }
+        if (hours <= 1) { gran = 10; max = 600; }
+        else if (hours <= 6) { gran = 20; max = 1200; }
         else if (hours <= 24) { gran = 60; max = 1500; }
         else if (hours <= 168) { gran = 300; max = 2100; }
         else { gran = 900; max = 3000; }
@@ -386,35 +433,18 @@
 
         // Temp series
         if (temp.length) {
-          const tempAvg = buildMovingAverageSeries(temp, 6 * 60 * 60 * 1000);
           datasets.push({
             id: 'temp',
             yAxisID: 'yTemp',
-            label: 'Temp Raw (°C)',
+            label: 'Temperature',
             data: temp,
-            borderWidth: 1,
-            borderColor: 'rgba(239,68,68,0.25)',
-            backgroundColor: 'rgba(239,68,68,0.25)',
-            borderDash: [3, 3],
+            borderWidth: 2,
+            borderColor: 'rgba(239,68,68,0.95)',
+            backgroundColor: 'rgba(239,68,68,0.95)',
             pointRadius: 0,
             spanGaps: true,
-            order: 3
+            order: 1
           });
-
-          if (tempAvg.length) {
-            datasets.push({
-              id: 'tempAvg',
-              yAxisID: 'yTemp',
-              label: 'Temp Avg (°C)',
-              data: tempAvg,
-              borderWidth: 2.4,
-              borderColor: 'rgba(251,146,60,0.95)',
-              backgroundColor: 'rgba(251,146,60,0.95)',
-              pointRadius: 0,
-              spanGaps: true,
-              order: 1
-            });
-          }
         }
 
         // Relay state — Lights only.
@@ -490,24 +520,57 @@
         const ecVals = ec.map(p => p.y).filter(Number.isFinite);
         const tempVals = temp.map(p => p.y).filter(Number.isFinite);
 
-        const phDataMin = phVals.length ? Math.min(...phVals) : (phLowCurrent || 5.5);
-        const phDataMax = phVals.length ? Math.max(...phVals) : (phHighCurrent || 6.5);
-        const phBandLow = Number.isFinite(phLowCurrent) ? phLowCurrent : phDataMin;
-        const phBandHigh = Number.isFinite(phHighCurrent) ? phHighCurrent : phDataMax;
-        const phMin = Math.min(phDataMin, phBandLow) - 0.15;
-        const phMax = Math.max(phDataMax, phBandHigh) + 0.15;
+        const windowHours = Math.max(1 / 60, (window.end - window.start) / 3600000);
 
-        const ecDataMin = ecVals.length ? Math.min(...ecVals) : (ecLow || 0);
-        const ecDataMax = ecVals.length ? Math.max(...ecVals) : (ecHigh || 3);
-        const ecBandLow = Number.isFinite(ecLow) ? ecLow : ecDataMin;
-        const ecBandHigh = Number.isFinite(ecHigh) ? ecHigh : ecDataMax;
-        const ecMin = Math.max(0, Math.min(ecDataMin, ecBandLow) - 0.2);
-        const ecMax = Math.max(ecDataMax, ecBandHigh) + 0.2;
+        const phBandLow = Number.isFinite(phLowCurrent) ? phLowCurrent : undefined;
+        const phBandHigh = Number.isFinite(phHighCurrent) ? phHighCurrent : undefined;
+        const phRange = computeAdaptiveAxisRange(phVals, phBandLow, phBandHigh, windowHours, {
+          hourSpan: 0.06,
+          hourPad: 0.015,
+          daySpan: 0.10,
+          dayPad: 0.02,
+          weekSpan: 0.16,
+          weekPad: 0.03,
+          monthSpan: 0.22,
+          monthPad: 0.04,
+          bandRatio: 0.50,
+          zeroFloor: false
+        });
 
-        const tempDataMin = tempVals.length ? Math.min(...tempVals) : 15;
-        const tempDataMax = tempVals.length ? Math.max(...tempVals) : 25;
-        const tempAxisMin = Math.max(0, tempDataMin - 1.0);
-        const tempAxisMax = tempDataMax + 1.0;
+        const ecBandLow = Number.isFinite(ecLow) ? ecLow : undefined;
+        const ecBandHigh = Number.isFinite(ecHigh) ? ecHigh : undefined;
+        const ecRange = computeAdaptiveAxisRange(ecVals, ecBandLow, ecBandHigh, windowHours, {
+          hourSpan: 0.10,
+          hourPad: 0.02,
+          daySpan: 0.16,
+          dayPad: 0.03,
+          weekSpan: 0.28,
+          weekPad: 0.04,
+          monthSpan: 0.40,
+          monthPad: 0.06,
+          bandRatio: 0.50,
+          zeroFloor: true
+        });
+
+        const tempRange = computeAdaptiveAxisRange(tempVals, tempLow, tempHigh, windowHours, {
+          hourSpan: 0.25,
+          hourPad: 0.05,
+          daySpan: 0.45,
+          dayPad: 0.08,
+          weekSpan: 0.90,
+          weekPad: 0.14,
+          monthSpan: 1.40,
+          monthPad: 0.22,
+          bandRatio: 0.50,
+          zeroFloor: true
+        });
+
+        const phMin = phRange.min;
+        const phMax = phRange.max;
+        const ecMin = ecRange.min;
+        const ecMax = ecRange.max;
+        const tempAxisMin = tempRange.min;
+        const tempAxisMax = tempRange.max;
 
         chartInstance.options.scales.yPh.min = phMin;
         chartInstance.options.scales.yPh.max = phMax;

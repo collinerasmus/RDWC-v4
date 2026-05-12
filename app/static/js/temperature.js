@@ -12,27 +12,35 @@
     const chip = document.getElementById('env-health-indicator');
     if (!chip) return;
 
-    if (temperatureState.estop) {
-      chip.textContent = 'BLOCKED';
+    const isFaulted = Boolean(temperatureState.estop);
+    const autoEnabled = Boolean(temperatureState.auto_enabled);
+
+    chip.textContent = autoEnabled ? 'Auto' : 'Manual';
+    if (isFaulted) {
       chip.className = 'ui-status-chip error';
       return;
     }
+    chip.className = autoEnabled ? 'ui-status-chip success' : 'ui-status-chip neutral';
+  }
 
-    // Prefer live running state; cooldown guards only matter when OFF
-    if (temperatureState.is_running) {
-      chip.textContent = 'COOLING';
-      chip.className = 'ui-status-chip success';
+  function updateDeviceBadge(element, label, relay) {
+    if (!element) return;
+
+    const isFaulted = Boolean(temperatureState.estop);
+    const isOn = Boolean(relay && relay.state);
+
+    element.textContent = label;
+    if (isFaulted) {
+      element.className = 'ui-status-chip error';
       return;
     }
 
-    if (temperatureState.in_cooldown || temperatureState.min_runtime_active) {
-      chip.textContent = 'WAITING';
-      chip.className = 'ui-status-chip warning';
+    if (isOn) {
+      element.className = 'ui-status-chip success';
       return;
     }
 
-    chip.textContent = 'AUTO';
-    chip.className = 'ui-status-chip success';
+    element.className = 'ui-status-chip neutral';
   }
 
   // ===== TEMPERATURE CONTROL LOGIC =====
@@ -47,6 +55,7 @@
     stage: 'default',
     in_cooldown: false,
     min_runtime_active: false,
+    relays: null,
   };
 
   // API helpers
@@ -117,7 +126,7 @@
         showToast('Temperature API error: ' + (status.error || 'Unknown'), 'error');
         temperatureState = { ...temperatureState, current_temp: null, is_running: false, auto_enabled: false };
       } else {
-        temperatureState = { ...temperatureState, ...status, estop: !!(relays && relays.estop) };
+        temperatureState = { ...temperatureState, ...status, relays, estop: !!(relays && relays.estop) };
       }
       updateTemperatureUI();
       updateEnvHealth();
@@ -308,15 +317,22 @@
       }
     }
 
-    // Explicit state label
+    // Explicit state label — use interlock_details (relay.state is null on Pi5)
+    // Chiller Pump KPI — use interlock_details (relay.state is null on Pi5)
     const stateLabel = q('#temperature-state-label');
     if (stateLabel) {
-      let label = 'IDLE';
-      if (state.estop) label = 'BLOCKED';
-      else if (state.is_running) label = 'COOLING';
-      else if (state.in_cooldown || state.min_runtime_active) label = 'WAITING';
-      else if (!state.auto_enabled) label = 'MANUAL';
-      stateLabel.textContent = label;
+      const isFaulted = Boolean(temperatureState.estop);
+      const pumpOn = Boolean(state.interlock_details?.chiller_pump_on);
+      stateLabel.textContent = 'CHILLER PUMP';
+      stateLabel.className = isFaulted ? 'ui-status-chip error' : pumpOn ? 'ui-status-chip success' : 'ui-status-chip neutral';
+    }
+    // Chiller Power KPI
+    const powerLabel = q('#temperature-power-label');
+    if (powerLabel) {
+      const isFaulted = Boolean(temperatureState.estop);
+      const powerOn = Boolean(state.interlock_details?.chiller_running);
+      powerLabel.textContent = 'CHILLER POWER';
+      powerLabel.className = isFaulted ? 'ui-status-chip error' : powerOn ? 'ui-status-chip success' : 'ui-status-chip neutral';
     }
     
     // Update settings inputs (but not if user is actively editing them)

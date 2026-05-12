@@ -334,9 +334,9 @@
       }
     }
     
-    // Poll immediately and every 5 seconds
+    // Poll immediately and every 2 seconds so the UI reacts close to sensor sample arrival.
     simplePoll();
-    setInterval(simplePoll, 5000);
+    setInterval(simplePoll, 2000);
     window.forceSensorsTick = simplePoll;
     // Bind mode buttons via listeners (replace inline onclick for reliability)
     const autoBtn = $("sensors-mode-auto");

@@ -1357,6 +1357,33 @@ body{
           <div class="muted" style="font-size:var(--font-xs);">Last frame</div><a id="camera-last-frame-link" class="muted" style="font-size:var(--font-sm);">—</a>
         </div>
 
+        <div style="margin-top:10px;padding:10px;border-radius:8px;background:rgba(2,6,23,0.55);border:1px solid rgba(148,163,184,0.2);">
+          <div class="muted" style="font-size:var(--font-sm);font-weight:600;margin-bottom:6px;">Timelapse Preview</div>
+          <img id="camera-timelapse-preview" alt="Timelapse preview" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;border:1px solid rgba(148,163,184,0.18);background:#020617;display:block;" />
+        </div>
+
+        <div style="margin-top:10px;padding:10px;border-radius:8px;background:rgba(2,6,23,0.55);border:1px solid rgba(148,163,184,0.2);">
+          <div class="muted" style="font-size:var(--font-sm);font-weight:600;margin-bottom:6px;">Timelapse Playback</div>
+          <div class="muted" style="font-size:var(--font-xs);margin-bottom:8px;">Builds one video from the selected grow window and skips tiny sessions with fewer than 2 frames.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;">
+            <div>
+              <label class="muted" for="cam-playback-days" style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Window (days)</label>
+              <input id="cam-playback-days" type="number" min="1" max="120" step="1" value="56" style="width:100%;height:30px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);" />
+            </div>
+            <div>
+              <label class="muted" for="cam-playback-fps" style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Playback FPS</label>
+              <input id="cam-playback-fps" type="number" min="12" max="60" step="1" value="24" style="width:100%;height:30px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);" />
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+            <button id="btn-camera-render-playback" class="btn-secondary primary">Render Video</button>
+            <a id="btn-camera-open-playback" class="btn-secondary" style="text-decoration:none;pointer-events:none;opacity:0.6;" target="_blank" rel="noopener noreferrer">Open in New Tab</a>
+            <a id="btn-camera-download-playback" class="btn-secondary" style="text-decoration:none;pointer-events:none;opacity:0.6;download;">Download MP4</a>
+          </div>
+          <div id="camera-playback-note" class="muted" style="font-size:var(--font-xs);margin-top:8px;">No render yet.</div>
+          <video id="camera-playback-video" controls style="display:none;width:100%;margin-top:8px;border-radius:8px;border:1px solid rgba(148,163,184,0.2);background:#020617;"></video>
+        </div>
+
         <div style="margin-top:10px;">
           <div class="muted" style="font-size:var(--font-sm);font-weight:600;margin-bottom:6px;">Recent Sessions</div>
           <div id="camera-sessions"></div>
@@ -1397,8 +1424,12 @@ body{
         <div class="kpi-value" id="temperature-stage">Default</div>
       </div>
       <div class="kpi kpi-temp">
-        <div class="kpi-label">Chiller State</div>
-        <div class="kpi-value" id="temperature-state-label">IDLE</div>
+        <div class="kpi-label">Chiller Pump</div>
+        <div class="kpi-value" id="temperature-state-label">CHILLER PUMP</div>
+            <div class="kpi kpi-temp">
+              <div class="kpi-label">Chiller Power</div>
+              <div class="kpi-value" id="temperature-power-label">CHILLER POWER</div>
+            </div>
       </div>
       <div class="kpi kpi-temp" id="temperature-timer-kpi" style="display:none;">
         <div class="kpi-label">Wait Timer</div>

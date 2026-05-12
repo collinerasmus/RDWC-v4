@@ -10,8 +10,48 @@
     return r.json();
   };
 
+  function setDeviceBadge(element, label, relay) {
+    if (!element) return;
+
+    const isFaulted = Boolean(relay && (relay.error || relay.fault || relay.healthy === false || relay.online === false));
+    const isOn = Boolean(relay && (relay.state === true || relay.is_on === true));
+
+    element.textContent = label;
+    element.classList.remove('relay-on', 'relay-off');
+
+    if (isFaulted) {
+      element.style.background = 'rgba(239,68,68,0.15)';
+      element.style.borderColor = 'rgba(239,68,68,0.45)';
+      element.style.color = '#fecaca';
+      element.title = `${label} unhealthy`;
+      return;
+    }
+
+    if (isOn) {
+      element.style.background = 'rgba(34,197,94,0.15)';
+      element.style.borderColor = 'rgba(34,197,94,0.45)';
+      element.style.color = '#a7f3d0';
+      element.title = `${label} running`;
+      return;
+    }
+
+    element.style.background = 'rgba(148,163,184,0.1)';
+    element.style.borderColor = 'rgba(148,163,184,0.3)';
+    element.style.color = '#cbd5e1';
+    element.title = `${label} standby`;
+  }
+
   let refreshTimer = null;
-  const REFRESH_INTERVAL = 5000; // 5s for live dashboard feel
+  const REFRESH_INTERVAL = 2000; // Match the tighter LAN live-refresh cadence
+
+  function getTemperatureStateLabel(status) {
+    if (!status) return 'IDLE';
+    if (status.estop) return 'BLOCKED';
+    if (status.is_running) return 'COOLING';
+    if (status.in_cooldown || status.min_runtime_active) return 'WAITING';
+    if (!status.auto_enabled) return 'MANUAL';
+    return 'IDLE';
+  }
 
   // Main refresh function - fetches all data in parallel
   async function refreshDashboard() {
@@ -203,10 +243,17 @@
     if (waterEl) waterEl.textContent = currentTemp !== null && currentTemp !== undefined ? currentTemp.toFixed(1) + '°C' : '—';
     if (targetEl) targetEl.textContent = targetTemp !== null && targetTemp !== undefined ? targetTemp.toFixed(1) + '°C' : '—';
     
-    // Health chip
+    const stateLabel = getTemperatureStateLabel(status);
+
+    // Health chip mirrors the temperature tab state label.
     if (healthEl) {
-      healthEl.textContent = 'OK';
-      healthEl.className = 'ui-status-chip success';
+      const stateClass = stateLabel === 'BLOCKED'
+        ? 'danger'
+        : (stateLabel === 'WAITING'
+          ? 'warning'
+          : (stateLabel === 'COOLING' || stateLabel === 'IDLE' ? 'success' : 'neutral'));
+      healthEl.textContent = stateLabel;
+      healthEl.className = 'ui-status-chip ' + stateClass;
       healthEl.style.fontSize = '0.6rem';
     }
     
@@ -228,14 +275,10 @@
     const chillerEl = el('ov-temperature');
     const tempPumpEl = el('ov-temperature-pump');
     if (chillerEl && r.chiller_power) {
-      chillerEl.textContent = r.chiller_power.is_on ? 'ON' : 'OFF';
-      chillerEl.classList.toggle('relay-on', r.chiller_power.is_on);
-      chillerEl.classList.toggle('relay-off', !r.chiller_power.is_on);
+      setDeviceBadge(chillerEl, 'CHILLER POWER', r.chiller_power);
     }
     if (tempPumpEl && r.chiller_pump) {
-      tempPumpEl.textContent = r.chiller_pump.is_on ? 'ON' : 'OFF';
-      tempPumpEl.classList.toggle('relay-on', r.chiller_pump.is_on);
-      tempPumpEl.classList.toggle('relay-off', !r.chiller_pump.is_on);
+      setDeviceBadge(tempPumpEl, 'CHILLER PUMP', r.chiller_pump);
     }
     
     // Main pump
@@ -331,7 +374,7 @@
     // Set up periodic refresh
     refreshTimer = setInterval(refreshDashboard, REFRESH_INTERVAL);
     
-    console.log('[OverviewDashboard] Initialized with 5s refresh');
+    console.log('[OverviewDashboard] Initialized with 2s refresh');
   }
 
   function cleanup() {

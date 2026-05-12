@@ -6,9 +6,9 @@
   
   // Central polling configuration
   const config = {
-    mainInterval: 6000,      // 6 seconds - main update cycle
-    healthInterval: 3000,    // 3 seconds - critical health checks
-    slowInterval: 15000      // 15 seconds - slow updates (trends, etc)
+    mainInterval: 2000,      // 2 seconds - more immediate LAN updates
+    healthInterval: 2000,    // 2 seconds - critical health checks
+    slowInterval: 5000       // 5 seconds - trend/chart refresh cadence
   };
 
   // Registered callbacks
@@ -20,16 +20,16 @@
 
   // Request cache - deduplicate concurrent fetches
   const requestCache = new Map();
-  const CACHE_TTL = 8000; // raised to 8s to reduce hammering
+  const CACHE_TTL = 1500; // keep dedupe, but don't hold stale LAN data too long
 
   // Shared data cache with TTLs for common endpoints
   const dataCache = {
-    sensors: { data: null, timestamp: 0, ttl: 5000 },   // 5s
+    sensors: { data: null, timestamp: 0, ttl: 1500 },   // 1.5s
     settings: { data: null, timestamp: 0, ttl: 30000 }, // 30s
-    health: { data: null, timestamp: 0, ttl: 10000 },   // 10s
-    trends: { data: null, timestamp: 0, ttl: 60000 },   // 60s
-    relays: { data: null, timestamp: 0, ttl: 4000 },    // 4s shared cache
-    controllers: { data: null, timestamp: 0, ttl: 5000 } // 5s shared cache
+    health: { data: null, timestamp: 0, ttl: 3000 },    // 3s
+    trends: { data: null, timestamp: 0, ttl: 5000 },    // 5s
+    relays: { data: null, timestamp: 0, ttl: 1500 },    // 1.5s shared cache
+    controllers: { data: null, timestamp: 0, ttl: 1500 } // 1.5s shared cache
   };
 
   // Connection state tracking
@@ -253,7 +253,7 @@
       }
       // If cache exists but stale, return it while fetching new data in background
       const fallback = cached && cached.data ? Promise.resolve(cached.data) : null;
-      return getCachedOrFetch('sensors', '/api/sensors', 5000).catch(err => {
+      return getCachedOrFetch('sensors', '/api/sensors', 1500).catch(err => {
         if (fallback) {
           if (VERBOSE) console.log('[PollingManager] Using stale sensors cache due to error');
           return fallback;

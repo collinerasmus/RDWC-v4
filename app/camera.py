@@ -8,7 +8,7 @@ import math
 from contextlib import suppress
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 
 class CameraManager:
@@ -38,6 +38,7 @@ class CameraManager:
     _exposure_alpha_max = float(os.environ.get("CAM_EXPOSURE_ALPHA_MAX", "1.10"))
 
     _store_dir = Path(__file__).resolve().parent.parent / "data" / "timelapse"
+    _render_dir = _store_dir / "_renders"
     _settings_path = _store_dir / "settings.json"
     _tl_lock = threading.Lock()
     _tl_stop = threading.Event()
@@ -170,6 +171,168 @@ class CameraManager:
     @classmethod
     def _ensure_store_dir(cls):
         cls._store_dir.mkdir(parents=True, exist_ok=True)
+        cls._render_dir.mkdir(parents=True, exist_ok=True)
+
+    @classmethod
+    def _parse_session_ts(cls, session_id: str) -> Optional[datetime]:
+        try:
+            stamp = str(session_id).split("_", 1)[0]
+            dt = datetime.strptime(stamp, "%Y%m%d-%H%M%S")
+            return dt.replace(tzinfo=timezone.utc)
+        except Exception:
+            return None
+
+    @classmethod
+    def _collect_timeline_frames(
+        cls,
+        days: int,
+        min_session_frames: int = 2,
+        max_frames: int = 4000,
+        session_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        cls._ensure_store_dir()
+
+        days = max(1, min(120, int(days)))
+        min_session_frames = max(1, min(100, int(min_session_frames)))
+        max_frames = max(50, min(20000, int(max_frames)))
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+        selected: List[Path] = []
+        skipped_sessions = 0
+        used_sessions = 0
+
+        if session_id:
+            dirs = [cls._store_dir / str(session_id)]
+        else:
+            dirs = sorted([p for p in cls._store_dir.iterdir() if p.is_dir()], key=lambda p: p.name)
+
+        for p in dirs:
+            if not p.exists() or not p.is_dir() or p.name.startswith("_"):
+                continue
+
+            stamp = cls._parse_session_ts(p.name)
+            if stamp is not None and stamp < cutoff and not session_id:
+                continue
+
+            frames = sorted(p.glob("frame_*.jpg"))
+            if not frames:
+                continue
+
+            if len(frames) < min_session_frames:
+                skipped_sessions += 1
+                continue
+
+            used_sessions += 1
+            selected.extend(frames)
+
+        selected.sort(key=lambda fp: fp.stat().st_mtime if fp.exists() else 0)
+
+        if not selected:
+            return {
+                "ok": False,
+                "error": "no_frames_in_window",
+                "days": days,
+                "used_sessions": used_sessions,
+                "skipped_sessions": skipped_sessions,
+            }
+
+        if len(selected) > max_frames:
+            step = len(selected) / float(max_frames)
+            sampled = []
+            i = 0.0
+            while int(i) < len(selected) and len(sampled) < max_frames:
+                sampled.append(selected[int(i)])
+                i += step
+            selected = sampled
+
+        return {
+            "ok": True,
+            "days": days,
+            "frames": selected,
+            "used_sessions": used_sessions,
+            "skipped_sessions": skipped_sessions,
+        }
+
+    @classmethod
+    def render_timeline_video(
+        cls,
+        days: int = 56,
+        output_fps: int = 24,
+        min_session_frames: int = 2,
+        max_frames: int = 4000,
+        session_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        if cls._cv2 is None and not cls._import_drivers():
+            return {"ok": False, "error": "opencv_unavailable"}
+
+        output_fps = max(12, min(60, int(output_fps)))
+        bundle = cls._collect_timeline_frames(
+            days=days,
+            min_session_frames=min_session_frames,
+            max_frames=max_frames,
+            session_id=session_id,
+        )
+        if not bundle.get("ok"):
+            return bundle
+
+        frames: List[Path] = bundle.get("frames", [])
+        if len(frames) < 2:
+            return {
+                "ok": False,
+                "error": "insufficient_frames",
+                "frames": len(frames),
+                "used_sessions": bundle.get("used_sessions", 0),
+                "skipped_sessions": bundle.get("skipped_sessions", 0),
+            }
+
+        cls._ensure_store_dir()
+        if session_id:
+            out_name = f"session_{str(session_id)}_{output_fps}fps.mp4"
+        else:
+            out_name = f"timeline_{int(bundle.get('days', days))}d_{output_fps}fps.mp4"
+        out_path = cls._render_dir / out_name
+
+        first = cls._cv2.imread(str(frames[0]))
+        if first is None:
+            return {"ok": False, "error": "first_frame_unreadable"}
+        h, w = first.shape[:2]
+        fourcc = cls._cv2.VideoWriter_fourcc(*"mp4v")
+        writer = cls._cv2.VideoWriter(str(out_path), fourcc, float(output_fps), (w, h))
+        if not writer.isOpened():
+            return {"ok": False, "error": "writer_open_failed"}
+
+        written = 0
+        try:
+            for fp in frames:
+                img = cls._cv2.imread(str(fp))
+                if img is None:
+                    continue
+                ih, iw = img.shape[:2]
+                if iw != w or ih != h:
+                    img = cls._cv2.resize(img, (w, h), interpolation=cls._cv2.INTER_AREA)
+                writer.write(img)
+                written += 1
+        finally:
+            writer.release()
+
+        if written < 2:
+            with suppress(Exception):
+                out_path.unlink(missing_ok=True)
+            return {"ok": False, "error": "render_failed", "frames_written": written}
+
+        return {
+            "ok": True,
+            "days": int(bundle.get("days", days)),
+            "fps": output_fps,
+            "frames_written": written,
+            "used_sessions": int(bundle.get("used_sessions", 0)),
+            "skipped_sessions": int(bundle.get("skipped_sessions", 0)),
+            "video": {
+                "name": out_name,
+                "path": str(out_path),
+                "url": f"/camera/timelapse/video/{out_name}",
+            },
+        }
 
     @classmethod
     def _load_settings(cls):

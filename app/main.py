@@ -4150,6 +4150,23 @@ def camera_timelapse_sessions(limit: int = Query(20, ge=1, le=100)):
     return {"items": CameraManager.list_sessions(limit=limit)}
 
 
+@app.get("/camera/timelapse/preview")
+def camera_timelapse_preview():
+    from app.camera import CameraManager
+    from pathlib import Path
+
+    status = CameraManager.timelapse_status()
+    last_frame = status.get("last_frame")
+    if not last_frame:
+        return JSONResponse(status_code=404, content={"ok": False, "error": "no_preview_available"})
+
+    frame_path = Path(str(last_frame))
+    if not frame_path.exists() or not frame_path.is_file():
+        return JSONResponse(status_code=404, content={"ok": False, "error": "preview_missing"})
+
+    return FileResponse(str(frame_path), media_type="image/jpeg", headers={"Cache-Control": "no-store, max-age=0"})
+
+
 @app.get("/camera/timelapse/insights")
 def camera_timelapse_insights(session_id: Optional[str] = Query(None), sample_frames: int = Query(8, ge=3, le=24)):
     from app.camera import CameraManager
@@ -4157,6 +4174,50 @@ def camera_timelapse_insights(session_id: Optional[str] = Query(None), sample_fr
     if not res.get("ok", False):
         return JSONResponse(status_code=400, content=res)
     return res
+
+
+@app.post("/camera/timelapse/render")
+def camera_timelapse_render(body: Optional[dict] = Body(default=None)):
+    from app.camera import CameraManager
+
+    payload = body or {}
+    days = int(payload.get("days", 56))
+    fps = int(payload.get("fps", 24))
+    min_session_frames = int(payload.get("min_session_frames", 2))
+    max_frames = int(payload.get("max_frames", 4000))
+    session_id = payload.get("session_id")
+
+    logger.info(f"Render request: days={days} fps={fps} payload={payload}")
+    
+    res = CameraManager.render_timeline_video(
+        days=days,
+        output_fps=fps,
+        min_session_frames=min_session_frames,
+        max_frames=max_frames,
+        session_id=session_id,
+    )
+    
+    logger.info(f"Render result: {res}")
+    
+    if not res.get("ok", False):
+        return JSONResponse(status_code=400, content=res)
+    return res
+
+
+@app.get("/camera/timelapse/video/{video_name}")
+def camera_timelapse_video(video_name: str):
+    from app.camera import CameraManager
+    from pathlib import Path
+
+    safe_name = Path(str(video_name)).name
+    if not safe_name.endswith(".mp4"):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "invalid_video_name"})
+
+    video_path = CameraManager._render_dir / safe_name
+    if not video_path.exists() or not video_path.is_file():
+        return JSONResponse(status_code=404, content={"ok": False, "error": "video_not_found"})
+
+    return FileResponse(str(video_path), media_type="video/mp4", headers={"Cache-Control": "no-store, max-age=0"})
 
 # --- Dose jog endpoint ---
 _jog_last = {}

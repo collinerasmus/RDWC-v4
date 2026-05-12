@@ -62,7 +62,7 @@
       this.isLiveMode = false;
       this.autoRefreshInterval = null;
       this.lastRefreshTime = 0;
-      this.MIN_REFRESH_INTERVAL = 5000; // 5 seconds minimum between refreshes
+      this.MIN_REFRESH_INTERVAL = 1500; // Keep charts feeling live without spamming the API
 
       // Data cache to prevent flickering
       this.cachedData = null;
@@ -296,7 +296,7 @@
      * Start auto-refresh
      */
     startAutoRefresh() {
-      // Refresh every 60 seconds
+      // Refresh every 5 seconds so target bands, event overlays, and logs stay current.
       this.autoRefreshInterval = setInterval(() => {
         if (!document.hidden) {
           // Slide window when on non-custom ranges or when explicitly in live mode
@@ -308,7 +308,7 @@
           }
           this.refresh();
         }
-      }, 60000);
+      }, 5000);
 
       console.log(`[ChartBase] ${this.type}: Auto-refresh started`);
     }
@@ -337,17 +337,25 @@
       const { temp, ec, ph, ts } = event.detail;
       const tsMs = new Date(ts).getTime();
 
+      if (this.selectedRange !== 'custom') {
+        const span = this.timeWindow.end - this.timeWindow.start;
+        this.timeWindow.end = tsMs;
+        this.timeWindow.start = tsMs - span;
+        this.chart.options.scales.x.min = this.timeWindow.start;
+        this.chart.options.scales.x.max = this.timeWindow.end;
+      }
+
       // Append to datasets
       this.chart.data.datasets.forEach(ds => {
         if (ds.id === 'ph' && ph != null) {
           ds.data.push({ x: tsMs, y: Number(ph) });
-          if (ds.data.length > 500) ds.data.shift();
+          while (ds.data.length && ds.data[0].x < this.timeWindow.start) ds.data.shift();
         } else if (ds.id === 'ec' && ec != null) {
           ds.data.push({ x: tsMs, y: Number(ec) });
-          if (ds.data.length > 500) ds.data.shift();
+          while (ds.data.length && ds.data[0].x < this.timeWindow.start) ds.data.shift();
         } else if (ds.id === 'temp' && temp != null) {
           ds.data.push({ x: tsMs, y: Number(temp) });
-          if (ds.data.length > 500) ds.data.shift();
+          while (ds.data.length && ds.data[0].x < this.timeWindow.start) ds.data.shift();
         }
       });
 
