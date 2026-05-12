@@ -201,7 +201,8 @@
         q.set('max', String(max));
 
         const trendsUrl = '/api/trends?' + q.toString();
-        const phDoseUrl = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=500`;
+        const phDoseLimit = hours <= 24 ? 2000 : (hours <= 168 ? 5000 : 20000);
+        const phDoseUrl = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=${phDoseLimit}`;
         const ecDoseUrl = `/api/dose/recent?hours=${Math.max(1, Math.ceil(hours))}`;
         const settingsHistoryUrl = `/api/settings/history?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
 
