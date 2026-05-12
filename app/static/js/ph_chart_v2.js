@@ -196,12 +196,30 @@
         const phFloor = phValues.length ? Math.min(...phValues) : 5.8;
         const phCeil = phValues.length ? Math.max(...phValues) : 6.2;
         const phSpanData = Math.max(phCeil - phFloor, 0);
-        const phPadding = Math.max(phSpanData * 0.12, 0.05);
+        const windowHours = Math.max((window.end - window.start) / (3600 * 1000), 0.01);
+
+        // Adaptive zoom: tighter for short windows, steadier for long windows.
+        let minSpan;
+        let minPad;
+        if (windowHours <= 1.5) {
+          minSpan = 0.06;
+          minPad = 0.012;
+        } else if (windowHours <= 24) {
+          minSpan = 0.10;
+          minPad = 0.018;
+        } else if (windowHours <= 168) {
+          minSpan = 0.16;
+          minPad = 0.025;
+        } else {
+          minSpan = 0.22;
+          minPad = 0.035;
+        }
+
+        const phPadding = Math.max(phSpanData * 0.10, minPad);
         let phMin = phFloor - phPadding;
         let phMax = phCeil + phPadding;
 
         // Keep a minimum visible span so axis doesn't jitter or over-zoom.
-        const minSpan = 0.30;
         if ((phMax - phMin) < minSpan) {
           const mid = (phMax + phMin) / 2;
           phMin = mid - (minSpan / 2);
