@@ -29,9 +29,9 @@ RDWC-v4 is a production-ready hydroponic automation system built on Raspberry Pi
 
 ## 🎯 Current Status
 
-**Project Phase**: Performance evaluation & production prototype operation  
+**Project Phase**: Final benchmark & production validation (Phase 1 complete)  
 **Commissioning**: ✅ Complete (Dec 2025)  
-**Next Milestone**: New grow cycle when seeds arrive
+**Code Review**: ✅ Complete (May 2026) — 209/209 tests passing, zero code duplication issues
 
 ### System Health
 - ✅ pH/EC auto-dosing with multi-layer safety guards
@@ -39,12 +39,14 @@ RDWC-v4 is a production-ready hydroponic automation system built on Raspberry Pi
 - ✅ Scheduled lighting with edge-only scheduler (18/6 veg, 12/12 flower)
 - ✅ Real-time sensor polling at 5-second intervals (headless systemd service)
 - ✅ Comprehensive dose event logging with blocked-by tracking
-- ✅ Chart aggregation + relay event timeline
+- ✅ Chart aggregation + relay event timeline with adaptive scaling
 - ✅ Modern responsive HMI with 10 specialized control tabs
+- ✅ Temperature compensation throttling (0.2°C / 60s threshold)
 
 **Uptime**: 24/7 autonomous operation since Dec 22, 2025  
-**Last Deploy**: 2025-12-22, commit `10f9812`  
-**Pi Host**: 192.168.88.55
+**Last Deploy**: 2026-05-12, commit `3baa14d` (Tighten adaptive scaling across all charts)  
+**Current Version**: 4.0.0 (v4.0-ph1-final)  
+**Pi Host**: 192.168.88.55:8080
 
 ---
 

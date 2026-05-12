@@ -245,6 +245,31 @@ def _startup_ph_auto():
         logger.warning(f"pH auto startup failed (non-fatal): {e}")
 
 @app.on_event("startup")
+def _startup_camera_timelapse():
+    """Auto-start camera timelapse if global auto is enabled."""
+    try:
+        from app.auto_control import is_global_auto_enabled
+        from app.camera import CameraManager
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        if is_global_auto_enabled():
+            # Camera will be initialized lazily; just call start_timelapse
+            # which will handle unavailable camera gracefully
+            result = CameraManager.start_timelapse()
+            if result.get("ok"):
+                logger.info("Camera timelapse auto-started on system startup")
+            else:
+                logger.debug(f"Camera timelapse auto-start skipped: {result.get('error', 'unknown')}")
+        else:
+            logger.debug("Camera timelapse auto-start skipped: global auto disabled")
+    except Exception as e:
+        from app.logger import get_logger
+        logger = get_logger()
+        logger.warning(f"Camera timelapse auto-start failed (non-fatal): {e}")
+
+@app.on_event("startup")
 def _startup_seed_lights_events():
     """Seed lights event log with historical data on startup."""
     try:
@@ -3910,14 +3935,37 @@ def api_auto_global_set(body: dict = Body(...)):
     """Set global automation master switch
     
     Body: {"enabled": true/false}
+    
+    When enabled=true:
+    - All controllers (pH, EC, chiller, lights, circulation) can run if individually enabled
+    - Camera timelapse auto-starts if available
+    
+    When enabled=false:
+    - All controllers stop (fail-safe)
+    - Camera timelapse stops
     """
     from app.auto_control import set_global_auto_enabled, get_auto_status
+    from app.camera import CameraManager
+    import logging
+    
+    logger = logging.getLogger(__name__)
     
     if not isinstance(body, dict) or "enabled" not in body:
         return {"ok": False, "error": "missing_enabled_field"}
     
     enabled = bool(body.get("enabled"))
     ok = set_global_auto_enabled(enabled)
+    
+    if ok:
+        # Auto-manage camera timelapse with global auto state
+        if enabled:
+            # Start timelapse when auto is enabled
+            cam_result = CameraManager.start_timelapse()
+            logger.info(f"Auto mode enabled: camera timelapse started (ok={cam_result.get('ok', False)})")
+        else:
+            # Stop timelapse when auto is disabled (fail-safe)
+            cam_result = CameraManager.stop_timelapse(reason="auto_mode_disabled")
+            logger.info(f"Auto mode disabled: camera timelapse stopped (ok={cam_result.get('ok', False)})")
     
     return {
         "ok": ok,

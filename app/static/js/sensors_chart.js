@@ -26,13 +26,7 @@
         // Determine granularity based on time span
         const span = new Date(endISO) - new Date(startISO);
         const hours = span / (3600 * 1000);
-        let gran, max;
-
-        if (hours <= 1) { gran = 30; max = 150; }      // 30s buckets
-        else if (hours <= 24) { gran = 60; max = 1500; } // 1min buckets
-        else if (hours <= 168) { gran = 300; max = 2100; } // 5min buckets  
-        else if (hours <= 720) { gran = 900; max = 3000; } // 15min buckets
-        else { gran = 3600; max = 3000; } // hourly buckets
+        const { gran, max } = window.calculateGranularity(hours);
 
         const q = new URLSearchParams();
         q.set('from', startISO);

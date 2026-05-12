@@ -33,6 +33,21 @@
   };
 
   /**
+   * Calculate API granularity and max points based on time span in hours
+   * Shared utility for all charts to ensure consistent query parameters
+   * 
+   * @param {number} hours - Time span in hours
+   * @returns {object} { gran: granularity in seconds, max: max points to fetch }
+   */
+  function calculateGranularity(hours) {
+    if (hours <= 1) { return { gran: 30, max: 150 }; }
+    else if (hours <= 24) { return { gran: 60, max: 1500 }; }
+    else if (hours <= 168) { return { gran: 300, max: 2100 }; }
+    else if (hours <= 720) { return { gran: 900, max: 3000 }; }
+    else { return { gran: 3600, max: 3000 }; }
+  }
+
+  /**
    * Create a chart instance with standard configuration
    */
   class RDWCChart {
@@ -391,6 +406,7 @@
   window.createTimeRangeSelector = createTimeRangeSelector;
   window.createCustomRangeInputs = createCustomRangeInputs;
   window.CHART_COLORS = COLORS;
+  window.calculateGranularity = calculateGranularity;
 
   console.log('[ChartBase] Module loaded');
 })();
