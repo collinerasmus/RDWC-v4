@@ -244,6 +244,18 @@
         const ec = (data?.trendsData?.series?.ec || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
         const temp = (data?.trendsData?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
 
+        // Restore temperature smoothing for readability across noisy probes.
+        const windowHoursForAvg = Math.max(1 / 60, (window.end - window.start) / 3600000);
+        let tempAvgWindowMs;
+        if (windowHoursForAvg <= 1) tempAvgWindowMs = 20 * 60 * 1000;
+        else if (windowHoursForAvg <= 6) tempAvgWindowMs = 45 * 60 * 1000;
+        else if (windowHoursForAvg <= 24) tempAvgWindowMs = 180 * 60 * 1000;
+        else if (windowHoursForAvg <= 168) tempAvgWindowMs = 720 * 60 * 1000;
+        else tempAvgWindowMs = 1440 * 60 * 1000;
+        // Two-pass moving average for stronger low-pass smoothing.
+        const tempSmoothed1 = buildMovingAverageSeries(temp, tempAvgWindowMs);
+        const tempSmoothed = buildMovingAverageSeries(tempSmoothed1, tempAvgWindowMs);
+
         const phDoseEvents = (data?.phDose || [])
           .map(e => ({ ts: new Date(e.ts).getTime(), volume_ml: e.volume_ml }))
           .filter(e => e.ts >= window.start && e.ts <= window.end);
@@ -434,10 +446,22 @@
         // Temp series
         if (temp.length) {
           datasets.push({
+            id: 'temp-raw',
+            yAxisID: 'yTemp',
+            label: 'Temp Raw',
+            data: temp,
+            borderWidth: 1,
+            borderColor: 'rgba(239,68,68,0.20)',
+            backgroundColor: 'rgba(239,68,68,0.20)',
+            pointRadius: 0,
+            spanGaps: true,
+            order: 1
+          });
+          datasets.push({
             id: 'temp',
             yAxisID: 'yTemp',
             label: 'Temperature',
-            data: temp,
+            data: tempSmoothed.length ? tempSmoothed : temp,
             borderWidth: 2,
             borderColor: 'rgba(239,68,68,0.95)',
             backgroundColor: 'rgba(239,68,68,0.95)',

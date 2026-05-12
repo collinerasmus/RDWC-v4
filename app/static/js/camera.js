@@ -21,6 +21,8 @@
     recommendation: null,
     sessions: [],
     playbackUrl: null,
+    countdownTimer: null,
+    nextCaptureAtMs: null,
   };
 
   const el = (id) => document.getElementById(id);
@@ -172,10 +174,37 @@
   function startHealthPolling(){
     stopHealthPolling();
     state.healthTimer = setInterval(function(){
-      applyCameraMode().catch(function(e){
+      Promise.all([
+        fetchTimelapseStatus().then(function(st){ if (st) renderTimelapseStatus(st); }),
+        applyCameraMode(),
+      ]).catch(function(e){
         setTimelapseNote('Camera check failed: ' + (e && e.message ? e.message : 'request error'));
       });
     }, 5000);
+  }
+
+  function stopCountdownTimer(){
+    if (state.countdownTimer) {
+      clearInterval(state.countdownTimer);
+      state.countdownTimer = null;
+    }
+  }
+
+  function updateNextCaptureCountdown(){
+    const nextEl = el('camera-next-capture');
+    if (!nextEl) return;
+    if (!state.timelapse || !state.timelapse.running || !state.nextCaptureAtMs) {
+      nextEl.textContent = '\u2014';
+      return;
+    }
+    const remaining = Math.max(0, Math.ceil((state.nextCaptureAtMs - Date.now()) / 1000));
+    nextEl.textContent = remaining + 's';
+  }
+
+  function startCountdownTimer(){
+    stopCountdownTimer();
+    state.countdownTimer = setInterval(updateNextCaptureCountdown, 1000);
+    updateNextCaptureCountdown();
   }
 
   async function fetchTimelapseStatus(){
@@ -209,7 +238,20 @@
     }
     if (countEl) countEl.textContent = String(st.frame_count || 0);
     if (skippedEl) skippedEl.textContent = String(st.skipped_captures || 0);
-    if (nextEl) nextEl.textContent = st.running ? ((st.next_capture_in_s ?? '\u2014') + 's') : '\u2014';
+    if (st.running) {
+      if (st.next_capture_ts) {
+        state.nextCaptureAtMs = Number(st.next_capture_ts) * 1000;
+      } else if (st.next_capture_in_s !== null && st.next_capture_in_s !== undefined) {
+        state.nextCaptureAtMs = Date.now() + Number(st.next_capture_in_s) * 1000;
+      } else {
+        state.nextCaptureAtMs = null;
+      }
+      startCountdownTimer();
+    } else {
+      state.nextCaptureAtMs = null;
+      stopCountdownTimer();
+      if (nextEl) nextEl.textContent = '\u2014';
+    }
     if (lastEl) lastEl.textContent = st.last_capture_ts ? fmtAgo(st.last_capture_ts) : '\u2014';
     if (policyEl) {
       if (st.lights_on_only) {
@@ -545,6 +587,7 @@
     } else {
       stopHealthPolling();
       stopSnapshotTimer();
+      stopCountdownTimer();
       usePlaceholder('Open Camera tab to start feed');
     }
   }

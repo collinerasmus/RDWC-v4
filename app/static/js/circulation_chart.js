@@ -55,8 +55,8 @@
       if (customRange) { start = customRange.start; end = customRange.end; }
 
       const [mainRes, chillerRes] = await Promise.all([
-        fetch(`/api/relays/events?name=main_pump&last=500`, { cache: 'no-store' }),
-        fetch(`/api/relays/events?name=chiller_pump&last=500`, { cache: 'no-store' })
+        fetch(`/api/relays/events?name=main_pump&last=5000`, { cache: 'no-store' }),
+        fetch(`/api/relays/events?name=chiller_pump&last=5000`, { cache: 'no-store' })
       ]);
 
       const processPump = async (res, pumpLabel) => {
@@ -67,17 +67,32 @@
           
           const sorted = events
             .map(e => ({ ...e, ts: new Date(e.ts).getTime() }))
-            .sort((a, b) => a.ts - b.ts)
-            .filter(e => e.ts >= start && e.ts <= end);
+            .sort((a, b) => a.ts - b.ts);
 
           const bars = [];
+          let onStart = null;
           for (let i = 0; i < sorted.length; i++) {
-            if (sorted[i].final === true && sorted[i + 1]) {
-              const dur = (sorted[i + 1].ts - sorted[i].ts) / 1000;
-              bars.push({ x: [sorted[i].ts, sorted[i + 1].ts], y: pumpLabel, duration: formatDuration(dur) });
-            } else if (sorted[i].final === true && i === sorted.length - 1) {
-              const dur = (end - sorted[i].ts) / 1000;
-              bars.push({ x: [sorted[i].ts, end], y: pumpLabel, duration: formatDuration(dur) });
+            const evt = sorted[i];
+            if (evt.final === true) {
+              if (onStart === null) onStart = evt.ts;
+              continue;
+            }
+            if (evt.final === false && onStart !== null) {
+              const segStart = Math.max(onStart, start);
+              const segEnd = Math.min(evt.ts, end);
+              if (segEnd > segStart) {
+                const dur = (segEnd - segStart) / 1000;
+                bars.push({ x: [segStart, segEnd], y: pumpLabel, duration: formatDuration(dur) });
+              }
+              onStart = null;
+            }
+          }
+          if (onStart !== null) {
+            const segStart = Math.max(onStart, start);
+            const segEnd = end;
+            if (segEnd > segStart) {
+              const dur = (segEnd - segStart) / 1000;
+              bars.push({ x: [segStart, segEnd], y: pumpLabel, duration: formatDuration(dur) });
             }
           }
           return bars;
