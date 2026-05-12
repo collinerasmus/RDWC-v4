@@ -125,7 +125,8 @@
         const datasets = [];
 
         // 1. pH setpoint band (box annotation)
-        if (phLow && phHigh) {
+        const hasBand = Number.isFinite(phLow) && Number.isFinite(phHigh) && phHigh > phLow;
+        if (hasBand) {
           datasets.push({
             type: 'line',
             label: 'pH Target Band',
@@ -185,9 +186,42 @@
           });
         }
 
-        // 4. Dose events as triangles (use event ts; place near top of band)
+        // Auto-scale the pH tab tightly to visible data and target band.
+        // Dose markers are added after range selection so they remain in a fixed lane.
+        const phValues = ph.map(point => point.y).filter(Number.isFinite);
+        if (Number.isFinite(currentPH)) phValues.push(currentPH);
+        if (Number.isFinite(phLow)) phValues.push(phLow);
+        if (Number.isFinite(phHigh)) phValues.push(phHigh);
+
+        const phFloor = phValues.length ? Math.min(...phValues) : 5.8;
+        const phCeil = phValues.length ? Math.max(...phValues) : 6.2;
+        const phSpanData = Math.max(phCeil - phFloor, 0);
+        const phPadding = Math.max(phSpanData * 0.12, 0.05);
+        let phMin = phFloor - phPadding;
+        let phMax = phCeil + phPadding;
+
+        // Keep a minimum visible span so axis doesn't jitter or over-zoom.
+        const minSpan = 0.30;
+        if ((phMax - phMin) < minSpan) {
+          const mid = (phMax + phMin) / 2;
+          phMin = mid - (minSpan / 2);
+          phMax = mid + (minSpan / 2);
+        }
+
+        if (!chart.options.scales.y) {
+          chart.options.scales.y = {
+            type: 'linear',
+            title: { display: true, text: 'pH' },
+            grid: { color: 'rgba(148,163,184,0.12)' }
+          };
+        }
+        chart.options.scales.y.min = phMin;
+        chart.options.scales.y.max = phMax;
+
+        // 4. Dose events as triangles in a fixed top lane tied to chart range.
         if (doseEvents.length) {
-          const doseY = (phHigh != null && !Number.isNaN(phHigh)) ? (phHigh + 0.3) : 6.6;
+          const span = Math.max(phMax - phMin, 0.001);
+          const doseY = phMax - (span * 0.075); // top ~1/8 lane
           datasets.push({
             type: 'scatter',
             label: `pH Up Doses (${doseEvents.length})`,
@@ -201,32 +235,6 @@
             order: 2
           });
         }
-
-        // Auto-scale the pH tab tightly to visible data, target band, and dose markers.
-        const phValues = ph.map(point => point.y).filter(Number.isFinite);
-        if (Number.isFinite(currentPH)) phValues.push(currentPH);
-        if (Number.isFinite(phLow)) phValues.push(phLow);
-        if (Number.isFinite(phHigh)) phValues.push(phHigh);
-        if (doseEvents.length) {
-          const doseY = (phHigh != null && !Number.isNaN(phHigh)) ? (phHigh + 0.3) : 6.6;
-          if (Number.isFinite(doseY)) phValues.push(doseY);
-        }
-
-        const phFloor = phValues.length ? Math.min(...phValues) : 5.8;
-        const phCeil = phValues.length ? Math.max(...phValues) : 6.2;
-        const phPadding = Math.max((phCeil - phFloor) * 0.12, 0.05);
-        const phMin = phFloor - phPadding;
-        const phMax = phCeil + phPadding;
-
-        if (!chart.options.scales.y) {
-          chart.options.scales.y = {
-            type: 'linear',
-            title: { display: true, text: 'pH' },
-            grid: { color: 'rgba(148,163,184,0.12)' }
-          };
-        }
-        chart.options.scales.y.min = phMin;
-        chart.options.scales.y.max = phMax;
 
         return datasets;
       }
