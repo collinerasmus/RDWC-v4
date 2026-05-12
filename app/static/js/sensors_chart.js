@@ -73,11 +73,11 @@
         const ec = (data?.series?.ec || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
         const temp = (data?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
 
-        // Preferred axis ranges with auto-expansion
-        const PREF = {
-          ph: { min: 5.0, max: 7.8 },
-          ec: { min: 0.0, max: 3.0 },
-          temp: { min: 0.0, max: 26.0 }  // Extended range as requested
+        // Tight dynamic axis scaling so small sensor changes remain visible.
+        const AXIS_CFG = {
+          ph: { fallback: { min: 5.5, max: 6.5 }, minSpan: 0.35, padRatio: 0.12 },
+          ec: { fallback: { min: 1.5, max: 2.5 }, minSpan: 0.25, padRatio: 0.12, hardMin: 0 },
+          temp: { fallback: { min: 17.0, max: 19.5 }, minSpan: 0.8, padRatio: 0.14 }
         };
 
         function dataMinMax(series) {
@@ -91,24 +91,32 @@
           return (Number.isFinite(lo) && Number.isFinite(hi)) ? { lo, hi } : null;
         }
 
-        function chooseAxis(pref, series) {
+        function chooseAxis(cfg, series) {
           const mm = dataMinMax(series);
-          if (!mm) return pref;
+          if (!mm) return cfg.fallback;
 
-          // Expand if data is out of preferred range
-          if (mm.lo < pref.min || mm.hi > pref.max) {
-            const pad = (mm.hi - mm.lo) * 0.05;
-            return {
-              min: Math.min(mm.lo - pad, pref.min),
-              max: Math.max(mm.hi + pad, pref.max)
-            };
+          const rawSpan = Math.max(mm.hi - mm.lo, 0);
+          const pad = Math.max(rawSpan * cfg.padRatio, cfg.minSpan * 0.25);
+          let min = mm.lo - pad;
+          let max = mm.hi + pad;
+
+          // Keep a minimum visible span to avoid jittery over-zooming.
+          if ((max - min) < cfg.minSpan) {
+            const mid = (min + max) / 2;
+            min = mid - (cfg.minSpan / 2);
+            max = mid + (cfg.minSpan / 2);
           }
-          return pref;
+
+          if (Number.isFinite(cfg.hardMin)) {
+            min = Math.max(cfg.hardMin, min);
+          }
+
+          return { min, max };
         }
 
-        const aPh = chooseAxis(PREF.ph, ph);
-        const aEc = chooseAxis(PREF.ec, ec);
-        const aTemp = chooseAxis(PREF.temp, temp);
+        const aPh = chooseAxis(AXIS_CFG.ph, ph);
+        const aEc = chooseAxis(AXIS_CFG.ec, ec);
+        const aTemp = chooseAxis(AXIS_CFG.temp, temp);
 
         // Create or update y-axes with improved positioning
         // pH on left, EC and Temp stacked on right with offset
