@@ -132,7 +132,8 @@
         const datasets = [];
 
         // 1. Temperature setpoint band
-        if (tempLow && tempHigh) {
+        const hasBand = Number.isFinite(tempLow) && Number.isFinite(tempHigh) && tempHigh > tempLow;
+        if (hasBand) {
           datasets.push({
             type: 'line',
             label: 'Temp Target Band',
@@ -194,8 +195,56 @@
 
         // 4. Cooler ON events as markers
         const coolerOnEvents = coolerEvents.filter(e => e.state === 'ON');
+
+        // Tight adaptive scaling by visible temperature data + target band.
+        const tempValues = temp.map(point => point.y).filter(Number.isFinite);
+        if (Number.isFinite(currentTemp)) tempValues.push(currentTemp);
+        if (hasBand) tempValues.push(tempLow, tempHigh);
+
+        const tempFloor = tempValues.length ? Math.min(...tempValues) : 18.0;
+        const tempCeil = tempValues.length ? Math.max(...tempValues) : 19.0;
+        const tempSpanData = Math.max(tempCeil - tempFloor, 0);
+        const windowHours = Math.max((window.end - window.start) / (3600 * 1000), 0.01);
+
+        let minSpan;
+        let minPad;
+        if (windowHours <= 1.5) {
+          minSpan = 0.25;
+          minPad = 0.05;
+        } else if (windowHours <= 24) {
+          minSpan = 0.45;
+          minPad = 0.08;
+        } else if (windowHours <= 168) {
+          minSpan = 0.90;
+          minPad = 0.14;
+        } else {
+          minSpan = 1.40;
+          minPad = 0.22;
+        }
+
+        const tempPadding = Math.max(tempSpanData * 0.10, minPad);
+        let tempMin = tempFloor - tempPadding;
+        let tempMax = tempCeil + tempPadding;
+        if ((tempMax - tempMin) < minSpan) {
+          const mid = (tempMax + tempMin) / 2;
+          tempMin = mid - (minSpan / 2);
+          tempMax = mid + (minSpan / 2);
+        }
+
+        if (!chart.options.scales.y) {
+          chart.options.scales.y = {
+            type: 'linear',
+            title: { display: true, text: 'Temperature (°C)' },
+            grid: { color: 'rgba(148,163,184,0.12)' }
+          };
+        }
+        chart.options.scales.y.min = tempMin;
+        chart.options.scales.y.max = tempMax;
+
+        // Anchor cooler markers to a fixed bottom lane of the chart range.
         if (coolerOnEvents.length) {
-          const markerY = tempLow - 1.0; // Below target band
+          const span = Math.max(tempMax - tempMin, 0.001);
+          const markerY = tempMin + (span * 0.08);
           datasets.push({
             type: 'scatter',
             label: `Cooler ON (${coolerOnEvents.length})`,
@@ -209,20 +258,6 @@
             order: 2
           });
         }
-
-        // Set fixed y-axis (temperature range)
-        const tempMin = Math.min(tempLow - 2.0, 16.0);
-        const tempMax = Math.max(tempHigh + 2.0, 28.0);
-
-        if (!chart.options.scales.y) {
-          chart.options.scales.y = {
-            type: 'linear',
-            title: { display: true, text: 'Temperature (°C)' },
-            grid: { color: 'rgba(148,163,184,0.12)' }
-          };
-        }
-        chart.options.scales.y.min = tempMin;
-        chart.options.scales.y.max = tempMax;
 
         return datasets;
       }

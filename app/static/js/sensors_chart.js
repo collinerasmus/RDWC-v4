@@ -74,11 +74,34 @@
         const temp = (data?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
 
         // Tight dynamic axis scaling so small sensor changes remain visible.
-        const AXIS_CFG = {
-          ph: { fallback: { min: 5.5, max: 6.5 }, minSpan: 0.35, padRatio: 0.12 },
-          ec: { fallback: { min: 1.5, max: 2.5 }, minSpan: 0.25, padRatio: 0.12, hardMin: 0 },
-          temp: { fallback: { min: 17.0, max: 19.5 }, minSpan: 0.8, padRatio: 0.14 }
-        };
+        // Use tighter spans on shorter windows and steadier spans on longer windows.
+        const windowHours = Math.max((window.end - window.start) / (3600 * 1000), 0.01);
+        let AXIS_CFG;
+        if (windowHours <= 1.5) {
+          AXIS_CFG = {
+            ph: { fallback: { min: 5.75, max: 5.90 }, minSpan: 0.06, padRatio: 0.08 },
+            ec: { fallback: { min: 1.95, max: 2.15 }, minSpan: 0.08, padRatio: 0.08, hardMin: 0 },
+            temp: { fallback: { min: 17.5, max: 18.6 }, minSpan: 0.25, padRatio: 0.08 }
+          };
+        } else if (windowHours <= 24) {
+          AXIS_CFG = {
+            ph: { fallback: { min: 5.70, max: 5.95 }, minSpan: 0.12, padRatio: 0.10 },
+            ec: { fallback: { min: 1.90, max: 2.20 }, minSpan: 0.14, padRatio: 0.10, hardMin: 0 },
+            temp: { fallback: { min: 17.0, max: 19.0 }, minSpan: 0.45, padRatio: 0.10 }
+          };
+        } else if (windowHours <= 168) {
+          AXIS_CFG = {
+            ph: { fallback: { min: 5.60, max: 6.05 }, minSpan: 0.20, padRatio: 0.12 },
+            ec: { fallback: { min: 1.70, max: 2.35 }, minSpan: 0.25, padRatio: 0.12, hardMin: 0 },
+            temp: { fallback: { min: 16.5, max: 20.0 }, minSpan: 0.80, padRatio: 0.12 }
+          };
+        } else {
+          AXIS_CFG = {
+            ph: { fallback: { min: 5.50, max: 6.20 }, minSpan: 0.30, padRatio: 0.14 },
+            ec: { fallback: { min: 1.50, max: 2.60 }, minSpan: 0.35, padRatio: 0.14, hardMin: 0 },
+            temp: { fallback: { min: 16.0, max: 21.0 }, minSpan: 1.20, padRatio: 0.14 }
+          };
+        }
 
         function dataMinMax(series) {
           let lo = Infinity, hi = -Infinity;

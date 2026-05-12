@@ -167,12 +167,60 @@
           });
         }
 
-        // 4. Dose events (stacked vertically)
-        const doseBase = hasValidBand ? ecHigh : (ec.length ? (Math.max(...ec.map(p => p.y))) : 1.0);
+        // Auto-scale the EC tab tightly to visible data and target band.
+        // Dose markers are positioned after axis is selected to keep them in a fixed lane.
+        const ecValues = ec.map(point => point.y).filter(Number.isFinite);
+        if (Number.isFinite(currentEC)) ecValues.push(currentEC);
+        if (hasValidBand) {
+          ecValues.push(ecLow, ecHigh);
+        }
+
+        const ecFloor = ecValues.length ? Math.min(...ecValues) : 1.0;
+        const ecCeil = ecValues.length ? Math.max(...ecValues) : 2.0;
+        const ecSpanData = Math.max(ecCeil - ecFloor, 0);
+        const windowHours = Math.max((window.end - window.start) / (3600 * 1000), 0.01);
+
+        let minSpan;
+        let minPad;
+        if (windowHours <= 1.5) {
+          minSpan = 0.10;
+          minPad = 0.015;
+        } else if (windowHours <= 24) {
+          minSpan = 0.16;
+          minPad = 0.025;
+        } else if (windowHours <= 168) {
+          minSpan = 0.28;
+          minPad = 0.04;
+        } else {
+          minSpan = 0.40;
+          minPad = 0.06;
+        }
+
+        const ecPadding = Math.max(ecSpanData * 0.10, minPad);
+        let ecMin = Math.max(0, ecFloor - ecPadding);
+        let ecMax = ecCeil + ecPadding;
+        if ((ecMax - ecMin) < minSpan) {
+          const mid = (ecMax + ecMin) / 2;
+          ecMin = Math.max(0, mid - (minSpan / 2));
+          ecMax = ecMin + minSpan;
+        }
+
+        if (!chart.options.scales.y) {
+          chart.options.scales.y = {
+            type: 'linear',
+            title: { display: true, text: 'EC (mS/cm)' },
+            grid: { color: 'rgba(148,163,184,0.12)' }
+          };
+        }
+        chart.options.scales.y.min = ecMin;
+        chart.options.scales.y.max = ecMax;
+
+        // 4. Dose events in fixed top-lane positions tied to chart range.
+        const span = Math.max(ecMax - ecMin, 0.001);
         const doseY = [
-          doseBase + 0.3,  // grow (top)
-          doseBase + 0.2,  // micro
-          doseBase + 0.1   // bloom (bottom)
+          ecMax - (span * 0.020),  // grow (top)
+          ecMax - (span * 0.060),  // micro
+          ecMax - (span * 0.100)   // bloom (bottom)
         ];
 
         if (growEvents.length) {
@@ -219,32 +267,6 @@
             order: 2
           });
         }
-
-        // Auto-scale the EC tab tightly to visible data, target band, and dose markers.
-        const ecValues = ec.map(point => point.y).filter(Number.isFinite);
-        if (Number.isFinite(currentEC)) ecValues.push(currentEC);
-        if (hasValidBand) {
-          ecValues.push(ecLow, ecHigh);
-        }
-        doseY.forEach(value => {
-          if (Number.isFinite(value)) ecValues.push(value);
-        });
-
-        const ecFloor = ecValues.length ? Math.min(...ecValues) : 1.0;
-        const ecCeil = ecValues.length ? Math.max(...ecValues) : 2.0;
-        const ecPadding = Math.max((ecCeil - ecFloor) * 0.12, 0.05);
-        const ecMin = Math.max(0, ecFloor - ecPadding);
-        const ecMax = ecCeil + ecPadding;
-
-        if (!chart.options.scales.y) {
-          chart.options.scales.y = {
-            type: 'linear',
-            title: { display: true, text: 'EC (mS/cm)' },
-            grid: { color: 'rgba(148,163,184,0.12)' }
-          };
-        }
-        chart.options.scales.y.min = ecMin;
-        chart.options.scales.y.max = ecMax;
 
         return datasets;
       }
