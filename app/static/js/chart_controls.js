@@ -40,7 +40,7 @@
       console.log('[ChartControls] Container found, calling render()');
       
       this.render();
-      this.updateRange();
+      this.updateRange(true);
     }
 
     render() {
@@ -212,7 +212,7 @@
       this.updateRange();
     }
 
-    updateRange() {
+    updateRange(silent = false) {
       const zoom = ZOOM_LEVELS[this.currentZoomIndex];
       const now = Date.now();
       let start, end;
@@ -258,13 +258,13 @@
       this.updateUI();
       this.updateRangeDisplay(start, end);
       // Trigger callback
-      if (this.onRangeChange) {
+      if (!silent && this.onRangeChange) {
         this.onRangeChange(start, end, this.isLiveMode);
       }
     }
 
     // Apply a specific range directly (used by pan operations)
-    applyRange(start, end, isLive = false) {
+    applyRange(start, end, isLive = false, silent = false) {
       this.isLiveMode = !!isLive;
       this.currentStart = start;
       this.currentEnd = end;
@@ -284,7 +284,7 @@
       }
       this.updateUI();
       this.updateRangeDisplay(start, end);
-      if (this.onRangeChange) {
+      if (!silent && this.onRangeChange) {
         this.onRangeChange(start, end, this.isLiveMode);
       }
     }

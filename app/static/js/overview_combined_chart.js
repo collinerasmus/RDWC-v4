@@ -663,7 +663,7 @@
     const now = Date.now();
     chart.timeWindow = { start: now - 60 * 60 * 1000, end: now };
     chart.selectedRange = 'custom';
-    chart.isLiveMode = true;
+    chart.isLiveMode = false;
     formatRangeLabel(chart.timeWindow.start, chart.timeWindow.end);
     chart.refresh(true);
 
@@ -693,7 +693,7 @@
         getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
       });
       // Seed controls to 1-hour live view
-      controls.applyRange(chart.timeWindow.start, chart.timeWindow.end, true);
+      controls.applyRange(chart.timeWindow.start, chart.timeWindow.end, false, true);
     }
 
     window.overviewCombinedChart = chart;
