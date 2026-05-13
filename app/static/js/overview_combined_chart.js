@@ -281,6 +281,11 @@
         const tempSettings = data?.settings?.temperature || {};
         const phStatusTargets = data?.phStatus?.targets || {};
         const tempStatus = data?.tempStatus || {};
+        const settingsHistorySeries = buildSettingsHistorySeries(
+          data?.settingsHistory || [],
+          ['targets.ph_low', 'targets.ph_high', 'targets.ec_low', 'targets.ec_high'],
+          window
+        );
         console.log('[Overview Combined] Targets from settings:', targets);
         console.log('[Overview Combined] pH controller targets:', phStatusTargets);
         
@@ -288,17 +293,22 @@
         const phLowCurrent = parseFloat(phStatusTargets.low);
         const phHighCurrent = parseFloat(phStatusTargets.high);
         
-        // pH band is horizontal at controller's current values
+        // pH band: prefer logged setpoint history; fallback to current controller values.
         let phLowData, phHighData;
-        if (Number.isFinite(phLowCurrent) && Number.isFinite(phHighCurrent)) {
+        const phLowHist = settingsHistorySeries['targets.ph_low'] || [];
+        const phHighHist = settingsHistorySeries['targets.ph_high'] || [];
+        if (phLowHist.length && phHighHist.length) {
+          phLowData = phLowHist;
+          phHighData = phHighHist;
+        } else if (Number.isFinite(phLowCurrent) && Number.isFinite(phHighCurrent)) {
           phLowData = [ { x: window.start, y: phLowCurrent }, { x: window.end, y: phLowCurrent } ];
           phHighData = [ { x: window.start, y: phHighCurrent }, { x: window.end, y: phHighCurrent } ];
-          console.log('[Overview Combined] pH band data created:', { phLowData, phHighData });
         } else {
           phLowData = [];
           phHighData = [];
           console.warn('[Overview Combined] pH targets not finite, skipping band');
         }
+        console.log('[Overview Combined] pH band data created:', { phLowData, phHighData });
         
         // Prefer live EC targets from controller status (scheduler-derived), fallback to settings
         const ecLowLive = parseFloat(ecStatusTargets.low);
@@ -307,7 +317,9 @@
         const ecHighSettings = parseFloat(targets['ec_high']);
         const ecLow = Number.isFinite(ecLowLive) ? ecLowLive : ecLowSettings;
         const ecHigh = Number.isFinite(ecHighLive) ? ecHighLive : ecHighSettings;
-        const hasEcBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh);
+        const ecLowHist = settingsHistorySeries['targets.ec_low'] || [];
+        const ecHighHist = settingsHistorySeries['targets.ec_high'] || [];
+        const hasEcBand = (ecLowHist.length && ecHighHist.length) || (Number.isFinite(ecLow) && Number.isFinite(ecHigh));
         console.log('[Overview Combined] EC band:', { ecLow, ecHigh, hasEcBand });
         console.log('[Overview Combined] pH band:', { phLowCurrent, phHighCurrent });
 
@@ -375,8 +387,12 @@
 
         // EC band - static from current settings
         if (hasEcBand) {
-          const ecLowData = [ { x: window.start, y: ecLow }, { x: window.end, y: ecLow } ];
-          const ecHighData = [ { x: window.start, y: ecHigh }, { x: window.end, y: ecHigh } ];
+          const ecLowData = (ecLowHist.length && ecHighHist.length)
+            ? ecLowHist
+            : [ { x: window.start, y: ecLow }, { x: window.end, y: ecLow } ];
+          const ecHighData = (ecLowHist.length && ecHighHist.length)
+            ? ecHighHist
+            : [ { x: window.start, y: ecHigh }, { x: window.end, y: ecHigh } ];
           datasets.push({
             type: 'line',
             yAxisID: 'yEc',
@@ -572,8 +588,10 @@
 
         const windowHours = Math.max(1 / 60, (window.end - window.start) / 3600000);
 
-        const phBandLow = Number.isFinite(phLowCurrent) ? phLowCurrent : undefined;
-        const phBandHigh = Number.isFinite(phHighCurrent) ? phHighCurrent : undefined;
+        const phBandLows = phLowData.map(p => Number(p.y)).filter(Number.isFinite);
+        const phBandHighs = phHighData.map(p => Number(p.y)).filter(Number.isFinite);
+        const phBandLow = phBandLows.length ? Math.min(...phBandLows) : (Number.isFinite(phLowCurrent) ? phLowCurrent : undefined);
+        const phBandHigh = phBandHighs.length ? Math.max(...phBandHighs) : (Number.isFinite(phHighCurrent) ? phHighCurrent : undefined);
         const phRange = computeAdaptiveAxisRange(phVals, phBandLow, phBandHigh, windowHours, {
           hourSpan: 0.06,
           hourPad: 0.015,
@@ -587,8 +605,10 @@
           zeroFloor: false
         });
 
-        const ecBandLow = Number.isFinite(ecLow) ? ecLow : undefined;
-        const ecBandHigh = Number.isFinite(ecHigh) ? ecHigh : undefined;
+        const ecBandLows = (ecLowHist.length ? ecLowHist : []).map(p => Number(p.y)).filter(Number.isFinite);
+        const ecBandHighs = (ecHighHist.length ? ecHighHist : []).map(p => Number(p.y)).filter(Number.isFinite);
+        const ecBandLow = ecBandLows.length ? Math.min(...ecBandLows) : (Number.isFinite(ecLow) ? ecLow : undefined);
+        const ecBandHigh = ecBandHighs.length ? Math.max(...ecBandHighs) : (Number.isFinite(ecHigh) ? ecHigh : undefined);
         const ecRange = computeAdaptiveAxisRange(ecVals, ecBandLow, ecBandHigh, windowHours, {
           hourSpan: 0.10,
           hourPad: 0.02,
