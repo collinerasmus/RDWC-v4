@@ -5,6 +5,12 @@
 (function() {
   'use strict';
 
+  if (window.__lightsChartModuleLoaded) {
+    console.log('[LightsChart] Module already loaded; skipping duplicate init');
+    return;
+  }
+  window.__lightsChartModuleLoaded = true;
+
   let chart = null;
   let chartHours = 6;
   let customRange = null;
@@ -94,7 +100,10 @@
   window.setLightsChartRange = (s, e) => { customRange = { start: s, end: e }; refresh(); };
 
   // Auto-refresh every 5 seconds to keep chart live
-  setInterval(refresh, 5000);
+  if (window.__lightsChartRefreshTimer) {
+    clearInterval(window.__lightsChartRefreshTimer);
+  }
+  window.__lightsChartRefreshTimer = setInterval(refresh, 5000);
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initChart);
   else setTimeout(initChart, 500);

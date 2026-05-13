@@ -154,26 +154,36 @@
     }
 
     // ===== LIGHTS CHART =====
-    // lights_v2.js exposes window.lightsChart with setLightsChartRange for panning
-    if (document.getElementById('lights-chart-controls')) {
-      if (window.lightsChart && window.setLightsChartRange) {
-        const lightsControls = new ChartControls({
-          containerId: 'lights-chart-controls',
-          onRangeChange: async (start, end) => {
-            console.log('[Chart Adapter] Lights range changed:', start, end);
-            try {
-              window.setLightsChartRange(start, end);
-            } catch (e) {
-              console.error('[Chart Adapter] Lights chart update failed:', e);
-            }
-          },
-          getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
-        });
-        console.log('[Chart Adapter] Lights controls initialized');
+    // lights_chart.js exposes window.lightsChart + window.setLightsChartRange
+    function initLightsControls(attempts = 0) {
+      const container = document.getElementById('lights-chart-controls');
+      if (!container) return;
+
+      if (typeof window.setLightsChartRange === 'function' && window.lightsChart) {
+        try {
+          const lightsControls = new ChartControls({
+            containerId: 'lights-chart-controls',
+            onRangeChange: async (start, end) => {
+              console.log('[Chart Adapter] Lights range changed:', start, end);
+              try {
+                window.setLightsChartRange(start, end);
+              } catch (e) {
+                console.error('[Chart Adapter] Lights chart update failed:', e);
+              }
+            },
+            getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
+          });
+          console.log('[Chart Adapter] Lights controls initialized');
+        } catch (e) {
+          console.error('[Chart Adapter] Failed to create ChartControls for lights:', e.message);
+        }
+      } else if (attempts < 50) {
+        setTimeout(() => initLightsControls(attempts + 1), 200);
       } else {
-        console.warn('[Chart Adapter] Lights chart controls div found but window.lightsChart not ready');
+        console.error('[Chart Adapter] Lights chart functions not ready after retries');
       }
     }
+    initLightsControls();
 
     // ===== CIRCULATION CHART =====
     // circulation_v2.js initializes window.circChart (direct Chart.js, like lights)

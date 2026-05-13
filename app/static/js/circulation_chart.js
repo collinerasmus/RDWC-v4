@@ -5,6 +5,12 @@
 (function() {
   'use strict';
 
+  if (window.__circChartModuleLoaded) {
+    console.log('[CircChart] Module already loaded; skipping duplicate init');
+    return;
+  }
+  window.__circChartModuleLoaded = true;
+
   let chart = null;
   let chartHours = 6;
   let customRange = null;
@@ -123,7 +129,10 @@
   window.setCircChartRange = (s, e) => { customRange = { start: s, end: e }; refresh(); };
 
   // Auto-refresh every 5 seconds to keep chart live
-  setInterval(refresh, 5000);
+  if (window.__circChartRefreshTimer) {
+    clearInterval(window.__circChartRefreshTimer);
+  }
+  window.__circChartRefreshTimer = setInterval(refresh, 5000);
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initChart);
   else setTimeout(initChart, 500);
