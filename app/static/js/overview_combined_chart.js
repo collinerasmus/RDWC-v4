@@ -631,20 +631,31 @@
           axisCache.temp.max = Math.max(axisCache.temp.max, tempRange.max);
         }
 
-        const phMin = axisCache.ph.min;
-        const phMax = axisCache.ph.max;
+        let phMin = axisCache.ph.min;
+        let phMax = axisCache.ph.max;
         let ecMin = axisCache.ec.min;
-        const ecMax = axisCache.ec.max;
+        let ecMax = axisCache.ec.max;
         const tempAxisMin = axisCache.temp.min;
         const tempAxisMax = axisCache.temp.max;
 
-        // Hard guard: never clip plotted EC values at the lower bound.
-        // Keep at least 8% headroom below the visible minimum (>= 0 floor).
+        // Hard guard: never clip plotted pH values at either bound.
+        if (phVals.length) {
+          const phVisibleMin = Math.min(...phVals);
+          const phVisibleMax = Math.max(...phVals);
+          const phSpanNow = Math.max(phMax - phMin, 0.10);
+          const phPad = Math.max(phSpanNow * 0.08, 0.02);
+          phMin = Math.min(phMin, phVisibleMin - phPad);
+          phMax = Math.max(phMax, phVisibleMax + phPad);
+        }
+
+        // Hard guard: never clip plotted EC values at either bound.
         if (ecVals.length) {
           const ecVisibleMin = Math.min(...ecVals);
+          const ecVisibleMax = Math.max(...ecVals);
           const ecSpanNow = Math.max(ecMax - ecMin, 0.20);
-          const ecPadMin = Math.max(ecSpanNow * 0.08, 0.05);
-          ecMin = Math.min(ecMin, Math.max(0, ecVisibleMin - ecPadMin));
+          const ecPad = Math.max(ecSpanNow * 0.08, 0.05);
+          ecMin = Math.min(ecMin, Math.max(0, ecVisibleMin - ecPad));
+          ecMax = Math.max(ecMax, ecVisibleMax + ecPad);
         }
 
         chartInstance.options.scales.yPh.min = phMin;
