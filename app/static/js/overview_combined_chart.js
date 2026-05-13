@@ -679,15 +679,9 @@
           await chart.refresh(true);
         },
         getDataExtent: () => {
-          const phSeries = chart.cachedData?.trendsData?.series?.ph || [];
-          const ecSeries = chart.cachedData?.trendsData?.series?.ec || [];
-          const tempSeries = chart.cachedData?.trendsData?.series?.temp || [];
-          const allTs = [];
-          for (const p of phSeries) if (p && Number.isFinite(Number(p.ts))) allTs.push(Number(p.ts) * 1000);
-          for (const p of ecSeries) if (p && Number.isFinite(Number(p.ts))) allTs.push(Number(p.ts) * 1000);
-          for (const p of tempSeries) if (p && Number.isFinite(Number(p.ts))) allTs.push(Number(p.ts) * 1000);
-          const first = allTs.length ? Math.min(...allTs) : null;
-          const last = allTs.length ? Math.max(...allTs) : null;
+          const growStart = window.rdwcSettings?.get('general.grow_start_date');
+          const first = growStart ? new Date(growStart + 'T00:00:00').getTime() : null;
+          const last = Date.now();
           return { first, last };
         },
         getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
