@@ -3038,47 +3038,6 @@ function toggleRecentReadings(){
   setInterval(measureHeights, 2000);
 })();
 </script>
-<script>
-// Simple circulation controller wiring, uses /api/relays endpoints
-window.CircControl = (function(){
-  const btnMain = ()=>document.getElementById('btnMainPump');
-  const btnChil = ()=>document.getElementById('btnTemperaturePump');
-  async function status(){
-    const res = await fetch('/api/relays/status?'+Date.now(), {cache:'no-store'});
-    return await res.json();
-  }
-  function badge(el, isOn){
-    if (!el) return;
-    el.textContent = isOn? 'ON' : 'OFF';
-    el.classList.toggle('on', !!isOn);
-    el.classList.toggle('off', !isOn);
-  }
-  async function refresh(){
-    try{
-      const s = await status();
-      document.getElementById('circ-mode-pill').textContent = `Mode: ${s.mode} · E-STOP: ${s.estop? 'ACTIVE':'off'}`;
-      const mp = s.relays && s.relays.main_pump ? !!s.relays.main_pump.is_on : false;
-      const cp = s.relays && s.relays.chiller_pump ? !!s.relays.chiller_pump.is_on : false;
-      badge(document.getElementById('circ-main-pump'), mp);
-      badge(document.getElementById('circ-temperature-pump'), cp);
-    }catch(e){ /* ignore */ }
-  }
-  async function toggle(key){
-    try{
-      await fetch(`/api/relay/${key}/toggle`, {method:'POST'});
-      setTimeout(refresh, 200);
-    }catch(e){ /* ignore */ }
-  }
-  function bind(){
-    const b1 = btnMain(); const b2 = btnChil();
-    if (b1 && !b1.__bound){ b1.addEventListener('click', ()=>toggle('main_pump')); b1.__bound=true; }
-    if (b2 && !b2.__bound){ b2.addEventListener('click', ()=>toggle('chiller_pump')); b2.__bound=true; }
-  }
-  // auto-bind once DOM is ready
-  if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', bind); else bind();
-  return { refresh };
-})();
-</script>
   <script>
   // Dynamically load JS assets with a cache-busting version from /api/version
   (function(){

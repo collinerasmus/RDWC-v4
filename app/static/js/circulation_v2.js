@@ -251,6 +251,12 @@
     }
   }
 
+  // Legacy tab hook compatibility: tabs.js calls window.CircControl.refresh().
+  // Keep a single controller implementation by routing this to v2 refresh.
+  window.CircControl = {
+    refresh: refreshAll
+  };
+
   // Setup handlers
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', setupCirculation);
