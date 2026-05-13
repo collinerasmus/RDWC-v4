@@ -28,7 +28,7 @@
       this.currentZoomIndex = 1; // default to 1d
       this.zoomMultiplier = 1; // multiplier for current zoom level
       this.sliderPosition = 100; // 0-100, 100 = latest data
-      this.isLiveMode = true; // true when slider at 100%
+      this.isLiveMode = false; // live sliding is opt-in via Now button
       this.currentStart = null; // last computed start ts
       this.currentEnd = null;   // last computed end ts
       
@@ -122,6 +122,7 @@
     increaseMultiplier() {
       const zoom = ZOOM_LEVELS[this.currentZoomIndex];
       if (this.zoomMultiplier < zoom.maxMult) {
+        this.isLiveMode = false;
         this.zoomMultiplier++;
         this.updateRange();
       }
@@ -129,6 +130,7 @@
 
     decreaseMultiplier() {
       if (this.zoomMultiplier > 1) {
+        this.isLiveMode = false;
         this.zoomMultiplier--;
         this.updateRange();
       }
@@ -136,6 +138,7 @@
 
     zoomOut() {
       if (this.currentZoomIndex < ZOOM_LEVELS.length - 1) {
+        this.isLiveMode = false;
         this.currentZoomIndex++;
         this.zoomMultiplier = 1; // Reset multiplier when changing zoom level
         this.updateRange();
@@ -144,6 +147,7 @@
 
     zoomIn() {
       if (this.currentZoomIndex > 0) {
+        this.isLiveMode = false;
         this.currentZoomIndex--;
         this.zoomMultiplier = 1; // Reset multiplier when changing zoom level
         this.updateRange();
@@ -151,6 +155,7 @@
     }
 
     panLeft() {
+      this.isLiveMode = false;
       // Pan backward by exactly one current zoom window (no slider rounding)
       const zoom = ZOOM_LEVELS[this.currentZoomIndex];
       if (zoom.id === 'grow') return; // no pan for full grow view
@@ -175,6 +180,7 @@
     }
 
     panRight() {
+      this.isLiveMode = false;
       // Pan forward by exactly one current zoom window (no slider rounding)
       const zoom = ZOOM_LEVELS[this.currentZoomIndex];
       if (zoom.id === 'grow') return; // no pan for full grow view
@@ -195,8 +201,7 @@
         newStart = firstData;
         newEnd = Math.min(lastData, newStart + windowSize);
       }
-      const isLive = (newEnd >= lastData);
-      this.applyRange(newStart, newEnd, isLive);
+      this.applyRange(newStart, newEnd, false);
     }
 
     onSliderChange(value) {
