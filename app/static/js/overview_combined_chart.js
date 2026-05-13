@@ -633,10 +633,19 @@
 
         const phMin = axisCache.ph.min;
         const phMax = axisCache.ph.max;
-        const ecMin = axisCache.ec.min;
+        let ecMin = axisCache.ec.min;
         const ecMax = axisCache.ec.max;
         const tempAxisMin = axisCache.temp.min;
         const tempAxisMax = axisCache.temp.max;
+
+        // Hard guard: never clip plotted EC values at the lower bound.
+        // Keep at least 8% headroom below the visible minimum (>= 0 floor).
+        if (ecVals.length) {
+          const ecVisibleMin = Math.min(...ecVals);
+          const ecSpanNow = Math.max(ecMax - ecMin, 0.20);
+          const ecPadMin = Math.max(ecSpanNow * 0.08, 0.05);
+          ecMin = Math.min(ecMin, Math.max(0, ecVisibleMin - ecPadMin));
+        }
 
         chartInstance.options.scales.yPh.min = phMin;
         chartInstance.options.scales.yPh.max = phMax;
