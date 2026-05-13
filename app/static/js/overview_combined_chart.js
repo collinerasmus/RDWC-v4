@@ -178,6 +178,13 @@
   function init() {
     if (typeof RDWCChart === 'undefined') return;
 
+    const axisCache = {
+      key: null,
+      ph: null,
+      ec: null,
+      temp: null
+    };
+
     const chart = new RDWCChart({
       canvasId: 'overviewCombinedChart',
       emptyMessageId: 'overview-combined-empty',
@@ -316,6 +323,21 @@
           const resolvedHyst = Number.isFinite(tempHyst) ? tempHyst : 0.6;
           tempLow = resolvedTarget - resolvedHyst;
           tempHigh = resolvedTarget + resolvedHyst;
+        }
+
+        // Sanity guard: if controller band is implausibly far from visible data, use settings-derived band.
+        const tempDataVals = temp.map(p => p.y).filter(Number.isFinite);
+        if (tempDataVals.length && Number.isFinite(tempLow) && Number.isFinite(tempHigh)) {
+          const dataMid = (Math.min(...tempDataVals) + Math.max(...tempDataVals)) / 2;
+          const bandMid = (tempLow + tempHigh) / 2;
+          if (Math.abs(bandMid - dataMid) > 3.0) {
+            const tempTarget = parseFloat((data?.tempStatus?.target_temp) ?? (targets['temp_target_c']));
+            const tempHyst = parseFloat(tempSettings['hysteresis']);
+            const resolvedTarget = Number.isFinite(tempTarget) ? tempTarget : 19.0;
+            const resolvedHyst = Number.isFinite(tempHyst) ? tempHyst : 0.6;
+            tempLow = resolvedTarget - resolvedHyst;
+            tempHigh = resolvedTarget + resolvedHyst;
+          }
         }
         console.log('[Overview Combined] Temp band:', { tempLow, tempHigh, tempStatus });
 
@@ -593,12 +615,20 @@
           zeroFloor: true
         });
 
-        const phMin = phRange.min;
-        const phMax = phRange.max;
-        const ecMin = ecRange.min;
-        const ecMax = ecRange.max;
-        const tempAxisMin = tempRange.min;
-        const tempAxisMax = tempRange.max;
+        const windowKey = `${window.start}:${window.end}`;
+        if (axisCache.key !== windowKey) {
+          axisCache.key = windowKey;
+          axisCache.ph = { min: phRange.min, max: phRange.max };
+          axisCache.ec = { min: ecRange.min, max: ecRange.max };
+          axisCache.temp = { min: tempRange.min, max: tempRange.max };
+        }
+
+        const phMin = axisCache.ph.min;
+        const phMax = axisCache.ph.max;
+        const ecMin = axisCache.ec.min;
+        const ecMax = axisCache.ec.max;
+        const tempAxisMin = axisCache.temp.min;
+        const tempAxisMax = axisCache.temp.max;
 
         chartInstance.options.scales.yPh.min = phMin;
         chartInstance.options.scales.yPh.max = phMax;

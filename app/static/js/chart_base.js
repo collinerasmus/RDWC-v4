@@ -64,6 +64,7 @@
       this.lastRefreshTime = 0;
       this.MIN_REFRESH_INTERVAL = 1500; // Keep charts feeling live without spamming the API
       this.livePointAppend = (config.livePointAppend !== false);
+      this._refreshSeq = 0;
 
       // Data cache to prevent flickering
       this.cachedData = null;
@@ -226,6 +227,7 @@
         return;
       }
       this.lastRefreshTime = now;
+      const seq = ++this._refreshSeq;
 
       try {
         const startISO = new Date(this.timeWindow.start).toISOString();
@@ -235,6 +237,12 @@
 
         // Fetch data via callback
         const data = await this.onDataFetch(startISO, endISO);
+
+        // Discard stale overlapping refreshes; only newest fetch may render.
+        if (seq !== this._refreshSeq) {
+          console.log(`[ChartBase] ${this.type}: Discarding stale refresh seq ${seq}`);
+          return;
+        }
 
         // Cache data for live updates
         this.cachedData = data;
