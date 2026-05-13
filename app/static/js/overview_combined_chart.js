@@ -206,6 +206,8 @@
         const phDoseUrl = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=${phDoseLimit}`;
         const ecDoseUrl = `/api/dose/recent?hours=${Math.max(1, Math.ceil(hours))}`;
         const settingsHistoryUrl = `/api/settings/history?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
+        // Range-aware event limits: 500 events per day of coverage, capped reasonably
+        const relayEventLimit = Math.min(10000, Math.max(500, Math.ceil(hours / 24 * 500)));
 
         try {
           const [trendsRes, phDoseRes, ecDoseRes, settingsRes, ecStatusRes, tempStatusRes, phStatusRes, lightsRes, mainRes, chillerRes, historyRes] = await Promise.all([
@@ -216,9 +218,9 @@
             fetch('/api/ec/status', { cache: 'no-store' }),
             fetch('/api/temperature/status', { cache: 'no-store' }),
             fetch('/api/ph/status', { cache: 'no-store' }),
-            fetch('/api/relays/events?name=lights&last=500', { cache: 'no-store' }),
-            fetch('/api/relays/events?name=main_pump&last=500', { cache: 'no-store' }),
-            fetch('/api/relays/events?name=chiller_pump&last=500', { cache: 'no-store' }),
+            fetch(`/api/relays/events?name=lights&last=${relayEventLimit}`, { cache: 'no-store' }),
+            fetch(`/api/relays/events?name=main_pump&last=${relayEventLimit}`, { cache: 'no-store' }),
+            fetch(`/api/relays/events?name=chiller_pump&last=${relayEventLimit}`, { cache: 'no-store' }),
             fetch(settingsHistoryUrl, { cache: 'no-store' })
           ]);
 
@@ -473,7 +475,7 @@
           });
         }
 
-        // Relay state — Lights only.
+        // Relay state — Lights only on primary axis; circulation hidden from overview for clarity.
         const lightsScaled = buildStepSeries(data?.lightsEvents, window, 0.86);
 
         if (lightsScaled.length) {
