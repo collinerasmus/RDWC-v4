@@ -63,6 +63,7 @@
       this.autoRefreshInterval = null;
       this.lastRefreshTime = 0;
       this.MIN_REFRESH_INTERVAL = 1500; // Keep charts feeling live without spamming the API
+      this.livePointAppend = (config.livePointAppend !== false);
 
       // Data cache to prevent flickering
       this.cachedData = null;
@@ -328,6 +329,8 @@
      * Handle live sensor updates
      */
     onLiveSensorUpdate(event) {
+      if (!this.livePointAppend) return;
+
       // Only update if viewing near real-time (within 5 min of now)
       const now = Date.now();
       if (Math.abs(this.timeWindow.end - now) > 5 * 60 * 1000) {

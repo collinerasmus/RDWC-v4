@@ -183,6 +183,7 @@
       emptyMessageId: 'overview-combined-empty',
       type: 'overview-combined',
       title: 'Overview Combined',
+      livePointAppend: false,
       layout: { padding: { right: 24 } },
       onDataFetch: async (startISO, endISO) => {
         const spanMs = new Date(endISO) - new Date(startISO);
@@ -677,8 +678,14 @@
         },
         getDataExtent: () => {
           const phSeries = chart.cachedData?.trendsData?.series?.ph || [];
-          const first = phSeries.length ? phSeries[0].ts * 1000 : null;
-          const last = phSeries.length ? phSeries[phSeries.length - 1].ts * 1000 : null;
+          const ecSeries = chart.cachedData?.trendsData?.series?.ec || [];
+          const tempSeries = chart.cachedData?.trendsData?.series?.temp || [];
+          const allTs = [];
+          for (const p of phSeries) if (p && Number.isFinite(Number(p.ts))) allTs.push(Number(p.ts) * 1000);
+          for (const p of ecSeries) if (p && Number.isFinite(Number(p.ts))) allTs.push(Number(p.ts) * 1000);
+          for (const p of tempSeries) if (p && Number.isFinite(Number(p.ts))) allTs.push(Number(p.ts) * 1000);
+          const first = allTs.length ? Math.min(...allTs) : null;
+          const last = allTs.length ? Math.max(...allTs) : null;
           return { first, last };
         },
         getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')

@@ -275,7 +275,7 @@
         const extent = this.getDataExtent();
         const firstData = extent.first ? new Date(extent.first).getTime() : now - 90 * 24 * 60 * 60 * 1000;
         const lastData = extent.last ? new Date(extent.last).getTime() : now;
-        const windowSize = zoom.ms;
+        const windowSize = zoom.ms * this.zoomMultiplier;
         const maxEnd = lastData;
         const minEnd = Math.min(firstData + windowSize, lastData);
         const clampedEnd = Math.max(minEnd, Math.min(maxEnd, end));
@@ -299,7 +299,10 @@
 
       // Update zoom label
       const label = this.container.querySelector('.chart-zoom-label');
-      if (label) label.textContent = zoom.label;
+      if (label) {
+        const m = this.zoomMultiplier;
+        label.textContent = m === 1 ? zoom.label : `${m} ${zoom.label}s`;
+      }
       
       // Update zoom button states
       if (this.elements.zoomOut) {
