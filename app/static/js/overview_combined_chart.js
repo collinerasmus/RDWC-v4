@@ -689,9 +689,9 @@
       }
     });
 
-    // Override default window to 1 hour live view while keeping controls consistent
+    // Keep startup range aligned with ChartControls default (Day / 24h)
     const now = Date.now();
-    chart.timeWindow = { start: now - 60 * 60 * 1000, end: now };
+    chart.timeWindow = { start: now - 24 * 60 * 60 * 1000, end: now };
     chart.selectedRange = 'custom';
     chart.isLiveMode = false;
     formatRangeLabel(chart.timeWindow.start, chart.timeWindow.end);
@@ -716,7 +716,7 @@
         },
         getGrowStartDate: () => window.rdwcSettings?.get('general.grow_start_date')
       });
-      // Seed controls to 1-hour live view
+      // Seed controls to the same 24h startup view
       controls.applyRange(chart.timeWindow.start, chart.timeWindow.end, false, true);
     }
 
