@@ -621,6 +621,14 @@
           axisCache.ph = { min: phRange.min, max: phRange.max };
           axisCache.ec = { min: ecRange.min, max: ecRange.max };
           axisCache.temp = { min: tempRange.min, max: tempRange.max };
+        } else {
+          // Keep axes stable within a fixed window, but always expand to include new extremes.
+          axisCache.ph.min = Math.min(axisCache.ph.min, phRange.min);
+          axisCache.ph.max = Math.max(axisCache.ph.max, phRange.max);
+          axisCache.ec.min = Math.min(axisCache.ec.min, ecRange.min);
+          axisCache.ec.max = Math.max(axisCache.ec.max, ecRange.max);
+          axisCache.temp.min = Math.min(axisCache.temp.min, tempRange.min);
+          axisCache.temp.max = Math.max(axisCache.temp.max, tempRange.max);
         }
 
         const phMin = axisCache.ph.min;
