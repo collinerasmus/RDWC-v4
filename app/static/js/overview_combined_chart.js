@@ -1,6 +1,12 @@
 (function() {
   'use strict';
 
+  if (window.__overviewCombinedChartModuleLoaded) {
+    console.warn('[Overview Combined] Module already loaded, skipping duplicate init');
+    return;
+  }
+  window.__overviewCombinedChartModuleLoaded = true;
+
   function formatRangeLabel(startMs, endMs) {
     const fmt = (ts) => {
       const d = new Date(ts);
@@ -178,12 +184,55 @@
   function init() {
     if (typeof RDWCChart === 'undefined') return;
 
+    if (window.overviewCombinedChart?.destroy) {
+      try {
+        window.overviewCombinedChart.destroy();
+      } catch (e) {
+        console.warn('[Overview Combined] Failed to destroy previous chart instance', e);
+      }
+    }
+
     const axisCache = {
       key: null,
       ph: null,
       ec: null,
-      temp: null
+      temp: null,
+      phBand: null,
+      ecBand: null,
+      tempBand: null
     };
+
+    function bandSignature(points, decimals) {
+      if (!Array.isArray(points) || !points.length) return '';
+      return points
+        .map((point) => {
+          const x = Number(point.x);
+          const y = Number(point.y);
+          return `${Number.isFinite(x) ? x : 'x'}:${Number.isFinite(y) ? y.toFixed(decimals) : 'y'}`;
+        })
+        .join('|');
+    }
+
+    function preserveStableBand(cacheValue, points, decimals) {
+      const signature = bandSignature(points, decimals);
+      if (!signature) {
+        return cacheValue?.points || [];
+      }
+      if (cacheValue?.signature === signature) {
+        return cacheValue.points;
+      }
+      return points;
+    }
+
+    function updateBandCache(cacheKey, lowPoints, highPoints, decimals) {
+      const lowSignature = bandSignature(lowPoints, decimals);
+      const highSignature = bandSignature(highPoints, decimals);
+      if (!lowSignature || !highSignature) return;
+      axisCache[cacheKey] = {
+        low: { signature: lowSignature, points: lowPoints },
+        high: { signature: highSignature, points: highPoints }
+      };
+    }
 
     const chart = new RDWCChart({
       canvasId: 'overviewCombinedChart',
@@ -293,34 +342,39 @@
         const phLowCurrent = parseFloat(phStatusTargets.low);
         const phHighCurrent = parseFloat(phStatusTargets.high);
         
-        // pH band: prefer logged setpoint history; fallback to current controller values.
+        // pH band: use current controller targets (authoritative). Do NOT use historical setpoints
+        // because they are sparse (logged only on change) and cause alignment drift when mixed with fallback logic.
         let phLowData, phHighData;
-        const phLowHist = settingsHistorySeries['targets.ph_low'] || [];
-        const phHighHist = settingsHistorySeries['targets.ph_high'] || [];
-        if (phLowHist.length && phHighHist.length) {
-          phLowData = phLowHist;
-          phHighData = phHighHist;
-        } else if (Number.isFinite(phLowCurrent) && Number.isFinite(phHighCurrent)) {
+        if (Number.isFinite(phLowCurrent) && Number.isFinite(phHighCurrent)) {
           phLowData = [ { x: window.start, y: phLowCurrent }, { x: window.end, y: phLowCurrent } ];
           phHighData = [ { x: window.start, y: phHighCurrent }, { x: window.end, y: phHighCurrent } ];
+          // Apply stabilization to prevent axis jitter within a fixed window
+          phLowData = preserveStableBand(axisCache.phBand?.low, phLowData, 3);
+          phHighData = preserveStableBand(axisCache.phBand?.high, phHighData, 3);
         } else {
           phLowData = [];
           phHighData = [];
           console.warn('[Overview Combined] pH targets not finite, skipping band');
         }
-        console.log('[Overview Combined] pH band data created:', { phLowData, phHighData });
+        console.log('[Overview Combined] pH band (current targets):', { phLowCurrent, phHighCurrent, cached: axisCache.phBand ? 'yes' : 'no' });
         
-        // Prefer live EC targets from controller status (scheduler-derived), fallback to settings
+        // EC band: use current controller targets (scheduler-derived, authoritative). No history.
         const ecLowLive = parseFloat(ecStatusTargets.low);
         const ecHighLive = parseFloat(ecStatusTargets.high);
         const ecLowSettings = parseFloat(targets['ec_low']);
         const ecHighSettings = parseFloat(targets['ec_high']);
         const ecLow = Number.isFinite(ecLowLive) ? ecLowLive : ecLowSettings;
         const ecHigh = Number.isFinite(ecHighLive) ? ecHighLive : ecHighSettings;
-        const ecLowHist = settingsHistorySeries['targets.ec_low'] || [];
-        const ecHighHist = settingsHistorySeries['targets.ec_high'] || [];
-        const hasEcBand = (ecLowHist.length && ecHighHist.length) || (Number.isFinite(ecLow) && Number.isFinite(ecHigh));
-        console.log('[Overview Combined] EC band:', { ecLow, ecHigh, hasEcBand });
+        const hasEcBand = Number.isFinite(ecLow) && Number.isFinite(ecHigh);
+        let ecLowData = [];
+        let ecHighData = [];
+        if (hasEcBand) {
+          ecLowData = [ { x: window.start, y: ecLow }, { x: window.end, y: ecLow } ];
+          ecHighData = [ { x: window.start, y: ecHigh }, { x: window.end, y: ecHigh } ];
+          ecLowData = preserveStableBand(axisCache.ecBand?.low, ecLowData, 3);
+          ecHighData = preserveStableBand(axisCache.ecBand?.high, ecHighData, 3);
+        }
+        console.log('[Overview Combined] EC band (current targets):', { ecLow, ecHigh, hasEcBand });
         console.log('[Overview Combined] pH band:', { phLowCurrent, phHighCurrent });
 
         // Get temperature target band (controller-first, schedule-derived)
@@ -351,7 +405,19 @@
             tempHigh = resolvedTarget + resolvedHyst;
           }
         }
-        console.log('[Overview Combined] Temp band:', { tempLow, tempHigh, tempStatus });
+        console.log('[Overview Combined] Temp band (current targets):', { tempLow, tempHigh, cached: axisCache.tempBand ? 'yes' : 'no' });
+
+        // Temperature bands: use current controller values with stabilization to prevent axis jitter.
+        let tempLowData = [];
+        let tempHighData = [];
+        if (Number.isFinite(tempLow) && Number.isFinite(tempHigh)) {
+          tempLowData = [ { x: window.start, y: tempLow }, { x: window.end, y: tempLow } ];
+          tempHighData = [ { x: window.start, y: tempHigh }, { x: window.end, y: tempHigh } ];
+          tempLowData = preserveStableBand(axisCache.tempBand?.low, tempLowData, 2);
+          tempHighData = preserveStableBand(axisCache.tempBand?.high, tempHighData, 2);
+          tempLow = Number(tempLowData[0]?.y ?? tempLow);
+          tempHigh = Number(tempHighData[0]?.y ?? tempHigh);
+        }
 
         const datasets = [];
 
@@ -387,12 +453,6 @@
 
         // EC band - static from current settings
         if (hasEcBand) {
-          const ecLowData = (ecLowHist.length && ecHighHist.length)
-            ? ecLowHist
-            : [ { x: window.start, y: ecLow }, { x: window.end, y: ecLow } ];
-          const ecHighData = (ecLowHist.length && ecHighHist.length)
-            ? ecHighHist
-            : [ { x: window.start, y: ecHigh }, { x: window.end, y: ecHigh } ];
           datasets.push({
             type: 'line',
             yAxisID: 'yEc',
@@ -423,8 +483,6 @@
 
         // Temperature band - from controller (or computed fallback)
         if (Number.isFinite(tempLow) && Number.isFinite(tempHigh)) {
-          const tempLowData = [{ x: window.start, y: tempLow }, { x: window.end, y: tempLow }];
-          const tempHighData = [{ x: window.start, y: tempHigh }, { x: window.end, y: tempHigh }];
           datasets.push({
             type: 'line',
             yAxisID: 'yTemp',
@@ -605,8 +663,8 @@
           zeroFloor: false
         });
 
-        const ecBandLows = (ecLowHist.length ? ecLowHist : []).map(p => Number(p.y)).filter(Number.isFinite);
-        const ecBandHighs = (ecHighHist.length ? ecHighHist : []).map(p => Number(p.y)).filter(Number.isFinite);
+        const ecBandLows = ecLowData.map(p => Number(p.y)).filter(Number.isFinite);
+        const ecBandHighs = ecHighData.map(p => Number(p.y)).filter(Number.isFinite);
         const ecBandLow = ecBandLows.length ? Math.min(...ecBandLows) : (Number.isFinite(ecLow) ? ecLow : undefined);
         const ecBandHigh = ecBandHighs.length ? Math.max(...ecBandHighs) : (Number.isFinite(ecHigh) ? ecHigh : undefined);
         const ecRange = computeAdaptiveAxisRange(ecVals, ecBandLow, ecBandHigh, windowHours, {
@@ -641,6 +699,9 @@
           axisCache.ph = { min: phRange.min, max: phRange.max };
           axisCache.ec = { min: ecRange.min, max: ecRange.max };
           axisCache.temp = { min: tempRange.min, max: tempRange.max };
+          axisCache.phBand = null;
+          axisCache.ecBand = null;
+          axisCache.tempBand = null;
         } else {
           // Keep axes stable within a fixed window, but always expand to include new extremes.
           axisCache.ph.min = Math.min(axisCache.ph.min, phRange.min);
@@ -650,6 +711,10 @@
           axisCache.temp.min = Math.min(axisCache.temp.min, tempRange.min);
           axisCache.temp.max = Math.max(axisCache.temp.max, tempRange.max);
         }
+
+        updateBandCache('phBand', phLowData, phHighData, 3);
+        updateBandCache('ecBand', ecLowData, ecHighData, 3);
+        updateBandCache('tempBand', tempLowData, tempHighData, 2);
 
         let phMin = axisCache.ph.min;
         let phMax = axisCache.ph.max;
