@@ -579,7 +579,7 @@
           zeroFloor: true
         });
 
-        const tempRange = computeAdaptiveAxisRange(tempVals, tempLow, tempHigh, windowHours, {
+        let tempRange = computeAdaptiveAxisRange(tempVals, tempLow, tempHigh, windowHours, {
           hourSpan: 0.25,
           hourPad: 0.05,
           daySpan: 0.45,
@@ -591,6 +591,17 @@
           bandRatio: 0.50,
           zeroFloor: true
         });
+
+        // Keep temperature axis fixed around controller setpoint for stable visuals.
+        // Requested range: setpoint - 10 to setpoint + 10.
+        const tempSetpoint = parseFloat(
+          (data?.tempStatus?.target_temp) ??
+          (targets['temp_target_c']) ??
+          ((Number.isFinite(tempLow) && Number.isFinite(tempHigh)) ? ((tempLow + tempHigh) / 2) : NaN)
+        );
+        if (Number.isFinite(tempSetpoint)) {
+          tempRange = { min: tempSetpoint - 10, max: tempSetpoint + 10 };
+        }
 
         // Use a duration-bucket key so the axis cache remains stable as the live window
         // slides forward every 5 s. Using absolute timestamps caused the cache to reset
