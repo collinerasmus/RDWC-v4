@@ -304,17 +304,24 @@
         const ec = (data?.trendsData?.series?.ec || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
         const temp = (data?.trendsData?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
 
-        // Restore temperature smoothing for readability across noisy probes.
+        // Adaptive smoothing window based on zoom level — reduces noise on all probes.
         const windowHoursForAvg = Math.max(1 / 60, (window.end - window.start) / 3600000);
-        let tempAvgWindowMs;
-        if (windowHoursForAvg <= 1) tempAvgWindowMs = 20 * 60 * 1000;
-        else if (windowHoursForAvg <= 6) tempAvgWindowMs = 45 * 60 * 1000;
-        else if (windowHoursForAvg <= 24) tempAvgWindowMs = 180 * 60 * 1000;
-        else if (windowHoursForAvg <= 168) tempAvgWindowMs = 720 * 60 * 1000;
-        else tempAvgWindowMs = 1440 * 60 * 1000;
-        // Two-pass moving average for stronger low-pass smoothing.
-        const tempSmoothed1 = buildMovingAverageSeries(temp, tempAvgWindowMs);
-        const tempSmoothed = buildMovingAverageSeries(tempSmoothed1, tempAvgWindowMs);
+        let avgWindowMs;
+        if (windowHoursForAvg <= 1) avgWindowMs = 20 * 60 * 1000;
+        else if (windowHoursForAvg <= 6) avgWindowMs = 45 * 60 * 1000;
+        else if (windowHoursForAvg <= 24) avgWindowMs = 180 * 60 * 1000;
+        else if (windowHoursForAvg <= 168) avgWindowMs = 720 * 60 * 1000;
+        else avgWindowMs = 1440 * 60 * 1000;
+
+        // Two-pass moving average for stronger low-pass smoothing on all sensors.
+        const phSmoothed1 = buildMovingAverageSeries(ph, avgWindowMs);
+        const phSmoothed = buildMovingAverageSeries(phSmoothed1, avgWindowMs);
+
+        const ecSmoothed1 = buildMovingAverageSeries(ec, avgWindowMs);
+        const ecSmoothed = buildMovingAverageSeries(ecSmoothed1, avgWindowMs);
+
+        const tempSmoothed1 = buildMovingAverageSeries(temp, avgWindowMs);
+        const tempSmoothed = buildMovingAverageSeries(tempSmoothed1, avgWindowMs);
 
         const phDoseEvents = (data?.phDose || [])
           .map(e => ({ ts: new Date(e.ts).getTime(), volume_ml: e.volume_ml }))
@@ -511,35 +518,59 @@
           });
         }
 
-        // pH series
+        // pH series (raw + smoothed)
         if (ph.length) {
+          datasets.push({
+            id: 'ph-raw',
+            yAxisID: 'yPh',
+            label: 'pH Raw',
+            data: ph,
+            borderWidth: 1,
+            borderColor: 'rgba(59,130,246,0.15)',
+            backgroundColor: 'rgba(59,130,246,0.15)',
+            pointRadius: 0,
+            spanGaps: true,
+            order: 1
+          });
           datasets.push({
             id: 'ph',
             yAxisID: 'yPh',
             label: 'pH',
-            data: ph,
-            borderWidth: 1.5,
-            borderColor: 'rgba(59,130,246,0.75)',
-            backgroundColor: 'rgba(59,130,246,0.75)',
+            data: phSmoothed.length ? phSmoothed : ph,
+            borderWidth: 2,
+            borderColor: 'rgba(59,130,246,0.95)',
+            backgroundColor: 'rgba(59,130,246,0.95)',
             pointRadius: 0,
             spanGaps: true,
             order: 2
           });
         }
 
-        // EC series
+        // EC series (raw + smoothed)
         if (ec.length) {
+          datasets.push({
+            id: 'ec-raw',
+            yAxisID: 'yEc',
+            label: 'EC Raw',
+            data: ec,
+            borderWidth: 1,
+            borderColor: 'rgba(16,185,129,0.15)',
+            backgroundColor: 'rgba(16,185,129,0.15)',
+            pointRadius: 0,
+            spanGaps: true,
+            order: 1
+          });
           datasets.push({
             id: 'ec',
             yAxisID: 'yEc',
             label: 'EC',
-            data: ec,
+            data: ecSmoothed.length ? ecSmoothed : ec,
             borderWidth: 2.2,
             borderColor: 'rgba(16,185,129,0.95)',
             backgroundColor: 'rgba(16,185,129,0.95)',
             pointRadius: 0,
             spanGaps: true,
-            order: 1
+            order: 2
           });
         }
 
