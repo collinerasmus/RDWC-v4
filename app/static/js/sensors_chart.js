@@ -6,6 +6,12 @@
 (function() {
   'use strict';
 
+  if (window.__sensorsChartModuleLoaded) {
+    console.warn('[Sensors Chart] Module already loaded, skipping duplicate init');
+    return;
+  }
+  window.__sensorsChartModuleLoaded = true;
+
   console.log('[Sensors Chart] Initializing');
 
   // Wait for DOM and dependencies
@@ -13,6 +19,21 @@
     if (typeof RDWCChart === 'undefined') {
       console.error('[Sensors Chart] RDWCChart base not loaded');
       return;
+    }
+
+    if (window.sensorsChart?.destroy) {
+      try {
+        window.sensorsChart.destroy();
+      } catch (e) {
+        console.warn('[Sensors Chart] Failed to destroy previous sensorsChart instance', e);
+      }
+    }
+    if (window.trendsChart?.destroy) {
+      try {
+        window.trendsChart.destroy();
+      } catch (e) {
+        console.warn('[Sensors Chart] Failed to destroy previous trendsChart instance', e);
+      }
     }
 
     const chart = new RDWCChart({
@@ -40,29 +61,58 @@
           '/history?' + q.toString()
         ];
 
+        let trendsData = null;
         for (const url of endpoints) {
           try {
             const res = await fetch(url, { cache: 'no-store' });
             if (res.ok) {
-              const data = await res.json();
+              trendsData = await res.json();
               console.log('[Sensors Chart] Fetched:', {
-                ph: data?.series?.ph?.length || 0,
-                ec: data?.series?.ec?.length || 0,
-                temp: data?.series?.temp?.length || 0
+                ph: trendsData?.series?.ph?.length || 0,
+                ec: trendsData?.series?.ec?.length || 0,
+                temp: trendsData?.series?.temp?.length || 0
               });
-              return data;
+              break;
             }
           } catch (e) {
             console.warn('[Sensors Chart] Endpoint failed:', url, e);
           }
         }
 
-        console.error('[Sensors Chart] All endpoints failed');
-        return { series: { ph: [], ec: [], temp: [] } };
+        if (!trendsData) {
+          console.error('[Sensors Chart] All endpoints failed');
+          trendsData = { series: { ph: [], ec: [], temp: [] } };
+        }
+
+        let settings = {};
+        let tempStatus = {};
+        try {
+          const [settingsRes, tempStatusRes] = await Promise.all([
+            fetch('/api/settings', { cache: 'no-store' }),
+            fetch('/api/temperature/status', { cache: 'no-store' })
+          ]);
+          settings = settingsRes.ok ? await settingsRes.json() : {};
+          tempStatus = tempStatusRes.ok ? await tempStatusRes.json() : {};
+        } catch (e) {
+          console.warn('[Sensors Chart] Settings/status fetch failed', e);
+        }
+
+        return {
+          ...trendsData,
+          settings,
+          tempStatus
+        };
       },
 
       // Render callback
       onRender: (chart, data, window) => {
+        const axisCache = chart.__rdwcAxisCache || (chart.__rdwcAxisCache = {
+          key: null,
+          ph: null,
+          ec: null,
+          temp: null
+        });
+
         const ph = (data?.series?.ph || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
         const ec = (data?.series?.ec || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
         const temp = (data?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
@@ -131,9 +181,41 @@
           return { min, max };
         }
 
-        const aPh = chooseAxis(AXIS_CFG.ph, ph);
-        const aEc = chooseAxis(AXIS_CFG.ec, ec);
-        const aTemp = chooseAxis(AXIS_CFG.temp, temp);
+        const aPhNext = chooseAxis(AXIS_CFG.ph, ph);
+        const aEcNext = chooseAxis(AXIS_CFG.ec, ec);
+        let aTempNext = chooseAxis(AXIS_CFG.temp, temp);
+
+        // Match Overview behavior: keep temperature axis fixed around setpoint ±10.
+        const tempTargets = data?.settings?.targets || {};
+        const tempSetpoint = Number(
+          (data?.tempStatus?.target_temp) ??
+          (tempTargets?.temp_target_c)
+        );
+        if (Number.isFinite(tempSetpoint)) {
+          aTempNext = { min: tempSetpoint - 10, max: tempSetpoint + 10 };
+        }
+
+        const durationHours = (window.end - window.start) / (3600 * 1000);
+        let windowKey;
+        if (durationHours <= 1.5) windowKey = '1h';
+        else if (durationHours <= 7) windowKey = '6h';
+        else if (durationHours <= 28) windowKey = '24h';
+        else if (durationHours <= 200) windowKey = '7d';
+        else windowKey = 'grow';
+
+        if (axisCache.key !== windowKey) {
+          axisCache.key = windowKey;
+          axisCache.ph = { min: aPhNext.min, max: aPhNext.max };
+          axisCache.ec = { min: aEcNext.min, max: aEcNext.max };
+          axisCache.temp = { min: aTempNext.min, max: aTempNext.max };
+        } else {
+          axisCache.ph.min = Math.min(axisCache.ph.min, aPhNext.min);
+          axisCache.ph.max = Math.max(axisCache.ph.max, aPhNext.max);
+          axisCache.ec.min = Math.min(axisCache.ec.min, aEcNext.min);
+          axisCache.ec.max = Math.max(axisCache.ec.max, aEcNext.max);
+          axisCache.temp.min = Math.min(axisCache.temp.min, aTempNext.min);
+          axisCache.temp.max = Math.max(axisCache.temp.max, aTempNext.max);
+        }
 
         // Create or update y-axes with improved positioning
         // pH on left, EC and Temp stacked on right with offset
@@ -167,12 +249,12 @@
         }
 
         // Set fixed axis limits
-        chart.options.scales.yPh.min = aPh.min;
-        chart.options.scales.yPh.max = aPh.max;
-        chart.options.scales.yEc.min = aEc.min;
-        chart.options.scales.yEc.max = aEc.max;
-        chart.options.scales.yTemp.min = aTemp.min;
-        chart.options.scales.yTemp.max = aTemp.max;
+        chart.options.scales.yPh.min = axisCache.ph.min;
+        chart.options.scales.yPh.max = axisCache.ph.max;
+        chart.options.scales.yEc.min = axisCache.ec.min;
+        chart.options.scales.yEc.max = axisCache.ec.max;
+        chart.options.scales.yTemp.min = axisCache.temp.min;
+        chart.options.scales.yTemp.max = axisCache.temp.max;
 
         // Build datasets
         const datasets = [];
@@ -186,7 +268,8 @@
             borderColor: window.CHART_COLORS?.ph || '#3b82f6',
             backgroundColor: window.CHART_COLORS?.ph || '#3b82f6',
             pointRadius: 0,
-            spanGaps: true
+            spanGaps: true,
+            order: 2
           });
         }
         if (ec.length) {
@@ -199,7 +282,8 @@
             borderColor: window.CHART_COLORS?.ec || '#10b981',
             backgroundColor: window.CHART_COLORS?.ec || '#10b981',
             pointRadius: 0,
-            spanGaps: true
+            spanGaps: true,
+            order: 2
           });
         }
         if (temp.length) {
@@ -212,7 +296,8 @@
             borderColor: window.CHART_COLORS?.temp || '#ef4444',
             backgroundColor: window.CHART_COLORS?.temp || '#ef4444',
             pointRadius: 0,
-            spanGaps: true
+            spanGaps: true,
+            order: 3
           });
         }
 
