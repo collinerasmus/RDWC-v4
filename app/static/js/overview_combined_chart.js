@@ -383,7 +383,7 @@
             pointRadius: 0,
             fill: '+1',
             backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            order: 0
+            order: 3
           });
           datasets.push({
             type: 'line',
@@ -395,7 +395,7 @@
             borderDash: [5, 5],
             stepped: true,
             pointRadius: 0,
-            order: 0
+            order: 3
           });
         }
 
@@ -443,7 +443,7 @@
             backgroundColor: 'rgba(239,68,68,0.95)',
             pointRadius: 0,
             spanGaps: true,
-            order: 1
+            order: 3
           });
         }
 
