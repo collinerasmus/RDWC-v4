@@ -304,24 +304,34 @@
         const ec = (data?.trendsData?.series?.ec || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
         const temp = (data?.trendsData?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
 
-        // Adaptive smoothing window based on zoom level — reduces noise on all probes.
+        // Adaptive smoothing windows based on zoom level — reduces noise on all probes.
         const windowHoursForAvg = Math.max(1 / 60, (window.end - window.start) / 3600000);
-        let avgWindowMs;
-        if (windowHoursForAvg <= 1) avgWindowMs = 20 * 60 * 1000;
-        else if (windowHoursForAvg <= 6) avgWindowMs = 45 * 60 * 1000;
-        else if (windowHoursForAvg <= 24) avgWindowMs = 180 * 60 * 1000;
-        else if (windowHoursForAvg <= 168) avgWindowMs = 720 * 60 * 1000;
-        else avgWindowMs = 1440 * 60 * 1000;
+        
+        // pH and EC are more dynamic; use tighter smoothing windows.
+        let phEcWindowMs;
+        if (windowHoursForAvg <= 1) phEcWindowMs = 8 * 60 * 1000;          // 8 minutes
+        else if (windowHoursForAvg <= 6) phEcWindowMs = 20 * 60 * 1000;      // 20 minutes
+        else if (windowHoursForAvg <= 24) phEcWindowMs = 60 * 60 * 1000;     // 1 hour
+        else if (windowHoursForAvg <= 168) phEcWindowMs = 240 * 60 * 1000;   // 4 hours
+        else phEcWindowMs = 720 * 60 * 1000;                               // 12 hours
 
-        // Two-pass moving average for stronger low-pass smoothing on all sensors.
-        const phSmoothed1 = buildMovingAverageSeries(ph, avgWindowMs);
-        const phSmoothed = buildMovingAverageSeries(phSmoothed1, avgWindowMs);
+        // Temperature cycles slowly; use longer smoothing window.
+        let tempWindowMs;
+        if (windowHoursForAvg <= 1) tempWindowMs = 20 * 60 * 1000;          // 20 minutes
+        else if (windowHoursForAvg <= 6) tempWindowMs = 45 * 60 * 1000;      // 45 minutes
+        else if (windowHoursForAvg <= 24) tempWindowMs = 180 * 60 * 1000;    // 3 hours
+        else if (windowHoursForAvg <= 168) tempWindowMs = 720 * 60 * 1000;   // 12 hours
+        else tempWindowMs = 1440 * 60 * 1000;                              // 24 hours
 
-        const ecSmoothed1 = buildMovingAverageSeries(ec, avgWindowMs);
-        const ecSmoothed = buildMovingAverageSeries(ecSmoothed1, avgWindowMs);
+        // Two-pass moving average for stronger low-pass smoothing.
+        const phSmoothed1 = buildMovingAverageSeries(ph, phEcWindowMs);
+        const phSmoothed = buildMovingAverageSeries(phSmoothed1, phEcWindowMs);
 
-        const tempSmoothed1 = buildMovingAverageSeries(temp, avgWindowMs);
-        const tempSmoothed = buildMovingAverageSeries(tempSmoothed1, avgWindowMs);
+        const ecSmoothed1 = buildMovingAverageSeries(ec, phEcWindowMs);
+        const ecSmoothed = buildMovingAverageSeries(ecSmoothed1, phEcWindowMs);
+
+        const tempSmoothed1 = buildMovingAverageSeries(temp, tempWindowMs);
+        const tempSmoothed = buildMovingAverageSeries(tempSmoothed1, tempWindowMs);
 
         const phDoseEvents = (data?.phDose || [])
           .map(e => ({ ts: new Date(e.ts).getTime(), volume_ml: e.volume_ml }))
