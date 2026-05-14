@@ -216,18 +216,7 @@
         const ec = (data?.trendsData?.series?.ec || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
         const temp = (data?.trendsData?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
 
-        // Temperature smoothing only.
-        const windowHoursForAvg = Math.max(1 / 60, (window.end - window.start) / 3600000);
-        let tempWindowMs;
-        if (windowHoursForAvg <= 1) tempWindowMs = 20 * 60 * 1000;          // 20 minutes
-        else if (windowHoursForAvg <= 6) tempWindowMs = 45 * 60 * 1000;      // 45 minutes
-        else if (windowHoursForAvg <= 24) tempWindowMs = 180 * 60 * 1000;    // 3 hours
-        else if (windowHoursForAvg <= 168) tempWindowMs = 720 * 60 * 1000;   // 12 hours
-        else tempWindowMs = 1440 * 60 * 1000;                              // 24 hours
-
-        // Two-pass moving average for stronger low-pass smoothing.
-        const tempSmoothed1 = buildMovingAverageSeries(temp, tempWindowMs);
-        const tempSmoothed = buildMovingAverageSeries(tempSmoothed1, tempWindowMs);
+        // Temperature: render raw values only (no averaging).
 
         const phDoseEvents = (data?.phDose || [])
           .map(e => ({ ts: new Date(e.ts).getTime(), volume_ml: e.volume_ml }))
@@ -442,25 +431,13 @@
           });
         }
 
-        // Temp series
+        // Temp series (raw only)
         if (temp.length) {
-          datasets.push({
-            id: 'temp-raw',
-            yAxisID: 'yTemp',
-            label: 'Temp Raw',
-            data: temp,
-            borderWidth: 1,
-            borderColor: 'rgba(239,68,68,0.20)',
-            backgroundColor: 'rgba(239,68,68,0.20)',
-            pointRadius: 0,
-            spanGaps: true,
-            order: 1
-          });
           datasets.push({
             id: 'temp',
             yAxisID: 'yTemp',
             label: 'Temperature',
-            data: tempSmoothed.length ? tempSmoothed : temp,
+            data: temp,
             borderWidth: 2,
             borderColor: 'rgba(239,68,68,0.95)',
             backgroundColor: 'rgba(239,68,68,0.95)',
