@@ -204,13 +204,12 @@
 
     function bandSignature(points, decimals) {
       if (!Array.isArray(points) || !points.length) return '';
-      return points
-        .map((point) => {
-          const x = Number(point.x);
-          const y = Number(point.y);
-          return `${Number.isFinite(x) ? x : 'x'}:${Number.isFinite(y) ? y.toFixed(decimals) : 'y'}`;
-        })
-        .join('|');
+      // Only hash y values — x endpoints are window.start/end and change every live tick,
+      // so including them would make the cache never hit in live mode.
+      const yVals = [...new Set(
+        points.map(p => Number(p.y)).filter(Number.isFinite)
+      )].sort((a, b) => a - b);
+      return yVals.map(y => y.toFixed(decimals)).join('|');
     }
 
     function preserveStableBand(cacheValue, points, decimals) {
@@ -734,8 +733,19 @@
           zeroFloor: true
         });
 
-        const windowKey = `${window.start}:${window.end}`;
+        // Use a duration-bucket key so the axis cache remains stable as the live window
+        // slides forward every 5 s. Using absolute timestamps caused the cache to reset
+        // on every auto-refresh tick, making axes jump every cycle.
+        const durationHours = (window.end - window.start) / 3600000;
+        let windowKey;
+        if (durationHours <= 1.5)       windowKey = '1h';
+        else if (durationHours <= 7)    windowKey = '6h';
+        else if (durationHours <= 28)   windowKey = '24h';
+        else if (durationHours <= 200)  windowKey = '7d';
+        else                            windowKey = 'grow';
+
         if (axisCache.key !== windowKey) {
+          // Zoom level changed — start fresh so axes are scaled correctly for the new range.
           axisCache.key = windowKey;
           axisCache.ph = { min: phRange.min, max: phRange.max };
           axisCache.ec = { min: ecRange.min, max: ecRange.max };
@@ -744,7 +754,8 @@
           axisCache.ecBand = null;
           axisCache.tempBand = null;
         } else {
-          // Keep axes stable within a fixed window, but always expand to include new extremes.
+          // Same zoom level — only expand to include new extremes, never shrink.
+          // This keeps axes stable across live-mode ticks and across panning.
           axisCache.ph.min = Math.min(axisCache.ph.min, phRange.min);
           axisCache.ph.max = Math.max(axisCache.ph.max, phRange.max);
           axisCache.ec.min = Math.min(axisCache.ec.min, ecRange.min);
