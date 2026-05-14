@@ -55,56 +55,6 @@
     return pts;
   }
 
-  function buildSettingsHistorySeries(history, keys, window) {
-    // Convert settings history events into step series data points
-    // keys is array of key strings to match; returns { key: points[] } dict
-    const result = {};
-    const grouped = {};
-    
-    // Group by key and convert unix ts to ms
-    for (const ev of history) {
-      if (!keys.includes(ev.key)) continue;
-      if (!grouped[ev.key]) grouped[ev.key] = [];
-      grouped[ev.key].push({ ts: ev.ts * 1000, value: ev.value });
-    }
-    
-    // Build step series for each key
-    for (const key in grouped) {
-      const sorted = grouped[key].sort((a, b) => a.ts - b.ts);
-      const pts = [];
-      
-      // Find prior value before window
-      const prior = sorted.filter(e => e.ts <= window.start).pop();
-      let lastVal = prior ? prior.value : null;
-      
-      // Add baseline at window.start
-      if (lastVal !== null) {
-        pts.push({ x: window.start, y: parseFloat(lastVal) });
-      }
-
-      // Add changes within window
-      const within = sorted.filter(e => e.ts >= window.start && e.ts <= window.end);
-      for (const ev of within) {
-        // If we had no baseline yet, start at window.start with first value
-        if (lastVal === null) {
-          lastVal = ev.value;
-          pts.push({ x: window.start, y: parseFloat(lastVal) });
-        }
-        lastVal = ev.value;
-        pts.push({ x: ev.ts, y: parseFloat(lastVal) });
-      }
-
-      // Close out to window.end if we have a value
-      if (lastVal !== null) {
-        pts.push({ x: window.end, y: parseFloat(lastVal) });
-      }
-      
-      result[key] = pts;
-    }
-    
-    return result;
-  }
-
   function buildMovingAverageSeries(points, windowMs) {
     if (!Array.isArray(points) || !points.length) return [];
     const ms = Math.max(60 * 1000, Number(windowMs) || (60 * 1000));
@@ -196,42 +146,8 @@
       key: null,
       ph: null,
       ec: null,
-      temp: null,
-      phBand: null,
-      ecBand: null,
-      tempBand: null
+      temp: null
     };
-
-    function bandSignature(points, decimals) {
-      if (!Array.isArray(points) || !points.length) return '';
-      // Only hash y values — x endpoints are window.start/end and change every live tick,
-      // so including them would make the cache never hit in live mode.
-      const yVals = [...new Set(
-        points.map(p => Number(p.y)).filter(Number.isFinite)
-      )].sort((a, b) => a - b);
-      return yVals.map(y => y.toFixed(decimals)).join('|');
-    }
-
-    function preserveStableBand(cacheValue, points, decimals) {
-      const signature = bandSignature(points, decimals);
-      if (!signature) {
-        return cacheValue?.points || [];
-      }
-      if (cacheValue?.signature === signature) {
-        return cacheValue.points;
-      }
-      return points;
-    }
-
-    function updateBandCache(cacheKey, lowPoints, highPoints, decimals) {
-      const lowSignature = bandSignature(lowPoints, decimals);
-      const highSignature = bandSignature(highPoints, decimals);
-      if (!lowSignature || !highSignature) return;
-      axisCache[cacheKey] = {
-        low: { signature: lowSignature, points: lowPoints },
-        high: { signature: highSignature, points: highPoints }
-      };
-    }
 
     const chart = new RDWCChart({
       canvasId: 'overviewCombinedChart',
@@ -260,12 +176,11 @@
         const phDoseLimit = hours <= 24 ? 2000 : (hours <= 168 ? 5000 : 20000);
         const phDoseUrl = `/api/ph/dose_log?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&limit=${phDoseLimit}`;
         const ecDoseUrl = `/api/dose/recent?hours=${Math.max(1, Math.ceil(hours))}`;
-        const settingsHistoryUrl = `/api/settings/history?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
         // Range-aware event limits: 500 events per day of coverage, capped reasonably
         const relayEventLimit = Math.min(10000, Math.max(500, Math.ceil(hours / 24 * 500)));
 
         try {
-          const [trendsRes, phDoseRes, ecDoseRes, settingsRes, ecStatusRes, tempStatusRes, phStatusRes, lightsRes, mainRes, chillerRes, historyRes] = await Promise.all([
+          const [trendsRes, phDoseRes, ecDoseRes, settingsRes, ecStatusRes, tempStatusRes, phStatusRes, lightsRes, mainRes, chillerRes] = await Promise.all([
             fetch(trendsUrl, { cache: 'no-store' }),
             fetch(phDoseUrl, { cache: 'no-store' }),
             fetch(ecDoseUrl, { cache: 'no-store' }),
@@ -275,8 +190,7 @@
             fetch('/api/ph/status', { cache: 'no-store' }),
             fetch(`/api/relays/events?name=lights&last=${relayEventLimit}`, { cache: 'no-store' }),
             fetch(`/api/relays/events?name=main_pump&last=${relayEventLimit}`, { cache: 'no-store' }),
-            fetch(`/api/relays/events?name=chiller_pump&last=${relayEventLimit}`, { cache: 'no-store' }),
-            fetch(settingsHistoryUrl, { cache: 'no-store' })
+            fetch(`/api/relays/events?name=chiller_pump&last=${relayEventLimit}`, { cache: 'no-store' })
           ]);
 
           const trendsData = trendsRes.ok ? await trendsRes.json() : { series: { ph: [], ec: [], temp: [] } };
@@ -290,12 +204,11 @@
           const lightsEvents = lightsRes.ok ? await lightsRes.json() : [];
           const mainEvents = mainRes.ok ? await mainRes.json() : [];
           const chillerEvents = chillerRes.ok ? await chillerRes.json() : [];
-          const settingsHistory = historyRes.ok ? await historyRes.json() : [];
 
-          return { trendsData, phDose, ecDose, settings, ecStatus, tempStatus, phStatus, lightsEvents, mainEvents, chillerEvents, settingsHistory };
+          return { trendsData, phDose, ecDose, settings, ecStatus, tempStatus, phStatus, lightsEvents, mainEvents, chillerEvents };
         } catch (e) {
           console.error('[Overview Combined] Fetch failed', e);
-          return { trendsData: { series: { ph: [], ec: [], temp: [] } }, phDose: [], ecDose: { events: [] }, settings: {}, ecStatus: {}, tempStatus: {}, phStatus: {}, lightsEvents: [], mainEvents: [], chillerEvents: [], settingsHistory: [] };
+          return { trendsData: { series: { ph: [], ec: [], temp: [] } }, phDose: [], ecDose: { events: [] }, settings: {}, ecStatus: {}, tempStatus: {}, phStatus: {}, lightsEvents: [], mainEvents: [], chillerEvents: [] };
         }
       },
       onRender: (chartInstance, data, window) => {
@@ -303,18 +216,8 @@
         const ec = (data?.trendsData?.series?.ec || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
         const temp = (data?.trendsData?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
 
-        // Adaptive smoothing windows based on zoom level — reduces noise on all probes.
+        // Temperature smoothing only.
         const windowHoursForAvg = Math.max(1 / 60, (window.end - window.start) / 3600000);
-        
-        // pH and EC are more dynamic; use much tighter smoothing windows.
-        let phEcWindowMs;
-        if (windowHoursForAvg <= 1) phEcWindowMs = 5 * 60 * 1000;           // 5 minutes
-        else if (windowHoursForAvg <= 6) phEcWindowMs = 12 * 60 * 1000;      // 12 minutes
-        else if (windowHoursForAvg <= 24) phEcWindowMs = 30 * 60 * 1000;     // 30 minutes
-        else if (windowHoursForAvg <= 168) phEcWindowMs = 60 * 60 * 1000;    // 1 hour
-        else phEcWindowMs = 120 * 60 * 1000;                               // 2 hours
-
-        // Temperature cycles slowly; use longer smoothing window.
         let tempWindowMs;
         if (windowHoursForAvg <= 1) tempWindowMs = 20 * 60 * 1000;          // 20 minutes
         else if (windowHoursForAvg <= 6) tempWindowMs = 45 * 60 * 1000;      // 45 minutes
@@ -323,12 +226,6 @@
         else tempWindowMs = 1440 * 60 * 1000;                              // 24 hours
 
         // Two-pass moving average for stronger low-pass smoothing.
-        const phSmoothed1 = buildMovingAverageSeries(ph, phEcWindowMs);
-        const phSmoothed = buildMovingAverageSeries(phSmoothed1, phEcWindowMs);
-
-        const ecSmoothed1 = buildMovingAverageSeries(ec, phEcWindowMs);
-        const ecSmoothed = buildMovingAverageSeries(ecSmoothed1, phEcWindowMs);
-
         const tempSmoothed1 = buildMovingAverageSeries(temp, tempWindowMs);
         const tempSmoothed = buildMovingAverageSeries(tempSmoothed1, tempWindowMs);
 
@@ -346,11 +243,6 @@
         const tempSettings = data?.settings?.temperature || {};
         const phStatusTargets = data?.phStatus?.targets || {};
         const tempStatus = data?.tempStatus || {};
-        const settingsHistorySeries = buildSettingsHistorySeries(
-          data?.settingsHistory || [],
-          ['targets.ph_low', 'targets.ph_high', 'targets.ec_low', 'targets.ec_high'],
-          window
-        );
         console.log('[Overview Combined] Targets from settings:', targets);
         console.log('[Overview Combined] pH controller targets:', phStatusTargets);
         
@@ -364,15 +256,12 @@
         if (Number.isFinite(phLowCurrent) && Number.isFinite(phHighCurrent)) {
           phLowData = [ { x: window.start, y: phLowCurrent }, { x: window.end, y: phLowCurrent } ];
           phHighData = [ { x: window.start, y: phHighCurrent }, { x: window.end, y: phHighCurrent } ];
-          // Apply stabilization to prevent axis jitter within a fixed window
-          phLowData = preserveStableBand(axisCache.phBand?.low, phLowData, 3);
-          phHighData = preserveStableBand(axisCache.phBand?.high, phHighData, 3);
         } else {
           phLowData = [];
           phHighData = [];
           console.warn('[Overview Combined] pH targets not finite, skipping band');
         }
-        console.log('[Overview Combined] pH band (current targets):', { phLowCurrent, phHighCurrent, cached: axisCache.phBand ? 'yes' : 'no' });
+        console.log('[Overview Combined] pH band (current targets):', { phLowCurrent, phHighCurrent });
         
         // EC band: use current controller targets (scheduler-derived, authoritative). No history.
         const ecLowLive = parseFloat(ecStatusTargets.low);
@@ -387,8 +276,6 @@
         if (hasEcBand) {
           ecLowData = [ { x: window.start, y: ecLow }, { x: window.end, y: ecLow } ];
           ecHighData = [ { x: window.start, y: ecHigh }, { x: window.end, y: ecHigh } ];
-          ecLowData = preserveStableBand(axisCache.ecBand?.low, ecLowData, 3);
-          ecHighData = preserveStableBand(axisCache.ecBand?.high, ecHighData, 3);
         }
         console.log('[Overview Combined] EC band (current targets):', { ecLow, ecHigh, hasEcBand });
         console.log('[Overview Combined] pH band:', { phLowCurrent, phHighCurrent });
@@ -421,18 +308,14 @@
             tempHigh = resolvedTarget + resolvedHyst;
           }
         }
-        console.log('[Overview Combined] Temp band (current targets):', { tempLow, tempHigh, cached: axisCache.tempBand ? 'yes' : 'no' });
+        console.log('[Overview Combined] Temp band (current targets):', { tempLow, tempHigh });
 
-        // Temperature bands: use current controller values with stabilization to prevent axis jitter.
+        // Temperature bands: use current controller values.
         let tempLowData = [];
         let tempHighData = [];
         if (Number.isFinite(tempLow) && Number.isFinite(tempHigh)) {
           tempLowData = [ { x: window.start, y: tempLow }, { x: window.end, y: tempLow } ];
           tempHighData = [ { x: window.start, y: tempHigh }, { x: window.end, y: tempHigh } ];
-          tempLowData = preserveStableBand(axisCache.tempBand?.low, tempLowData, 2);
-          tempHighData = preserveStableBand(axisCache.tempBand?.high, tempHighData, 2);
-          tempLow = Number(tempLowData[0]?.y ?? tempLow);
-          tempHigh = Number(tempHighData[0]?.y ?? tempHigh);
         }
 
         const datasets = [];
@@ -527,25 +410,13 @@
           });
         }
 
-        // pH series (raw + smoothed)
+        // pH series (raw only)
         if (ph.length) {
-          datasets.push({
-            id: 'ph-raw',
-            yAxisID: 'yPh',
-            label: 'pH Raw',
-            data: ph,
-            borderWidth: 1,
-            borderColor: 'rgba(59,130,246,0.15)',
-            backgroundColor: 'rgba(59,130,246,0.15)',
-            pointRadius: 0,
-            spanGaps: true,
-            order: 1
-          });
           datasets.push({
             id: 'ph',
             yAxisID: 'yPh',
             label: 'pH',
-            data: phSmoothed.length ? phSmoothed : ph,
+            data: ph,
             borderWidth: 2,
             borderColor: 'rgba(59,130,246,0.95)',
             backgroundColor: 'rgba(59,130,246,0.95)',
@@ -555,25 +426,13 @@
           });
         }
 
-        // EC series (raw + smoothed)
+        // EC series (raw only)
         if (ec.length) {
-          datasets.push({
-            id: 'ec-raw',
-            yAxisID: 'yEc',
-            label: 'EC Raw',
-            data: ec,
-            borderWidth: 1,
-            borderColor: 'rgba(16,185,129,0.15)',
-            backgroundColor: 'rgba(16,185,129,0.15)',
-            pointRadius: 0,
-            spanGaps: true,
-            order: 1
-          });
           datasets.push({
             id: 'ec',
             yAxisID: 'yEc',
             label: 'EC',
-            data: ecSmoothed.length ? ecSmoothed : ec,
+            data: ec,
             borderWidth: 2.2,
             borderColor: 'rgba(16,185,129,0.95)',
             backgroundColor: 'rgba(16,185,129,0.95)',
@@ -750,9 +609,6 @@
           axisCache.ph = { min: phRange.min, max: phRange.max };
           axisCache.ec = { min: ecRange.min, max: ecRange.max };
           axisCache.temp = { min: tempRange.min, max: tempRange.max };
-          axisCache.phBand = null;
-          axisCache.ecBand = null;
-          axisCache.tempBand = null;
         } else {
           // Same zoom level — only expand to include new extremes, never shrink.
           // This keeps axes stable across live-mode ticks and across panning.
@@ -763,10 +619,6 @@
           axisCache.temp.min = Math.min(axisCache.temp.min, tempRange.min);
           axisCache.temp.max = Math.max(axisCache.temp.max, tempRange.max);
         }
-
-        updateBandCache('phBand', phLowData, phHighData, 3);
-        updateBandCache('ecBand', ecLowData, ecHighData, 3);
-        updateBandCache('tempBand', tempLowData, tempHighData, 2);
 
         let phMin = axisCache.ph.min;
         let phMax = axisCache.ph.max;
