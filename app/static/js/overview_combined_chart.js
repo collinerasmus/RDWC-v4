@@ -307,13 +307,13 @@
         // Adaptive smoothing windows based on zoom level — reduces noise on all probes.
         const windowHoursForAvg = Math.max(1 / 60, (window.end - window.start) / 3600000);
         
-        // pH and EC are more dynamic; use tighter smoothing windows.
+        // pH and EC are more dynamic; use much tighter smoothing windows.
         let phEcWindowMs;
-        if (windowHoursForAvg <= 1) phEcWindowMs = 8 * 60 * 1000;          // 8 minutes
-        else if (windowHoursForAvg <= 6) phEcWindowMs = 20 * 60 * 1000;      // 20 minutes
-        else if (windowHoursForAvg <= 24) phEcWindowMs = 60 * 60 * 1000;     // 1 hour
-        else if (windowHoursForAvg <= 168) phEcWindowMs = 240 * 60 * 1000;   // 4 hours
-        else phEcWindowMs = 720 * 60 * 1000;                               // 12 hours
+        if (windowHoursForAvg <= 1) phEcWindowMs = 5 * 60 * 1000;           // 5 minutes
+        else if (windowHoursForAvg <= 6) phEcWindowMs = 12 * 60 * 1000;      // 12 minutes
+        else if (windowHoursForAvg <= 24) phEcWindowMs = 30 * 60 * 1000;     // 30 minutes
+        else if (windowHoursForAvg <= 168) phEcWindowMs = 60 * 60 * 1000;    // 1 hour
+        else phEcWindowMs = 120 * 60 * 1000;                               // 2 hours
 
         // Temperature cycles slowly; use longer smoothing window.
         let tempWindowMs;
