@@ -1246,19 +1246,33 @@ body{
       </div>
     </div>
 
-      <!-- Combined Overview Chart (pH, EC, Temp + pumps/lights overlays) -->
+      <!-- Stacked Overview Chart — pH / EC / Temperature rows with shared X-axis -->
       <div class="card" style="margin-top:16px;">
         <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
           <div style="display:flex;align-items:center;gap:8px;">
             <h3 class="card-title" style="margin:0;">Live Overview Chart</h3>
-            <span class="muted" style="font-size:var(--font-xs);">pH, EC, Temp with dosing, circulation, lights overlays</span>
+            <span class="muted" style="font-size:var(--font-xs);">pH · EC · Temp — shared axis, yellow = lights on, coloured hairlines = dose events</span>
           </div>
-          <span id="overview-combined-range" class="muted" style="font-size:var(--font-xs);">Last 30 min</span>
+          <span id="overview-combined-range" class="muted" style="font-size:var(--font-xs);">—</span>
         </div>
-        <div class="card-body">
-          <div class="muted" style="font-size:var(--font-xs);margin-bottom:8px;">Single source of truth using existing trends, dose logs, and relay events. Controls match other charts.</div>
-          <div id="overview-combined-wrap" class="chart-card">
-            <canvas id="overviewCombinedChart"></canvas>
+        <div class="card-body" style="padding-bottom:4px;">
+          <!-- Stacked chart rows -->
+          <div id="overview-combined-wrap" style="display:flex;flex-direction:column;gap:0;position:relative;">
+            <!-- pH row -->
+            <div style="position:relative;height:148px;">
+              <div style="position:absolute;top:4px;right:8px;font-size:10px;color:#93c5fd;font-weight:600;z-index:2;pointer-events:none;">pH</div>
+              <canvas id="overviewChartPh" style="display:block;width:100%;height:148px;"></canvas>
+            </div>
+            <!-- EC row -->
+            <div style="position:relative;height:120px;border-top:1px solid rgba(255,255,255,0.05);">
+              <div style="position:absolute;top:4px;right:8px;font-size:10px;color:#6ee7b7;font-weight:600;z-index:2;pointer-events:none;">EC</div>
+              <canvas id="overviewChartEc" style="display:block;width:100%;height:120px;"></canvas>
+            </div>
+            <!-- Temp row (shows X-axis labels) -->
+            <div style="position:relative;height:120px;border-top:1px solid rgba(255,255,255,0.05);">
+              <div style="position:absolute;top:4px;right:8px;font-size:10px;color:#f87171;font-weight:600;z-index:2;pointer-events:none;">°C</div>
+              <canvas id="overviewChartTemp" style="display:block;width:100%;height:120px;"></canvas>
+            </div>
             <div id="overview-combined-empty" class="muted small" style="display:none;padding:8px 0;">No data in this window.</div>
           </div>
           <div id="overview-combined-controls" style="margin-top:8px;"></div>
