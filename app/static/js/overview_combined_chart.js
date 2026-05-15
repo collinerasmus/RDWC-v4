@@ -178,7 +178,7 @@
           x: {
             type: 'time',
             time: {
-              displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'MM/DD' }
+              displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'MM/dd' }
             },
             ticks: {
               display: showXAxis,
