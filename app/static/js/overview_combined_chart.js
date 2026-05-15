@@ -236,6 +236,25 @@
     };
   }
 
+  function fetchJsonWithTimeout(url, fallback, timeoutMs) {
+    const timeout = Number.isFinite(timeoutMs) ? timeoutMs : 7000;
+    const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    const timer = setTimeout(function () {
+      try { if (ctrl) ctrl.abort(); } catch (_) {}
+    }, timeout);
+
+    const options = { cache: 'no-store' };
+    if (ctrl) options.signal = ctrl.signal;
+
+    return fetch(url, options)
+      .then(function (res) {
+        if (!res.ok) return fallback;
+        return res.json().catch(function () { return fallback; });
+      })
+      .catch(function () { return fallback; })
+      .finally(function () { clearTimeout(timer); });
+  }
+
   // ── Main init ────────────────────────────────────────────────────────────────
   function init() {
     if (typeof Chart === 'undefined') {
@@ -278,29 +297,32 @@
       else                   { gran = 900; max = 3000; }
 
       const q = new URLSearchParams({ from: startISO, to: endISO, gran: String(gran), max: String(max) });
-      const phDoseLimit = hours <= 24 ? 2000 : (hours <= 168 ? 5000 : 20000);
-      const relayLimit  = Math.min(10000, Math.max(500, Math.ceil(hours / 24 * 500)));
+      // Keep long-range calls bounded; trends is primary, others are optional enrichments.
+      const phDoseLimit = hours <= 24 ? 2000 : (hours <= 168 ? 4000 : 6000);
+      const ecDoseHours = Math.min(168, Math.max(1, Math.ceil(hours)));
+      const relayLimit  = hours <= 24 ? 1000 : (hours <= 168 ? 2000 : 3000);
+      const isLongRange = hours > 168;
 
-      const [tR, pdR, edR, sR, ecStR, tStR, phStR, lR] = await Promise.all([
-        fetch('/api/trends?' + q,                                                                                                 { cache: 'no-store' }),
-        fetch('/api/ph/dose_log?start=' + encodeURIComponent(startISO) + '&end=' + encodeURIComponent(endISO) + '&limit=' + phDoseLimit, { cache: 'no-store' }),
-        fetch('/api/dose/recent?hours=' + Math.max(1, Math.ceil(hours)),                                                         { cache: 'no-store' }),
-        fetch('/api/settings',                                                                                                    { cache: 'no-store' }),
-        fetch('/api/ec/status',                                                                                                   { cache: 'no-store' }),
-        fetch('/api/temperature/status',                                                                                          { cache: 'no-store' }),
-        fetch('/api/ph/status',                                                                                                   { cache: 'no-store' }),
-        fetch('/api/relays/events?name=lights&last=' + relayLimit,                                                               { cache: 'no-store' }),
+      const [trends, phDose, ecDose, settings, ecStatus, tempStatus, phStatus, lightsEvents] = await Promise.all([
+        fetchJsonWithTimeout('/api/trends?' + q, { series: {} }, isLongRange ? 12000 : 9000),
+        fetchJsonWithTimeout('/api/ph/dose_log?start=' + encodeURIComponent(startISO) + '&end=' + encodeURIComponent(endISO) + '&limit=' + phDoseLimit, [], isLongRange ? 5000 : 7000),
+        fetchJsonWithTimeout('/api/dose/recent?hours=' + ecDoseHours, { events: [] }, isLongRange ? 5000 : 7000),
+        fetchJsonWithTimeout('/api/settings', {}, 6000),
+        fetchJsonWithTimeout('/api/ec/status', {}, 6000),
+        fetchJsonWithTimeout('/api/temperature/status', {}, 6000),
+        fetchJsonWithTimeout('/api/ph/status', {}, 6000),
+        fetchJsonWithTimeout('/api/relays/events?name=lights&last=' + relayLimit, [], isLongRange ? 5000 : 7000),
       ]);
 
       return {
-        trends:      tR.ok    ? await tR.json()    : { series: {} },
-        phDose:      pdR.ok   ? await pdR.json()   : [],
-        ecDose:      edR.ok   ? await edR.json()   : { events: [] },
-        settings:    sR.ok    ? await sR.json()    : {},
-        ecStatus:    ecStR.ok ? await ecStR.json() : {},
-        tempStatus:  tStR.ok  ? await tStR.json()  : {},
-        phStatus:    phStR.ok ? await phStR.json() : {},
-        lightsEvents: lR.ok   ? await lR.json()    : []
+        trends,
+        phDose,
+        ecDose,
+        settings,
+        ecStatus,
+        tempStatus,
+        phStatus,
+        lightsEvents
       };
     }
 
