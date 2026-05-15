@@ -2399,14 +2399,27 @@ def api_trends(
     
     logger.debug(f"[Trends API] After bucketing: ph={len(ph_series)}, ec={len(ec_series)}, temp={len(temp_series)}")
     
-    # Downsample if still too many points (even stride)
+    # Downsample while preserving full time coverage (first and latest points).
+    # Old logic truncated to the first max_pts samples, which could hide newest data.
     def cap(arr, max_pts):
         n = len(arr)
-        if n <= max_pts:
-            return arr
-        step = max(1, n // max_pts)
-        result = [arr[i] for i in range(0, n, step)][:max_pts]
-        return result
+        if n <= max_pts or max_pts <= 1:
+            return arr[:max_pts] if max_pts > 0 else []
+
+        step = (n - 1) / float(max_pts - 1)
+        out = []
+        prev_idx = -1
+        for i in range(max_pts):
+            idx = int(round(i * step))
+            if idx <= prev_idx:
+                idx = min(n - 1, prev_idx + 1)
+            out.append(arr[idx])
+            prev_idx = idx
+
+        # Ensure exact max size and guarantee newest sample at the tail.
+        out = out[:max_pts]
+        out[-1] = arr[-1]
+        return out
     
     ph_series = cap(ph_series, max_points)
     ec_series = cap(ec_series, max_points)
