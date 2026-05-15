@@ -114,7 +114,7 @@
   function makeDosePlugin(getEvents, color) {
     return {
       id: 'doseHairlines_' + color.replace(/[^a-z0-9]/gi, '_'),
-      afterDraw(chart) {
+      beforeDatasetsDraw(chart) {
         const evs = getEvents();
         if (!evs.length) return;
         const { ctx, chartArea, scales } = chart;
@@ -288,7 +288,7 @@
 
     const lightsPlugin = makeLightsPlugin(() => lightsIntervals);
     const phDosePlugin = makeDosePlugin(() => phDoseEvs, 'rgba(251,191,36,1)');
-    const ecDosePlugin = makeDosePlugin(() => ecDoseEvs, 'rgba(52,211,153,1)');
+  const ecDosePlugin = makeDosePlugin(() => ecDoseEvs, 'rgba(249,115,22,1)');
 
     const phChart   = makeChart('overviewChartPh',   'pH',       '#93c5fd', false, [lightsPlugin, phDosePlugin]);
     const ecChart   = makeChart('overviewChartEc',   'EC mS/cm', '#6ee7b7', false, [lightsPlugin, ecDosePlugin]);
