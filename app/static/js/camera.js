@@ -316,9 +316,11 @@
     if (video) {
       if (url) {
         video.src = url;
+        try { video.load(); } catch(_) {}
         video.style.display = 'block';
       } else {
         video.removeAttribute('src');
+        try { video.load(); } catch(_) {}
         video.style.display = 'none';
       }
     }

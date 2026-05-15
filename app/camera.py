@@ -2,6 +2,8 @@
 import json
 import os
 import re
+import shutil
+import subprocess
 import threading
 import time
 import math
@@ -320,7 +322,40 @@ class CameraManager:
                 out_path.unlink(missing_ok=True)
             return {"ok": False, "error": "render_failed", "frames_written": written}
 
-        return {
+        # Browser compatibility: OpenCV mp4v often fails in HTML5 players.
+        # If ffmpeg exists, transcode in-place to H.264 (yuv420p, faststart).
+        ffmpeg_bin = shutil.which("ffmpeg")
+        transcoded = False
+        transcode_error = None
+        if ffmpeg_bin:
+            tmp_out = out_path.with_name(out_path.stem + ".h264tmp.mp4")
+            cmd = [
+                ffmpeg_bin,
+                "-y",
+                "-i", str(out_path),
+                "-an",
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart",
+                "-preset", "veryfast",
+                "-crf", "23",
+                str(tmp_out),
+            ]
+            try:
+                p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if p.returncode == 0 and tmp_out.exists() and tmp_out.stat().st_size > 0:
+                    tmp_out.replace(out_path)
+                    transcoded = True
+                else:
+                    transcode_error = (p.stderr or p.stdout or "ffmpeg_failed").strip()[:300]
+                    with suppress(Exception):
+                        tmp_out.unlink(missing_ok=True)
+            except Exception as e:
+                transcode_error = str(e)
+                with suppress(Exception):
+                    tmp_out.unlink(missing_ok=True)
+
+        result = {
             "ok": True,
             "days": int(bundle.get("days", days)),
             "fps": output_fps,
@@ -333,6 +368,12 @@ class CameraManager:
                 "url": f"/camera/timelapse/video/{out_name}",
             },
         }
+        if ffmpeg_bin:
+            result["video"]["codec"] = "h264" if transcoded else "mp4v"
+            result["video"]["transcoded"] = bool(transcoded)
+            if transcode_error:
+                result["video"]["transcode_error"] = transcode_error
+        return result
 
     @classmethod
     def _load_settings(cls):
