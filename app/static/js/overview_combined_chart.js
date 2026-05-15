@@ -236,6 +236,17 @@
     };
   }
 
+  function downsampleEvenly(points, maxPoints) {
+    if (!Array.isArray(points)) return [];
+    if (!Number.isFinite(maxPoints) || maxPoints < 2 || points.length <= maxPoints) return points;
+    const step = Math.ceil(points.length / maxPoints);
+    const out = [];
+    for (let i = 0; i < points.length; i += step) out.push(points[i]);
+    const last = points[points.length - 1];
+    if (out[out.length - 1] !== last) out.push(last);
+    return out.length > maxPoints ? out.slice(0, maxPoints) : out;
+  }
+
   function fetchJsonWithTimeout(url, fallback, timeoutMs) {
     const timeout = Number.isFinite(timeoutMs) ? timeoutMs : 7000;
     const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
@@ -290,11 +301,13 @@
       const spanMs = new Date(endISO) - new Date(startISO);
       const hours  = spanMs / 3600000;
       let gran, max;
-      if      (hours <= 1)   { gran = 10;  max = 600;  }
-      else if (hours <= 6)   { gran = 20;  max = 1200; }
-      else if (hours <= 24)  { gran = 60;  max = 1500; }
-      else if (hours <= 168) { gran = 300; max = 2100; }
-      else                   { gran = 900; max = 3000; }
+      if      (hours <= 1)    { gran = 10;   max = 600;  }
+      else if (hours <= 6)    { gran = 30;   max = 900;  }
+      else if (hours <= 24)   { gran = 60;   max = 1200; }
+      else if (hours <= 168)  { gran = 300;  max = 1500; }
+      else if (hours <= 720)  { gran = 900;  max = 1400; }
+      else if (hours <= 2160) { gran = 1800; max = 1200; }
+      else                    { gran = 3600; max = 1000; }
 
       const q = new URLSearchParams({ from: startISO, to: endISO, gran: String(gran), max: String(max) });
       // Keep long-range calls bounded; trends is primary, others are optional enrichments.
@@ -328,18 +341,36 @@
 
     // ── Render ─────────────────────────────────────────────────────────────────
     function render(data, win) {
-      const ph   = (data.trends?.series?.ph   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
-      const ec   = (data.trends?.series?.ec   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
-      const temp = (data.trends?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) }));
+      const durationHours = (win.end - win.start) / 3600000;
+      const windowHours   = Math.max(1 / 60, durationHours);
 
-      lightsIntervals = buildLightsIntervals(data.lightsEvents, win.start, win.end);
-      phDoseEvs = (data.phDose || [])
+      const pointCap = durationHours <= 24 ? 1400
+        : durationHours <= 168 ? 1200
+        : durationHours <= 720 ? 900
+        : durationHours <= 2160 ? 700
+        : 500;
+
+      const doseCap = durationHours <= 24 ? 500
+        : durationHours <= 168 ? 350
+        : durationHours <= 720 ? 250
+        : 160;
+
+      const lightsCap = durationHours <= 168 ? 900
+        : durationHours <= 720 ? 600
+        : 400;
+
+      const ph   = downsampleEvenly((data.trends?.series?.ph   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) })), pointCap);
+      const ec   = downsampleEvenly((data.trends?.series?.ec   || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) })), pointCap);
+      const temp = downsampleEvenly((data.trends?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) })), pointCap);
+
+      lightsIntervals = downsampleEvenly(buildLightsIntervals(data.lightsEvents, win.start, win.end), lightsCap);
+      phDoseEvs = downsampleEvenly((data.phDose || [])
         .map(e => ({ ts: new Date(e.ts).getTime() }))
-        .filter(e => e.ts >= win.start && e.ts <= win.end);
-      ecDoseEvs = (data.ecDose?.events || [])
+        .filter(e => e.ts >= win.start && e.ts <= win.end), doseCap);
+      ecDoseEvs = downsampleEvenly((data.ecDose?.events || [])
         .filter(e => !e.blocked_by)
         .map(e => ({ ts: e.ts * 1000 }))
-        .filter(e => e.ts >= win.start && e.ts <= win.end);
+        .filter(e => e.ts >= win.start && e.ts <= win.end), doseCap);
 
       const targets  = data.settings?.targets || {};
       const phTgts   = data.phStatus?.targets || {};
@@ -361,8 +392,6 @@
         tempHigh = t + hyst;
       }
 
-      const durationHours = (win.end - win.start) / 3600000;
-      const windowHours   = Math.max(1 / 60, durationHours);
       const wKey = durationHours <= 1.5 ? '1h' : durationHours <= 7 ? '6h' : durationHours <= 28 ? '24h' : durationHours <= 200 ? '7d' : 'grow';
 
       const phVals = ph.map(p => p.y).filter(Number.isFinite);
