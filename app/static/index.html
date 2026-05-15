@@ -1765,143 +1765,12 @@ body{
       </div>
       <!-- Unified controls (zoom + slider) -->
       <div id="sensors-chart-controls"></div>
-      <!-- Settings with exclusive-open accordions -->
+      <!-- Settings moved to the respective control tabs -->
       <div style="margin-top:12px;">
         <div class="muted" style="cursor:default;font-size:var(--font-lg);margin-bottom:8px;">⚙️ Settings</div>
-        
-        <!-- pH Probe Calibration Section -->
-        <div class="sensors-settings-accordion" style="margin-top:8px;">
-          <div class="muted" style="font-weight:600;font-size:var(--font-md);margin-bottom:8px;">🧪 pH Probe Calibration</div>
-          <div class="details-content-accent">
-          
-          <div style="margin-bottom:var(--space-md);padding:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:6px;">
-            <div style="font-size:var(--font-xs);color:#93c5fd;margin-bottom:4px;">Calibration Status:</div>
-            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-              <span style="font-size:var(--font-xs);color:#9ca3af;">Current pH: <strong id="phCalCurrentReading" style="color:#93c5fd;">—</strong></span>
-              <span style="font-size:var(--font-xs);color:#9ca3af;">Status: <strong id="phCalStatusValue" style="color:#e0e0e0;">—</strong></span>
-              <button id="btnPhCalRefreshStatus" class="btn-secondary btn-xs">Refresh</button>
-            </div>
-          </div>
-          
-          <div style="margin-bottom:var(--space-md);padding:8px;background:rgba(251,191,36,0.08);border-left:3px solid #fbbf24;border-radius:4px;">
-            <div style="font-size:var(--font-xs);color:#fbbf24;font-weight:600;margin-bottom:4px;">⚠️ Calibration Sequence (Mid/Low/High)</div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;line-height:1.4;">
-              1. <strong>Mid</strong>: Place in 7.00 pH buffer, wait until stable<br>
-              2. <strong>Low</strong>: Place in 4.00 pH buffer, wait until stable<br>
-              3. <strong>High</strong>: Place in 10.00 pH buffer, wait until stable (optional but recommended)
-            </div>
-          </div>
-          
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
-            <button id="btnPhCalClear" class="btn-secondary btn-xs">Clear Calibration</button>
-          </div>
-          
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
-            <span style="font-size:var(--font-xs);color:#9ca3af;min-width:80px;">Step 1:</span>
-            <span style="font-size:var(--font-xs);color:#9ca3af;">Mid (7.00)</span>
-            <span id="phCalMidIndicator" style="font-weight:600;color:#10b981;min-width:20px;">—</span>
-            <button id="btnPhCalMid" class="btn-secondary btn-xs">Calibrate Mid</button>
-          </div>
-          
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
-            <span style="font-size:var(--font-xs);color:#9ca3af;min-width:80px;">Step 2:</span>
-            <span style="font-size:var(--font-xs);color:#9ca3af;">Low (4.00)</span>
-            <span id="phCalLowIndicator" style="font-weight:600;color:#10b981;min-width:20px;">—</span>
-            <button id="btnPhCalLow" class="btn-secondary btn-xs">Calibrate Low</button>
-          </div>
-          
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
-            <span style="font-size:var(--font-xs);color:#9ca3af;min-width:80px;">Step 3:</span>
-            <span style="font-size:var(--font-xs);color:#9ca3af;">High (10.00)</span>
-            <span id="phCalHighIndicator" style="font-weight:600;color:#10b981;min-width:20px;">—</span>
-            <button id="btnPhCalHigh" class="btn-secondary btn-xs">Calibrate High</button>
-          </div>
-          
-          <div style="margin-bottom:var(--space-md);margin-top:var(--space-lg);border-top:1px solid rgba(148,163,184,0.2);padding-top:var(--space-md);">
-            <div style="font-size:var(--font-xs);color:#9ca3af;margin-bottom:var(--space-sm);">Probe Commands:</div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <button id="btnPhRead" class="btn-secondary btn-xs">Read</button>
-              <button id="btnPhStabilize" class="btn-secondary btn-xs" title="Read until stable or timeout">Stabilize</button>
-              <span id="ph-stabilize-countdown" class="countdown-pill" style="display:none;margin-left:auto;">⏱ 0s</span>
-              <button id="btnPhStatus" class="btn-secondary btn-xs">Status</button>
-              <button id="btnLedsOn" class="btn-secondary btn-xs" title="Turn LEDs on">LEDs On</button>
-              <button id="btnLedsOff" class="btn-secondary btn-xs" title="Turn LEDs off">LEDs Off</button>
-              <button id="btnLedsBlink" class="btn-secondary btn-xs" title="Blink LEDs to locate">LEDs Blink</button>
-            </div>
-          </div>
-          
-          <div id="phCalMessage" class="muted" style="font-size:var(--font-xs);padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
-          </div>
+        <div class="muted" style="font-size:var(--font-xs);padding:8px 10px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:6px;">
+          Probe calibration now lives in the <strong>pH</strong> and <strong>EC</strong> tabs.
         </div>
-
-        <!-- EC Probe Calibration Section -->
-        <div class="sensors-settings-accordion" style="margin-top:8px;">
-          <div class="muted" style="font-weight:600;font-size:var(--font-md);margin-bottom:8px;">⚡ EC Probe Calibration (K=0.1)</div>
-          <div class="details-content-accent">
-          <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-base);">EC Probe Calibration</div>
-          
-          <div style="margin-bottom:var(--space-md);padding:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:6px;">
-            <div style="font-size:var(--font-xs);color:#93c5fd;margin-bottom:4px;">Calibration Status:</div>
-            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-              <span style="font-size:var(--font-xs);color:#9ca3af;">Status: <strong id="ecCalStatusValue" style="color:#e0e0e0;">—</strong></span>
-              <span style="font-size:var(--font-xs);color:#9ca3af;">K: <strong id="ecKValue" style="color:#e0e0e0;">—</strong></span>
-              <span style="font-size:var(--font-xs);color:#9ca3af;">Current: <strong id="ecCalCurrentReading" style="color:#93c5fd;">—</strong> mS/cm</span>
-              <button id="btnEcCalRefreshStatus" class="btn-secondary btn-xs">Refresh</button>
-            </div>
-          </div>
-          
-          <div style="margin-bottom:var(--space-md);padding:8px;background:rgba(251,191,36,0.08);border-left:3px solid #fbbf24;border-radius:4px;">
-            <div style="font-size:var(--font-xs);color:#fbbf24;font-weight:600;margin-bottom:4px;">⚠️ Calibration Sequence for K=0.1 Probe</div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;line-height:1.4;">
-              1. <strong>Dry</strong>: Remove probe from solution, let air dry (30s)<br>
-              2. <strong>Low</strong>: Place in 84 µS/cm solution, wait 30s<br>
-              3. <strong>High</strong>: Place in 1,413 µS/cm solution, wait 30s (optional but recommended)
-            </div>
-          </div>
-          
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
-            <button id="btnEcCalClear" class="btn-secondary btn-xs">Clear Calibration</button>
-          </div>
-          
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
-            <span style="font-size:var(--font-xs);color:#9ca3af;min-width:80px;">Step 1:</span>
-            <span style="font-size:var(--font-xs);color:#9ca3af;">Dry (air)</span>
-            <span id="ecCalDryIndicator" style="font-weight:600;color:#10b981;min-width:20px;">—</span>
-            <button id="btnEcCalDry" class="btn-secondary btn-xs">Calibrate Dry</button>
-          </div>
-          
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
-            <span style="font-size:var(--font-xs);color:#9ca3af;min-width:80px;">Step 2:</span>
-            <span style="font-size:var(--font-xs);color:#9ca3af;">Low (84 µS/cm)</span>
-            <span id="ecCalLowIndicator" style="font-weight:600;color:#10b981;min-width:20px;">—</span>
-            <button id="btnEcCalLow" class="btn-secondary btn-xs">Calibrate Low</button>
-          </div>
-          
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
-            <span style="font-size:var(--font-xs);color:#9ca3af;min-width:80px;">Step 3:</span>
-            <span style="font-size:var(--font-xs);color:#9ca3af;">High (1,413 µS/cm)</span>
-            <span id="ecCalHighIndicator" style="font-weight:600;color:#10b981;min-width:20px;">—</span>
-            <button id="btnEcCalHigh" class="btn-secondary btn-xs">Calibrate High</button>
-          </div>
-          
-          <div style="margin-bottom:var(--space-md);margin-top:var(--space-lg);border-top:1px solid rgba(148,163,184,0.2);padding-top:var(--space-md);">
-            <div style="font-size:var(--font-xs);color:#9ca3af;margin-bottom:var(--space-sm);">Probe Constant (K):</div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <select id="ec-k-select" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
-                <option value="0.1" selected>K=0.1 (0.5-50 µS/cm)</option>
-                <option value="1.0">K=1.0 (5-200,000 µS/cm)</option>
-                <option value="10.0">K=10.0 (100-1,000,000 µS/cm)</option>
-              </select>
-              <button id="btnEcSetK" class="btn-secondary btn-xs">Set K</button>
-            </div>
-            <div style="font-size:var(--font-xs);color:#9ca3af;margin-top:4px;">⚠️ IMPORTANT: Your probe is K=0.1. Must match physical probe label.</div>
-          </div>
-          
-          <div id="ecCalMessage" class="muted" style="font-size:var(--font-xs);padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
-          </div>
-        </div>
-        
-        <!-- Pump Calibration Sections removed (moved to pH and EC tabs) -->
       </div>
       
       <!-- (Removed exclusive-open script; accordions now independent) -->
@@ -2075,6 +1944,70 @@ body{
                 </div>
               </div>
               <button id="btnSavePhSettings" class="btn-secondary btn-full">Save pH Settings</button>
+            </div>
+          </div>
+
+          <!-- pH Probe Calibration -->
+          <div style="margin-top:12px;">
+            <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">🧪 pH Probe Calibration</div>
+            <div class="details-content-accent">
+              <div style="margin-bottom:var(--space-md);padding:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:6px;">
+                <div style="font-size:var(--font-xs);color:#93c5fd;margin-bottom:4px;">Calibration Status:</div>
+                <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                  <span style="font-size:var(--font-xs);color:#9ca3af;">Current pH: <strong id="phCalCurrentReading" style="color:#93c5fd;">—</strong></span>
+                  <span style="font-size:var(--font-xs);color:#9ca3af;">Status: <strong id="phCalStatusValue" style="color:#e0e0e0;">—</strong></span>
+                  <button id="btnPhCalRefreshStatus" class="btn-secondary btn-xs">Refresh</button>
+                </div>
+              </div>
+
+              <div style="margin-bottom:var(--space-md);padding:8px;background:rgba(251,191,36,0.08);border-left:3px solid #fbbf24;border-radius:4px;">
+                <div style="font-size:var(--font-xs);color:#fbbf24;font-weight:600;margin-bottom:4px;">⚠️ Calibration Sequence (Mid/Low/High)</div>
+                <div style="font-size:var(--font-xs);color:#9ca3af;line-height:1.4;">
+                  1. <strong>Mid</strong>: Place in 7.00 pH buffer, wait until stable<br>
+                  2. <strong>Low</strong>: Place in 4.00 pH buffer, wait until stable<br>
+                  3. <strong>High</strong>: Place in 10.00 pH buffer, wait until stable (optional but recommended)
+                </div>
+              </div>
+
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
+                <button id="btnPhCalClear" class="btn-secondary btn-xs">Clear Calibration</button>
+              </div>
+
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
+                <span style="font-size:var(--font-xs);color:#9ca3af;min-width:80px;">Step 1:</span>
+                <span style="font-size:var(--font-xs);color:#9ca3af;">Mid (7.00)</span>
+                <span id="phCalMidIndicator" style="font-weight:600;color:#10b981;min-width:20px;">—</span>
+                <button id="btnPhCalMid" class="btn-secondary btn-xs">Calibrate Mid</button>
+              </div>
+
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
+                <span style="font-size:var(--font-xs);color:#9ca3af;min-width:80px;">Step 2:</span>
+                <span style="font-size:var(--font-xs);color:#9ca3af;">Low (4.00)</span>
+                <span id="phCalLowIndicator" style="font-weight:600;color:#10b981;min-width:20px;">—</span>
+                <button id="btnPhCalLow" class="btn-secondary btn-xs">Calibrate Low</button>
+              </div>
+
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
+                <span style="font-size:var(--font-xs);color:#9ca3af;min-width:80px;">Step 3:</span>
+                <span style="font-size:var(--font-xs);color:#9ca3af;">High (10.00)</span>
+                <span id="phCalHighIndicator" style="font-weight:600;color:#10b981;min-width:20px;">—</span>
+                <button id="btnPhCalHigh" class="btn-secondary btn-xs">Calibrate High</button>
+              </div>
+
+              <div style="margin-bottom:var(--space-md);margin-top:var(--space-lg);border-top:1px solid rgba(148,163,184,0.2);padding-top:var(--space-md);">
+                <div style="font-size:var(--font-xs);color:#9ca3af;margin-bottom:var(--space-sm);">Probe Commands:</div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                  <button id="btnPhRead" class="btn-secondary btn-xs">Read</button>
+                  <button id="btnPhStabilize" class="btn-secondary btn-xs" title="Read until stable or timeout">Stabilize</button>
+                  <span id="ph-stabilize-countdown" class="countdown-pill" style="display:none;margin-left:auto;">⏱ 0s</span>
+                  <button id="btnPhStatus" class="btn-secondary btn-xs">Status</button>
+                  <button id="btnLedsOn" class="btn-secondary btn-xs" title="Turn LEDs on">LEDs On</button>
+                  <button id="btnLedsOff" class="btn-secondary btn-xs" title="Turn LEDs off">LEDs Off</button>
+                  <button id="btnLedsBlink" class="btn-secondary btn-xs" title="Blink LEDs to locate">LEDs Blink</button>
+                </div>
+              </div>
+
+              <div id="phCalMessage" class="muted" style="font-size:var(--font-xs);padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
             </div>
           </div>
 
@@ -2257,6 +2190,73 @@ body{
                   </div>
                 </div>
                 <button id="btnSaveEcSettings" class="btn-secondary btn-full">Save EC Settings</button>
+              </div>
+            </div>
+
+            <!-- EC Probe Calibration -->
+            <div style="margin-top:12px;">
+              <div class="muted" style="font-weight:600;font-size:var(--font-lg);margin-bottom:8px;">⚡ EC Probe Calibration (K=0.1)</div>
+              <div class="details-content-accent">
+                <div style="font-weight:600;margin-bottom:8px;font-size:var(--font-base);">EC Probe Calibration</div>
+
+                <div style="margin-bottom:var(--space-md);padding:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:6px;">
+                  <div style="font-size:var(--font-xs);color:#93c5fd;margin-bottom:4px;">Calibration Status:</div>
+                  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                    <span style="font-size:var(--font-xs);color:#9ca3af;">Status: <strong id="ecCalStatusValue" style="color:#e0e0e0;">—</strong></span>
+                    <span style="font-size:var(--font-xs);color:#9ca3af;">K: <strong id="ecKValue" style="color:#e0e0e0;">—</strong></span>
+                    <span style="font-size:var(--font-xs);color:#9ca3af;">Current: <strong id="ecCalCurrentReading" style="color:#93c5fd;">—</strong> mS/cm</span>
+                    <button id="btnEcCalRefreshStatus" class="btn-secondary btn-xs">Refresh</button>
+                  </div>
+                </div>
+
+                <div style="margin-bottom:var(--space-md);padding:8px;background:rgba(251,191,36,0.08);border-left:3px solid #fbbf24;border-radius:4px;">
+                  <div style="font-size:var(--font-xs);color:#fbbf24;font-weight:600;margin-bottom:4px;">⚠️ Calibration Sequence for K=0.1 Probe</div>
+                  <div style="font-size:var(--font-xs);color:#9ca3af;line-height:1.4;">
+                    1. <strong>Dry</strong>: Remove probe from solution, let air dry (30s)<br>
+                    2. <strong>Low</strong>: Place in 84 µS/cm solution, wait 30s<br>
+                    3. <strong>High</strong>: Place in 1,413 µS/cm solution, wait 30s (optional but recommended)
+                  </div>
+                </div>
+
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
+                  <button id="btnEcCalClear" class="btn-secondary btn-xs">Clear Calibration</button>
+                </div>
+
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
+                  <span style="font-size:var(--font-xs);color:#9ca3af;min-width:80px;">Step 1:</span>
+                  <span style="font-size:var(--font-xs);color:#9ca3af;">Dry (air)</span>
+                  <span id="ecCalDryIndicator" style="font-weight:600;color:#10b981;min-width:20px;">—</span>
+                  <button id="btnEcCalDry" class="btn-secondary btn-xs">Calibrate Dry</button>
+                </div>
+
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
+                  <span style="font-size:var(--font-xs);color:#9ca3af;min-width:80px;">Step 2:</span>
+                  <span style="font-size:var(--font-xs);color:#9ca3af;">Low (84 µS/cm)</span>
+                  <span id="ecCalLowIndicator" style="font-weight:600;color:#10b981;min-width:20px;">—</span>
+                  <button id="btnEcCalLow" class="btn-secondary btn-xs">Calibrate Low</button>
+                </div>
+
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--space-md);">
+                  <span style="font-size:var(--font-xs);color:#9ca3af;min-width:80px;">Step 3:</span>
+                  <span style="font-size:var(--font-xs);color:#9ca3af;">High (1,413 µS/cm)</span>
+                  <span id="ecCalHighIndicator" style="font-weight:600;color:#10b981;min-width:20px;">—</span>
+                  <button id="btnEcCalHigh" class="btn-secondary btn-xs">Calibrate High</button>
+                </div>
+
+                <div style="margin-bottom:var(--space-md);margin-top:var(--space-lg);border-top:1px solid rgba(148,163,184,0.2);padding-top:var(--space-md);">
+                  <div style="font-size:var(--font-xs);color:#9ca3af;margin-bottom:var(--space-sm);">Probe Constant (K):</div>
+                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <select id="ec-k-select" style="height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
+                      <option value="0.1" selected>K=0.1 (0.5-50 µS/cm)</option>
+                      <option value="1.0">K=1.0 (5-200,000 µS/cm)</option>
+                      <option value="10.0">K=10.0 (100-1,000,000 µS/cm)</option>
+                    </select>
+                    <button id="btnEcSetK" class="btn-secondary btn-xs">Set K</button>
+                  </div>
+                  <div style="font-size:var(--font-xs);color:#9ca3af;margin-top:4px;">⚠️ IMPORTANT: Your probe is K=0.1. Must match physical probe label.</div>
+                </div>
+
+                <div id="ecCalMessage" class="muted" style="font-size:var(--font-xs);padding:6px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:4px;margin-top:10px;display:none;"></div>
               </div>
             </div>
 
