@@ -552,6 +552,37 @@
     await refreshSessions();
   }
 
+  async function cleanupNighttimeFrames(){
+    const brightnessThreshold = parseInt(el('cam-cleanup-brightness')?.value || '60', 10);
+    const confirm = window.confirm(
+      'Remove frames with brightness < ' + brightnessThreshold + ' (nighttime captures)?\n' +
+      'This will scan all sessions and delete dark frames.\n\n' +
+      'Continue?'
+    );
+    if (!confirm) return;
+
+    try {
+      setTimelapseNote('Scanning and removing nighttime frames...');
+      const res = await postJSON('/camera/timelapse/cleanup', {
+        brightness_threshold: brightnessThreshold
+      });
+      
+      if (res && res.ok) {
+        const msg = 'Cleaned ' + res.frames_deleted + ' frames from ' + res.sessions_processed + ' sessions (' + res.total_freed_mb + ' MB freed).';
+        setTimelapseNote(msg);
+        if (res.errors && res.errors.length) {
+          console.warn('Cleanup errors:', res.errors);
+        }
+        await refreshSessions();
+      } else {
+        const err = res && (res.error || res.detail) || 'unknown_error';
+        setTimelapseNote('Cleanup failed: ' + err);
+      }
+    } catch(e) {
+      setTimelapseNote('Cleanup failed: ' + (e && e.message ? e.message : 'request error'));
+    }
+  }
+
   function onModeChange(){
     const modeEl = el('cam-view-mode');
     state.selectedMode = modeEl ? modeEl.value : 'auto';
@@ -600,6 +631,7 @@
     const analyzeBtn = el('btn-camera-insights');
     const presetBtn = el('btn-camera-apply-grow-preset');
     const renderBtn = el('btn-camera-render-playback');
+    const cleanupBtn = el('btn-camera-cleanup-nighttime');
     const modeSel = el('cam-view-mode');
     const snapEvery = el('cam-snapshot-every');
     const streamFps = el('cam-stream-fps');
@@ -611,6 +643,7 @@
     if (refreshBtn && !refreshBtn.__bound){ refreshBtn.__bound = true; refreshBtn.addEventListener('click', function(){ refreshAll().catch(function(){ setTimelapseNote('Refresh failed'); }); }); }
     if (analyzeBtn && !analyzeBtn.__bound){ analyzeBtn.__bound = true; analyzeBtn.addEventListener('click', function(){ refreshInsights(); }); }
     if (renderBtn && !renderBtn.__bound){ renderBtn.__bound = true; renderBtn.addEventListener('click', function(){ renderPlayback(); }); }
+    if (cleanupBtn && !cleanupBtn.__bound){ cleanupBtn.__bound = true; cleanupBtn.addEventListener('click', function(){ cleanupNighttimeFrames(); }); }
     if (presetBtn && !presetBtn.__bound){ presetBtn.__bound = true; presetBtn.addEventListener('click', function(){
       const rec = state.recommendation;
       if (rec) {

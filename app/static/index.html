@@ -1389,6 +1389,18 @@ body{
           <div id="camera-sessions"></div>
         </div>
 
+        <div style="margin-top:10px;padding:10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:6px;">
+          <div class="muted" style="font-size:var(--font-sm);font-weight:600;margin-bottom:6px;">Clean Up Nighttime Captures</div>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+            <div>
+              <label class="muted" for="cam-cleanup-brightness" style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Brightness Threshold</label>
+              <input id="cam-cleanup-brightness" type="number" min="20" max="150" step="5" value="60" style="width:100px;height:30px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);" />
+              <div class="muted" style="font-size:var(--font-xs);margin-top:2px;">Frames below this brightness are removed</div>
+            </div>
+            <button id="btn-camera-cleanup-nighttime" class="btn-secondary" style="background:#dc2626;border-color:#991b1b;">Remove Night Frames</button>
+          </div>
+        </div>
+
         <div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(2,6,23,0.55);border:1px solid rgba(148,163,184,0.2);">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
             <div class="muted" style="font-size:var(--font-sm);font-weight:600;">Grow Visual Feedback</div>

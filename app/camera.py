@@ -1043,3 +1043,83 @@ class CameraManager:
                 "disclaimer": "Heuristic vision-only feedback. Confirm plant health with pH, EC, temperature, and in-person inspection.",
             },
         }
+
+    @classmethod
+    def cleanup_nighttime_frames(cls, session_id: Optional[str] = None, brightness_threshold: int = 60) -> Dict[str, Any]:
+        """Identify and remove frames captured during darkness (low brightness).
+        
+        Scans frame brightness; frames below threshold are considered nighttime.
+        Returns count of deleted frames and statistics.
+        """
+        if cls._cv2 is None and not cls._import_drivers():
+            return {"ok": False, "error": "opencv_unavailable"}
+
+        cls._ensure_store_dir()
+        brightness_threshold = max(20, min(150, int(brightness_threshold)))
+        
+        target_dir: Optional[Path] = None
+        if session_id:
+            candidate = cls._store_dir / str(session_id)
+            if candidate.exists() and candidate.is_dir():
+                target_dir = candidate
+        if target_dir is None:
+            sessions = cls.list_sessions(limit=100)
+            if not sessions:
+                return {"ok": True, "sessions_scanned": 0, "frames_deleted": 0, "total_freed_mb": 0}
+        else:
+            sessions = []
+
+        total_deleted = 0
+        total_freed = 0
+        sessions_processed = 0
+        errors = []
+
+        dirs_to_scan = [target_dir] if target_dir else [Path(s["path"]) for s in sessions]
+
+        for session_path in dirs_to_scan:
+            if not session_path.exists() or not session_path.is_dir():
+                continue
+
+            frames = sorted(session_path.glob("frame_*.jpg"))
+            if not frames:
+                continue
+
+            nighttime_frames = []
+            for fp in frames:
+                try:
+                    img = cls._cv2.imread(str(fp))
+                    if img is None:
+                        continue
+                    gray = cls._cv2.cvtColor(img, cls._cv2.COLOR_BGR2GRAY)
+                    mean_brightness = float(gray.mean())
+                    if mean_brightness < brightness_threshold:
+                        nighttime_frames.append((fp, mean_brightness))
+                except Exception as e:
+                    errors.append(f"{fp.name}: {e}")
+                    continue
+
+            deleted_count = 0
+            freed_bytes = 0
+            for fp, brightness in nighttime_frames:
+                try:
+                    freed_bytes += fp.stat().st_size
+                    fp.unlink(missing_ok=True)
+                    deleted_count += 1
+                except Exception as e:
+                    errors.append(f"delete_failed {fp.name}: {e}")
+
+            if deleted_count > 0:
+                total_deleted += deleted_count
+                total_freed += freed_bytes
+                sessions_processed += 1
+
+        total_freed_mb = round(total_freed / (1024 * 1024), 2)
+
+        return {
+            "ok": True,
+            "brightness_threshold": brightness_threshold,
+            "sessions_processed": sessions_processed,
+            "frames_deleted": total_deleted,
+            "total_freed_mb": total_freed_mb,
+            "errors": errors if errors else None,
+        }

@@ -4232,6 +4232,32 @@ def camera_timelapse_video(video_name: str):
 
     return FileResponse(str(video_path), media_type="video/mp4", headers={"Cache-Control": "no-store, max-age=0"})
 
+
+@app.post("/camera/timelapse/cleanup")
+def camera_timelapse_cleanup(body: Optional[dict] = Body(default=None)):
+    """Remove nighttime (dark/low-brightness) frames from timelapse sessions.
+    
+    Body:
+      {
+        "session_id": "optional_session_id_to_target",
+        "brightness_threshold": 60  (0-255; frames below this are deleted; default 60)
+      }
+    
+    Returns: {ok, sessions_processed, frames_deleted, total_freed_mb, errors}
+    """
+    from app.camera import CameraManager
+    
+    payload = body or {}
+    session_id = payload.get("session_id")
+    brightness_threshold = int(payload.get("brightness_threshold", 60))
+    
+    result = CameraManager.cleanup_nighttime_frames(
+        session_id=session_id,
+        brightness_threshold=brightness_threshold
+    )
+    
+    return result
+
 # --- Dose jog endpoint ---
 _jog_last = {}
 _jog_locks = {name: threading.Lock() for name in [
