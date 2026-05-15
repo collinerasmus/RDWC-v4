@@ -319,15 +319,15 @@
 
       const q = new URLSearchParams({ from: startISO, to: endISO, gran: String(gran), max: String(max) });
       // Keep long-range calls bounded; trends is primary, others are optional enrichments.
-      const phDoseLimit = hours <= 24 ? 2000 : (hours <= 168 ? 4000 : 6000);
-      const ecDoseHours = Math.min(168, Math.max(1, Math.ceil(hours)));
+      const phDoseLimit = hours <= 24 ? 2000 : (hours <= 168 ? 5000 : (hours <= 720 ? 10000 : 20000));
+      const ecDoseLimit = hours <= 24 ? 2000 : (hours <= 168 ? 5000 : (hours <= 720 ? 10000 : 20000));
       const relayLimit  = hours <= 24 ? 1000 : (hours <= 168 ? 2000 : 3000);
       const isLongRange = hours > 168;
 
       const [trends, phDose, ecDose, settings, ecStatus, tempStatus, phStatus, lightsEvents] = await Promise.all([
         fetchJsonWithTimeout('/api/trends?' + q, { series: {} }, isLongRange ? 25000 : 10000),
         fetchJsonWithTimeout('/api/ph/dose_log?start=' + encodeURIComponent(startISO) + '&end=' + encodeURIComponent(endISO) + '&limit=' + phDoseLimit, [], isLongRange ? 5000 : 7000),
-        fetchJsonWithTimeout('/api/dose/recent?hours=' + ecDoseHours, { events: [] }, isLongRange ? 5000 : 7000),
+        fetchJsonWithTimeout('/api/ec/dose_log?start=' + encodeURIComponent(startISO) + '&end=' + encodeURIComponent(endISO) + '&limit=' + ecDoseLimit, { events: [] }, isLongRange ? 5000 : 7000),
         fetchJsonWithTimeout('/api/settings', {}, 6000),
         fetchJsonWithTimeout('/api/ec/status', {}, 6000),
         fetchJsonWithTimeout('/api/temperature/status', {}, 6000),
@@ -338,7 +338,7 @@
       return {
         trends,
         phDose,
-        ecDose,
+        ecDose: { events: ecDose },
         settings,
         ecStatus,
         tempStatus,
@@ -358,10 +358,6 @@
         : durationHours <= 2160 ? 700
         : 500;
 
-      const doseCap = durationHours <= 24 ? 500
-        : durationHours <= 168 ? 350
-        : durationHours <= 720 ? 250
-        : 160;
 
       const lightsCap = durationHours <= 168 ? 900
         : durationHours <= 720 ? 600
@@ -372,13 +368,15 @@
       const temp = downsampleEvenly((data.trends?.series?.temp || []).map(p => ({ x: p.ts * 1000, y: Number(p.value) })), pointCap);
 
       lightsIntervals = downsampleEvenly(buildLightsIntervals(data.lightsEvents, win.start, win.end), lightsCap);
-      phDoseEvs = downsampleEvenly((data.phDose || [])
+      phDoseEvs = (data.phDose || [])
         .map(e => ({ ts: new Date(e.ts).getTime() }))
-        .filter(e => e.ts >= win.start && e.ts <= win.end), doseCap);
-      ecDoseEvs = downsampleEvenly((data.ecDose?.events || [])
+        .filter(e => e.ts >= win.start && e.ts <= win.end)
+        .sort((a, b) => a.ts - b.ts);
+      ecDoseEvs = (Array.isArray(data.ecDose?.events) ? data.ecDose.events : [])
         .filter(e => !e.blocked_by)
-        .map(e => ({ ts: e.ts * 1000 }))
-        .filter(e => e.ts >= win.start && e.ts <= win.end), doseCap);
+        .map(e => ({ ts: new Date(e.ts_iso || e.ts).getTime() }))
+        .filter(e => e.ts >= win.start && e.ts <= win.end)
+        .sort((a, b) => a.ts - b.ts);
 
       const targets  = data.settings?.targets || {};
       const phTgts   = data.phStatus?.targets || {};
