@@ -151,11 +151,19 @@
       data: { datasets: [] },
       options: {
         animation: false,
+        parsing: false,
+        normalized: true,
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend:  { display: false },
+          decimation: {
+            enabled: true,
+            algorithm: 'lttb',
+            samples: 240,
+            threshold: 500
+          },
           tooltip: {
             enabled: true,
             backgroundColor: 'rgba(15,23,42,0.92)',
@@ -317,7 +325,7 @@
       const isLongRange = hours > 168;
 
       const [trends, phDose, ecDose, settings, ecStatus, tempStatus, phStatus, lightsEvents] = await Promise.all([
-        fetchJsonWithTimeout('/api/trends?' + q, { series: {} }, isLongRange ? 12000 : 9000),
+        fetchJsonWithTimeout('/api/trends?' + q, { series: {} }, isLongRange ? 25000 : 10000),
         fetchJsonWithTimeout('/api/ph/dose_log?start=' + encodeURIComponent(startISO) + '&end=' + encodeURIComponent(endISO) + '&limit=' + phDoseLimit, [], isLongRange ? 5000 : 7000),
         fetchJsonWithTimeout('/api/dose/recent?hours=' + ecDoseHours, { events: [] }, isLongRange ? 5000 : 7000),
         fetchJsonWithTimeout('/api/settings', {}, 6000),
