@@ -802,10 +802,6 @@ body{
     <span class="ctrl-label">📷 Camera</span>
     <span class="ctrl-health-dot" data-controller="camera" aria-label="Camera status"></span>
   </button>
-  <button class="btn-chip ctrl-with-dot" data-tab="sensors" aria-label="Sensors">
-    <span class="ctrl-label">🔬 Sensors</span>
-    <span class="ctrl-health-dot" data-controller="sensors" aria-label="Sensors status"></span>
-  </button>
   <button class="btn-chip ctrl-with-dot" data-tab="ph" aria-label="pH">
     <span class="ctrl-label">🧪 pH</span>
     <span class="ctrl-health-dot" data-controller="ph" aria-label="pH status"></span>
@@ -1727,56 +1723,6 @@ body{
 
     </div>
   </section>
-
-  <!-- 3. Sensors Card with Chart.js -->
-  <section id="sensors-card" class="card card-wide tab-section" data-tab="sensors" style="display:none;">
-    <div class="card-header">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <h3 class="card-title" style="margin:0;">Sensors</h3>
-        <span id="sensors-health-indicator" class="ui-status-chip success" title="Sensor poller health">OK</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"></div>
-    </div>
-
-    <div class="card-body">
-      <!-- KPI badges -->
-      <div class="kpi-row" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-md);">
-      <div class="kpi kpi-ph">
-        <div class="kpi-label">pH</div>
-        <div class="kpi-value" id="kpiPh">—</div>
-      </div>
-      <div class="kpi kpi-ec">
-        <div class="kpi-label">EC (mS/cm)</div>
-        <div class="kpi-value" id="kpiEc">—</div>
-      </div>
-      <div class="kpi kpi-temp">
-        <div class="kpi-label">Temp (°C)</div>
-        <div class="kpi-value" id="kpiTemp">—</div>
-      </div>
-      </div>
-      
-      <hr class="separator" style="margin:20px 0;" />
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:var(--space-sm);">
-        <div class="muted">Sensor History</div>
-      </div>
-      <div id="sensors-chart-wrap" class="chart-card">
-        <canvas id="trendChart"></canvas>
-        <div id="trendEmpty" class="muted small" style="display:none;padding:8px 0;">No data for selected period.</div>
-      </div>
-      <!-- Unified controls (zoom + slider) -->
-      <div id="sensors-chart-controls"></div>
-      <!-- Settings moved to the respective control tabs -->
-      <div style="margin-top:12px;">
-        <div class="muted" style="cursor:default;font-size:var(--font-lg);margin-bottom:8px;">⚙️ Settings</div>
-        <div class="muted" style="font-size:var(--font-xs);padding:8px 10px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:6px;">
-          Probe calibration now lives in the <strong>pH</strong> and <strong>EC</strong> tabs.
-        </div>
-      </div>
-      
-      <!-- (Removed exclusive-open script; accordions now independent) -->
-    </div>
-  </section>
-
 
   <!-- 4. pH Control Card -->
   <section id="ph-card" class="card card-wide tab-section" data-tab="ph" style="display:none;">

@@ -2,7 +2,12 @@
   if (window.__tabsReady) return; // prevent double-init
   const qs = (s)=>document.querySelector(s);
   const qsa = (s)=>Array.from(document.querySelectorAll(s));
+  function normalizeTab(name){
+    const tabs = qsa('.tab-section').map(s=>s.getAttribute('data-tab'));
+    return tabs.includes(name) ? name : 'overview';
+  }
   function showTab(name){
+    name = normalizeTab(name);
     qsa('.tab-section').forEach(sec=>{
       const match = (sec.getAttribute('data-tab')===name);
       sec.style.display = match? '' : 'none';
@@ -53,17 +58,14 @@
     nav.addEventListener('click', (e)=>{
       const btn = e.target.closest('[data-tab]');
       if (!btn) return;
-      const tab = btn.getAttribute('data-tab');
+      const tab = normalizeTab(btn.getAttribute('data-tab'));
       location.hash = '#'+tab;
       showTab(tab);
     });
-    let initial = (location.hash||'#overview').replace('#','');
-    // Fallback to overview if tab does not exist
-    const tabs = qsa('.tab-section').map(s=>s.getAttribute('data-tab'));
-    if (!tabs.includes(initial)) initial = 'overview';
+    let initial = normalizeTab((location.hash||'#overview').replace('#',''));
     showTab(initial);
     window.addEventListener('hashchange', ()=>{
-      const tab = (location.hash||'#overview').replace('#','');
+      const tab = normalizeTab((location.hash||'#overview').replace('#',''));
       showTab(tab);
     });
     window.__tabsReady = true;
