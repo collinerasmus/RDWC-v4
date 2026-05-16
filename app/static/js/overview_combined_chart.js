@@ -155,6 +155,7 @@
         normalized: true,
         responsive: true,
         maintainAspectRatio: false,
+        layout: { padding: { left: 2, right: 2, top: 0, bottom: 0 } },
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend:  { display: false },
@@ -196,7 +197,11 @@
             title: { display: true, text: yLabel, color: yColor, font: { size: 9 } },
             ticks: { color: '#6b7280', font: tickFont, maxTicksLimit: 4, padding: 2 },
             grid: { color: 'rgba(255,255,255,0.06)' },
-            border: { display: false }
+            border: { display: false },
+            // Force identical Y-axis footprint across rows so X-plot areas align perfectly.
+            afterFit: function (scale) {
+              scale.width = 54;
+            }
           }
         }
       },
@@ -476,13 +481,29 @@
     }
 
     // ── Refresh ────────────────────────────────────────────────────────────────
+    let refreshInFlight = false;
+    let pendingRefresh = false;
+    let lastRefreshAt = 0;
+
     async function refresh() {
+      if (refreshInFlight) {
+        pendingRefresh = true;
+        return;
+      }
+      refreshInFlight = true;
       try {
         const { start, end } = timeWindow;
         const d = await fetchData(new Date(start).toISOString(), new Date(end).toISOString());
         render(d, { start, end });
+        lastRefreshAt = Date.now();
       } catch (e) {
         console.error('[Overview Stacked] Refresh error', e);
+      } finally {
+        refreshInFlight = false;
+        if (pendingRefresh) {
+          pendingRefresh = false;
+          refresh();
+        }
       }
     }
 
@@ -493,11 +514,34 @@
     function startLive() {
       stopLive();
       liveSpanMs = timeWindow.end - timeWindow.start;
+      const spanHours = liveSpanMs / 3600000;
+      const intervalMs = spanHours <= 1 ? 1000
+        : spanHours <= 6 ? 2000
+        : spanHours <= 24 ? 3000
+        : 5000;
       liveTimer = setInterval(() => {
         timeWindow.end   = Date.now();
         timeWindow.start = timeWindow.end - liveSpanMs;
         refresh();
-      }, 5000);
+      }, intervalMs);
+    }
+
+    let sensorRefreshTimer = null;
+    function handleSensorUpdate() {
+      const spanMs = timeWindow.end - timeWindow.start;
+      // Prioritize snappy refresh in zoomed-in windows without hammering APIs.
+      if (spanMs > 24 * 3600000) return;
+      const minGap = spanMs <= 3600000 ? 700 : 1200;
+      if (Date.now() - lastRefreshAt < minGap) return;
+      if (sensorRefreshTimer) return;
+      sensorRefreshTimer = setTimeout(function () {
+        sensorRefreshTimer = null;
+        if (liveTimer) {
+          timeWindow.end = Date.now();
+          timeWindow.start = timeWindow.end - liveSpanMs;
+        }
+        refresh();
+      }, 250);
     }
 
     // ── ChartControls wiring ───────────────────────────────────────────────────
@@ -523,6 +567,8 @@
       });
       controls.applyRange(timeWindow.start, timeWindow.end, false, true);
     }
+
+    window.addEventListener('sensors:update', handleSensorUpdate);
 
     window.overviewCombinedChart = { phChart, ecChart, tempChart, refresh, startLive, stopLive };
   }
