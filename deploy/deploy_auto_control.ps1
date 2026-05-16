@@ -81,11 +81,11 @@ echo '=== Pulling latest code ==='
 git pull
 echo ''
 echo '=== Restarting API service ==='
-sudo systemctl restart rdwc-api
+sudo systemctl restart rdwc
 echo ''
 echo '=== Checking service status ==='
 sleep 2
-sudo systemctl status rdwc-api --no-pager -l
+sudo systemctl status rdwc --no-pager -l
 "@
 
 if ($LASTEXITCODE -ne 0) {

@@ -7,15 +7,14 @@ This directory contains UI screenshots for documentation.
 Please capture the following tabs at 192.168.88.55:8080 for README documentation:
 
 1. **overview.png** - Overview dashboard with system health indicators
-2. **sensors.png** - Sensors tab with live readings and historical chart
+2. **camera.png** - Camera tab with live MJPEG stream
 3. **ph_control.png** - pH control tab with dosing controls and history
 4. **ec_control.png** - EC/nutrient control tab with mix ratios
-5. **calibration.png** - Calibration tab showing pH/EC calibration status
-6. **temperature.png** - Temperature control tab with chiller management
+5. **temperature.png** - Temperature control tab with chiller management
+6. **circulation.png** - Circulation tab with pump runtime charts
 7. **lights.png** - Lights schedule tab with activity timeline
-8. **circulation.png** - Circulation tab with pump runtime charts
-9. **relays.png** - Relays/System tab with manual controls
-10. **settings.png** - Settings tab with system configuration
+8. **schedule.png** - Schedule tab with scheduler management
+9. **settings.png** - Settings tab with system configuration
 
 ## Screenshot Guidelines
 

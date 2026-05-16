@@ -365,11 +365,11 @@ git checkout copilot/improve-ui-elements
 git pull origin copilot/improve-ui-elements
 
 # 4. Restart services
-sudo systemctl restart rdwc-api
+sudo systemctl restart rdwc
 sudo systemctl restart rdwc-sensors
 
 # 5. Verify services
-sudo systemctl status rdwc-api
+sudo systemctl status rdwc
 sudo systemctl status rdwc-sensors
 
 # 6. Check API health
@@ -396,7 +396,7 @@ curl http://localhost:8080/api/health
 - [ ] Test settings changes take effect
 - [ ] Check for any errors in logs:
   ```bash
-  sudo journalctl -u rdwc-api -n 100 --no-pager
+  sudo journalctl -u rdwc -n 100 --no-pager
   sudo journalctl -u rdwc-sensors -n 100 --no-pager
   ```
 

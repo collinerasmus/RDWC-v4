@@ -28,7 +28,7 @@ The temperature Y-axis on the Overview dashboard chart now displays with a fixed
 ### 2. Scheduler Management UI & CRUD Operations
 **Files Modified**:
 - [app/static/index.html](app/static/index.html#L1450-L1510) - Added Advanced Scheduler section in Lights tab
-- [app/static/js/scheduler_manager.js](app/static/js/scheduler_manager.js) - NEW file (400+ lines)
+- `app/static/js/scheduler_manager.js` - scheduler logic (now merged into schedule.js)
 
 #### UI Features
 
@@ -74,7 +74,7 @@ User clicks "Save"
 
 #### Key JavaScript Functions
 
-Located in [app/static/js/scheduler_manager.js](app/static/js/scheduler_manager.js):
+Located in `app/static/js/schedule.js` (scheduler management):
 
 ```javascript
 loadSchedulerConfig()     // Fetch current schedule from API
@@ -120,7 +120,7 @@ cd /opt/rdwc
 git pull origin main
 
 # Restart API service to load new JS files
-sudo systemctl restart rdwc-api
+sudo systemctl restart rdwc
 
 # Navigate to browser
 http://<pi-ip>:8080

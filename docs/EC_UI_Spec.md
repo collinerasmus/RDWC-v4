@@ -11,7 +11,7 @@ Finish the EC tab to match the standardized UI patterns already applied to pH an
 ### 1) Header Parity (match pH)
 - Title: `EC Control` (or `EC`) uses the standardized minimal header template.
 - Health chip: controller health chip sits next to the title (match pH).
-- Mode chips: `AUTO`, `MANUAL`, `MAINT` appear on the right of the header and reflect `/api/system/mode` and EC auto state.
+- Mode chips: `AUTO`, `MANUAL`, `MAINT` appear on the right of the header and reflect `/api/system_mode` and EC auto state.
 - E‑STOP button: danger variant appears at the far right, disabled state and tooltip when locked.
 - No extra items: Remove freshness/age, calibration chips, and K‑factor from the header; these move into meta or Settings.
 

@@ -108,7 +108,7 @@ git checkout -b fix/issue-description
 pytest
 
 # Run specific test file
-pytest tests/test_ph_control.py
+pytest tests/test_ph_auto_core.py
 
 # Run with coverage
 pytest --cov=app --cov-report=html
@@ -291,7 +291,7 @@ def test_calculate_dose_ml():
 #### 2. Integration Tests
 Test multiple components working together:
 ```python
-# tests/test_ph_control.py
+# tests/test_ph_auto_core.py
 def test_auto_dose_ph_up(test_client, mock_sensors):
     # Set up: pH too low, auto mode
     set_mode("ph", "auto")
@@ -333,7 +333,7 @@ pytest --cov=app --cov-report=html
 open htmlcov/index.html  # View coverage
 
 # Specific test
-pytest tests/test_ph_control.py::test_auto_dose_ph_up -v -s
+pytest tests/test_ph_auto_core.py::test_auto_dose_ph_up -v -s
 ```
 
 ### Mocking Hardware

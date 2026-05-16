@@ -61,11 +61,6 @@ TEMP_HIGH_THRESHOLD=22.0
 
 ## Deployment
 
-### Quick Deploy
-```bash
-sudo ./tools/deploy_alerts.sh
-```
-
 ### Manual Steps
 1. Install additional Python packages:
    ```bash

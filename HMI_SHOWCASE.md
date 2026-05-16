@@ -2,9 +2,9 @@
 
 ## 🎨 User Interface Overview
 
-The RDWC-v4 system provides a modern, responsive web-based HMI (Human-Machine Interface) for monitoring and controlling the entire hydroponic system. Built with **React** and **Chart.js**, the interface runs directly on the Raspberry Pi and is accessible from any browser on the network.
+The RDWC-v4 system provides a modern, responsive web-based HMI (Human-Machine Interface) for monitoring and controlling the entire hydroponic system. Built with **server-rendered HTML + modular JavaScript** and **Chart.js**, the interface runs directly on the Raspberry Pi and is accessible from any browser on the network.
 
-**Access**: `http://<pi-ip>:8080` (default `http://192.168.88.49:8080`)
+**Access**: `http://<pi-ip>:8080` (current Pi: `http://192.168.88.55:8080`)
 
 ---
 
@@ -20,13 +20,12 @@ The RDWC-v4 system provides a modern, responsive web-based HMI (Human-Machine In
 
 ---
 
-### 2. **Sensors Tab** — Real-Time & Historical Data
-- 🌡️ **Live Readings**: Temperature (°C), pH, EC (mS/cm), freshness age
-- 📈 **Trend Chart**: 24-hour history of all three parameters
-- 🔄 **Poller Status**: Polling interval, last read timestamp, online/offline indicator
-- 📡 **Diagnostics**: Sensor address, I²C status, calibration age
+### 2. **Camera Tab** — Live Video Feed
+- 📷 **MJPEG Stream**: Live video from Pi camera module
+- ℹ️ **Status**: Camera availability, streaming mode
+- 🔧 **Requirements**: Picamera2 + camera interface enabled on Pi
 
-*Purpose*: Monitor sensor health and verify calibrations are fresh
+*Purpose*: Visual inspection of grow room and plant health
 
 ---
 
@@ -120,23 +119,17 @@ The RDWC-v4 system provides a modern, responsive web-based HMI (Human-Machine In
 
 ---
 
-### 9. **Relays Tab** — Hardware Control Panel
-- 🎛️ **Relay Status**: Lights, chiller, main pump, dosing pumps
-- 🔴 **State Indicators**: Visual ON/OFF state per relay
-- 🚨 **E-STOP Button**: 
-  - **Current State**: ARMED or TRIGGERED
-  - **Toggle**: Emergency stop / Resume (manually toggle)
-- 📊 **Cooldown Remaining**: Time before each relay can toggle again
-- 📈 **Event Log**: Last 20 relay changes with timestamps and reasons
-- ⚙️ **Advanced**: 
-  - Force override toggle (requires safety.allow_force = true)
-  - Reason tracking (schedule, auto, manual, E-STOP, etc.)
+### 8. **Schedule Tab** — Scheduler Management
+- ⏰ **Enable/Disable**: Toggle scheduler on/off
+- 📅 **Schedule Entries**: View, add, delete schedule entries
+- 📊 **Daily Caps Editor**: Per-relay daily cap configuration
+- 💾 **Persistence**: Atomic saves to schedule.json (survives power loss)
 
-*Purpose*: Direct hardware control and emergency stop management
+*Purpose*: Configure lighting and relay schedules without touching code
 
 ---
 
-### 10. **System Tab** — Global Settings & Configuration
+### 9. **Settings Tab** — Global Settings & Configuration
 - ⚙️ **Safety Limits**:
   - Max seconds per press (single dose cap)
   - Max total seconds per 24h (daily dosing cap)
@@ -163,7 +156,7 @@ The RDWC-v4 system provides a modern, responsive web-based HMI (Human-Machine In
 
 ## 📊 Real-Time Charts
 
-### Sensor Trend Chart (Sensors Tab)
+### Sensor Trend Chart (Overview + pH/EC Tabs)
 - **X-axis**: Time (last 24 hours)
 - **Y-axis 1 (left)**: Temperature °C, pH
 - **Y-axis 2 (right)**: EC mS/cm

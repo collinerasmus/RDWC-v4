@@ -7,9 +7,9 @@
 ## Prerequisites
 
 - **Hardware**: Raspberry Pi (SSH access), HMI laptop (web browser at 192.168.88.33)
-- **Network**: Pi at 192.168.88.49, port 8080
+- **Network**: Pi at 192.168.88.55, port 8080
 - **Git**: Repo cloned on Pi at `/home/pi/RDWC-v4` (or your path)
-- **Services**: `rdwc.service` (FastAPI), `rdwc-sensors.service` (background poller), `rdwc-watchdog.service`
+- **Services**: `rdwc.service` (FastAPI), `rdwc-sensors.service` (background poller), `rdwc-sensors-watchdog.service` (watchdog timer)
 
 ---
 
@@ -29,7 +29,7 @@ git push origin main
 
 ```bash
 # SSH to Pi
-ssh pi@192.168.88.49
+ssh pi@192.168.88.55
 
 # Navigate to repo
 cd /home/pi/RDWC-v4
@@ -60,8 +60,8 @@ curl http://localhost:8080/api/sensors
 ### 4. Verify via HMI
 
 Open browser on HMI laptop:
-- Navigate to `http://192.168.88.49:8080`
-- Check **Sensors** tab: fresh readings, online=true, timestamp <60s
+- Navigate to `http://192.168.88.55:8080`
+- Check **Sensors** readings via Overview tab: fresh readings, online=true, timestamp <60s
 - Check **Relays** panel: E-STOP status, cooldown timers
 - Check **System** tab: service status, errors/alerts
 
@@ -104,15 +104,15 @@ Open browser on HMI laptop:
 
 2. **Check Baseline EC Reading**
 
-   From HMI browser at `http://192.168.88.49:8080`:
-   - Go to **Sensors** tab
+   From HMI browser at `http://192.168.88.55:8080`:
+   - Go to **Overview** tab (sensor freshness badge)
    - Note current EC reading (may be incorrect, e.g., 1.29 mS/cm)
    - Verify timestamp is fresh (<60s)
 
 3. **Check Current K Value**
 
    ```bash
-   curl http://192.168.88.49:8080/api/ec/cal/status | jq .
+   curl http://192.168.88.55:8080/api/ec/cal/status | jq .
    ```
    
    Look for `"k": 1.0` (or whatever your probe's K value should be). If it shows 0.1, that's the symptom we're fixing.
@@ -132,7 +132,7 @@ From HMI browser:
 Or via command line:
 
 ```bash
-curl -X POST http://192.168.88.49:8080/api/ec/cal/clear
+curl -X POST http://192.168.88.55:8080/api/ec/cal/clear
 ```
 
 #### Step 2: Set K Value (If Known)
@@ -148,7 +148,7 @@ From HMI browser:
 Or via command line:
 
 ```bash
-curl -X POST http://192.168.88.49:8080/api/ec/k \
+curl -X POST http://192.168.88.55:8080/api/ec/k \
   -H "Content-Type: application/json" \
   -d '{"k": 1.0}'
 ```
@@ -170,7 +170,7 @@ curl -X POST http://192.168.88.49:8080/api/ec/k \
 Or via command line:
 
 ```bash
-curl -X POST http://192.168.88.49:8080/api/ec/cal/low \
+curl -X POST http://192.168.88.55:8080/api/ec/cal/low \
   -H "Content-Type: application/json" \
   -d '{"us_cm": 1413}'
 ```
@@ -189,7 +189,7 @@ Expected response:
 #### Step 4: Verify Low-Point Calibration
 
 ```bash
-curl http://192.168.88.49:8080/api/ec/cal/status | jq .
+curl http://192.168.88.55:8080/api/ec/cal/status | jq .
 ```
 
 Should show:
@@ -218,7 +218,7 @@ If you have EC 12.88 mS/cm buffer (12880 µS/cm):
 Or via command line:
 
 ```bash
-curl -X POST http://192.168.88.49:8080/api/ec/cal/high \
+curl -X POST http://192.168.88.55:8080/api/ec/cal/high \
   -H "Content-Type: application/json" \
   -d '{"us_cm": 12880}'
 ```
@@ -238,10 +238,10 @@ Expected response:
 
 ```bash
 # Check calibration status
-curl http://192.168.88.49:8080/api/ec/cal/status | jq .
+curl http://192.168.88.55:8080/api/ec/cal/status | jq .
 
 # Check live reading in reservoir water
-curl http://192.168.88.49:8080/api/sensors | jq .ec_mscm
+curl http://192.168.88.55:8080/api/sensors | jq .ec_mscm
 ```
 
 From HMI browser:
@@ -277,7 +277,7 @@ curl http://localhost:8080/calib/ph/caps
 
 1. **Check K value persisted**:
    ```bash
-   curl http://192.168.88.49:8080/api/ec/cal/status | jq .k
+   curl http://192.168.88.55:8080/api/ec/cal/status | jq .k
    ```
    Should be 1.0 (or your probe's K value), not 0.1.
 
@@ -292,7 +292,7 @@ curl http://localhost:8080/calib/ph/caps
 
 3. **Power cycle sensors** (if `RDWC_SENSOR_POWER_PIN` is configured):
    ```bash
-   curl -X POST "http://192.168.88.49:8080/api/sensors/power_cycle?off_ms=2000&post_wait_ms=4000&validate=1"
+   curl -X POST "http://192.168.88.55:8080/api/sensors/power_cycle?off_ms=2000&post_wait_ms=4000&validate=1"
    ```
 
 4. **Check probe is clean**: Rinse with distilled water, gently wipe with soft cloth. Dirty probes give erratic readings.

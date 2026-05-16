@@ -400,7 +400,7 @@ def is_within_window(self, now_min: int, on_min: int, off_min: int) -> bool:
 - Mode persistence across restarts (SQLite storage)
 - API endpoints: GET/PUT `/api/mode/{controller}`
 - UI: System tab → Controller Modes section with dropdowns
-- Backend: `app/controller_modes.py`, `app/system_mode.py`
+- Backend: `app/controller_modes.py` (mode management; `app/system_mode.py` was removed/consolidated)
 
 **Test Coverage**: 
 - `test_mode_api.py`: 15 tests (API endpoints)
@@ -670,7 +670,7 @@ def is_within_window(self, now_min: int, on_min: int, off_min: int) -> bool:
   - Chiller events (`chiller_events` table)
   - Nutrient schedule (`nutrient_schedule` table)
   - Frontend logs (`frontend_logs` table)
-- ✅ Persistent relay states (`data/relay_state.json`)
+- ✅ Persistent relay states (`~/.rdwc/relay_state.json`)
 - ✅ Database maintenance procedures (VACUUM, ANALYZE, backup)
 
 #### User Interface
@@ -690,10 +690,10 @@ def is_within_window(self, now_min: int, on_min: int, off_min: int) -> bool:
 - ✅ pH: GET `/api/ph/status`, POST `/api/ph/dose`, GET `/api/ph/auto/status`, POST `/api/ph/auto/reset`
 - ✅ EC: GET `/api/ec/status`, POST `/api/ec/dose`, GET `/api/ec/summary`
 - ✅ Chiller: GET `/api/chiller/status`, GET `/api/chiller/events`
-- ✅ Circulation: GET `/api/circulation/status`, POST `/api/circulation/main_pump`, POST `/api/circulation/chiller_pump`
-- ✅ Lights: GET `/api/lights/status`, POST `/api/lights/on`, POST `/api/lights/off`
+- ✅ Circulation: GET `/api/circulation/status` (relays via `/api/relays/mode` or `/relay/set`)
+- ⚠️ Lights: `/api/lights/status`, `/api/lights/on`, `/api/lights/off` — not present in main.py; use `/relay/set?name=lights&on=1` or `/api/relays/mode`
 - ✅ Relays: GET `/api/relays/status`, POST `/api/relays/estop/toggle`, POST `/api/relays/mode`
-- ✅ Modes: GET `/api/mode`, GET `/api/mode/{controller}`, PUT `/api/mode/{controller}`
+- ⚠️ Modes: `/api/mode` routes not found in main.py; actual endpoints: GET `/api/controller/modes`, GET/POST `/api/controller/{name}/mode`
 - ✅ Hold: POST `/api/hold/{controller}`
 - ✅ Schedule: GET `/api/schedule`, PUT `/api/schedule`, POST `/api/schedule/reset`
 - ✅ Settings: GET `/api/settings/export`, POST `/api/settings/import`, GET `/api/settings`, PUT `/api/settings`
@@ -761,7 +761,7 @@ def is_within_window(self, now_min: int, on_min: int, off_min: int) -> bool:
 ### Optional Future Enhancements (Post-Release)
 - 📔 **Grow Diary Feature** (NEW, researched in `docs/GROW_DIARY_RESEARCH.md`)
   - SQLite `diary_entries` table
-  - API endpoints: GET/POST/PUT/DELETE `/api/diary`
+  - API endpoints: GET/POST/PUT/DELETE `/api/diary` *(proposed, not yet implemented)*
   - UI: New Diary tab with timeline view, entry types, tags, search
   - Integration with 12-week schedule
   - **Estimated Effort**: 4-6 hours

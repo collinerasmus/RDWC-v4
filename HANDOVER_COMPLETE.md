@@ -96,21 +96,20 @@ Deleted ~30 status/checkpoint/handoff documents:
 **Created**: [docs/screenshots/](docs/screenshots/) directory with detailed guide
 
 **Instructions Document**: [docs/screenshots/README.md](docs/screenshots/README.md)
-- Lists all 10 required screenshots
+- Lists all 9 required screenshots (current tab set)
 - Provides capture guidelines (resolution, format, timing)
 - Includes embedding syntax for README
 
 **Required Screenshots** (user to capture):
 1. overview.png
-2. sensors.png
+2. camera.png
 3. ph_control.png
 4. ec_control.png
-5. calibration.png
-6. temperature.png
+5. temperature.png
+6. circulation.png
 7. lights.png
-8. circulation.png
-9. relays.png
-10. settings.png
+8. schedule.png
+9. settings.png
 
 ---
 
@@ -145,7 +144,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "C:\Users\USER-PC\OneDrive\Documen
 
 ### 3. Capture Screenshots
 - Follow guide in `docs/screenshots/README.md`
-- Capture all 10 tabs with live data
+- Capture all 9 tabs with live data
 - Save as PNG in `docs/screenshots/` directory
 
 ### 4. Finalize README

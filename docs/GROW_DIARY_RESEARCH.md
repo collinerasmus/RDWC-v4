@@ -117,7 +117,7 @@ CREATE TABLE diary_entries (
 )
 ```
 
-**Endpoints**:
+**Proposed Endpoints** *(not yet implemented — research/design phase only)*:
 - `GET /api/diary?week={n}&type={type}&limit=50` — list entries
 - `POST /api/diary` — add entry
 - `PUT /api/diary/{id}` — edit entry

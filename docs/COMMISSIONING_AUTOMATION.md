@@ -11,7 +11,6 @@ The automated commissioning system consists of 6 Python scripts that systematica
 3. **commission_ec.py** - EC calibration (1 or 2-point)
 4. **commission_relays.py** - Relay safety tests
 5. **commission_pumps.py** - Pump calibration and safety guards
-6. **commission_all.py** - Orchestrator for all phases
 
 All scripts share a common utility library (`commission_utils.py`) that provides:
 - Robust HTTP client with retry logic
@@ -56,17 +55,17 @@ export CALIB_ENABLE=1
 Run all phases in sequence:
 
 ```bash
-sudo python tools/commission_all.py
+# Run phases individually (recommended order):
+python tools/commission_sensors.py   # Phase 1: Sensor validation
+python tools/commission_ph.py        # Phase 2: pH calibration
+python tools/commission_ec.py        # Phase 3: EC calibration
+python tools/commission_relays.py    # Phase 4: Relay safety tests
+python tools/commission_pumps.py     # Phase 5: Pump calibration
 ```
 
-This will:
-1. Validate sensors
-2. Calibrate pH (interactive prompts)
-3. Calibrate EC (interactive prompts)
-4. Test relay safety
-5. Calibrate dosing pumps (interactive prompts)
-6. Generate comprehensive report
-7. Archive results to `docs/commissioning_YYYYMMDD/`
+> **Note**: A single-script orchestrator (`commission_all.py`) is not yet implemented.
+> Run the individual phase scripts above in order, or use `tools/commission.ps1` for
+> a PowerShell-driven commissioning session.
 
 ### Individual Phases
 
@@ -388,9 +387,14 @@ python tools/commission_pumps.py --auto-advance --skip-guards
 
 ---
 
-### 6. commission_all.py
+### 6. commission_all.py (not yet implemented)
 
-**Purpose**: Orchestrate all 5 phases with comprehensive reporting.
+> **Note**: This orchestrator script does not currently exist in the repository.
+> Run individual phase scripts (`commission_sensors.py` → `commission_ph.py` →
+> `commission_ec.py` → `commission_relays.py` → `commission_pumps.py`) in sequence,
+> or use `tools/commission.ps1` for an interactive PowerShell session.
+
+When implemented, the options below will apply:
 
 **Usage**:
 ```bash
@@ -430,20 +434,26 @@ python tools/commission_all.py [options]
 
 **Example**:
 ```bash
-# Full commissioning (interactive)
-sudo python tools/commission_all.py
+# Full commissioning (run phases individually)
+python tools/commission_sensors.py
+python tools/commission_ph.py
+python tools/commission_ec.py
+python tools/commission_relays.py
+python tools/commission_pumps.py
 
 # Single phase
-python tools/commission_all.py --phase sensors
+python tools/commission_sensors.py
 
-# Continue on errors (run all phases regardless)
-python tools/commission_all.py --continue-on-error
+# Continue on errors — run phases individually regardless
+python tools/commission_sensors.py || true
+python tools/commission_ph.py || true
+python tools/commission_ec.py || true
+python tools/commission_relays.py || true
+python tools/commission_pumps.py || true
 
-# Dry run (validation only)
-python tools/commission_all.py --dry-run
-
-# Testing mode
-python tools/commission_all.py --auto-advance --skip-reservoir --skip-accuracy
+# Testing mode (auto-advance for pH/EC)
+python tools/commission_ph.py --auto-advance --skip-reservoir
+python tools/commission_ec.py --auto-advance --skip-accuracy
 ```
 
 ## JSON Output Schema
@@ -550,7 +560,11 @@ jobs:
       - name: Run commissioning
         run: |
           if [ "${{ github.event.inputs.phase }}" == "all" ]; then
-            sudo python tools/commission_all.py --auto-advance
+            python tools/commission_sensors.py
+            python tools/commission_ph.py --auto-advance
+            python tools/commission_ec.py --auto-advance
+            python tools/commission_relays.py
+            python tools/commission_pumps.py --auto-advance
           else
             python tools/commission_${{ github.event.inputs.phase }}.py
           fi
@@ -581,13 +595,13 @@ LOG_DIR="/var/log/rdwc/commissioning"
 
 mkdir -p "$LOG_DIR"
 
-# Run commissioning
-python tools/commission_all.py \
+# Run commissioning phases
+python tools/commission_sensors.py \
   --api-url "$RDWC_API_URL" \
-  --auto-advance \
-  --skip-reservoir \
-  --skip-accuracy \
-  2>&1 | tee "$LOG_DIR/commission_$(date +%Y%m%d_%H%M%S).log"
+  2>&1 | tee "$LOG_DIR/sensors_$(date +%Y%m%d_%H%M%S).log"
+
+# Continue with remaining phases as needed
+# python tools/commission_ph.py --auto-advance --skip-reservoir
 
 EXIT_CODE=$?
 

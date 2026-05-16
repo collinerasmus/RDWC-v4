@@ -1,7 +1,7 @@
 # RDWC v4 - Quick Reference Card
 
 ## 🌐 Web Dashboard
-**URL:** http://192.168.88.49:8080
+**URL:** http://192.168.88.55:8080
 
 **If buttons don't work:**
 1. Hard refresh: `Ctrl + Shift + R` (Windows) or `Cmd + Shift + R` (Mac)
@@ -13,17 +13,17 @@
 
 ### Force All Relays OFF
 ```bash
-curl -X POST http://192.168.88.49:8080/relay/emergency_off
+curl -X POST http://192.168.88.55:8080/relay/emergency_off
 ```
 
 ### Restart Service
 ```bash
-ssh pi@192.168.88.49 "sudo systemctl restart rdwc.service"
+ssh pi@192.168.88.55 "sudo systemctl restart rdwc.service"
 ```
 
 ### Check Service Status
 ```bash
-ssh pi@192.168.88.49 "sudo systemctl status rdwc.service"
+ssh pi@192.168.88.55 "sudo systemctl status rdwc.service"
 ```
 
 ---
@@ -32,12 +32,12 @@ ssh pi@192.168.88.49 "sudo systemctl status rdwc.service"
 
 ### Toggle Relay ON
 ```bash
-curl 'http://192.168.88.49:8080/relay/set?name=lights&on=1'
+curl 'http://192.168.88.55:8080/relay/set?name=lights&on=1'
 ```
 
 ### Toggle Relay OFF
 ```bash
-curl 'http://192.168.88.49:8080/relay/set?name=lights&on=0'
+curl 'http://192.168.88.55:8080/relay/set?name=lights&on=0'
 ```
 
 ### Valid Relay Names:
@@ -56,22 +56,22 @@ curl 'http://192.168.88.49:8080/relay/set?name=lights&on=0'
 
 ### Check All Relay States
 ```bash
-curl -s http://192.168.88.49:8080/relay/status
+curl -s http://192.168.88.55:8080/relay/status
 ```
 
 ### Check Debug Info (antiflap, cooldowns, change counts)
 ```bash
-curl -s http://192.168.88.49:8080/relay/debug
+curl -s http://192.168.88.55:8080/relay/debug
 ```
 
 ### Check Recent Toggle Attempts (last 50)
 ```bash
-curl -s http://192.168.88.49:8080/debug/relay_requests
+curl -s http://192.168.88.55:8080/debug/relay_requests
 ```
 
 ### Check System Health
 ```bash
-curl -s http://192.168.88.49:8080/health
+curl -s http://192.168.88.55:8080/health
 ```
 
 ---
@@ -113,13 +113,13 @@ git commit -m "your changes"
 git push
 
 # Deploy to Pi
-ssh pi@192.168.88.49 "cd ~/RDWC-v4 && git pull && sudo systemctl restart rdwc.service"
+ssh pi@192.168.88.55 "cd ~/RDWC-v4 && git pull && sudo systemctl restart rdwc.service"
 
 # Wait for startup (8 seconds)
 sleep 8
 
 # Verify
-curl http://192.168.88.49:8080/health
+curl http://192.168.88.55:8080/health
 ```
 
 ---
@@ -129,7 +129,7 @@ curl http://192.168.88.49:8080/health
 ### Problem: Relays won't toggle
 **Check:** Cooldown or antiflap protection active
 ```bash
-curl -s http://192.168.88.49:8080/relay/debug
+curl -s http://192.168.88.55:8080/relay/debug
 ```
 
 ### Problem: UI buttons don't respond
@@ -138,13 +138,13 @@ curl -s http://192.168.88.49:8080/relay/debug
 ### Problem: Dosing pumps stuck ON
 **Solution:** Emergency off
 ```bash
-curl -X POST http://192.168.88.49:8080/relay/emergency_off
+curl -X POST http://192.168.88.55:8080/relay/emergency_off
 ```
 
 ### Problem: Service keeps restarting
 **Check:** Logs for errors
 ```bash
-ssh pi@192.168.88.49 "sudo journalctl -u rdwc.service -n 50 --no-pager"
+ssh pi@192.168.88.55 "sudo journalctl -u rdwc.service -n 50 --no-pager"
 ```
 
 ---
@@ -158,12 +158,13 @@ ssh pi@192.168.88.49 "sudo journalctl -u rdwc.service -n 50 --no-pager"
 | `app/debug.py` | Debug router |
 | `app/static/index.html` | Web dashboard |
 | `/etc/systemd/system/rdwc.service` | Service configuration |
-| `PRODUCTION_STATUS.md` | Full documentation |
+| `deploy/systemd/rdwc-sensors.service` | Sensor poller service |
+| `STATUS_AT_A_GLANCE.md` | Current system state |
 
 ---
 
 ## ✅ System Status
-**Last Verified:** October 30, 2025  
+**Last Verified:** May 2026  
 **Status:** ✅ OPERATIONAL  
 **Uptime:** Stable (no crashes)  
 **All 8 Relays:** Working  

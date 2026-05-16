@@ -7,7 +7,7 @@
 
 ## Quick smoke (30s)
 
-- `bash tools/smoke.sh 127.0.0.1 8080`
+- `python tools/commissioning_readiness.py --compact`
 
 ## Key endpoints
 

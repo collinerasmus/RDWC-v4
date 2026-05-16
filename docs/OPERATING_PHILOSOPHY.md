@@ -41,7 +41,7 @@ Five independent controllers, each with auto/manual/maintenance modes:
 - **Sensor validation**: Automation freezes if readings stale (>120s old)
 
 ### 4. Persistence Layer (State Management)
-- **Relay states**: Saved to `data/relay_state.json`, restored on boot (safe relays only)
+- **Relay states**: Saved to `~/.rdwc/relay_state.json`, restored on boot (safe relays only)
 - **Settings**: Saved to SQLite `settings` table, loaded on startup
 - **Modes**: Persisted per controller, survive restarts
 - **Dose logs**: Full audit trail in SQLite (ph_dose_log, ec_dose_log, dose_events)
@@ -356,7 +356,7 @@ Each controller operates in one of three modes:
 ### Historical Data
 - **Archival**: All sensor readings saved to `readings` table (timestamp, temp_c, ph, ec_mscm, online)
 - **Retention**: Indefinite (manual vacuum/cleanup as needed)
-- **Query**: `/api/sensors/readings?limit=1000` for historical analysis
+- **Query**: `/api/sensors` (cached, with DB fallback) or query SQLite `readings` table directly for historical analysis
 - **Dose Logs**: Permanent record in `ph_dose_log`, `ec_dose_log`, `dose_events` tables
 
 ### Settings Persistence

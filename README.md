@@ -40,7 +40,7 @@ RDWC-v4 is a production-ready hydroponic automation system built on Raspberry Pi
 - ✅ Real-time sensor polling at 5-second intervals (headless systemd service)
 - ✅ Comprehensive dose event logging with blocked-by tracking
 - ✅ Chart aggregation + relay event timeline with adaptive scaling
-- ✅ Modern responsive HMI with 10 specialized control tabs
+- ✅ Modern responsive HMI with 9 specialized control tabs
 - ✅ Temperature compensation throttling (0.2°C / 60s threshold)
 
 **Uptime**: 24/7 autonomous operation since Dec 22, 2025  
@@ -76,7 +76,7 @@ RDWC-v4 is a production-ready hydroponic automation system built on Raspberry Pi
 - **Health Dashboard**: Live system status with controller health indicators and mode badges
 
 ### Modern Web HMI
-- **10 Specialized Tabs**: Overview, Sensors, pH, EC, Calibration, Temperature, Lights, Circulation, Relays, Settings
+- **9 Specialized Tabs**: Overview, Camera, pH, EC, Temperature, Circulation, Lights, Schedule, Settings
 - **Responsive Design**: Mobile-friendly CSS with dark theme optimized for grow room monitoring
 - **Real-Time Updates**: 5-second polling with stale data warnings
 - **Chart Library**: Chart.js integration with zoom/pan and time-based X-axes
@@ -86,7 +86,7 @@ RDWC-v4 is a production-ready hydroponic automation system built on Raspberry Pi
 
 ## Screenshots
 
-> **Note**: Screenshots will be added here showcasing all 10 tabs of the HMI in the next update.
+> **Note**: Screenshots will be added here showcasing all 9 tabs of the HMI in the next update.
 
 ---
 
@@ -177,7 +177,7 @@ RDWC-v4 is a production-ready hydroponic automation system built on Raspberry Pi
   - Dev tools (optional): `pip install -r requirements-dev.txt`
 3. **Configure**: Copy `.env.example` to `.env`, set Pi IP, sensor addresses
 4. **Deploy**: `./deploy_pi.sh` (from dev machine) or `sudo systemctl start rdwc.service` (on Pi)
-5. **Access**: http://192.168.88.49:8080
+5. **Access**: http://192.168.88.55:8080
 6. **Important**: After deployment, clear browser cache (Ctrl+Shift+R) to load new assets
 
 ## UI Philosophy (Backend-First)
@@ -193,10 +193,11 @@ RDWC-v4 is a production-ready hydroponic automation system built on Raspberry Pi
 
 ### UI Structure
 - **Overview Tab**: System-wide health indicators and controller status
-- **Sensors Tab**: Live sensor readings + historical trend chart (Temperature, pH, EC)
+- **Camera Tab**: Live MJPEG stream (requires Pi camera module)
 - **pH/EC Tabs**: Current values, targets, guards, automation controls, dose logs
-- **Chiller Tab**: Water temperature, target, stage display (no chart)
-- **Lights/Circulation/Scheduler/System**: Settings panels with collapsible sections
+- **Temperature/Circulation Tabs**: Chiller and pump control with safety guards
+- **Lights/Schedule Tabs**: Scheduler management and manual override
+- **Settings Tab**: System configuration, alerts, calibration tools
 
 ### Data Preservation
 All controller actions are logged to SQLite database (`/data/rdwc.db`):
@@ -260,7 +261,7 @@ cp .env.example .env
 
 Edit `.env` to set your Pi's IP address and sensor I²C addresses:
 ```env
-PI_HOST=192.168.88.49
+PI_HOST=192.168.88.55
 PI_USER=pi
 RDWC_PH_ADDR=0x63
 RDWC_EC_ADDR=0x64
@@ -276,7 +277,7 @@ pytest
 
 **Run Specific Test File:**
 ```bash
-pytest tests/test_ph_control.py
+pytest tests/test_ph_auto_core.py
 ```
 
 **Run with Coverage:**
@@ -303,7 +304,7 @@ pytest -s
 **Key Test Files:**
 - `test_commissioning_sim.py` - Simulated commissioning workflow
 - `test_relay_guard_basic.py` - Relay safety guards
-- `test_ph_control.py` - pH dosing logic
+- `test_ph_auto_core.py` - pH dosing logic
 - `test_ec_control.py` - EC/nutrient dosing
 - `test_mode_system_e2e.py` - Mode controller E2E tests
 - `test_frontend_logs_retention.py` - Frontend logs auto-trim
@@ -381,7 +382,12 @@ Add stricter flags only on hardware-backed environments (e.g., self-hosted Pi ru
 
 **Quick Start** - Full automated commissioning:
 ```bash
-sudo python tools/commission_all.py
+# Run all phases via individual scripts:
+python tools/commission_sensors.py   # Phase 1: Sensor validation
+python tools/commission_ph.py        # Phase 2: pH calibration
+python tools/commission_ec.py        # Phase 3: EC calibration
+python tools/commission_relays.py    # Phase 4: Relay safety tests
+python tools/commission_pumps.py     # Phase 5: Pump calibration
 ```
 
 **Individual Phases:**
@@ -564,7 +570,7 @@ rm -f data/rdwc.db-journal
 - Refresh services on the Pi and view logs:
   - `./deploy/refresh_poller.ps1 -Host $env:PI_HOST -User $env:PI_USER`
 - Verify sensors are fresh (<60s):
-  - `./tools/sensor_health.ps1 -Host $env:PI_HOST`
+  - `curl http://$env:PI_HOST:8080/api/sensors`
 
 VS Code is configured to disable local test discovery to reduce noise. Use the scripts above for runtime checks.
 ## Hardware Map
@@ -605,34 +611,34 @@ Each controller supports three operational modes:
 **API Access**:
 ```bash
 # Get all controller modes
-curl http://192.168.88.49:8080/api/controller/modes
+curl http://192.168.88.55:8080/api/controller/modes
 
 # Get specific controller mode
-curl http://192.168.88.49:8080/api/controller/ph/mode
+curl http://192.168.88.55:8080/api/controller/ph/mode
 
 # Set controller to manual mode
-curl -X POST http://192.168.88.49:8080/api/controller/ph/mode \
+curl -X POST http://192.168.88.55:8080/api/controller/ph/mode \
   -H "Content-Type: application/json" \
   -d '{"mode": "manual"}'
 ```
 
-See `MODE_CONTROLLER_IMPLEMENTATION.md` for detailed documentation.
+See `docs/archive/2024-11/MODE_CONTROLLER_IMPLEMENTATION.md` for detailed documentation.
 
 ## Dashboard Tabs
 
-Web UI organized by function (http://192.168.88.49:8080):
+Web UI organized by function (http://192.168.88.55:8080):
 
 1. **Overview**: System at-a-glance, health indicators, grow day counter
-2. **pH Control**: Manual dosing, automation, dose history, settings, **mode selector**
-3. **EC Control**: G/M/B nutrient dosing, mix ratios, auto-raise, CSV export, **mode selector**
-4. **Temperature**: Chiller control, min ON/OFF protections, **mode selector**
-5. **Lights**: Schedule (start time, duration), manual override, **mode selector**
-6. **Sensors**: Live readings, export, calibration status
-7. **Trends**: Multi-day charts (pH, EC, temp) with date pickers
-8. **Relays**: Manual relay control, state viewer, cooldown timers
-9. **Settings**: General (reservoir size, grow start), Alerts (email/Telegram), Calibration
+2. **Camera**: Live MJPEG stream from Picamera2 (Pi camera module required)
+3. **pH Control**: Manual dosing, automation, dose history, settings, **mode selector**
+4. **EC Control**: G/M/B nutrient dosing, mix ratios, auto-raise, CSV export, **mode selector**
+5. **Temperature**: Chiller control, min ON/OFF protections, **mode selector**
+6. **Circulation**: Main pump + chiller pump control, runtime tracking
+7. **Lights**: Schedule (start time, duration), manual override, **mode selector**
+8. **Schedule**: Scheduler management, enable/disable, daily cap editor
+9. **Settings**: General (reservoir size, grow start), Alerts (email/Telegram), calibration tools
 
-> Version: `v4.1.0` — see CHANGELOG.md
+> Version: `v4.0-ph1-final` — see CHANGELOG.md
 
 ## How it works
 
@@ -657,11 +663,11 @@ Web UI organized by function (http://192.168.88.49:8080):
 ### API Endpoints
 ```bash
 # Get poller status
-curl -s http://192.168.88.49:8000/api/sensors/status | jq .
+curl -s http://192.168.88.55:8000/api/sensors/status | jq .
 # Returns: running, last_sample_ts, last_heartbeat_ts, interval_sec, lock_pid, poll_count
 
 # Comprehensive health check
-curl -s http://192.168.88.49:8000/api/health | jq .
+curl -s http://192.168.88.55:8000/api/health | jq .
 # Returns: ok, app_version, git_commit, uptime_seconds, sensor_poller, database
 ```
 
@@ -672,7 +678,7 @@ cd c:\Users\USER-PC\OneDrive\Documents\GitHub\RDWC-v4
 .\deploy\deploy_sensor_poller.ps1
 
 # Manual deployment
-ssh pi@192.168.88.49
+ssh pi@192.168.88.55
 cd /home/pi/RDWC-v4
 # Sensor poller + watchdog
 sudo cp deploy/systemd/rdwc-sensors* /etc/systemd/system/
@@ -708,7 +714,7 @@ systemctl status rdwc-sensors.service --no-pager
 journalctl -u rdwc-sensors.service -n 50 --no-pager
 
 # 3. Verify poller is running
-curl -s http://192.168.88.49:8000/api/sensors/status | jq '.running, .poll_count'
+curl -s http://192.168.88.55:8000/api/sensors/status | jq '.running, .poll_count'
 
 # 4. Confirm data is being written
 sqlite3 /home/pi/RDWC-v4/data/rdwc.db \
@@ -719,7 +725,7 @@ sqlite3 /home/pi/RDWC-v4/data/rdwc.db \
 ### Cleanup Legacy Pollers
 ```bash
 # Audit and remove ghost/duplicate readers
-ssh pi@192.168.88.49
+ssh pi@192.168.88.55
 cd /home/pi/RDWC-v4
 bash deploy/audit_sensor_readers.sh        # Dry-run (shows issues)
 bash deploy/audit_sensor_readers.sh --kill # Cleanup mode (kills strays)
@@ -788,7 +794,7 @@ The system supports configurable settings via the web dashboard or API:
 ### Configuration Methods
 
 #### Web Dashboard
-1. Navigate to http://192.168.88.49:8080
+1. Navigate to http://192.168.88.55:8080
 2. Find the "Settings" section
 3. Adjust values as needed
 4. Click "Save Settings"
@@ -796,10 +802,10 @@ The system supports configurable settings via the web dashboard or API:
 #### API Endpoints
 ```bash
 # Get current settings
-curl http://192.168.88.49:8080/settings
+curl http://192.168.88.55:8080/settings
 
 # Update settings
-curl -X PUT http://192.168.88.49:8080/settings \
+curl -X PUT http://192.168.88.55:8080/settings \
   -H "Content-Type: application/json" \
   -d '{
     "system_volume_liters": 30.0,
@@ -811,13 +817,13 @@ curl -X PUT http://192.168.88.49:8080/settings \
 #### Health & Debug Endpoints
 ```bash
 # Health (readiness) summary
-curl -s http://192.168.88.49:8080/health | jq .
+curl -s http://192.168.88.55:8080/health | jq .
 
 # Relay status (per-relay state, reasons, timers)
-curl -s http://192.168.88.49:8080/relay/status | jq .
+curl -s http://192.168.88.55:8080/relay/status | jq .
 
 # Last 50 relay toggle attempts (ts/name/on/via/result)
-curl -s http://192.168.88.49:8080/debug/relay_requests | jq .
+curl -s http://192.168.88.55:8080/debug/relay_requests | jq .
 ```
 
 ### Chiller Override
@@ -831,22 +837,22 @@ Explicit 3-mode control with no surprise thermostat behavior in software:
 API:
 ```bash
 # Get current override
-curl -s http://192.168.88.49:8080/chiller/override
+curl -s http://192.168.88.55:8080/chiller/override
 
 # Force ON (both power and pump), subject to cooldowns
 curl -s -X PUT -H "Content-Type: application/json" \
-  -d '{"override":"force_on"}' http://192.168.88.49:8080/chiller/override
+  -d '{"override":"force_on"}' http://192.168.88.55:8080/chiller/override
 
 # Force OFF (both), subject to cooldowns
 curl -s -X PUT -H "Content-Type: application/json" \
-  -d '{"override":"force_off"}' http://192.168.88.49:8080/chiller/override
+  -d '{"override":"force_off"}' http://192.168.88.55:8080/chiller/override
 
 # Back to AUTO (thermostat control with compressor-safe min ON/OFF times)
 curl -s -X PUT -H "Content-Type: application/json" \
-  -d '{"override":"auto"}' http://192.168.88.49:8080/chiller/override
+  -d '{"override":"auto"}' http://192.168.88.55:8080/chiller/override
 
 # Inspect relay states and cooldowns
-curl -s http://192.168.88.49:8080/relay/status | jq '.chiller_power, .chiller_pump'
+curl -s http://192.168.88.55:8080/relay/status | jq '.chiller_power, .chiller_pump'
 ```
 
 UI: A small card can present a 3-state selector and two live indicators for `chiller_power` and `chiller_pump`.

@@ -57,7 +57,7 @@ Write-Host ""
 
 # Restart services
 Write-Host "Restarting RDWC services..." -ForegroundColor Yellow
-& ssh $PiHost "sudo systemctl restart rdwc-sensors rdwc-api"
+& ssh $PiHost "sudo systemctl restart rdwc-sensors rdwc"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "⚠ Service restart returned error (may be normal)" -ForegroundColor Yellow
 }

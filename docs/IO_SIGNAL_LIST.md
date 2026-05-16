@@ -194,7 +194,7 @@
 - **Direction**: All relay pins configured as OUTPUT
 - **Active-Low Logic**: HIGH = relay OFF, LOW = relay ON
 - **Initialization**: All pins set HIGH (OFF) on boot via `initialize_all_safe_off()`
-- **Persistence**: Relay states saved to `data/relay_state.json`, restored on boot (safe relays only)
+- **Persistence**: Relay states saved to `~/.rdwc/relay_state.json`, restored on boot (safe relays only)
 
 ### API (FastAPI)
 - **Protocol**: HTTP/1.1

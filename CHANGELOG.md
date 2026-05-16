@@ -140,7 +140,7 @@
 - Complex temperature chart implementation (`temp_chart.js`, 359 lines)
 - Temperature & chiller history chart from Chiller tab
 - Dose history chart wrappers from pH and EC tabs
-- `docs/CHILLER_CHART_GUIDE.md` documentation
+- `docs/CHILLER_CHART_GUIDE.md` documentation (file removed)
 
 ### Kept
 - Sensors tab chart remains intact (temperature, pH, EC trends with timeline controls)

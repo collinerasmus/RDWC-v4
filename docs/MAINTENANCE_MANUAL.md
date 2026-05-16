@@ -65,7 +65,7 @@
 - [ ] **Database Maintenance**: Run VACUUM and ANALYZE (see Section 4)
 - [ ] **Database Backup**: Export full SQLite DB to external storage (see Section 4.3)
 - [ ] **Software Update**: Check for RDWC updates via Git (see Section 5)
-- [ ] **Log Review**: Inspect systemd logs for rdwc-api and rdwc-sensors services (see Section 5.4)
+- [ ] **Log Review**: Inspect systemd logs for rdwc and rdwc-sensors services (see Section 5.4)
 - [ ] **Hardware Inspection**: Inspect relay board, power supply, GPIO connections (see Section 6)
 - [ ] **Reservoir Deep Clean**: Drain, scrub, sanitize, refill (coordinate with grow schedule)
 
@@ -123,7 +123,7 @@ Annual Functional Test:
 **Required Buffers**: pH 4.0, 7.0, 10.0 (Atlas Scientific or equivalent)  
 **Prerequisites**: 
 - Set `CALIB_ENABLE=1` in environment variables (`.env` file)
-- Restart API service: `sudo systemctl restart rdwc-api`
+- Restart API service: `sudo systemctl restart rdwc`
 
 **Procedure**:
 
@@ -174,7 +174,7 @@ Annual Functional Test:
 7. **Post-Calibration**:
    - Record calibration date in Ops Runbook
    - Set `CALIB_ENABLE=0` in `.env` file (security measure)
-   - Restart API service: `sudo systemctl restart rdwc-api`
+   - Restart API service: `sudo systemctl restart rdwc`
 
 **Troubleshooting**:
 - **Unstable reading**: Buffer contaminated or probe aging → Use fresh buffer or replace probe
@@ -460,12 +460,12 @@ Annual Functional Test:
 
 1. **SSH to Raspberry Pi**:
    ```powershell
-   ssh pi@192.168.88.49
+   ssh pi@192.168.88.55
    ```
 
 2. **Stop Services** (prevents database locks):
    ```bash
-   sudo systemctl stop rdwc-api
+   sudo systemctl stop rdwc
    sudo systemctl stop rdwc-sensors
    ```
 
@@ -487,13 +487,13 @@ Annual Functional Test:
 5. **Restart Services**:
    ```bash
    sudo systemctl start rdwc-sensors
-   sudo systemctl start rdwc-api
+   sudo systemctl start rdwc
    ```
 
 6. **Verification**:
    - Navigate to System tab in web UI
    - Verify "DB Size" has decreased (typical: 10-30% reduction)
-   - Check logs: `sudo journalctl -u rdwc-api -f` (should show no errors)
+   - Check logs: `sudo journalctl -u rdwc -f` (should show no errors)
 
 **Troubleshooting**:
 - **VACUUM fails**: Database locked → Ensure both services stopped
@@ -511,12 +511,12 @@ Annual Functional Test:
 
 1. **SSH to Raspberry Pi**:
    ```powershell
-   ssh pi@192.168.88.49
+   ssh pi@192.168.88.55
    ```
 
 2. **Stop Services**:
    ```bash
-   sudo systemctl stop rdwc-api
+   sudo systemctl stop rdwc
    sudo systemctl stop rdwc-sensors
    ```
 
@@ -528,13 +528,13 @@ Annual Functional Test:
 
 4. **Transfer to PC** (from Windows PowerShell):
    ```powershell
-   scp pi@192.168.88.49:/home/pi/rdwc-v4/data/rdwc_backup_*.db C:\Backups\RDWC\
+   scp pi@192.168.88.55:/home/pi/rdwc-v4/data/rdwc_backup_*.db C:\Backups\RDWC\
    ```
 
 5. **Restart Services**:
    ```bash
    sudo systemctl start rdwc-sensors
-   sudo systemctl start rdwc-api
+   sudo systemctl start rdwc
    ```
 
 **Method 2: Settings Export (Quick, Settings Only)**
@@ -561,7 +561,7 @@ Annual Functional Test:
 
 1. **Stop Services**:
    ```bash
-   sudo systemctl stop rdwc-api
+   sudo systemctl stop rdwc
    sudo systemctl stop rdwc-sensors
    ```
 
@@ -586,7 +586,7 @@ Annual Functional Test:
 5. **Restart Services**:
    ```bash
    sudo systemctl start rdwc-sensors
-   sudo systemctl start rdwc-api
+   sudo systemctl start rdwc
    ```
 
 6. **Verification**:
@@ -610,7 +610,7 @@ Annual Functional Test:
 
 1. **SSH to Raspberry Pi**:
    ```powershell
-   ssh pi@192.168.88.49
+   ssh pi@192.168.88.55
    ```
 
 2. **Navigate to Project Directory**:
@@ -657,12 +657,12 @@ Annual Functional Test:
 
 2. **SSH to Raspberry Pi**:
    ```powershell
-   ssh pi@192.168.88.49
+   ssh pi@192.168.88.55
    ```
 
 3. **Stop Services**:
    ```bash
-   sudo systemctl stop rdwc-api
+   sudo systemctl stop rdwc
    sudo systemctl stop rdwc-sensors
    ```
 
@@ -690,30 +690,32 @@ Annual Functional Test:
 
 7. **Run Database Migrations** (if migrations/ folder changed):
    ```bash
-   python migrations/apply_all.py
+   # Apply SQL migration files manually:
+   sqlite3 data/rdwc.db < migrations/20251103_create_ec_dose_log.sql
+   sqlite3 data/rdwc.db < migrations/20251116_create_frontend_logs.sql
    ```
 
 8. **Restart Services**:
    ```bash
    sudo systemctl start rdwc-sensors
-   sudo systemctl start rdwc-api
+   sudo systemctl start rdwc
    ```
 
 9. **Verification**:
-   - Navigate to web UI (http://192.168.88.49:8080)
+   - Navigate to web UI (http://192.168.88.55:8080)
    - Check System tab → Software card → "RDWC Version"
    - Verify version number updated
    - Test critical paths: Sensors tab (readings), pH tab (manual dose), System tab (relay control)
 
 10. **Post-Update**:
-    - Monitor logs for errors: `sudo journalctl -u rdwc-api -f`
+    - Monitor logs for errors: `sudo journalctl -u rdwc -f`
     - Document update in Ops Runbook (version, date, any issues)
 
 **Rollback Procedure** (if update fails):
 
 1. **Stop Services**:
    ```bash
-   sudo systemctl stop rdwc-api
+   sudo systemctl stop rdwc
    sudo systemctl stop rdwc-sensors
    ```
 
@@ -731,7 +733,7 @@ Annual Functional Test:
 4. **Restart Services**:
    ```bash
    sudo systemctl start rdwc-sensors
-   sudo systemctl start rdwc-api
+   sudo systemctl start rdwc
    ```
 
 5. **Verification**:
@@ -751,7 +753,7 @@ Annual Functional Test:
 
 1. **SSH to Raspberry Pi**:
    ```powershell
-   ssh pi@192.168.88.49
+   ssh pi@192.168.88.55
    ```
 
 2. **Update Package Lists**:
@@ -786,11 +788,11 @@ Annual Functional Test:
 
 7. **Verification**:
    - SSH back in after reboot
-   - Verify services started: `sudo systemctl status rdwc-api rdwc-sensors`
+   - Verify services started: `sudo systemctl status rdwc rdwc-sensors`
    - Navigate to web UI, verify functionality
 
 **Troubleshooting**:
-- **Services fail to start after update**: Check logs (`sudo journalctl -u rdwc-api -n 50`)
+- **Services fail to start after update**: Check logs (`sudo journalctl -u rdwc -n 50`)
 - **Python version mismatch**: Recreate virtual environment:
   ```bash
   cd /home/pi/rdwc-v4
@@ -811,7 +813,7 @@ Annual Functional Test:
 
 1. **Review API Service Logs**:
    ```bash
-   sudo journalctl -u rdwc-api --since "1 week ago" | grep -i error
+   sudo journalctl -u rdwc --since "1 week ago" | grep -i error
    ```
    - Look for: HTTP 500 errors, database locks, I²C failures
 
@@ -1050,7 +1052,7 @@ Annual Functional Test:
 
 5. **Check Relay Status API**:
    ```powershell
-   $base='http://192.168.88.49:8080'
+   $base='http://192.168.88.55:8080'
    Invoke-RestMethod "$base/api/relays/status"
    ```
    - Inspect `relays` object for target relay
@@ -1109,7 +1111,7 @@ Annual Functional Test:
 
 6. **Check API Logs**:
    ```bash
-   sudo journalctl -u rdwc-api -n 100 | grep -i dose
+   sudo journalctl -u rdwc -n 100 | grep -i dose
    ```
    - Look for dose attempts and block reasons
 
@@ -1129,18 +1131,18 @@ Annual Functional Test:
 
 1. **Check Network Connectivity**:
    ```powershell
-   Test-Connection 192.168.88.49 -Count 2
+   Test-Connection 192.168.88.55 -Count 2
    ```
    - **Expected**: Reply from Pi (ping successful)
    - **Failure**: No reply → Network issue (Pi offline, WiFi down, IP changed)
 
 2. **Check API Service**:
    ```bash
-   ssh pi@192.168.88.49
-   sudo systemctl status rdwc-api
+   ssh pi@192.168.88.55
+   sudo systemctl status rdwc
    ```
    - **Expected**: "active (running)"
-   - **Failure**: "inactive (dead)" → Restart: `sudo systemctl start rdwc-api`
+   - **Failure**: "inactive (dead)" → Restart: `sudo systemctl start rdwc`
 
 3. **Check Port Binding**:
    ```bash
@@ -1158,7 +1160,7 @@ Annual Functional Test:
 
 5. **Check Logs for Crash**:
    ```bash
-   sudo journalctl -u rdwc-api -n 50
+   sudo journalctl -u rdwc -n 50
    ```
    - Look for Python traceback or "Fatal error" messages
 

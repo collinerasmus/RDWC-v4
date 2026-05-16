@@ -108,7 +108,7 @@ When debugging UI issues, query the logs endpoint to see what errors occurred:
 import requests
 
 # Get recent errors
-response = requests.get('http://192.168.88.49:8080/api/frontend/logs?level=error&hours=1')
+response = requests.get('http://192.168.88.55:8080/api/frontend/logs?level=error&hours=1')
 logs = response.json()['logs']
 
 for log in logs:

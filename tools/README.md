@@ -1,26 +1,29 @@
 # Tools
 
-## smoke.sh
+## commissioning_readiness.py
 
-30-second smoke test to verify the service is healthy and key endpoints respond.
+Readiness snapshot — verifies the service is healthy and key endpoints respond.
 
 Usage on Pi:
 
 ```bash
-bash tools/smoke.sh 127.0.0.1 8080
+python tools/commissioning_readiness.py
 ```
 
-Usage from your PC:
+Compact JSON output (CI / log-friendly):
+
+```bash
+python tools/commissioning_readiness.py --compact
+```
+
+Remote via SSH:
 
 ```powershell
-ssh pi@192.168.88.49 "bash ~/RDWC-v4/tools/smoke.sh 127.0.0.1 8080"
+ssh pi@192.168.88.55 "cd ~/RDWC-v4 && python tools/commissioning_readiness.py --compact"
 ```
 
 Checks:
-- /health returns 200
-- /relay/status reachable
-- /sensors/read reachable
-- /settings returns shape
-- /relay/set GET path toggles lights (subject to cooldown)
-- /debug/relay_requests reachable
-- /debug/lights_log reachable
+- API reachable and sensors online
+- Relay status / estop state
+- pH and EC values present
+- Settings accessible

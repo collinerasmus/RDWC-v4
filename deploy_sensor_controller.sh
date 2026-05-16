@@ -41,7 +41,7 @@ echo ""
 
 # Restart services
 echo "Restarting RDWC services..."
-ssh "$PiHost" "sudo systemctl restart rdwc-sensors rdwc-api" || true
+ssh "$PiHost" "sudo systemctl restart rdwc-sensors rdwc" || true
 echo "✓ Services restarted"
 echo ""
 

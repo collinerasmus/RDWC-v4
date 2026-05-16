@@ -233,12 +233,12 @@ PowerShell script to test all 4 issues against live Pi:
 
 1. **Deploy fixed main.py:**
    ```bash
-   scp app/main.py rdwc@192.168.88.55:/home/rdwc/app/app/main.py
+   scp app/main.py rdwc@192.168.88.55:/home/rdwc/RDWC-v4/app/main.py
    ```
 
 2. **Restart API service:**
    ```bash
-   ssh rdwc@192.168.88.55 "sudo systemctl restart rdwc-api"
+   ssh rdwc@192.168.88.55 "sudo systemctl restart rdwc.service"
    ```
 
 3. **Verify fixes:**
