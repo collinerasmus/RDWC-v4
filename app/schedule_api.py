@@ -112,14 +112,56 @@ def _format_grow_start_date(dt: Optional[datetime]) -> Optional[str]:
             return None
 
 def _get_current_week() -> int:
-    """Calculate current grow week based on start date."""
-    start = _get_grow_start_date()
-    if not start:
-        return 1
-    now = datetime.now(timezone.utc)
-    delta = now - start.astimezone(timezone.utc)
-    week = max(1, (delta.days // 7) + 1)
-    return min(week, 12)  # Cap at 12 weeks
+    """Calculate current grow week.
+
+    Week/day rollover is anchored to lights-on time so schedule changes happen
+    at the start of the grow period, not at midnight.
+    """
+    try:
+        from app.settings import get_all_settings, SA_TZ
+
+        s = get_all_settings()
+        date_str = s.get("general.grow_start_date", "")
+        if not date_str:
+            return 1
+
+        # Parse grow start date (stored as YYYY-MM-DD)
+        start_date = datetime.strptime(date_str, "%Y-%m-%d")
+
+        # Use configured lights-on time as day/week rollover edge.
+        lights_on = (
+            s.get("general.lights_on_time", "")
+            or s.get("lights_on_time", "")
+            or "15:00"
+        )
+        try:
+            on_h, on_m = map(int, str(lights_on).split(":"))
+            if not (0 <= on_h <= 23 and 0 <= on_m <= 59):
+                raise ValueError("lights_on_time out of range")
+        except Exception:
+            on_h, on_m = 15, 0
+
+        anchor_naive = start_date.replace(hour=on_h, minute=on_m, second=0, microsecond=0)
+        try:
+            anchor = SA_TZ.localize(anchor_naive)
+        except Exception:
+            anchor = anchor_naive.replace(tzinfo=timezone.utc)
+
+        now_local = datetime.now(timezone.utc).astimezone(anchor.tzinfo)
+        elapsed_days = int((now_local - anchor).total_seconds() // 86400)
+        elapsed_days = max(0, elapsed_days)
+
+        week = max(1, (elapsed_days // 7) + 1)
+        return min(week, 12)  # Cap at 12 weeks
+    except Exception:
+        # Safe fallback to legacy behavior
+        start = _get_grow_start_date()
+        if not start:
+            return 1
+        now = datetime.now(timezone.utc)
+        delta = now - start.astimezone(timezone.utc)
+        week = max(1, (delta.days // 7) + 1)
+        return min(week, 12)
 
 @router.get("/api/nutrient_schedule")
 def get_nutrient_schedule():

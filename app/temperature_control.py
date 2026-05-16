@@ -80,23 +80,15 @@ def _get_schedule_temp_target() -> Optional[float]:
     """
     try:
         from app.settings import get_all_settings
+        from app.schedule_api import _get_current_week
         from app.schedule_api import DB_PATH as SCHED_DB
-        from datetime import datetime, timezone
         
         settings = get_all_settings()
-        start_str = settings.get("general.grow_start_date", "")
-        if not start_str:
+        if not settings.get("general.grow_start_date", ""):
             return None
-        
-        # Calculate current week (aligned with schedule_api logic)
-        try:
-            start_date = datetime.strptime(start_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-        except Exception:
-            start_date = datetime.fromisoformat(start_str).replace(tzinfo=timezone.utc)
-        
-        now = datetime.now(timezone.utc)
-        days = max(0, (now - start_date).days)
-        current_week = min(12, max(1, (days // 7) + 1))
+
+        # Single source of truth: schedule_api week calc (lights-on rollover).
+        current_week = _get_current_week()
         
         # Query schedule for current week's temp_target
         with sqlite3.connect(str(SCHED_DB)) as conn:

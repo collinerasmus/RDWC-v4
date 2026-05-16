@@ -629,22 +629,14 @@ def _get_schedule_ec_target() -> Tuple[Optional[float], Optional[float]]:
     """
     try:
         from app.settings import get_all_settings
+        from app.schedule_api import _get_current_week
         settings = get_all_settings()
         tolerance = float(settings.get("targets.ec_tolerance", "0.2") or 0.2)
-        start_str = settings.get("general.grow_start_date", "")
-        if not start_str:
+        if not settings.get("general.grow_start_date", ""):
             return (None, None)
 
-        # Align with schedule_api week calc (YYYY-MM-DD, UTC, capped to 12)
-        from datetime import datetime, timezone
-        try:
-            start_date = datetime.strptime(start_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-        except Exception:
-            start_date = datetime.fromisoformat(start_str).replace(tzinfo=timezone.utc)
-
-        now = datetime.now(timezone.utc)
-        days = max(0, (now - start_date).days)
-        current_week = min(12, max(1, (days // 7) + 1))
+        # Single source of truth: schedule_api week calc (lights-on rollover).
+        current_week = _get_current_week()
         
         # Get schedule from DB
         with sqlite3.connect(str(DB_PATH)) as conn:
@@ -668,20 +660,13 @@ def _get_schedule_mix_ratios() -> Optional[Tuple[float, float, float]]:
     """
     try:
         from app.settings import get_all_settings
+        from app.schedule_api import _get_current_week
         settings = get_all_settings()
-        start_str = settings.get("general.grow_start_date", "")
-        if not start_str:
+        if not settings.get("general.grow_start_date", ""):
             return None
 
-        from datetime import datetime, timezone
-        try:
-            start_date = datetime.strptime(start_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-        except Exception:
-            start_date = datetime.fromisoformat(start_str).replace(tzinfo=timezone.utc)
-
-        now = datetime.now(timezone.utc)
-        days = max(0, (now - start_date).days)
-        current_week = min(12, max(1, (days // 7) + 1))
+        # Single source of truth: schedule_api week calc (lights-on rollover).
+        current_week = _get_current_week()
 
         with sqlite3.connect(str(DB_PATH)) as conn:
             cur = conn.cursor()

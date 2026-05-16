@@ -416,6 +416,7 @@ def _get_ph_targets() -> Dict[str, float]:
     Returns dict with 'low' and 'high' keys.
     """
     from app.settings import get_all_settings
+    from app.schedule_api import _get_current_week
     from app.schedule_api import DB_PATH as SCHED_DB
     
     band_tol = _settings_get_float("targets.ph_band", 0.2)
@@ -425,13 +426,7 @@ def _get_ph_targets() -> Dict[str, float]:
         date_str = s.get("general.grow_start_date", "")
         week_num = 1
         if date_str:
-            try:
-                start = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                now_dt = datetime.now(timezone.utc)
-                delta_days = (now_dt - start).days
-                week_num = max(1, min(12, (delta_days // 7) + 1))
-            except Exception:
-                week_num = 1
+            week_num = _get_current_week()
         with sqlite3.connect(str(SCHED_DB)) as conn:
             cur = conn.cursor()
             cur.execute("SELECT ph_low, ph_high FROM nutrient_schedule WHERE week = ?", (week_num,))
