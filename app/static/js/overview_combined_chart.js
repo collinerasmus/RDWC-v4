@@ -568,6 +568,19 @@
       controls.applyRange(timeWindow.start, timeWindow.end, false, true);
     }
 
+    // Default to live window tracking on load so the overview always advances.
+    startLive();
+
+    // If the browser tab was backgrounded, ensure live mode catches up immediately.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) return;
+      if (liveTimer) {
+        timeWindow.end = Date.now();
+        timeWindow.start = timeWindow.end - liveSpanMs;
+      }
+      refresh();
+    });
+
     window.addEventListener('sensors:update', handleSensorUpdate);
 
     window.overviewCombinedChart = { phChart, ecChart, tempChart, refresh, startLive, stopLive };
