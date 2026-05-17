@@ -111,24 +111,24 @@ def _format_grow_start_date(dt: Optional[datetime]) -> Optional[str]:
         except Exception:
             return None
 
-def _get_current_week() -> int:
-    """Calculate current grow week.
 
-    Week/day rollover is anchored to lights-on time so schedule changes happen
-    at the start of the grow period, not at midnight.
-    """
+def _get_week_timing_info() -> Dict[str, Any]:
+    """Return scheduler timing context anchored to lights-on rollover."""
+    info: Dict[str, Any] = {
+        "current_week": 1,
+        "grow_start_date": None,
+        "lights_on_time": "15:00",
+        "now_local": None,
+        "next_rollover_local": None,
+        "benchmark_passed_today": False,
+    }
     try:
         from app.settings import get_all_settings, SA_TZ
 
         s = get_all_settings()
         date_str = s.get("general.grow_start_date", "")
-        if not date_str:
-            return 1
+        info["grow_start_date"] = date_str or None
 
-        # Parse grow start date (stored as YYYY-MM-DD)
-        start_date = datetime.strptime(date_str, "%Y-%m-%d")
-
-        # Use configured lights-on time as day/week rollover edge.
         lights_on = (
             s.get("general.lights_on_time", "")
             or s.get("lights_on_time", "")
@@ -138,9 +138,15 @@ def _get_current_week() -> int:
             on_h, on_m = map(int, str(lights_on).split(":"))
             if not (0 <= on_h <= 23 and 0 <= on_m <= 59):
                 raise ValueError("lights_on_time out of range")
+            info["lights_on_time"] = f"{on_h:02d}:{on_m:02d}"
         except Exception:
             on_h, on_m = 15, 0
+            info["lights_on_time"] = "15:00"
 
+        if not date_str:
+            return info
+
+        start_date = datetime.strptime(date_str, "%Y-%m-%d")
         anchor_naive = start_date.replace(hour=on_h, minute=on_m, second=0, microsecond=0)
         try:
             anchor = SA_TZ.localize(anchor_naive)
@@ -148,11 +154,32 @@ def _get_current_week() -> int:
             anchor = anchor_naive.replace(tzinfo=timezone.utc)
 
         now_local = datetime.now(timezone.utc).astimezone(anchor.tzinfo)
+        info["now_local"] = now_local.isoformat()
+
+        today_benchmark = now_local.replace(hour=on_h, minute=on_m, second=0, microsecond=0)
+        info["benchmark_passed_today"] = now_local >= today_benchmark
+
         elapsed_days = int((now_local - anchor).total_seconds() // 86400)
         elapsed_days = max(0, elapsed_days)
 
         week = max(1, (elapsed_days // 7) + 1)
-        return min(week, 12)  # Cap at 12 weeks
+        week = min(week, 12)
+        info["current_week"] = week
+
+        next_rollover = anchor + timedelta(days=week * 7)
+        info["next_rollover_local"] = next_rollover.isoformat()
+        return info
+    except Exception:
+        return info
+
+def _get_current_week() -> int:
+    """Calculate current grow week.
+
+    Week/day rollover is anchored to lights-on time so schedule changes happen
+    at the start of the grow period, not at midnight.
+    """
+    try:
+        return int(_get_week_timing_info().get("current_week") or 1)
     except Exception:
         # Safe fallback to legacy behavior
         start = _get_grow_start_date()
@@ -390,7 +417,8 @@ def get_current_week_info():
     """Get current grow week and phase."""
     try:
         _ensure_table()
-        week_num = _get_current_week()
+        timing = _get_week_timing_info()
+        week_num = int(timing.get("current_week") or 1)
         with sqlite3.connect(str(DB_PATH)) as conn:
             cur = conn.cursor()
             cur.execute("""
@@ -404,7 +432,11 @@ def get_current_week_info():
             return {
                 "week": week_num,
                 "phase": "unknown",
-                "grow_start_date": _format_grow_start_date(start_date)
+                "grow_start_date": _format_grow_start_date(start_date),
+                "lights_on_time": timing.get("lights_on_time"),
+                "now_local": timing.get("now_local"),
+                "next_rollover_local": timing.get("next_rollover_local"),
+                "benchmark_passed_today": timing.get("benchmark_passed_today"),
             }
         # Normal return (not shown in snippet)
         # ...
@@ -433,7 +465,11 @@ def get_current_week_info():
         "temp_target": row[8],
         "lights": row[9],
         "notes": row[10] or "",
-        "grow_start_date": _format_grow_start_date(start_date)
+        "grow_start_date": _format_grow_start_date(start_date),
+        "lights_on_time": timing.get("lights_on_time"),
+        "now_local": timing.get("now_local"),
+        "next_rollover_local": timing.get("next_rollover_local"),
+        "benchmark_passed_today": timing.get("benchmark_passed_today"),
     }
 
 @router.get("/api/schedule/plan")
