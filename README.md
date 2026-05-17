@@ -29,9 +29,9 @@ RDWC-v4 is a production-ready hydroponic automation system built on Raspberry Pi
 
 ## 🎯 Current Status
 
-**Project Phase**: Final benchmark & production validation (Phase 1 complete)  
-**Commissioning**: ✅ Complete (Dec 2025)  
-**Code Review**: ✅ Complete (May 2026) — 209/209 tests passing, zero code duplication issues
+**Project Phase**: Production operation with continuous hardening  
+**Commissioning**: ✅ Complete  
+**Validation**: ✅ 209/209 tests passing (latest run)
 
 ### System Health
 - ✅ pH/EC auto-dosing with multi-layer safety guards
@@ -43,12 +43,21 @@ RDWC-v4 is a production-ready hydroponic automation system built on Raspberry Pi
 - ✅ Modern responsive HMI with 9 specialized control tabs
 - ✅ Temperature compensation throttling (0.2°C / 60s threshold)
 
-**Uptime**: 24/7 autonomous operation since Dec 22, 2025  
-**Last Deploy**: 2026-05-12, commit `3baa14d` (Tighten adaptive scaling across all charts)  
+**Uptime**: 24/7 autonomous operation  
+**Last Verified Deploy**: 2026-05-17, commit `9c62ae1` (schedule rollover timing diagnostics)  
 **Current Version**: 4.0.0 (v4.0-ph1-final)  
 **Pi Host**: 192.168.88.55:8080
 
 ---
+
+### Source of Truth
+- Scheduler week rollover is anchored to `lights_on_time` (not midnight).
+- Controllers derive targets from the current schedule week.
+- Runtime rollover diagnostics are available from `/api/schedule/current_week`:
+  - `now_local`
+  - `lights_on_time`
+  - `next_rollover_local`
+  - `benchmark_passed_today`
 
 ---
 
@@ -58,7 +67,7 @@ RDWC-v4 is a production-ready hydroponic automation system built on Raspberry Pi
 - **pH Dosing**: Precision pH control with auto/manual modes, configurable bands, daily caps, and dose retry logic
 - **EC/Nutrient Dosing**: Automated Grow/Micro/Bloom dosing with mix ratios, pH-aware guards, and learning mode
 - **Temperature Control**: Smart chiller management with compressor protection, min ON/OFF times, and hysteresis
-- **Lighting**: Edge-only scheduler (two transitions/day) with midnight rollover support and 18/6 or 12/12 photoperiods
+- **Lighting**: Edge-only scheduler (two transitions/day) with lights-on benchmark rollover and 18/6 or 12/12 photoperiods
 - **Circulation**: Main pump + chiller pump orchestration with anti-flap guards and runtime tracking
 
 ### Safety Architecture
@@ -90,18 +99,15 @@ RDWC-v4 is a production-ready hydroponic automation system built on Raspberry Pi
 
 ---
 
----
-
 ## Architecture
 
 ### System Design
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Web Browser (HMI)                        │
-│  ┌──────────┬──────────┬──────────┬──────────┬──────────────┐  │
-│  │ Overview │ Sensors  │  pH/EC   │  Lights  │   Relays     │  │
-│  └──────────┴──────────┴──────────┴──────────┴──────────────┘  │
+│                           Web Browser (HMI)                     │
+│  Overview • Camera • pH • EC • Temperature • Circulation        │
+│  Lights • Schedule • Settings                                    │
 └────────────────────────────┬────────────────────────────────────┘
                              │ REST API (5s polling)
 ┌────────────────────────────┴────────────────────────────────────┐
