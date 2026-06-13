@@ -3081,6 +3081,131 @@ function toggleRecentReadings(){
   })();
   </script>
 
+  <script>
+  // Fallback camera status renderer for environments where camera.js may fail to initialize.
+  // Keeps the Timelapse status block and preview populated from backend state.
+  (function(){
+    if (window.__cameraStatusFallbackReady) return;
+    window.__cameraStatusFallbackReady = true;
+
+    function el(id){ return document.getElementById(id); }
+    function fmtAgo(ts){
+      if (!ts) return '\u2014';
+      var n = Number(ts);
+      if (!isNaN(n) && n > 1e9) {
+        var sec = Math.max(0, Math.floor(Date.now() / 1000 - n));
+        if (sec < 60) return sec + 's ago';
+        if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+        return Math.floor(sec / 3600) + 'h ago';
+      }
+      var d = new Date(ts);
+      if (isNaN(d.getTime())) return '\u2014';
+      var diff = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+      if (diff < 60) return diff + 's ago';
+      if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+      return Math.floor(diff / 3600) + 'h ago';
+    }
+
+    function getJSON(url, cb){
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.setRequestHeader('Cache-Control', 'no-store');
+        xhr.onreadystatechange = function(){
+          if (xhr.readyState !== 4) return;
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { cb(null, JSON.parse(xhr.responseText)); }
+            catch(e){ cb(e); }
+          } else {
+            cb(new Error('HTTP ' + xhr.status));
+          }
+        };
+        xhr.send();
+      } catch (e) {
+        cb(e);
+      }
+    }
+
+    function render(st){
+      if (!st || typeof st !== 'object') return;
+
+      var runningText = 'Stopped';
+      if (st.running && st.capture_allowed_now === false && st.capture_policy_reason === 'lights_off') {
+        runningText = 'Running (waiting lights-on)';
+      } else if (st.running) {
+        runningText = 'Running';
+      }
+      var runningEl = el('camera-running'); if (runningEl) runningEl.textContent = runningText;
+      var framesEl = el('camera-frame-count'); if (framesEl) framesEl.textContent = String(st.frame_count || 0);
+      var skippedEl = el('camera-skipped-count'); if (skippedEl) skippedEl.textContent = String(st.skipped_captures || 0);
+      var nextEl = el('camera-next-capture');
+      if (nextEl) {
+        if (st.running && st.next_capture_in_s !== null && st.next_capture_in_s !== undefined) nextEl.textContent = String(st.next_capture_in_s) + 's';
+        else nextEl.textContent = '\u2014';
+      }
+      var lastEl = el('camera-last-capture'); if (lastEl) lastEl.textContent = st.last_capture_ts ? fmtAgo(st.last_capture_ts) : '\u2014';
+
+      var policy = 'Always capture';
+      if (st.lights_on_only) policy = (st.capture_allowed_now === false) ? 'Lights-off hold' : 'Lights-on only';
+      var policyEl = el('camera-capture-policy'); if (policyEl) policyEl.textContent = policy;
+      var sessEl = el('camera-session-id'); if (sessEl) sessEl.textContent = st.session_id || '\u2014';
+
+      var noteEl = el('camera-timelapse-note');
+      if (noteEl) {
+        if (st.running && st.capture_allowed_now === false && st.capture_policy_reason === 'lights_off') {
+          noteEl.textContent = 'Running, waiting for lights-on window';
+        } else {
+          noteEl.textContent = st.last_error || st.stopped_reason || (st.running ? 'Timelapse active' : 'Ready');
+        }
+      }
+
+      var startBtn = el('btn-camera-start'); if (startBtn) startBtn.disabled = !!st.running;
+      var stopBtn = el('btn-camera-stop'); if (stopBtn) stopBtn.disabled = !st.running;
+
+      var link = el('camera-last-frame-link');
+      var preview = el('camera-timelapse-preview');
+      if (st.last_frame) {
+        var url = '/camera/timelapse/preview?t=' + Date.now();
+        if (link) {
+          link.textContent = 'Last frame saved';
+          link.href = url;
+          link.title = String(st.last_frame);
+        }
+        if (preview) {
+          preview.src = url;
+          preview.style.display = 'block';
+        }
+      } else {
+        if (link) {
+          link.textContent = '\u2014';
+          link.removeAttribute('href');
+          link.removeAttribute('title');
+        }
+        if (preview) {
+          preview.removeAttribute('src');
+          preview.style.display = 'none';
+        }
+      }
+    }
+
+    function tick(){
+      getJSON('/camera/timelapse/status', function(err, st){
+        if (!err) render(st);
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function(){
+        tick();
+        setInterval(tick, 5000);
+      });
+    } else {
+      tick();
+      setInterval(tick, 5000);
+    }
+  })();
+  </script>
+
   <!-- EC Debug Modal -->
   <div id="ecDebugModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
     <div style="background:#1a1f2e;border-radius:12px;padding:24px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;border:1px solid rgba(148,163,184,0.25);">
