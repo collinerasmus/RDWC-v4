@@ -180,11 +180,13 @@
       const chillerBadge = document.getElementById('circ-temperature-pump');
       
       if (mainBadge) {
-        mainBadge.textContent = mainPumpOn ? 'ON' : 'OFF';
+        mainBadge.textContent = 'Main';
+        mainBadge.title = mainPumpOn ? 'Main pump: ON' : 'Main pump: OFF';
         mainBadge.className = mainPumpOn ? 'ui-status-chip success' : 'ui-status-chip secondary';
       }
       if (chillerBadge) {
-        chillerBadge.textContent = chillerPumpOn ? 'ON' : 'OFF';
+        chillerBadge.textContent = 'Chiller';
+        chillerBadge.title = chillerPumpOn ? 'Chiller pump: ON' : 'Chiller pump: OFF';
         chillerBadge.className = chillerPumpOn ? 'ui-status-chip success' : 'ui-status-chip secondary';
       }
       
