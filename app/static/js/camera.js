@@ -468,10 +468,10 @@
 
       setTimelapseNote('Pruning timelapse storage...');
       const res = await postJSON('/camera/timelapse/storage/prune', { confirm: true });
-      const storage = res && res.storage ? res.storage : await fetchStorage();
-      if (storage) {
-        state.storage = storage;
-        renderStorageSummary(storage, state.recommendation);
+        const storageUpdated = res && res.storage ? res.storage : await fetchStorage();
+        if (storageUpdated) {
+          state.storage = storageUpdated;
+          renderStorageSummary(storageUpdated, state.recommendation);
       }
       if (res && res.ok) {
         setTimelapseNote('Prune complete: removed ' + (res.removed_count || 0) + ' sessions.');
