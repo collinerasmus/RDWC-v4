@@ -24,6 +24,7 @@
     countdownTimer: null,
     nextCaptureAtMs: null,
     storage: null,
+    playbackDaysInitialized: false,
   };
 
   const el = (id) => document.getElementById(id);
@@ -496,6 +497,16 @@
     setTimelapseNote('Applied 8-week grow preset');
   }
 
+  function initPlaybackDaysFromGrow(rec){
+    const dayInput = el('cam-playback-days');
+    if (!dayInput || state.playbackDaysInitialized) return;
+    const growDays = Math.max(1, Math.min(120, parseInt(rec && rec.grow_days != null ? String(rec.grow_days) : '0', 10) || 0));
+    if (growDays > 0) {
+      dayInput.value = String(growDays);
+      state.playbackDaysInitialized = true;
+    }
+  }
+
   function renderInsights(payload){
     const summary = el('camera-insights-summary');
     const points = el('camera-insights-points');
@@ -575,17 +586,13 @@
   }
 
   async function renderPlayback(){
-    console.log('[Camera] renderPlayback() CALLED');
     const days = Math.max(1, Math.min(120, parseInt(el('cam-playback-days')?.value || '56', 10) || 56));
     const fps = Math.max(12, Math.min(60, parseInt(el('cam-playback-fps')?.value || '24', 10) || 24));
     const btn = el('btn-camera-render-playback');
-    console.log('[Camera] render params - days=' + days + ', fps=' + fps + ', btn_found=' + !!btn);
 
     try {
       if (btn) btn.disabled = true;
       setPlaybackState(state.playbackUrl, `Rendering video (${days}d, ${fps} fps)...`);
-      
-      if (window.console && window.console.log) console.log('[Camera] Render request: days=' + days + ', fps=' + fps);
 
       const res = await postJSONWithTimeout('/camera/timelapse/render', {
         days: days,
@@ -597,18 +604,15 @@
       if (!res || !res.ok || !res.video || !res.video.url) {
         const errMsg = res && res.error ? res.error : 'no_frames_or_sessions';
         setPlaybackState(null, 'Render failed (' + errMsg + '). Try a larger window or ensure enough frames are captured.');
-        if (window.console && window.console.log) console.log('[Camera] Render failed:', res);
         return;
       }
 
       const url = res.video.url + '?t=' + Date.now();
       const note = 'Rendered ' + res.frames_written + ' frames from ' + res.used_sessions + ' sessions (skipped ' + res.skipped_sessions + ').';
       setPlaybackState(url, note);
-      if (window.console && window.console.log) console.log('[Camera] Render success:', res);
     } catch (e) {
       const errMsg = (e && e.message ? e.message : 'request error');
       setPlaybackState(null, 'Render failed: ' + errMsg);
-      if (window.console && window.console.error) console.error('[Camera] Render exception:', e);
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -748,6 +752,7 @@
       state.recommendation = await fetchRecommendation();
       if (state.recommendation) {
         renderGrowPlan(state.recommendation);
+        initPlaybackDaysFromGrow(state.recommendation);
       }
     }
     const storage = await fetchStorage();
@@ -779,7 +784,6 @@
   }
 
   function bind(){
-    console.log('[Camera] bind() starting - setting up event listeners');
     const startBtn = el('btn-camera-start');
     const stopBtn = el('btn-camera-stop');
     const capBtn = el('btn-camera-capture');
@@ -800,7 +804,7 @@
     if (capBtn && !capBtn.__bound){ capBtn.__bound = true; capBtn.addEventListener('click', function(){ captureNow(); }); }
     if (refreshBtn && !refreshBtn.__bound){ refreshBtn.__bound = true; refreshBtn.addEventListener('click', function(){ refreshAll().catch(function(){ setTimelapseNote('Refresh failed'); }); }); }
     if (analyzeBtn && !analyzeBtn.__bound){ analyzeBtn.__bound = true; analyzeBtn.addEventListener('click', function(){ refreshInsights(); }); }
-    if (renderBtn && !renderBtn.__bound){ renderBtn.__bound = true; console.log('[Camera] renderBtn event listener attached'); renderBtn.addEventListener('click', function(){ renderPlayback(); }); }
+    if (renderBtn && !renderBtn.__bound){ renderBtn.__bound = true; renderBtn.addEventListener('click', function(){ renderPlayback(); }); }
     if (cleanupBtn && !cleanupBtn.__bound){ cleanupBtn.__bound = true; cleanupBtn.addEventListener('click', function(){ cleanupNighttimeFrames(); }); }
     if (pruneBtn && !pruneBtn.__bound){ pruneBtn.__bound = true; pruneBtn.addEventListener('click', function(){ pruneStorage(); }); }
     if (backupBtn && !backupBtn.__bound){ backupBtn.__bound = true; backupBtn.addEventListener('click', function(){ createBackupArchive('prune_candidates').catch(function(e){ setTimelapseNote('Backup ZIP failed: ' + (e && e.message ? e.message : 'request error')); }); }); }
@@ -860,8 +864,8 @@
     fetchTimelapseStatus().then(function(st){ if (st) renderTimelapseStatus(st); }).catch(function(){});
   }
 
-  if (document.readyState === 'loading') { console.log('[Camera] Registering DOMContentLoaded'); document.addEventListener('DOMContentLoaded', bind); }
-  else { console.log('[Camera] DOM ready, calling bind() now'); bind(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
 
   window.__cameraReady = true;
 })();
