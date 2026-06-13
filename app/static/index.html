@@ -1321,7 +1321,7 @@ body{
 
       <div style="padding:12px;border-radius:12px;background:rgba(15,23,42,0.7);border:1px solid rgba(148,163,184,0.22);">
         <div class="muted" style="font-weight:600;margin-bottom:8px;">Timelapse Settings</div>
-        <div class="muted" style="font-size:var(--font-xs);margin-bottom:8px;">8-week grow recommendation: 10 minute cadence, high quality, and bounded frame cap for a concise progress video.</div>
+        <div class="muted" style="font-size:var(--font-xs);margin-bottom:8px;">Recommendation auto-follows current grow age, with bounded cadence and frame cap for concise progress videos.</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;">
           <div>
             <label class="muted" for="cam-interval-s" style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Interval (s)</label>
@@ -1374,7 +1374,7 @@ body{
 
         <div style="margin-top:10px;padding:10px;border-radius:8px;background:rgba(2,6,23,0.55);border:1px solid rgba(148,163,184,0.2);">
           <div class="muted" style="font-size:var(--font-sm);font-weight:600;margin-bottom:6px;">Timelapse Playback</div>
-          <div class="muted" style="font-size:var(--font-xs);margin-bottom:8px;">Builds one video from the selected grow window and skips tiny sessions with fewer than 2 frames.</div>
+          <div class="muted" style="font-size:var(--font-xs);margin-bottom:8px;">Builds one video from the selected grow window (defaults to current grow age) and skips tiny sessions with fewer than 2 frames.</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;">
             <div>
               <label class="muted" for="cam-playback-days" style="display:block;font-size:var(--font-xs);margin-bottom:2px;">Window (days)</label>
@@ -1407,8 +1407,13 @@ body{
               <input id="cam-cleanup-brightness" type="number" min="20" max="150" step="5" value="60" style="width:100px;height:30px;padding:0 8px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-sm);" />
               <div class="muted" style="font-size:var(--font-xs);margin-top:2px;">Frames below this brightness are removed</div>
             </div>
+            <button id="btn-camera-backup-storage" class="btn-secondary">Prepare Backup ZIP</button>
+            <a id="btn-camera-download-backup" class="btn-secondary" style="text-decoration:none;pointer-events:none;opacity:0.6;" target="_blank" rel="noopener noreferrer">Download Backup ZIP</a>
             <button id="btn-camera-cleanup-nighttime" class="btn-secondary" style="background:#dc2626;border-color:#991b1b;">Remove Night Frames</button>
+            <button id="btn-camera-prune-storage" class="btn-secondary">Prune by Storage Policy</button>
           </div>
+          <div id="camera-storage-preview" class="muted" style="font-size:var(--font-xs);margin-top:6px;">Prune preview: pending refresh.</div>
+          <div class="muted" style="font-size:var(--font-xs);margin-top:4px;">Deletion requires explicit UI confirmation. Back up to ZIP and download before prune to avoid data loss.</div>
         </div>
 
         <div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(2,6,23,0.55);border:1px solid rgba(148,163,184,0.2);">

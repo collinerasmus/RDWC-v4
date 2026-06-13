@@ -23,6 +23,7 @@
     playbackUrl: null,
     countdownTimer: null,
     nextCaptureAtMs: null,
+    storage: null,
   };
 
   const el = (id) => document.getElementById(id);
@@ -360,11 +361,126 @@
 
   async function fetchRecommendation(){
     try {
-      const r = await fetch('/camera/timelapse/recommendation?grow_days=56&output_fps=24', { cache: 'no-store' });
+      const r = await fetch('/camera/timelapse/recommendation?grow_days=0&output_fps=24', { cache: 'no-store' });
       if (!r.ok) return null;
       return await r.json();
     } catch(_) {
       return null;
+    }
+  }
+
+  async function fetchStorage(){
+    try {
+      const r = await fetch('/camera/timelapse/storage', { cache: 'no-store' });
+      if (!r.ok) return null;
+      return await r.json();
+    } catch(_) {
+      return null;
+    }
+  }
+
+  function estimateFillDays(storage, recommendation){
+    if (!storage || !recommendation) return null;
+    const maxMb = Number(storage.policy && storage.policy.max_total_mb || 0);
+    const usedMb = Number(storage.total_mb || 0);
+    const estGrowMb = Number(recommendation.estimated_storage_mb || 0);
+    const growDays = Math.max(1, Number(recommendation.grow_days || 56));
+    if (maxMb <= 0 || estGrowMb <= 0) return null;
+    const mbPerDay = estGrowMb / growDays;
+    if (mbPerDay <= 0) return null;
+    const remaining = Math.max(0, maxMb - usedMb);
+    return Math.floor(remaining / mbPerDay);
+  }
+
+  function renderStorageSummary(storage, recommendation){
+    const note = el('camera-playback-note');
+    if (!note || !storage) return;
+    const used = Number(storage.total_mb || 0).toFixed(1);
+    const sessions = Number(storage.sessions || 0);
+    const maxMb = Number(storage.policy && storage.policy.max_total_mb || 0);
+    const fillDays = estimateFillDays(storage, recommendation);
+    let risk = 'No cap set';
+    if (maxMb > 0) {
+      const pct = Math.max(0, Math.min(100, Math.round((Number(storage.total_mb || 0) / maxMb) * 100)));
+      if (pct >= 90) risk = 'High risk';
+      else if (pct >= 75) risk = 'Medium risk';
+      else risk = 'Low risk';
+    }
+    let txt = 'Storage: ' + used + ' MB across ' + sessions + ' sessions';
+    if (maxMb > 0) txt += ' (cap ' + maxMb + ' MB, ' + risk + ')';
+    if (fillDays !== null) txt += ', est. ~' + fillDays + ' days to cap at current cadence';
+    note.textContent = txt;
+
+    const preview = storage.prune_preview || {};
+    const previewEl = el('camera-storage-preview');
+    if (previewEl) {
+      const n = Number(preview.candidate_count || 0);
+      const mb = Number(preview.candidate_mb || 0).toFixed(1);
+      previewEl.textContent = n > 0
+        ? ('Prune preview: ' + n + ' sessions (' + mb + ' MB) are eligible by policy.')
+        : 'Prune preview: no sessions currently eligible by policy.';
+    }
+  }
+
+  async function createBackupArchive(scope){
+    const res = await postJSON('/camera/timelapse/storage/archive', { scope: scope || 'prune_candidates' });
+    if (!res || !res.ok || !res.archive || !res.archive.url) {
+      throw new Error('backup_archive_failed');
+    }
+    const link = el('btn-camera-download-backup');
+    if (link) {
+      link.href = res.archive.url + '?t=' + Date.now();
+      link.style.pointerEvents = 'auto';
+      link.style.opacity = '1';
+      link.textContent = 'Download Backup ZIP';
+    }
+    setTimelapseNote('Backup ZIP ready (' + (res.sessions || []).length + ' sessions). Download before prune.');
+    return res;
+  }
+
+  async function pruneStorage(){
+    try {
+      const storage = state.storage || await fetchStorage();
+      const preview = storage && storage.prune_preview ? storage.prune_preview : null;
+      const candidateCount = Number(preview && preview.candidate_count || 0);
+      if (candidateCount <= 0) {
+        setTimelapseNote('No sessions eligible for policy prune right now.');
+        return;
+      }
+
+      const prepare = window.confirm(
+        'Policy prune will delete ' + candidateCount + ' session(s).\n\n' +
+        'Do you want to PREPARE a backup ZIP for download first?'
+      );
+      if (prepare) {
+        setTimelapseNote('Preparing backup ZIP before prune...');
+        await createBackupArchive('prune_candidates');
+      }
+
+      const go = window.confirm(
+        'Final confirmation: delete policy-prune candidates now?\n\n' +
+        'Tip: Download backup ZIP first if you need to keep archive data on PC.'
+      );
+      if (!go) {
+        setTimelapseNote('Prune cancelled. No data deleted.');
+        return;
+      }
+
+      setTimelapseNote('Pruning timelapse storage...');
+      const res = await postJSON('/camera/timelapse/storage/prune', { confirm: true });
+      const storage = res && res.storage ? res.storage : await fetchStorage();
+      if (storage) {
+        state.storage = storage;
+        renderStorageSummary(storage, state.recommendation);
+      }
+      if (res && res.ok) {
+        setTimelapseNote('Prune complete: removed ' + (res.removed_count || 0) + ' sessions.');
+      } else {
+        setTimelapseNote('Prune failed');
+      }
+      await refreshSessions();
+    } catch (e) {
+      setTimelapseNote('Prune failed: ' + (e && e.message ? e.message : 'request error'));
     }
   }
 
@@ -602,6 +718,11 @@
         renderGrowPlan(state.recommendation);
       }
     }
+    const storage = await fetchStorage();
+    if (storage) {
+      state.storage = storage;
+      renderStorageSummary(storage, state.recommendation);
+    }
     const st = await fetchTimelapseStatus();
     if (st) renderTimelapseStatus(st);
     await refreshSessions();
@@ -634,6 +755,8 @@
     const presetBtn = el('btn-camera-apply-grow-preset');
     const renderBtn = el('btn-camera-render-playback');
     const cleanupBtn = el('btn-camera-cleanup-nighttime');
+    const pruneBtn = el('btn-camera-prune-storage');
+    const backupBtn = el('btn-camera-backup-storage');
     const modeSel = el('cam-view-mode');
     const snapEvery = el('cam-snapshot-every');
     const streamFps = el('cam-stream-fps');
@@ -646,6 +769,8 @@
     if (analyzeBtn && !analyzeBtn.__bound){ analyzeBtn.__bound = true; analyzeBtn.addEventListener('click', function(){ refreshInsights(); }); }
     if (renderBtn && !renderBtn.__bound){ renderBtn.__bound = true; renderBtn.addEventListener('click', function(){ renderPlayback(); }); }
     if (cleanupBtn && !cleanupBtn.__bound){ cleanupBtn.__bound = true; cleanupBtn.addEventListener('click', function(){ cleanupNighttimeFrames(); }); }
+    if (pruneBtn && !pruneBtn.__bound){ pruneBtn.__bound = true; pruneBtn.addEventListener('click', function(){ pruneStorage(); }); }
+    if (backupBtn && !backupBtn.__bound){ backupBtn.__bound = true; backupBtn.addEventListener('click', function(){ createBackupArchive('prune_candidates').catch(function(e){ setTimelapseNote('Backup ZIP failed: ' + (e && e.message ? e.message : 'request error')); }); }); }
     if (presetBtn && !presetBtn.__bound){ presetBtn.__bound = true; presetBtn.addEventListener('click', function(){
       const rec = state.recommendation;
       if (rec) {

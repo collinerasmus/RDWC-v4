@@ -4132,9 +4132,12 @@ def camera_timelapse_status():
 
 
 @app.get("/camera/timelapse/recommendation")
-def camera_timelapse_recommendation(grow_days: int = Query(56, ge=14, le=120), output_fps: int = Query(24, ge=12, le=60)):
+def camera_timelapse_recommendation(grow_days: int = Query(0, ge=0, le=120), output_fps: int = Query(24, ge=12, le=60)):
     from app.camera import CameraManager
-    return CameraManager.recommended_timelapse(grow_days=grow_days, output_fps=output_fps)
+    resolved_days = int(grow_days or 0)
+    if resolved_days <= 0:
+        resolved_days = CameraManager.current_grow_days(default_days=56)
+    return CameraManager.recommended_timelapse(grow_days=resolved_days, output_fps=output_fps)
 
 
 @app.post("/camera/timelapse/start")
@@ -4161,6 +4164,64 @@ def camera_timelapse_capture(body: Optional[dict] = Body(default=None)):
 def camera_timelapse_sessions(limit: int = Query(20, ge=1, le=100)):
     from app.camera import CameraManager
     return {"items": CameraManager.list_sessions(limit=limit)}
+
+
+@app.get("/camera/timelapse/storage")
+def camera_timelapse_storage():
+    from app.camera import CameraManager
+    return CameraManager.storage_summary()
+
+
+@app.post("/camera/timelapse/storage/archive")
+def camera_timelapse_storage_archive(body: Optional[dict] = Body(default=None)):
+    from app.camera import CameraManager
+
+    payload = body or {}
+    scope = str(payload.get("scope", "prune_candidates"))
+    session_id = payload.get("session_id")
+    keep = None
+    try:
+        st = CameraManager.timelapse_status()
+        keep = st.get("session_id") if st.get("running") else None
+    except Exception:
+        keep = None
+
+    result = CameraManager.create_backup_archive(
+        scope=scope,
+        keep_session_id=keep,
+        session_id=str(session_id) if session_id is not None else None,
+    )
+    if not result.get("ok", False):
+        return JSONResponse(status_code=400, content=result)
+    return result
+
+
+@app.post("/camera/timelapse/storage/prune")
+def camera_timelapse_storage_prune(body: Optional[dict] = Body(default=None)):
+    from app.camera import CameraManager
+    payload = body or {}
+    confirm = bool(payload.get("confirm", False))
+
+    if not confirm:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "confirmation_required",
+                "message": "Set confirm=true after user approval in UI.",
+                "storage": CameraManager.storage_summary(),
+            },
+        )
+
+    keep = None
+    try:
+        st = CameraManager.timelapse_status()
+        keep = st.get("session_id") if st.get("running") else None
+    except Exception:
+        keep = None
+    result = CameraManager._prune_sessions(keep_session_id=keep, force=True)
+    result["storage"] = CameraManager.storage_summary()
+    return result
 
 
 @app.get("/camera/timelapse/preview")
@@ -4194,7 +4255,9 @@ def camera_timelapse_render(body: Optional[dict] = Body(default=None)):
     from app.camera import CameraManager
 
     payload = body or {}
-    days = int(payload.get("days", 56))
+    days = int(payload.get("days", 0))
+    if days <= 0:
+        days = CameraManager.current_grow_days(default_days=56)
     fps = int(payload.get("fps", 24))
     min_session_frames = int(payload.get("min_session_frames", 2))
     max_frames = int(payload.get("max_frames", 4000))
@@ -4231,6 +4294,27 @@ def camera_timelapse_video(video_name: str):
         return JSONResponse(status_code=404, content={"ok": False, "error": "video_not_found"})
 
     return FileResponse(str(video_path), media_type="video/mp4", headers={"Cache-Control": "no-store, max-age=0"})
+
+
+@app.get("/camera/timelapse/archive/{archive_name}")
+def camera_timelapse_archive(archive_name: str):
+    from app.camera import CameraManager
+    from pathlib import Path
+
+    safe_name = Path(str(archive_name)).name
+    if not safe_name.endswith(".zip"):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "invalid_archive_name"})
+
+    archive_path = CameraManager._render_dir / safe_name
+    if not archive_path.exists() or not archive_path.is_file():
+        return JSONResponse(status_code=404, content={"ok": False, "error": "archive_not_found"})
+
+    return FileResponse(
+        str(archive_path),
+        media_type="application/zip",
+        filename=safe_name,
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
 
 
 @app.post("/camera/timelapse/cleanup")

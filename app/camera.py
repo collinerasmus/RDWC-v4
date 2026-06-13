@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import subprocess
+import zipfile
 import threading
 import time
 import math
@@ -28,6 +29,9 @@ class CameraManager:
     _default_quality = int(os.environ.get("CAM_TIMELAPSE_DEFAULT_QUALITY", "88"))
     _default_max_frames = int(os.environ.get("CAM_TIMELAPSE_DEFAULT_MAX_FRAMES", str(max(1000, int((56 * 86400) / max(10, _default_interval_s))))))
     _max_total_bytes = int(os.environ.get("CAM_TIMELAPSE_MAX_TOTAL_MB", "4096")) * 1024 * 1024
+    _max_session_days = int(os.environ.get("CAM_TIMELAPSE_MAX_SESSION_DAYS", "90"))
+    _max_sessions = int(os.environ.get("CAM_TIMELAPSE_MAX_SESSIONS", "24"))
+    _prune_cooldown_s = int(os.environ.get("CAM_TIMELAPSE_PRUNE_COOLDOWN_S", "300"))
     _default_stream_fps = int(os.environ.get("CAM_STREAM_FPS", "10"))
     _default_stream_quality = int(os.environ.get("CAM_STREAM_QUALITY", "85"))
     _default_snapshot_quality = int(os.environ.get("CAM_SNAPSHOT_QUALITY", "90"))
@@ -45,6 +49,7 @@ class CameraManager:
     _tl_lock = threading.Lock()
     _tl_stop = threading.Event()
     _tl_thread: Optional[threading.Thread] = None
+    _last_prune_at = 0.0
     _tl_state: Dict[str, Any] = {
         "running": False,
         "interval_s": _default_interval_s,
@@ -629,38 +634,265 @@ class CameraManager:
         return total
 
     @classmethod
-    def _prune_sessions(cls, keep_session_id: Optional[str] = None):
-        if cls._max_total_bytes <= 0:
-            return
+    def _remove_session_dir(cls, p: Path) -> bool:
         try:
-            dirs = [p for p in cls._store_dir.iterdir() if p.is_dir()]
+            shutil.rmtree(p)
+            return True
         except Exception:
-            return
+            return False
 
-        sessions = []
-        total = 0
+    @classmethod
+    def _collect_session_inventory(cls) -> List[Dict[str, Any]]:
+        cls._ensure_store_dir()
+        out: List[Dict[str, Any]] = []
+        try:
+            dirs = [p for p in cls._store_dir.iterdir() if p.is_dir() and not p.name.startswith("_")]
+        except Exception:
+            return out
+
         for p in dirs:
-            size = cls._session_size_bytes(p)
-            total += size
-            sessions.append((p, size))
+            stamp = cls._parse_session_ts(p.name)
+            out.append(
+                {
+                    "path": p,
+                    "session_id": p.name,
+                    "size_bytes": cls._session_size_bytes(p),
+                    "stamp": stamp,
+                }
+            )
+        return out
 
-        if total <= cls._max_total_bytes:
-            return
+    @classmethod
+    def _plan_prune_sessions(cls, keep_session_id: Optional[str] = None) -> Dict[str, Any]:
+        sessions = cls._collect_session_inventory()
+        if not sessions:
+            return {
+                "ok": True,
+                "candidates": [],
+                "candidate_count": 0,
+                "candidate_bytes": 0,
+            }
 
-        sessions.sort(key=lambda item: item[0].name)
-        for p, size in sessions:
-            if total <= cls._max_total_bytes:
-                break
-            if keep_session_id and p.name == keep_session_id:
+        keep_ids = set()
+        if keep_session_id:
+            keep_ids.add(str(keep_session_id))
+
+        planned_ids = set()
+        planned: List[Dict[str, Any]] = []
+
+        def _add_candidate(item: Dict[str, Any], reason: str):
+            sid = str(item.get("session_id") or "")
+            if not sid or sid in planned_ids or sid in keep_ids:
+                return
+            planned_ids.add(sid)
+            planned.append(
+                {
+                    "session_id": sid,
+                    "size_bytes": int(item.get("size_bytes") or 0),
+                    "reason": reason,
+                }
+            )
+
+        # Rule 1: age cap.
+        cutoff = None
+        if cls._max_session_days > 0:
+            cutoff = datetime.now(timezone.utc) - timedelta(days=int(cls._max_session_days))
+            for item in sorted(sessions, key=lambda x: x["path"].name):
+                stamp = item.get("stamp")
+                if stamp is not None and stamp < cutoff:
+                    _add_candidate(item, "age_cap")
+
+        # Rule 2: count cap.
+        remaining = [s for s in sessions if str(s.get("session_id") or "") not in planned_ids and str(s.get("session_id") or "") not in keep_ids]
+        if cls._max_sessions > 0 and len(remaining) > cls._max_sessions:
+            newest_first = sorted(remaining, key=lambda x: x["path"].name, reverse=True)
+            for item in newest_first[cls._max_sessions :]:
+                _add_candidate(item, "count_cap")
+
+        # Rule 3: total storage cap.
+        total_bytes = sum(int(s.get("size_bytes") or 0) for s in sessions)
+        target_bytes = int(cls._max_total_bytes)
+        if target_bytes > 0 and total_bytes > target_bytes:
+            remaining = [s for s in sessions if str(s.get("session_id") or "") not in planned_ids and str(s.get("session_id") or "") not in keep_ids]
+            remaining_oldest_first = sorted(remaining, key=lambda x: x["path"].name)
+            bytes_to_reclaim = max(0, total_bytes - target_bytes)
+            reclaimed = 0
+            for item in remaining_oldest_first:
+                if reclaimed >= bytes_to_reclaim:
+                    break
+                _add_candidate(item, "size_cap")
+                reclaimed += int(item.get("size_bytes") or 0)
+
+        candidate_bytes = sum(int(x.get("size_bytes") or 0) for x in planned)
+        return {
+            "ok": True,
+            "candidates": planned,
+            "candidate_count": len(planned),
+            "candidate_bytes": candidate_bytes,
+        }
+
+    @classmethod
+    def _prune_sessions(cls, keep_session_id: Optional[str] = None, force: bool = False, dry_run: bool = False) -> Dict[str, Any]:
+        now = time.time()
+        if not force and (now - float(cls._last_prune_at or 0.0)) < max(0, cls._prune_cooldown_s):
+            return {"ok": True, "pruned": False, "reason": "cooldown"}
+
+        plan = cls._plan_prune_sessions(keep_session_id=keep_session_id)
+        if dry_run:
+            plan["pruned"] = False
+            return plan
+
+        removed = []
+        removed_bytes = 0
+        by_session_id = {str(s.get("session_id") or ""): s for s in cls._collect_session_inventory()}
+        for item in plan.get("candidates", []):
+            sid = str(item.get("session_id") or "")
+            if not sid:
                 continue
-            try:
-                for e in p.iterdir():
-                    if e.is_file():
-                        e.unlink(missing_ok=True)
-                p.rmdir()
-                total -= size
-            except Exception:
+            inv = by_session_id.get(sid)
+            if not inv:
                 continue
+            if cls._remove_session_dir(inv["path"]):
+                removed.append(sid)
+                removed_bytes += int(inv.get("size_bytes") or 0)
+
+        cls._last_prune_at = now
+        return {
+            "ok": True,
+            "pruned": bool(removed),
+            "removed_sessions": sorted(set(removed)),
+            "removed_count": len(set(removed)),
+            "removed_bytes": removed_bytes,
+            "plan": plan,
+        }
+
+    @classmethod
+    def create_backup_archive(
+        cls,
+        scope: str = "prune_candidates",
+        keep_session_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        cls._ensure_store_dir()
+        scope = str(scope or "prune_candidates").strip().lower()
+
+        sessions = cls._collect_session_inventory()
+        by_id = {str(s.get("session_id") or ""): s for s in sessions}
+
+        selected_ids: List[str] = []
+        if scope == "session" and session_id:
+            sid = str(session_id)
+            if sid not in by_id:
+                return {"ok": False, "error": "session_not_found", "session_id": sid}
+            selected_ids = [sid]
+        elif scope == "all":
+            selected_ids = [str(s.get("session_id") or "") for s in sessions]
+        else:
+            plan = cls._plan_prune_sessions(keep_session_id=keep_session_id)
+            selected_ids = [str(x.get("session_id") or "") for x in plan.get("candidates", [])]
+
+        selected_ids = [x for x in selected_ids if x and x in by_id]
+        if not selected_ids:
+            return {"ok": False, "error": "no_sessions_selected"}
+
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        name = f"timelapse_backup_{scope}_{stamp}.zip"
+        out_path = cls._render_dir / name
+
+        written_files = 0
+        with zipfile.ZipFile(out_path, mode="w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+            for sid in sorted(selected_ids):
+                base = by_id[sid].get("path")
+                if not isinstance(base, Path) or not base.exists() or not base.is_dir():
+                    continue
+                for fp in sorted(base.glob("**/*")):
+                    if not fp.is_file():
+                        continue
+                    arc = Path("timelapse") / sid / fp.name
+                    zf.write(str(fp), arcname=str(arc))
+                    written_files += 1
+
+        if written_files <= 0:
+            with suppress(Exception):
+                out_path.unlink(missing_ok=True)
+            return {"ok": False, "error": "archive_empty"}
+
+        return {
+            "ok": True,
+            "scope": scope,
+            "sessions": sorted(selected_ids),
+            "files": written_files,
+            "archive": {
+                "name": name,
+                "path": str(out_path),
+                "url": f"/camera/timelapse/archive/{name}",
+                "bytes": int(out_path.stat().st_size) if out_path.exists() else None,
+            },
+        }
+
+    @classmethod
+    def storage_summary(cls) -> Dict[str, Any]:
+        cls._ensure_store_dir()
+        sessions = cls._collect_session_inventory()
+        total_bytes = sum(int(s.get("size_bytes") or 0) for s in sessions)
+        keep_sid = cls._tl_state.get("session_id") if bool(cls._tl_state.get("running")) else None
+        plan = cls._plan_prune_sessions(keep_session_id=keep_sid)
+
+        # Prefer timestamp parsed from session_id naming; fallback to lexical order.
+        stamps = [s.get("stamp") for s in sessions if s.get("stamp") is not None]
+        oldest_ts = min(stamps).isoformat() if stamps else None
+        newest_ts = max(stamps).isoformat() if stamps else None
+
+        disk_total = disk_used = disk_free = None
+        try:
+            du = shutil.disk_usage(str(cls._store_dir))
+            disk_total, disk_used, disk_free = int(du.total), int(du.used), int(du.free)
+        except Exception:
+            pass
+
+        return {
+            "ok": True,
+            "path": str(cls._store_dir),
+            "sessions": len(sessions),
+            "total_bytes": total_bytes,
+            "total_mb": round(total_bytes / (1024.0 * 1024.0), 2),
+            "total_gb": round(total_bytes / (1024.0 * 1024.0 * 1024.0), 3),
+            "oldest_session_ts": oldest_ts,
+            "newest_session_ts": newest_ts,
+            "policy": {
+                "max_total_mb": int(cls._max_total_bytes / (1024 * 1024)) if cls._max_total_bytes > 0 else 0,
+                "max_session_days": int(cls._max_session_days),
+                "max_sessions": int(cls._max_sessions),
+                "prune_cooldown_s": int(cls._prune_cooldown_s),
+            },
+            "prune_preview": {
+                "candidate_count": int(plan.get("candidate_count") or 0),
+                "candidate_mb": round(float(plan.get("candidate_bytes") or 0) / (1024.0 * 1024.0), 2),
+                "candidates": plan.get("candidates", []),
+            },
+            "disk": {
+                "total_bytes": disk_total,
+                "used_bytes": disk_used,
+                "free_bytes": disk_free,
+                "free_gb": round(disk_free / (1024.0 * 1024.0 * 1024.0), 2) if disk_free is not None else None,
+            },
+        }
+
+    @classmethod
+    def current_grow_days(cls, default_days: int = 56) -> int:
+        dflt = max(1, min(120, int(default_days)))
+        try:
+            from app.settings import get_all_settings
+
+            s = get_all_settings()
+            raw = str(s.get("general.grow_start_date", "") or "").strip()
+            if not raw:
+                return dflt
+            start = datetime.strptime(raw, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            days = max(1, int((datetime.now(timezone.utc) - start).total_seconds() // 86400) + 1)
+            return max(1, min(120, days))
+        except Exception:
+            return dflt
 
     @classmethod
     def _write_frame(cls, session_dir: Path, frame_no: int, quality: int) -> Optional[str]:
@@ -741,6 +973,7 @@ class CameraManager:
         st["capture_policy_reason"] = cap.get("reason", "always")
         if "window" in cap:
             st["capture_window"] = cap.get("window")
+        st["storage"] = cls.storage_summary()
         return st
 
     @classmethod
@@ -780,7 +1013,6 @@ class CameraManager:
                 }
             )
             cls._save_settings()
-            cls._prune_sessions(keep_session_id=session_id)
 
             cls._tl_stop.clear()
             cls._tl_thread = threading.Thread(target=cls._timelapse_loop, name="camera_timelapse", daemon=True)
