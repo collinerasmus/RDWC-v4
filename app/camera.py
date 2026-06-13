@@ -973,6 +973,16 @@ class CameraManager:
         st["capture_policy_reason"] = cap.get("reason", "always")
         if "window" in cap:
             st["capture_window"] = cap.get("window")
+
+        # If current session has no frame yet (e.g., lights-off hold), surface last known frame from storage.
+        if not st.get("last_frame"):
+            latest = cls._find_latest_frame()
+            if latest:
+                st["last_frame"] = str(latest.get("path"))
+                if not st.get("last_capture_ts"):
+                    st["last_capture_ts"] = latest.get("ts")
+                st["last_frame_session_id"] = latest.get("session_id")
+
         st["storage"] = cls.storage_summary()
         return st
 
@@ -1075,7 +1085,7 @@ class CameraManager:
     @classmethod
     def list_sessions(cls, limit: int = 20):
         cls._ensure_store_dir()
-        dirs = [p for p in cls._store_dir.iterdir() if p.is_dir()]
+        dirs = [p for p in cls._store_dir.iterdir() if p.is_dir() and not p.name.startswith("_")]
         dirs.sort(key=lambda p: p.name, reverse=True)
         out = []
         for p in dirs[: max(1, min(100, int(limit)) )]:
@@ -1102,6 +1112,35 @@ class CameraManager:
                 }
             )
         return out
+
+    @classmethod
+    def _find_latest_frame(cls) -> Optional[Dict[str, Any]]:
+        cls._ensure_store_dir()
+        try:
+            dirs = [p for p in cls._store_dir.iterdir() if p.is_dir() and not p.name.startswith("_")]
+        except Exception:
+            return None
+
+        for session_dir in sorted(dirs, key=lambda p: p.name, reverse=True):
+            try:
+                frames = sorted(session_dir.glob("frame_*.jpg"), reverse=True)
+            except Exception:
+                frames = []
+            if not frames:
+                continue
+            frame = frames[0]
+            if not frame.exists() or not frame.is_file():
+                continue
+            try:
+                ts = float(frame.stat().st_mtime)
+            except Exception:
+                ts = None
+            return {
+                "path": frame,
+                "session_id": session_dir.name,
+                "ts": ts,
+            }
+        return None
 
     @classmethod
     def capture_single_frame(cls) -> Optional[bytes]:

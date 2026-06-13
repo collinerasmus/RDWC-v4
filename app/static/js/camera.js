@@ -791,6 +791,22 @@
       setActive(tab === 'camera');
     });
 
+    // Fallback: keep camera tab state synchronized even if a custom tab event is missed.
+    const cameraCard = el('camera-card');
+    if (cameraCard && !cameraCard.__cameraObserverBound) {
+      cameraCard.__cameraObserverBound = true;
+      const syncFromCard = function(){
+        const visible = cameraCard.style.display !== 'none';
+        if (!!state.active !== !!visible) setActive(visible);
+        if (visible) {
+          fetchTimelapseStatus().then(function(st){ if (st) renderTimelapseStatus(st); }).catch(function(){});
+        }
+      };
+      const observer = new MutationObserver(syncFromCard);
+      observer.observe(cameraCard, { attributes: true, attributeFilter: ['style', 'class'] });
+      syncFromCard();
+    }
+
     document.addEventListener('visibilitychange', function(){
       if (document.hidden){
         stopHealthPolling();
@@ -807,6 +823,8 @@
     state.selectedMode = modeSel ? modeSel.value : 'auto';
     const initialTab = (location.hash || '#overview').replace('#', '');
     setActive(initialTab === 'camera');
+    // Always attempt one immediate status fill so KPI fields don't remain as placeholders.
+    fetchTimelapseStatus().then(function(st){ if (st) renderTimelapseStatus(st); }).catch(function(){});
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
