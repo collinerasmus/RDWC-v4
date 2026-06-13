@@ -575,9 +575,11 @@
   }
 
   async function renderPlayback(){
+    console.log('[Camera] renderPlayback() CALLED');
     const days = Math.max(1, Math.min(120, parseInt(el('cam-playback-days')?.value || '56', 10) || 56));
     const fps = Math.max(12, Math.min(60, parseInt(el('cam-playback-fps')?.value || '24', 10) || 24));
     const btn = el('btn-camera-render-playback');
+    console.log('[Camera] render params - days=' + days + ', fps=' + fps + ', btn_found=' + !!btn);
 
     try {
       if (btn) btn.disabled = true;
@@ -777,6 +779,7 @@
   }
 
   function bind(){
+    console.log('[Camera] bind() starting - setting up event listeners');
     const startBtn = el('btn-camera-start');
     const stopBtn = el('btn-camera-stop');
     const capBtn = el('btn-camera-capture');
@@ -797,7 +800,7 @@
     if (capBtn && !capBtn.__bound){ capBtn.__bound = true; capBtn.addEventListener('click', function(){ captureNow(); }); }
     if (refreshBtn && !refreshBtn.__bound){ refreshBtn.__bound = true; refreshBtn.addEventListener('click', function(){ refreshAll().catch(function(){ setTimelapseNote('Refresh failed'); }); }); }
     if (analyzeBtn && !analyzeBtn.__bound){ analyzeBtn.__bound = true; analyzeBtn.addEventListener('click', function(){ refreshInsights(); }); }
-    if (renderBtn && !renderBtn.__bound){ renderBtn.__bound = true; renderBtn.addEventListener('click', function(){ renderPlayback(); }); }
+    if (renderBtn && !renderBtn.__bound){ renderBtn.__bound = true; console.log('[Camera] renderBtn event listener attached'); renderBtn.addEventListener('click', function(){ renderPlayback(); }); }
     if (cleanupBtn && !cleanupBtn.__bound){ cleanupBtn.__bound = true; cleanupBtn.addEventListener('click', function(){ cleanupNighttimeFrames(); }); }
     if (pruneBtn && !pruneBtn.__bound){ pruneBtn.__bound = true; pruneBtn.addEventListener('click', function(){ pruneStorage(); }); }
     if (backupBtn && !backupBtn.__bound){ backupBtn.__bound = true; backupBtn.addEventListener('click', function(){ createBackupArchive('prune_candidates').catch(function(e){ setTimelapseNote('Backup ZIP failed: ' + (e && e.message ? e.message : 'request error')); }); }); }
@@ -857,8 +860,8 @@
     fetchTimelapseStatus().then(function(st){ if (st) renderTimelapseStatus(st); }).catch(function(){});
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
-  else bind();
+  if (document.readyState === 'loading') { console.log('[Camera] Registering DOMContentLoaded'); document.addEventListener('DOMContentLoaded', bind); }
+  else { console.log('[Camera] DOM ready, calling bind() now'); bind(); }
 
   window.__cameraReady = true;
 })();
