@@ -92,8 +92,8 @@
     const ecEl = el('ov-kpi-ec');
     const tempEl = el('ov-kpi-temp');
     
-    if (phEl) phEl.textContent = sensors.ph !== null && sensors.ph !== undefined ? sensors.ph.toFixed(2) : '—';
-    if (ecEl) ecEl.textContent = sensors.ec_mscm !== null && sensors.ec_mscm !== undefined ? sensors.ec_mscm.toFixed(2) : '—';
+    if (phEl) phEl.textContent = sensors.ph !== null && sensors.ph !== undefined ? sensors.ph.toFixed(1) : '—';
+    if (ecEl) ecEl.textContent = sensors.ec_mscm !== null && sensors.ec_mscm !== undefined ? sensors.ec_mscm.toFixed(1) : '—';
     if (tempEl) tempEl.textContent = sensors.temperature_c !== null && sensors.temperature_c !== undefined ? sensors.temperature_c.toFixed(1) : '—';
     
     // Status indicator
