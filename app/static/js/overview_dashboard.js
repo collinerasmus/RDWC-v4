@@ -117,13 +117,13 @@
     const healthEl = el('ov-ph-health');
     const statusChipEl = el('ov-ph-status');
     
-    if (currentEl) currentEl.textContent = status.ph !== null && status.ph !== undefined ? status.ph.toFixed(2) : '—';
+    if (currentEl) currentEl.textContent = status.ph !== null && status.ph !== undefined ? status.ph.toFixed(3) : '—';
     
     // Setpoint from targets midpoint
     if (setpointEl && status.targets) {
       const setpoint = (status.auto && status.auto.target_ph !== null && status.auto.target_ph !== undefined)
-        ? Number(status.auto.target_ph).toFixed(2)
-        : ((status.targets.low + status.targets.high) / 2).toFixed(2);
+        ? Number(status.auto.target_ph).toFixed(3)
+        : ((status.targets.low + status.targets.high) / 2).toFixed(3);
       setpointEl.textContent = setpoint;
     }
     
@@ -179,11 +179,11 @@
     
     // EC status returns 'ec_ms_cm'
     const ecValue = status.ec_ms_cm;
-    if (currentEl) currentEl.textContent = ecValue !== null && ecValue !== undefined ? ecValue.toFixed(2) : '—';
+    if (currentEl) currentEl.textContent = ecValue !== null && ecValue !== undefined ? ecValue.toFixed(3) : '—';
     
     // Setpoint from targets midpoint
     if (setpointEl && status.targets) {
-      const setpoint = ((status.targets.low + status.targets.high) / 2).toFixed(2);
+      const setpoint = ((status.targets.low + status.targets.high) / 2).toFixed(3);
       setpointEl.textContent = setpoint;
     }
     
