@@ -210,7 +210,7 @@
     const currentTempEl = q('#temperature-current-temp');
     if (currentTempEl) {
       if (state.current_temp !== null && state.current_temp !== undefined) {
-        currentTempEl.textContent = `${state.current_temp.toFixed(1)}°C`;
+        currentTempEl.textContent = `${state.current_temp.toFixed(3)}°C`;
       } else {
         currentTempEl.textContent = '—°C';
       }
@@ -219,7 +219,7 @@
     // Target temp
     const targetTempEl = q('#temperature-target-temp');
     if (targetTempEl) {
-      targetTempEl.textContent = `${state.target_temp.toFixed(1)}°C`;
+      targetTempEl.textContent = `${state.target_temp.toFixed(3)}°C`;
     }
     
     // Stage
