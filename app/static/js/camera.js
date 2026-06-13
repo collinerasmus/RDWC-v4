@@ -581,25 +581,32 @@
 
     try {
       if (btn) btn.disabled = true;
-      setPlaybackState(state.playbackUrl, 'Rendering video...');
+      setPlaybackState(state.playbackUrl, `Rendering video (${days}d, ${fps} fps)...`);
+      
+      if (window.console && window.console.log) console.log('[Camera] Render request: days=' + days + ', fps=' + fps);
 
-      const res = await postJSON('/camera/timelapse/render', {
+      const res = await postJSONWithTimeout('/camera/timelapse/render', {
         days: days,
         fps: fps,
         min_session_frames: 2,
         max_frames: 5000,
-      });
+      }, 300000); // 5 min timeout for rendering
 
       if (!res || !res.ok || !res.video || !res.video.url) {
-        setPlaybackState(null, 'Render failed. Try a larger window or capture more frames.');
+        const errMsg = res && res.error ? res.error : 'no_frames_or_sessions';
+        setPlaybackState(null, 'Render failed (' + errMsg + '). Try a larger window or ensure enough frames are captured.');
+        if (window.console && window.console.log) console.log('[Camera] Render failed:', res);
         return;
       }
 
       const url = res.video.url + '?t=' + Date.now();
       const note = 'Rendered ' + res.frames_written + ' frames from ' + res.used_sessions + ' sessions (skipped ' + res.skipped_sessions + ').';
       setPlaybackState(url, note);
+      if (window.console && window.console.log) console.log('[Camera] Render success:', res);
     } catch (e) {
-      setPlaybackState(null, 'Render failed: ' + (e && e.message ? e.message : 'request error'));
+      const errMsg = (e && e.message ? e.message : 'request error');
+      setPlaybackState(null, 'Render failed: ' + errMsg);
+      if (window.console && window.console.error) console.error('[Camera] Render exception:', e);
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -619,6 +626,29 @@
       throw new Error(msg);
     }
     return data || {};
+  }
+
+  async function postJSONWithTimeout(url, body, timeoutMs = 60000){
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+        signal: controller.signal,
+      });
+      const txt = await r.text();
+      let data = null;
+      try { data = txt ? JSON.parse(txt) : null; } catch(_){ data = null; }
+      if (!r.ok) {
+        const msg = (data && (data.error || data.detail)) || ('HTTP ' + r.status);
+        throw new Error(msg);
+      }
+      return data || {};
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   async function startTimelapse(){
