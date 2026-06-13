@@ -87,7 +87,7 @@
     const resBanner = el('ec-reservoir-banner');
     const cdPill = el('ec-countdown-pill');
     
-    if(ecVal){ ecVal.textContent = (s && s.ec_ms_cm!=null) ? s.ec_ms_cm.toFixed(2) : '—'; }
+    if(ecVal){ ecVal.textContent = (s && s.ec_ms_cm!=null) ? s.ec_ms_cm.toFixed(3) : '—'; }
     if(band && s){
       const rawLow = (s.targets && s.targets.low!=null) ? Number(s.targets.low) : null;
       const rawHigh = (s.targets && s.targets.high!=null) ? Number(s.targets.high) : null;
