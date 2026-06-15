@@ -1,8 +1,6 @@
 name: Daily Grow Report
 
 on:
-  schedule:
-    - cron: '0 7 * * *'  # Daily at 07:00 UTC
   workflow_dispatch:
 
 concurrency:
@@ -39,8 +37,8 @@ jobs:
 
       - name: Generate Daily Grow Report
         run: |
+          export RDWC_API_URL="http://${RDWC_HOST}:${RDWC_PORT:-8080}"
           python tools/generate_daily_report.py
-        continue-on-error: true
 
       - name: Check if report was created
         run: |

@@ -1,0 +1,14 @@
+[Unit]
+Description=RDWC Daily Report Email
+After=network-online.target rdwc.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+WorkingDirectory=/home/pi/RDWC-v4
+EnvironmentFile=-/etc/rdwc-daily-report.env
+ExecStart=/usr/bin/python3 tools/send_daily_report.py
+
+[Install]
+WantedBy=multi-user.target

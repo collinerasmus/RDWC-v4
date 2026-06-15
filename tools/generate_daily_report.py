@@ -6,11 +6,9 @@ Generates comprehensive HTML report with camera photo, current status, and forec
 
 import os
 import sys
-import json
 import base64
 import requests
 from datetime import datetime, timedelta
-from pathlib import Path
 
 def fetch_json(url, timeout=10, default=None):
     """Safely fetch JSON from API"""
@@ -38,16 +36,20 @@ def generate_report(api_base_url, output_file='grow-report.html'):
     print(f"📊 Generating Daily Grow Report from {api_base_url}...")
     
     # Fetch all data
-    settings = fetch_json(f"{api_base_url}/api/settings")
-    sensors = fetch_json(f"{api_base_url}/api/sensors")
-    ph_status = fetch_json(f"{api_base_url}/api/ph/status")
-    ec_status = fetch_json(f"{api_base_url}/api/ec/status")
-    relays = fetch_json(f"{api_base_url}/api/relays/status")
-    auto_status = fetch_json(f"{api_base_url}/api/auto/status")
-    schedule = fetch_json(f"{api_base_url}/api/schedule/current_week")
-    temps = fetch_json(f"{api_base_url}/api/temperature/status")
-    ph_trend = fetch_json(f"{api_base_url}/api/ph/trend?minutes=1440")
-    ec_trend = fetch_json(f"{api_base_url}/api/trends?from={(datetime.utcnow()-timedelta(hours=24)).isoformat()}Z&to={datetime.utcnow().isoformat()}Z&gran=60&max=1500")
+    settings = fetch_json(f"{api_base_url}/api/settings") or {}
+    sensors = fetch_json(f"{api_base_url}/api/sensors") or {}
+    ph_status = fetch_json(f"{api_base_url}/api/ph/status") or {}
+    ec_status = fetch_json(f"{api_base_url}/api/ec/status") or {}
+    relays = fetch_json(f"{api_base_url}/api/relays/status") or {}
+    auto_status = fetch_json(f"{api_base_url}/api/auto/status") or {}
+    schedule = fetch_json(f"{api_base_url}/api/nutrient_schedule") or {}
+    ph_trend = fetch_json(f"{api_base_url}/api/ph/trend?minutes=1440") or {}
+
+    if not any([settings, sensors, ph_status, ec_status, relays, schedule]):
+        raise RuntimeError(
+            f"Unable to fetch RDWC API data from {api_base_url}. "
+            "If your Pi is on a private LAN, generate/send the report on the Pi itself."
+        )
     
     # Get camera snapshot
     camera_b64 = get_camera_snapshot(api_base_url)
@@ -251,7 +253,7 @@ def generate_report(api_base_url, output_file='grow-report.html'):
         f'<div class="kpi"><div class="kpi-label">Water Temp (°C)</div><div class="kpi-value" style="color:{["#ef4444","#10b981","#94a3b8"][["OUT OF RANGE","OK","N/A"].index(temp_status_text)]}">{fmt(temp_c, 1)}</div><div class="kpi-target">Target: 16-24°C | {temp_status_text}</div></div>',
         '</div>',
         '<table style="margin-top:16px">',
-        '<tr><td style="color:#64748b">Trend (24h)</td><td>pH: {ph_trend_dir} {ph_trend_str}</td><td>Reservoir: {reservoir_liters}L</td></tr>',
+        f'<tr><td style="color:#64748b">Trend (24h)</td><td>pH: {ph_trend_dir} {ph_trend_str}</td><td>Reservoir: {reservoir_liters}L</td></tr>',
         f'<tr><td style="color:#64748b">Dosing Today</td><td>pH: {today_ph_ml:.1f}ml | Auto: <span class="status-{"good" if ph_auto else "warning"}">{["Disabled","Enabled"][int(ph_auto)]}</span></td><td>EC: {ec_today_ml:.1f}ml | Auto: <span class="status-{"good" if ec_auto else "warning"}">{["Disabled","Enabled"][int(ec_auto)]}</span></td></tr>',
         f'<tr><td style="color:#64748b">System Health</td><td>Sensors: {["OFFLINE ❌","ONLINE ✓"][int(sensor_online)]} (age: {age_seconds}s)</td><td>Mode: <strong>{mode}</strong></td></tr>',
         '</table>',
@@ -259,7 +261,7 @@ def generate_report(api_base_url, output_file='grow-report.html'):
         
         # Schedule & targets (WHERE WE'RE GOING)
         '<div class="section">',
-        '<div class="section-title">🎯 Week {current_week} Plan - Where We\'re Going</div>',
+        f'<div class="section-title">🎯 Week {current_week} Plan - Where We\'re Going</div>',
         '<div class="grid-2">',
         f'<div><strong>Nutrient Targets</strong><br>',
         f'pH: {week_data.get("ph_low", "N/A")} - {week_data.get("ph_high", "N/A")}<br>',

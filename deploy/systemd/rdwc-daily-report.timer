@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily RDWC report email timer
+
+[Timer]
+OnCalendar=*-*-* 07:00:00
+Persistent=true
+Unit=rdwc-daily-report.service
+
+[Install]
+WantedBy=timers.target
