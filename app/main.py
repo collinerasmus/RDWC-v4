@@ -2712,13 +2712,36 @@ def _reports_secret_file_path() -> str:
     return os.environ.get("RDWC_REPORTS_SECRET_FILE", "/home/pi/.config/rdwc/daily-report.secret")
 
 
+def _reports_mail_env_file_path() -> str:
+    return os.environ.get("RDWC_REPORTS_MAIL_ENV_FILE", "/home/pi/.config/rdwc/daily-report.env")
+
+
 def _normalize_app_password(raw: str) -> str:
     # Gmail app passwords are 16 chars, often displayed in groups with spaces.
     return "".join((raw or "").replace("\r", "").replace("\n", "").split())
 
 
-def _is_valid_app_password(pw: str) -> bool:
-    return bool(pw) and len(pw) == 16 and pw.isalnum()
+def _effective_mail_provider(provider: str, server: str, user: str) -> str:
+    p = str(provider or "").strip().lower()
+    if p in ("gmail", "outlook", "custom"):
+        return p
+    s = str(server or "").lower()
+    u = str(user or "").lower()
+    if "gmail" in s or u.endswith("@gmail.com"):
+        return "gmail"
+    if "office365" in s or "outlook" in s or u.endswith("@outlook.com") or u.endswith("@hotmail.com"):
+        return "outlook"
+    return "custom"
+
+
+def _is_valid_app_password_for_provider(pw: str, provider: str) -> bool:
+    p = str(provider or "custom").strip().lower()
+    if not pw:
+        return False
+    if p == "gmail":
+        return len(pw) == 16 and pw.isalnum()
+    # Outlook/custom can use app-passwords or account passwords depending on account policy.
+    return len(pw) >= 8
 
 
 def _read_reports_secret_password() -> str:
@@ -2730,6 +2753,26 @@ def _read_reports_secret_password() -> str:
             return _normalize_app_password(f.read().strip())
     except Exception:
         return ""
+
+
+def _load_reports_mail_env() -> dict:
+    """Load effective reports mail environment values with safe precedence.
+    Precedence: /etc env < process env < user mail env < secret file password.
+    """
+    out = {}
+    out.update(_load_env_file_map("/etc/rdwc-daily-report.env"))
+
+    for k in ("EMAIL_SERVER", "EMAIL_PORT", "EMAIL_USER", "EMAIL_FROM", "EMAIL_TO", "RDWC_API_URL", "REPORT_OUTPUT", "REPORTS_SMTP_PROVIDER"):
+        v = os.environ.get(k)
+        if v is not None and str(v).strip() != "":
+            out[k] = str(v).strip()
+
+    out.update(_load_env_file_map(_reports_mail_env_file_path()))
+
+    secret_pw = _read_reports_secret_password()
+    if secret_pw:
+        out["EMAIL_PASSWORD"] = secret_pw
+    return out
 
 
 @app.get("/api/reports/preferences")
@@ -2782,7 +2825,7 @@ def api_reports_preferences_put(body: dict = Body(...)):
 def api_reports_status():
     """Return operational status for Pi-native daily report delivery."""
     env_file = "/etc/rdwc-daily-report.env"
-    env_map = _load_env_file_map(env_file)
+    env_map = _load_reports_mail_env()
 
     timer_active = None
     timer_enabled = None
@@ -2797,9 +2840,8 @@ def api_reports_status():
     except Exception:
         timer_enabled = "unavailable"
 
-    pw = _normalize_app_password(os.environ.get("EMAIL_PASSWORD") or env_map.get("EMAIL_PASSWORD") or "")
-    if not pw:
-        pw = _read_reports_secret_password()
+    pw = _normalize_app_password(env_map.get("EMAIL_PASSWORD") or "")
+    provider = _effective_mail_provider(env_map.get("REPORTS_SMTP_PROVIDER", ""), env_map.get("EMAIL_SERVER", ""), env_map.get("EMAIL_USER", ""))
 
     missing = []
     if not (os.environ.get("EMAIL_SERVER") or env_map.get("EMAIL_SERVER")):
@@ -2811,51 +2853,97 @@ def api_reports_status():
 
     return {
         "env_file": env_file,
+        "mail_env_file": _reports_mail_env_file_path(),
+        "mail_env_file_exists": os.path.exists(_reports_mail_env_file_path()),
         "env_file_exists": os.path.exists(env_file),
         "timer_active": timer_active,
         "timer_enabled": timer_enabled,
         "smtp_password_set": bool(pw),
-        "smtp_password_format_ok": _is_valid_app_password(pw),
+        "smtp_provider": provider,
+        "smtp_password_format_ok": _is_valid_app_password_for_provider(pw, provider),
         "smtp_password_hint": ("ends with " + pw[-4:]) if pw and len(pw) >= 4 else "",
         "missing_required_env": missing,
     }
 
 
+@app.get("/api/reports/credentials")
+def api_reports_credentials_get():
+    env_map = _load_reports_mail_env()
+    pw = _normalize_app_password(env_map.get("EMAIL_PASSWORD") or "")
+    provider = _effective_mail_provider(env_map.get("REPORTS_SMTP_PROVIDER", ""), env_map.get("EMAIL_SERVER", ""), env_map.get("EMAIL_USER", ""))
+    return {
+        "smtp_provider": provider,
+        "email_server": str(env_map.get("EMAIL_SERVER", "")),
+        "email_port": str(env_map.get("EMAIL_PORT", "587") or "587"),
+        "email_user": str(env_map.get("EMAIL_USER", "")),
+        "email_from": str(env_map.get("EMAIL_FROM", "")),
+        "smtp_password_set": bool(pw),
+        "smtp_password_format_ok": _is_valid_app_password_for_provider(pw, provider),
+        "smtp_password_hint": ("ends with " + pw[-4:]) if pw and len(pw) >= 4 else "",
+    }
+
+
 @app.put("/api/reports/credentials")
 def api_reports_credentials_put(body: dict = Body(...)):
-    """Persist SMTP credentials needed for Pi-native report email delivery."""
+    """Persist SMTP credentials/settings needed for Pi-native report email delivery."""
     src = body or {}
+    provider_in = str(src.get("smtp_provider", "")).strip().lower()
+    email_server = str(src.get("email_server", "")).strip()
+    email_port = str(src.get("email_port", "")).strip()
+    email_user = str(src.get("email_user", "")).strip()
+    email_from = str(src.get("email_from", "")).strip()
     password = _normalize_app_password(str(src.get("email_password", "")))
-    if not password:
-        return JSONResponse(
-            status_code=422,
-            content={"ok": False, "error": "invalid_password", "detail": "App password cannot be empty."},
-        )
-    if not _is_valid_app_password(password):
-        return JSONResponse(
-            status_code=422,
-            content={
-                "ok": False,
-                "error": "invalid_password_format",
-                "detail": "App password must be 16 letters/numbers (spaces allowed).",
-            },
-        )
+
+    env_map = _load_reports_mail_env()
+    provider = _effective_mail_provider(provider_in or env_map.get("REPORTS_SMTP_PROVIDER", ""), email_server or env_map.get("EMAIL_SERVER", ""), email_user or env_map.get("EMAIL_USER", ""))
+
+    updates = {}
+    if provider_in:
+        if provider_in not in ("gmail", "outlook", "custom"):
+            return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_provider", "detail": "smtp_provider must be gmail, outlook, or custom."})
+        updates["REPORTS_SMTP_PROVIDER"] = provider_in
+    if email_server:
+        updates["EMAIL_SERVER"] = email_server
+    if email_port:
+        try:
+            p = int(email_port)
+            if not (1 <= p <= 65535):
+                raise ValueError()
+            updates["EMAIL_PORT"] = str(p)
+        except Exception:
+            return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_port", "detail": "email_port must be 1..65535."})
+    if email_user:
+        updates["EMAIL_USER"] = email_user
+    if email_from:
+        updates["EMAIL_FROM"] = email_from
+
+    if password and not _is_valid_app_password_for_provider(password, provider):
+        detail = "App password must be 16 letters/numbers (spaces allowed)." if provider == "gmail" else "Password must be at least 8 characters."
+        return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_password_format", "detail": detail})
+
+    if not updates and not password:
+        return JSONResponse(status_code=422, content={"ok": False, "error": "no_changes", "detail": "Provide at least one mail setting or password to update."})
 
     secret_file = _reports_secret_file_path()
+    mail_env_file = _reports_mail_env_file_path()
     try:
+        if updates:
+            os.makedirs(os.path.dirname(mail_env_file), exist_ok=True)
+            _write_env_file_map(mail_env_file, updates)
         os.makedirs(os.path.dirname(secret_file), exist_ok=True)
-        with open(secret_file, "w", encoding="utf-8", newline="\n") as f:
-            f.write(password + "\n")
-        # Best effort hardening; ignore on platforms where this is unsupported.
-        with suppress(Exception):
-            os.chmod(secret_file, 0o600)
+        if password:
+            with open(secret_file, "w", encoding="utf-8", newline="\n") as f:
+                f.write(password + "\n")
+            # Best effort hardening; ignore on platforms where this is unsupported.
+            with suppress(Exception):
+                os.chmod(secret_file, 0o600)
     except PermissionError:
         return JSONResponse(
             status_code=403,
             content={
                 "ok": False,
                 "error": "permission_denied",
-                "detail": "API user cannot write report credential file.",
+                "detail": "API user cannot write report mail configuration files.",
             },
         )
     except Exception as e:
@@ -2864,12 +2952,19 @@ def api_reports_credentials_put(body: dict = Body(...)):
             content={"ok": False, "error": "credential_write_failed", "detail": str(e)},
         )
 
+    new_map = _load_reports_mail_env()
+    new_pw = _normalize_app_password(new_map.get("EMAIL_PASSWORD") or "")
+    new_provider = _effective_mail_provider(new_map.get("REPORTS_SMTP_PROVIDER", ""), new_map.get("EMAIL_SERVER", ""), new_map.get("EMAIL_USER", ""))
+    updated_keys = list(updates.keys())
+    if password:
+        updated_keys.append("EMAIL_PASSWORD")
     return {
         "ok": True,
-        "updated": ["EMAIL_PASSWORD"],
-        "smtp_password_set": True,
-        "smtp_password_format_ok": True,
-        "smtp_password_hint": "ends with " + password[-4:],
+        "updated": updated_keys,
+        "smtp_provider": new_provider,
+        "smtp_password_set": bool(new_pw),
+        "smtp_password_format_ok": _is_valid_app_password_for_provider(new_pw, new_provider),
+        "smtp_password_hint": ("ends with " + new_pw[-4:]) if new_pw and len(new_pw) >= 4 else "",
     }
 
 
@@ -2888,14 +2983,11 @@ def api_reports_send_test():
     alerts = grouped.get("alerts", {}) or {}
 
     env = dict(os.environ)
-    env_file_map = _load_env_file_map("/etc/rdwc-daily-report.env")
-    for k, v in env_file_map.items():
-        env.setdefault(k, v)
-
-    if not _normalize_app_password(env.get("EMAIL_PASSWORD", "")):
-        secret_pw = _read_reports_secret_password()
-        if secret_pw:
-            env["EMAIL_PASSWORD"] = secret_pw
+    effective_mail_env = _load_reports_mail_env()
+    for k, v in effective_mail_env.items():
+        if v is None:
+            continue
+        env[k] = str(v)
 
     env.setdefault("RDWC_API_URL", "http://127.0.0.1:8080")
     env.setdefault("REPORT_OUTPUT", "/tmp/rdwc-grow-report-test.html")

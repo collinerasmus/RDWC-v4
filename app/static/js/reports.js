@@ -22,13 +22,62 @@
     if (el) el.textContent = msg;
   }
 
+  function currentProvider(){
+    return (q('#reports-smtp-provider')?.value || 'gmail').toLowerCase();
+  }
+
+  function updateProviderDefaults(){
+    const provider = currentProvider();
+    const server = q('#reports-email-server');
+    const port = q('#reports-email-port');
+    const label = q('#reports-password-label');
+
+    if (label) {
+      label.textContent = provider === 'gmail'
+        ? 'Gmail App Password'
+        : 'Mail Password / App Password';
+    }
+
+    if (!server || !port) return;
+    const hasServer = !!String(server.value || '').trim();
+    const hasPort = !!String(port.value || '').trim();
+    if (!hasServer) {
+      if (provider === 'gmail') server.value = 'smtp.gmail.com';
+      if (provider === 'outlook') server.value = 'smtp.office365.com';
+    }
+    if (!hasPort) {
+      if (provider === 'gmail' || provider === 'outlook') port.value = '587';
+    }
+  }
+
   function normalizeAppPassword(raw){
     return String(raw || '').replace(/\s+/g, '');
   }
 
   function isValidAppPassword(raw){
     const v = normalizeAppPassword(raw);
-    return /^[A-Za-z0-9]{16}$/.test(v);
+    const provider = currentProvider();
+    if (provider === 'gmail') return /^[A-Za-z0-9]{16}$/.test(v);
+    return v.length >= 8;
+  }
+
+  async function loadCredentials(){
+    const r = await fetch('/api/reports/credentials?t=' + Date.now(), {cache:'no-store'});
+    const j = await r.json();
+
+    const provider = q('#reports-smtp-provider');
+    const server = q('#reports-email-server');
+    const port = q('#reports-email-port');
+    const user = q('#reports-email-user');
+    const from = q('#reports-email-from');
+
+    if (provider) provider.value = (j.smtp_provider || 'gmail').toLowerCase();
+    if (server) server.value = j.email_server || '';
+    if (port) port.value = j.email_port || '587';
+    if (user) user.value = j.email_user || '';
+    if (from) from.value = j.email_from || '';
+
+    updateProviderDefaults();
   }
 
   async function loadPreferences(){
@@ -72,7 +121,7 @@
     if (missing.length){
       setPill('warning', 'Config missing');
       if (missing.length === 1 && missing[0] === 'EMAIL_PASSWORD') {
-        setNote('Gmail app password is not set. Enter it below and click "Save Mail Credentials".');
+        setNote('Mail password is not set. Enter it below and click "Save Mail Credentials".');
       } else {
         setNote('Missing required mail env: ' + missing.join(', ') + '. Configure credentials in this Reports tab.');
       }
@@ -84,7 +133,7 @@
       } else {
         setPill('neutral', 'Timer not active');
       }
-      setNote('Timer active=' + active + ', enabled=' + enabled + ', app password=' + (pwSet ? 'set' : 'missing'));
+      setNote('Timer active=' + active + ', enabled=' + enabled + ', provider=' + (j.smtp_provider || 'custom') + ', password=' + (pwSet ? 'set' : 'missing'));
     }
   }
 
@@ -131,35 +180,53 @@
     const btn = q('#btnReportsSaveCredentials');
     const pwInput = q('#reports-app-password');
     const before = btn ? btn.textContent : '';
+    const provider = currentProvider();
+    const server = (q('#reports-email-server')?.value || '').trim();
+    const port = (q('#reports-email-port')?.value || '').trim();
+    const user = (q('#reports-email-user')?.value || '').trim();
+    const from = (q('#reports-email-from')?.value || '').trim();
     const passwordRaw = pwInput?.value || '';
     const password = normalizeAppPassword(passwordRaw);
 
-    if (!password){
-      if (window.showToast) window.showToast('Enter app password first', 'warning');
-      setResult('Mail credential save skipped: app password is empty.');
+    if (!server || !user || !port) {
+      if (window.showToast) window.showToast('SMTP server, port, and user are required', 'warning');
+      setResult('Credential save failed\n\nSMTP server, port, and user are required.');
       return;
     }
-    if (!isValidAppPassword(password)) {
-      if (window.showToast) window.showToast('Password must be 16 letters/numbers', 'warning');
-      setResult('Credential save failed\n\nApp password must be 16 letters/numbers (spaces are allowed and ignored).');
+    if (password && !isValidAppPassword(password)) {
+      const msg = provider === 'gmail'
+        ? 'App password must be 16 letters/numbers (spaces are allowed and ignored).'
+        : 'Password must be at least 8 characters.';
+      if (window.showToast) window.showToast('Invalid password format', 'warning');
+      setResult('Credential save failed\n\n' + msg);
       return;
     }
+
+    const payload = {
+      smtp_provider: provider,
+      email_server: server,
+      email_port: port,
+      email_user: user,
+      email_from: from
+    };
+    if (password) payload.email_password = password;
 
     if (btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
     try {
       const r = await fetch('/api/reports/credentials', {
         method: 'PUT',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ email_password: password })
+        body: JSON.stringify(payload)
       });
       const j = await r.json();
       if (!r.ok || !j.ok) {
         throw new Error(j.detail || j.error || 'credential_save_failed');
       }
       if (pwInput) pwInput.value = '';
-      if (window.showToast) window.showToast('Mail credentials saved', 'success');
+      if (window.showToast) window.showToast('Mail settings saved', 'success');
       setResult('Mail credentials saved at ' + new Date().toLocaleString());
       await loadStatus();
+      await loadCredentials();
     } catch (e) {
       if (window.showToast) window.showToast('Credential save failed', 'error');
       setResult('Credential save failed\n\n' + (e.message || e));
@@ -221,6 +288,7 @@
   function bind(){
     const saveBtn = q('#btnReportsSave');
     const saveCredsBtn = q('#btnReportsSaveCredentials');
+    const providerSel = q('#reports-smtp-provider');
     const showPw = q('#reports-show-password');
     const pwInput = q('#reports-app-password');
     const applyBtn = q('#btnReportsApplyTimer');
@@ -228,6 +296,7 @@
     const refreshBtn = q('#btnReportsRefresh');
     if (saveBtn) saveBtn.addEventListener('click', savePreferences);
     if (saveCredsBtn) saveCredsBtn.addEventListener('click', saveCredentials);
+    if (providerSel) providerSel.addEventListener('change', updateProviderDefaults);
     if (showPw && pwInput) {
       showPw.addEventListener('change', () => {
         pwInput.type = showPw.checked ? 'text' : 'password';
@@ -237,6 +306,7 @@
     if (testBtn) testBtn.addEventListener('click', sendTest);
     if (refreshBtn) refreshBtn.addEventListener('click', async () => {
       await loadPreferences();
+      await loadCredentials();
       await loadStatus();
     });
   }
@@ -245,6 +315,7 @@
     if (!q('#reports-card')) return;
     bind();
     await loadPreferences();
+    await loadCredentials();
     await loadStatus();
   }
 

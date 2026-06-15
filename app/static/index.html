@@ -950,9 +950,36 @@ body{
         <label style="display:flex;align-items:center;gap:8px;"><input id="reports-include-forecast" type="checkbox" checked /> Include where-we-are-going forecast</label>
       </div>
 
+      <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;align-items:end;margin-bottom:12px;">
+        <div>
+          <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Mail Provider</label>
+          <select id="reports-smtp-provider" style="width:180px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
+            <option value="gmail">Gmail</option>
+            <option value="outlook">Outlook / Office365</option>
+            <option value="custom">Custom SMTP</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">SMTP Server</label>
+          <input id="reports-email-server" type="text" placeholder="smtp.gmail.com" style="width:220px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+        </div>
+        <div>
+          <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">SMTP Port</label>
+          <input id="reports-email-port" type="number" min="1" max="65535" placeholder="587" style="width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+        </div>
+        <div>
+          <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">SMTP User</label>
+          <input id="reports-email-user" type="text" placeholder="sender@example.com" style="width:280px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+        </div>
+        <div>
+          <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">From Address (optional)</label>
+          <input id="reports-email-from" type="text" placeholder="sender@example.com" style="width:280px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+        </div>
+      </div>
+
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
         <div>
-          <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Gmail App Password</label>
+          <label id="reports-password-label" style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Mail Password / App Password</label>
           <input id="reports-app-password" type="password" placeholder="Enter app password" autocomplete="new-password" style="width:320px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
           <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
             <label style="display:flex;align-items:center;gap:6px;font-size:var(--font-xs);color:#9ca3af;">
