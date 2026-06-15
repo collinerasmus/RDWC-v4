@@ -67,22 +67,22 @@ jobs:
           user = os.getenv('EMAIL_USER', '').strip()
           password_raw = os.getenv('EMAIL_PASSWORD', '')
           password = ''.join(password_raw.split())
-            to_addr = os.getenv('EMAIL_TO', '').strip() or user
+          to_addr = os.getenv('EMAIL_TO', '').strip() or user
           from_addr = (os.getenv('EMAIL_FROM') or user).strip()
           repo_name = os.getenv('REPO_NAME', 'RDWC-v4')
           run_url = os.getenv('RUN_URL', '')
 
-            missing = []
-            if not server:
+          missing = []
+          if not server:
               missing.append('EMAIL_SERVER')
-            if not user:
+          if not user:
               missing.append('EMAIL_USER')
-            if not password:
+          if not password:
               missing.append('EMAIL_PASSWORD')
-            if not to_addr:
+          if not to_addr:
               missing.append('EMAIL_TO or EMAIL_USER')
 
-            if missing:
+          if missing:
               raise SystemExit('Missing required email configuration: ' + ', '.join(missing))
 
           subject = f'RDWC Daily Grow Report - {repo_name}'
