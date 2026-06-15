@@ -2773,15 +2773,21 @@ def api_reports_send_test():
     if recipient:
         env["EMAIL_TO"] = recipient
 
-    proc = run(
-        [sys.executable, script],
-        cwd=repo_root,
-        stdout=PIPE,
-        stderr=PIPE,
-        text=True,
-        timeout=180,
-        env=env,
-    )
+    try:
+        proc = run(
+            [sys.executable, script],
+            cwd=repo_root,
+            stdout=PIPE,
+            stderr=PIPE,
+            text=True,
+            timeout=180,
+            env=env,
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": "send_exec_exception", "detail": str(e)},
+        )
     out = (proc.stdout or "").strip()
     err = (proc.stderr or "").strip()
     if proc.returncode != 0:
