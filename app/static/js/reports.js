@@ -47,10 +47,15 @@
     const r = await fetch('/api/reports/status?t=' + Date.now(), {cache:'no-store'});
     const j = await r.json();
     const missing = Array.isArray(j.missing_required_env) ? j.missing_required_env : [];
+    const pwSet = !!j.smtp_password_set;
 
     if (missing.length){
       setPill('warning', 'Config missing');
-      setNote('Missing required mail env: ' + missing.join(', ') + '. Add these in /etc/rdwc-daily-report.env on the Pi.');
+      if (missing.length === 1 && missing[0] === 'EMAIL_PASSWORD') {
+        setNote('Gmail app password is not set. Enter it below and click "Save Mail Credentials".');
+      } else {
+        setNote('Missing required mail env: ' + missing.join(', ') + '. Configure credentials in this Reports tab.');
+      }
     } else {
       const active = (j.timer_active || '').trim();
       const enabled = (j.timer_enabled || '').trim();
@@ -59,7 +64,7 @@
       } else {
         setPill('neutral', 'Timer not active');
       }
-      setNote('Timer active=' + active + ', enabled=' + enabled + ', env file=' + (j.env_file_exists ? 'present' : 'missing'));
+      setNote('Timer active=' + active + ', enabled=' + enabled + ', app password=' + (pwSet ? 'set' : 'missing'));
     }
   }
 
@@ -99,6 +104,41 @@
       setResult('Save failed: ' + (e.message || e));
     } finally {
       if (btn){ btn.disabled = false; btn.textContent = before || 'Save Report Preferences'; }
+    }
+  }
+
+  async function saveCredentials(){
+    const btn = q('#btnReportsSaveCredentials');
+    const pwInput = q('#reports-app-password');
+    const before = btn ? btn.textContent : '';
+    const password = (pwInput?.value || '').trim();
+
+    if (!password){
+      if (window.showToast) window.showToast('Enter app password first', 'warning');
+      setResult('Mail credential save skipped: app password is empty.');
+      return;
+    }
+
+    if (btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
+    try {
+      const r = await fetch('/api/reports/credentials', {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ email_password: password })
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        throw new Error(j.detail || j.error || 'credential_save_failed');
+      }
+      if (pwInput) pwInput.value = '';
+      if (window.showToast) window.showToast('Mail credentials saved', 'success');
+      setResult('Mail credentials saved at ' + new Date().toLocaleString());
+      await loadStatus();
+    } catch (e) {
+      if (window.showToast) window.showToast('Credential save failed', 'error');
+      setResult('Credential save failed\n\n' + (e.message || e));
+    } finally {
+      if (btn){ btn.disabled = false; btn.textContent = before || 'Save Mail Credentials'; }
     }
   }
 
@@ -154,10 +194,12 @@
 
   function bind(){
     const saveBtn = q('#btnReportsSave');
+    const saveCredsBtn = q('#btnReportsSaveCredentials');
     const applyBtn = q('#btnReportsApplyTimer');
     const testBtn = q('#btnReportsSendTest');
     const refreshBtn = q('#btnReportsRefresh');
     if (saveBtn) saveBtn.addEventListener('click', savePreferences);
+    if (saveCredsBtn) saveCredsBtn.addEventListener('click', saveCredentials);
     if (applyBtn) applyBtn.addEventListener('click', applyTimer);
     if (testBtn) testBtn.addEventListener('click', sendTest);
     if (refreshBtn) refreshBtn.addEventListener('click', async () => {

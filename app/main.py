@@ -2671,6 +2671,43 @@ def _load_env_file_map(path: str) -> dict:
     return out
 
 
+def _write_env_file_map(path: str, updates: dict) -> None:
+    """Update KEY=VALUE entries in an env file without exposing secret values."""
+    keys = {str(k): str(v) for k, v in (updates or {}).items() if str(k).strip()}
+    if not keys:
+        return
+
+    lines = []
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+    seen = set()
+    out_lines = []
+    for line in lines:
+        raw = line.rstrip("\n")
+        s = raw.strip()
+        if not s or s.startswith("#") or "=" not in s:
+            out_lines.append(line)
+            continue
+        k, _ = s.split("=", 1)
+        key = k.strip()
+        if key in keys:
+            out_lines.append(f"{key}={keys[key]}\n")
+            seen.add(key)
+        else:
+            out_lines.append(line)
+
+    for key, value in keys.items():
+        if key not in seen:
+            out_lines.append(f"{key}={value}\n")
+
+    tmp_path = path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8", newline="\n") as f:
+        f.writelines(out_lines)
+    os.replace(tmp_path, path)
+
+
 @app.get("/api/reports/preferences")
 def api_reports_preferences_get():
     """Return daily report preferences for the dedicated Reports tab."""
@@ -2744,8 +2781,42 @@ def api_reports_status():
         "env_file_exists": os.path.exists(env_file),
         "timer_active": timer_active,
         "timer_enabled": timer_enabled,
+        "smtp_password_set": "EMAIL_PASSWORD" not in missing,
         "missing_required_env": missing,
     }
+
+
+@app.put("/api/reports/credentials")
+def api_reports_credentials_put(body: dict = Body(...)):
+    """Persist SMTP credentials needed for Pi-native report email delivery."""
+    src = body or {}
+    password = str(src.get("email_password", ""))
+    password = password.replace("\r", "").replace("\n", "")
+    if not password.strip():
+        return JSONResponse(
+            status_code=422,
+            content={"ok": False, "error": "invalid_password", "detail": "App password cannot be empty."},
+        )
+
+    env_file = "/etc/rdwc-daily-report.env"
+    try:
+        _write_env_file_map(env_file, {"EMAIL_PASSWORD": password})
+    except PermissionError:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "ok": False,
+                "error": "permission_denied",
+                "detail": "API user cannot update report env file permissions.",
+            },
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": "credential_write_failed", "detail": str(e)},
+        )
+
+    return {"ok": True, "updated": ["EMAIL_PASSWORD"], "smtp_password_set": True}
 
 
 @app.post("/api/reports/send_test")

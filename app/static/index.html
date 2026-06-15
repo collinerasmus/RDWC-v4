@@ -950,6 +950,14 @@ body{
         <label style="display:flex;align-items:center;gap:8px;"><input id="reports-include-forecast" type="checkbox" checked /> Include where-we-are-going forecast</label>
       </div>
 
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
+        <div>
+          <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Gmail App Password</label>
+          <input id="reports-app-password" type="password" placeholder="Enter app password" autocomplete="new-password" style="width:320px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+        </div>
+        <button id="btnReportsSaveCredentials" class="btn-secondary">Save Mail Credentials</button>
+      </div>
+
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button id="btnReportsSave" class="btn-secondary">Save Report Preferences</button>
         <button id="btnReportsApplyTimer" class="btn-secondary">Apply Send Time to Pi Timer</button>
