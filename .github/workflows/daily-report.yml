@@ -52,7 +52,6 @@ jobs:
           fi
 
       - name: Send Email with Report
-        if: ${{ env.EMAIL_SERVER != '' && env.EMAIL_USER != '' && env.EMAIL_PASSWORD != '' && env.EMAIL_TO != '' }}
         env:
           REPO_NAME: ${{ github.event.repository.name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -68,10 +67,23 @@ jobs:
           user = os.getenv('EMAIL_USER', '').strip()
           password_raw = os.getenv('EMAIL_PASSWORD', '')
           password = ''.join(password_raw.split())
-          to_addr = os.getenv('EMAIL_TO', '').strip()
+            to_addr = os.getenv('EMAIL_TO', '').strip() or user
           from_addr = (os.getenv('EMAIL_FROM') or user).strip()
           repo_name = os.getenv('REPO_NAME', 'RDWC-v4')
           run_url = os.getenv('RUN_URL', '')
+
+            missing = []
+            if not server:
+              missing.append('EMAIL_SERVER')
+            if not user:
+              missing.append('EMAIL_USER')
+            if not password:
+              missing.append('EMAIL_PASSWORD')
+            if not to_addr:
+              missing.append('EMAIL_TO or EMAIL_USER')
+
+            if missing:
+              raise SystemExit('Missing required email configuration: ' + ', '.join(missing))
 
           subject = f'RDWC Daily Grow Report - {repo_name}'
 
@@ -111,7 +123,7 @@ jobs:
             echo "⚠️  EMAIL_USER secret not configured"
           fi
           if [ "${{ env.EMAIL_TO }}" == "" ]; then
-            echo "⚠️  EMAIL_TO secret not configured"
+            echo "ℹ️  EMAIL_TO not set; workflow will fall back to EMAIL_USER"
           fi
           if [ "${{ env.RDWC_HOST }}" == "" ]; then
             echo "⚠️  RDWC_HOST secret not configured"
