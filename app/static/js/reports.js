@@ -129,11 +129,36 @@
     }
   }
 
+  async function applyTimer(){
+    const btn = q('#btnReportsApplyTimer');
+    const before = btn ? btn.textContent : '';
+    if (btn){ btn.disabled = true; btn.textContent = 'Applying...'; }
+    setResult('Applying send time to Pi timer...');
+
+    try {
+      const r = await fetch('/api/reports/apply_timer', { method: 'POST' });
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        throw new Error((j.detail || j.error || 'apply_timer_failed').toString());
+      }
+      if (window.showToast) window.showToast('Pi timer updated', 'success');
+      setResult('Timer update OK\n\nSend time: ' + (j.send_time || 'n/a'));
+      await loadStatus();
+    } catch (e) {
+      if (window.showToast) window.showToast('Apply timer failed', 'error');
+      setResult('Apply timer failed\n\n' + (e.message || e));
+    } finally {
+      if (btn){ btn.disabled = false; btn.textContent = before || 'Apply Send Time to Pi Timer'; }
+    }
+  }
+
   function bind(){
     const saveBtn = q('#btnReportsSave');
+    const applyBtn = q('#btnReportsApplyTimer');
     const testBtn = q('#btnReportsSendTest');
     const refreshBtn = q('#btnReportsRefresh');
     if (saveBtn) saveBtn.addEventListener('click', savePreferences);
+    if (applyBtn) applyBtn.addEventListener('click', applyTimer);
     if (testBtn) testBtn.addEventListener('click', sendTest);
     if (refreshBtn) refreshBtn.addEventListener('click', async () => {
       await loadPreferences();

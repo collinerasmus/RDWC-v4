@@ -2793,6 +2793,71 @@ def api_reports_send_test():
     return {"ok": True, "stdout": out[-1200:], "stderr": err[-1200:]}
 
 
+@app.post("/api/reports/apply_timer")
+def api_reports_apply_timer():
+    """Apply reports.send_time to Pi systemd timer override."""
+    from app.settings import get_settings_grouped
+
+    grouped = get_settings_grouped() or {}
+    reports = grouped.get("reports", {}) or {}
+    send_time = str(reports.get("send_time", "07:00")).strip() or "07:00"
+    if ":" not in send_time:
+        return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_time", "detail": "reports.send_time must be HH:MM"})
+
+    hh, mm = send_time.split(":", 1)
+    try:
+        hhi = int(hh)
+        mmi = int(mm)
+    except Exception:
+        return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_time", "detail": "reports.send_time must be HH:MM"})
+    if not (0 <= hhi <= 23 and 0 <= mmi <= 59):
+        return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_time", "detail": "reports.send_time outside 24h range"})
+
+    override_dir = "/etc/systemd/system/rdwc-daily-report.timer.d"
+    override_file = os.path.join(override_dir, "override.conf")
+    conf = (
+        "[Timer]\n"
+        "OnCalendar=\n"
+        f"OnCalendar=*-*-* {hhi:02d}:{mmi:02d}:00\n"
+        "Persistent=true\n"
+    )
+
+    try:
+        os.makedirs(override_dir, exist_ok=True)
+        with open(override_file, "w", encoding="utf-8") as f:
+            f.write(conf)
+
+        cmd_out = []
+        for cmd in (
+            ["systemctl", "daemon-reload"],
+            ["systemctl", "enable", "--now", "rdwc-daily-report.timer"],
+            ["systemctl", "restart", "rdwc-daily-report.timer"],
+        ):
+            p = run(cmd, stdout=PIPE, stderr=PIPE, text=True)
+            cmd_out.append({
+                "cmd": " ".join(cmd),
+                "rc": p.returncode,
+                "stdout": (p.stdout or "").strip(),
+                "stderr": (p.stderr or "").strip(),
+            })
+            if p.returncode != 0:
+                return JSONResponse(status_code=500, content={"ok": False, "error": "systemctl_failed", "send_time": send_time, "steps": cmd_out})
+
+        return {"ok": True, "send_time": send_time, "override_file": override_file, "steps": cmd_out}
+    except PermissionError:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "ok": False,
+                "error": "permission_denied",
+                "detail": "API user cannot write /etc/systemd. Run apply manually with sudo.",
+                "send_time": send_time,
+            },
+        )
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": "apply_failed", "detail": str(e), "send_time": send_time})
+
+
 @app.get("/api/settings/export")
 def api_settings_export():
     from app.settings import export_all
