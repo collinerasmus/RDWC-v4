@@ -46,16 +46,23 @@ jobs:
           fi
 
       - name: Send Email with Report
-        if: ${{ secrets.EMAIL_SERVER != '' && secrets.EMAIL_USER != '' && secrets.EMAIL_PASSWORD != '' && secrets.EMAIL_TO != '' }}
+        if: ${{ env.EMAIL_SERVER != '' && env.EMAIL_USER != '' && env.EMAIL_PASSWORD != '' && env.EMAIL_TO != '' }}
+        env:
+          EMAIL_SERVER: ${{ secrets.EMAIL_SERVER }}
+          EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
         uses: dawidd6/action-send-mail@6bdc42ec66008be01a190a2b51816b1c5470b7fc # v3.11.0
         with:
-          server_address: ${{ secrets.EMAIL_SERVER }}
-          server_port: ${{ secrets.EMAIL_PORT || '587' }}
-          username: ${{ secrets.EMAIL_USER }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
+          server_address: ${{ env.EMAIL_SERVER }}
+          server_port: ${{ env.EMAIL_PORT != '' && env.EMAIL_PORT || '587' }}
+          username: ${{ env.EMAIL_USER }}
+          password: ${{ env.EMAIL_PASSWORD }}
           subject: 'RDWC Daily Grow Report - ${{ github.event.repository.name }}'
-          to: ${{ secrets.EMAIL_TO }}
-          from: ${{ secrets.EMAIL_FROM || secrets.EMAIL_USER }}
+          to: ${{ env.EMAIL_TO }}
+          from: ${{ env.EMAIL_FROM != '' && env.EMAIL_FROM || env.EMAIL_USER }}
           body: |
             Your RDWC daily grow report is ready!
             
