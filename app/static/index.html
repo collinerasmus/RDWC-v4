@@ -737,6 +737,7 @@ body{
             'circulation': 'circulation',
             'lights': 'lights',
             'schedule': 'lights',  // Schedule uses lights auto status
+            'reports': 'lights',
             'settings': 'ph'  // Settings uses pH as fallback
           };
           Object.keys(controllerMap).forEach(function(displayKey){
@@ -826,6 +827,10 @@ body{
     <span class="ctrl-label">📅 Scheduler</span>
     <span class="ctrl-health-dot" data-controller="schedule" aria-label="Schedule status"></span>
   </button>
+  <button class="btn-chip ctrl-with-dot" data-tab="reports" aria-label="Reports">
+    <span class="ctrl-label">📨 Reports</span>
+    <span class="ctrl-health-dot" data-controller="reports" aria-label="Reports status"></span>
+  </button>
   <button class="btn-chip ctrl-with-dot" data-tab="settings" aria-label="System">
     <span class="ctrl-label">🛠️ System</span>
     <span class="ctrl-health-dot" data-controller="settings" aria-label="System status"></span>
@@ -900,6 +905,58 @@ body{
           </div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- Reports Tab -->
+  <section id="reports-card" class="card card-wide tab-section" data-tab="reports" style="display:none;">
+    <div class="card-header">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <h3 class="card-title" style="margin:0;">Daily Reports</h3>
+        <span id="reports-health-indicator" class="ui-status-chip neutral" title="Report delivery status">—</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button id="btnReportsRefresh" class="btn-chip" title="Refresh report status">↻ Refresh</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="muted" style="margin-bottom:12px;">Configure daily report delivery from the local Pi for accurate live sensor and camera data.</div>
+
+      <div style="display:grid;grid-template-columns:repeat(2,max-content);justify-content:start;justify-items:start;column-gap:10px;row-gap:8px;align-items:end;margin-bottom:12px;">
+        <div>
+          <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Enable Daily Reports</label>
+          <input id="reports-enabled" type="checkbox" style="width:20px;height:20px;cursor:pointer;" />
+        </div>
+        <div>
+          <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Send Time (Pi local)</label>
+          <input id="reports-send-time" type="time" value="07:00" style="width:140px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+        </div>
+        <div>
+          <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Recipient Email</label>
+          <input id="reports-recipient-email" type="text" placeholder="name@example.com" style="width:320px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+        </div>
+        <div>
+          <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Delivery Engine</label>
+          <select id="reports-transport" style="width:180px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);">
+            <option value="pi">Pi native (recommended)</option>
+            <option value="github">GitHub manual trigger</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+        <label style="display:flex;align-items:center;gap:8px;"><input id="reports-include-photo" type="checkbox" checked /> Include camera photo</label>
+        <label style="display:flex;align-items:center;gap:8px;"><input id="reports-include-status" type="checkbox" checked /> Include current status</label>
+        <label style="display:flex;align-items:center;gap:8px;"><input id="reports-include-forecast" type="checkbox" checked /> Include where-we-are-going forecast</label>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button id="btnReportsSave" class="btn-secondary">Save Report Preferences</button>
+        <button id="btnReportsSendTest" class="btn-secondary primary">Send Test Report Now</button>
+      </div>
+
+      <div id="reports-status-note" class="muted" style="margin-top:10px;font-size:var(--font-sm);">—</div>
+      <div id="reports-last-result" class="muted" style="margin-top:8px;padding:8px;border-radius:6px;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.2);font-size:var(--font-xs);white-space:pre-wrap;">No test result yet.</div>
     </div>
   </section>
 
@@ -3052,11 +3109,11 @@ function toggleRecentReadings(){
             // Reordered: range.js immediately after core to satisfy rdwcRange dependency for pH & EC charts before sensors/ph/ec modules run.
           // Instrumented loader: log each script as it begins loading (sequence is synchronous via promises)
             window.BUILD_COMMIT = '1764522441';
-              return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','camera.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','schedule_week_editor.js','lights_v2.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','overview_combined_chart.js','lights_chart.js','circulation_chart.js','chart_adapter.js'], window.__app_version);
+              return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','camera.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','schedule_week_editor.js','lights_v2.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','reports.js','overview_combined_chart.js','lights_chart.js','circulation_chart.js','chart_adapter.js'], window.__app_version);
       })
       .catch(function(){
         window.__app_version = (new Date()).toISOString().slice(0,10);
-            return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','camera.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','schedule_week_editor.js','lights_v2.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','overview_combined_chart.js','lights_chart.js','circulation_chart.js','chart_adapter.js'], window.__app_version);
+            return seq(['polling_manager.js','range.js','chart_base.js','sensors_chart.js','ph_chart_v2.js','ec_chart_v2.js','temperature_chart.js','tabs.js','camera.js','global_health.js','overview.js','system.js','sensors.js','ph.js','ec.js','sensors_calib.js','relays_v2.js','schedule.js','schedule_week_editor.js','lights_v2.js','circulation_v2.js','temperature.js','controller_settings.js','settings.js','reports.js','overview_combined_chart.js','lights_chart.js','circulation_chart.js','chart_adapter.js'], window.__app_version);
       })
       .finally(function(){ try{ var sEl=document.getElementById('build-status'); if(sEl) sEl.textContent='ready'; }catch(e){} });
   })();

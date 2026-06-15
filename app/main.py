@@ -2652,6 +2652,147 @@ def api_settings_put(body: dict = Body(...)):
     return {"ok": True, "updated": updated, "requires_restart": False}
 
 
+def _load_env_file_map(path: str) -> dict:
+    """Parse KEY=VALUE pairs from env file; ignores comments/blank lines."""
+    out = {}
+    try:
+        if not os.path.exists(path):
+            return out
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                s = line.strip()
+                if not s or s.startswith("#") or "=" not in s:
+                    continue
+                k, v = s.split("=", 1)
+                out[k.strip()] = v.strip().strip('"').strip("'")
+    except Exception:
+        return out
+    return out
+
+
+@app.get("/api/reports/preferences")
+def api_reports_preferences_get():
+    """Return daily report preferences for the dedicated Reports tab."""
+    from app.settings import get_settings_grouped
+    grouped = get_settings_grouped() or {}
+    reports = grouped.get("reports", {}) or {}
+    alerts = grouped.get("alerts", {}) or {}
+    recipient = reports.get("recipient_email") or alerts.get("email_to") or ""
+    return {
+        "enabled": str(reports.get("enabled", "true")).lower() in ("1", "true", "yes", "on"),
+        "send_time": str(reports.get("send_time", "07:00")),
+        "recipient_email": str(recipient),
+        "include_photo": str(reports.get("include_photo", "true")).lower() in ("1", "true", "yes", "on"),
+        "include_status": str(reports.get("include_status", "true")).lower() in ("1", "true", "yes", "on"),
+        "include_forecast": str(reports.get("include_forecast", "true")).lower() in ("1", "true", "yes", "on"),
+        "transport": str(reports.get("transport", "pi")).lower(),
+    }
+
+
+@app.put("/api/reports/preferences")
+def api_reports_preferences_put(body: dict = Body(...)):
+    """Persist daily report preferences (non-secret values only)."""
+    from app.settings import validate_partial, upsert_settings
+    src = body or {}
+    recipient = str(src.get("recipient_email", "")).strip()
+    updates = {
+        "reports.enabled": "true" if bool(src.get("enabled", True)) else "false",
+        "reports.send_time": str(src.get("send_time", "07:00")).strip() or "07:00",
+        "reports.recipient_email": recipient,
+        "reports.include_photo": "true" if bool(src.get("include_photo", True)) else "false",
+        "reports.include_status": "true" if bool(src.get("include_status", True)) else "false",
+        "reports.include_forecast": "true" if bool(src.get("include_forecast", True)) else "false",
+        "reports.transport": str(src.get("transport", "pi")).strip().lower() or "pi",
+    }
+    # Keep alerts email in sync for legacy notifier compatibility.
+    if recipient:
+        updates["alerts.email_to"] = recipient
+
+    ok, err = validate_partial(updates)
+    if not ok:
+        return JSONResponse(status_code=422, content={"ok": False, **(err or {})})
+
+    changed = upsert_settings(updates)
+    return {"ok": True, "updated": changed}
+
+
+@app.get("/api/reports/status")
+def api_reports_status():
+    """Return operational status for Pi-native daily report delivery."""
+    env_file = "/etc/rdwc-daily-report.env"
+    env_map = _load_env_file_map(env_file)
+
+    timer_active = None
+    timer_enabled = None
+    try:
+        ra = run(["systemctl", "is-active", "rdwc-daily-report.timer"], stdout=PIPE, stderr=PIPE, text=True)
+        timer_active = (ra.stdout or "").strip()
+    except Exception:
+        timer_active = "unavailable"
+    try:
+        re = run(["systemctl", "is-enabled", "rdwc-daily-report.timer"], stdout=PIPE, stderr=PIPE, text=True)
+        timer_enabled = (re.stdout or "").strip()
+    except Exception:
+        timer_enabled = "unavailable"
+
+    required = ["EMAIL_SERVER", "EMAIL_USER", "EMAIL_PASSWORD"]
+    missing = [k for k in required if not (os.environ.get(k) or env_map.get(k))]
+
+    return {
+        "env_file": env_file,
+        "env_file_exists": os.path.exists(env_file),
+        "timer_active": timer_active,
+        "timer_enabled": timer_enabled,
+        "missing_required_env": missing,
+    }
+
+
+@app.post("/api/reports/send_test")
+def api_reports_send_test():
+    """Generate and send a test report from the local Pi context."""
+    from app.settings import get_settings_grouped
+
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    script = os.path.join(repo_root, "tools", "send_daily_report.py")
+    if not os.path.exists(script):
+        return JSONResponse(status_code=500, content={"ok": False, "error": "missing_script"})
+
+    grouped = get_settings_grouped() or {}
+    reports = grouped.get("reports", {}) or {}
+    alerts = grouped.get("alerts", {}) or {}
+
+    env = dict(os.environ)
+    env_file_map = _load_env_file_map("/etc/rdwc-daily-report.env")
+    for k, v in env_file_map.items():
+        env.setdefault(k, v)
+
+    env.setdefault("RDWC_API_URL", "http://127.0.0.1:8080")
+    env.setdefault("REPORT_OUTPUT", "/tmp/rdwc-grow-report-test.html")
+
+    recipient = str(reports.get("recipient_email") or alerts.get("email_to") or "").strip()
+    if recipient:
+        env["EMAIL_TO"] = recipient
+
+    proc = run(
+        [sys.executable, script],
+        cwd=repo_root,
+        stdout=PIPE,
+        stderr=PIPE,
+        text=True,
+        timeout=180,
+        env=env,
+    )
+    out = (proc.stdout or "").strip()
+    err = (proc.stderr or "").strip()
+    if proc.returncode != 0:
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": "send_failed", "stdout": out[-1200:], "stderr": err[-1200:]},
+        )
+
+    return {"ok": True, "stdout": out[-1200:], "stderr": err[-1200:]}
+
+
 @app.get("/api/settings/export")
 def api_settings_export():
     from app.settings import export_all

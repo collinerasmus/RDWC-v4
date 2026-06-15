@@ -174,6 +174,15 @@ DEFAULTS: Dict[str, str] = {
     "alerts.temp_lo_alert": "0",
     "alerts.alert_cooldown_s": "600",
 
+    # reports (daily grow report preferences)
+    "reports.enabled": "true",
+    "reports.send_time": "07:00",      # HH:MM local time on Pi timer config
+    "reports.recipient_email": "",
+    "reports.include_photo": "true",
+    "reports.include_status": "true",
+    "reports.include_forecast": "true",
+    "reports.transport": "pi",         # pi | github
+
     # ui
     "ui.default_sensor_range": "24h",
     "ui.relays_poll_ms": "1000",
@@ -398,6 +407,26 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
                     return False, {"field": "general.grow_start_date", "message": "date_in_future"}
             except ValueError:
                 return False, {"field": "general.grow_start_date", "message": "Invalid date"}
+
+    # Reports send time (HH:MM)
+    if "reports.send_time" in final:
+        val = str(final["reports.send_time"]).strip()
+        if not re.match(r"^\d{2}:\d{2}$", val):
+            return False, {"field": "reports.send_time", "message": "Must be HH:MM"}
+        hh, mm = val.split(":", 1)
+        try:
+            hhi = int(hh)
+            mmi = int(mm)
+        except Exception:
+            return False, {"field": "reports.send_time", "message": "Must be HH:MM"}
+        if not (0 <= hhi <= 23 and 0 <= mmi <= 59):
+            return False, {"field": "reports.send_time", "message": "Must be valid 24h time"}
+
+    # Reports transport
+    if "reports.transport" in final:
+        val = str(final["reports.transport"]).strip().lower()
+        if val not in ("pi", "github"):
+            return False, {"field": "reports.transport", "message": "Must be pi or github"}
 
     # Min on/off 0–3600 s
     for k in ("safety.main_pump_min_off_s", "safety.temperature_pump_min_off_s",
