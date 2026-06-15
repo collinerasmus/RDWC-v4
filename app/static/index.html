@@ -954,6 +954,12 @@ body{
         <div>
           <label style="display:block;font-size:var(--font-xs);margin-bottom:2px;color:#9ca3af;">Gmail App Password</label>
           <input id="reports-app-password" type="password" placeholder="Enter app password" autocomplete="new-password" style="width:320px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);" />
+          <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:var(--font-xs);color:#9ca3af;">
+              <input id="reports-show-password" type="checkbox" /> Show password
+            </label>
+            <span id="reports-password-hint" class="muted" style="font-size:var(--font-xs);">No password saved yet.</span>
+          </div>
         </div>
         <button id="btnReportsSaveCredentials" class="btn-secondary">Save Mail Credentials</button>
       </div>

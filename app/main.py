@@ -2708,6 +2708,30 @@ def _write_env_file_map(path: str, updates: dict) -> None:
     os.replace(tmp_path, path)
 
 
+def _reports_secret_file_path() -> str:
+    return os.environ.get("RDWC_REPORTS_SECRET_FILE", "/home/pi/.config/rdwc/daily-report.secret")
+
+
+def _normalize_app_password(raw: str) -> str:
+    # Gmail app passwords are 16 chars, often displayed in groups with spaces.
+    return "".join((raw or "").replace("\r", "").replace("\n", "").split())
+
+
+def _is_valid_app_password(pw: str) -> bool:
+    return bool(pw) and len(pw) == 16 and pw.isalnum()
+
+
+def _read_reports_secret_password() -> str:
+    try:
+        path = _reports_secret_file_path()
+        if not os.path.exists(path):
+            return ""
+        with open(path, "r", encoding="utf-8") as f:
+            return _normalize_app_password(f.read().strip())
+    except Exception:
+        return ""
+
+
 @app.get("/api/reports/preferences")
 def api_reports_preferences_get():
     """Return daily report preferences for the dedicated Reports tab."""
@@ -2773,15 +2797,26 @@ def api_reports_status():
     except Exception:
         timer_enabled = "unavailable"
 
-    required = ["EMAIL_SERVER", "EMAIL_USER", "EMAIL_PASSWORD"]
-    missing = [k for k in required if not (os.environ.get(k) or env_map.get(k))]
+    pw = _normalize_app_password(os.environ.get("EMAIL_PASSWORD") or env_map.get("EMAIL_PASSWORD") or "")
+    if not pw:
+        pw = _read_reports_secret_password()
+
+    missing = []
+    if not (os.environ.get("EMAIL_SERVER") or env_map.get("EMAIL_SERVER")):
+        missing.append("EMAIL_SERVER")
+    if not (os.environ.get("EMAIL_USER") or env_map.get("EMAIL_USER")):
+        missing.append("EMAIL_USER")
+    if not pw:
+        missing.append("EMAIL_PASSWORD")
 
     return {
         "env_file": env_file,
         "env_file_exists": os.path.exists(env_file),
         "timer_active": timer_active,
         "timer_enabled": timer_enabled,
-        "smtp_password_set": "EMAIL_PASSWORD" not in missing,
+        "smtp_password_set": bool(pw),
+        "smtp_password_format_ok": _is_valid_app_password(pw),
+        "smtp_password_hint": ("ends with " + pw[-4:]) if pw and len(pw) >= 4 else "",
         "missing_required_env": missing,
     }
 
@@ -2790,24 +2825,37 @@ def api_reports_status():
 def api_reports_credentials_put(body: dict = Body(...)):
     """Persist SMTP credentials needed for Pi-native report email delivery."""
     src = body or {}
-    password = str(src.get("email_password", ""))
-    password = password.replace("\r", "").replace("\n", "")
-    if not password.strip():
+    password = _normalize_app_password(str(src.get("email_password", "")))
+    if not password:
         return JSONResponse(
             status_code=422,
             content={"ok": False, "error": "invalid_password", "detail": "App password cannot be empty."},
         )
+    if not _is_valid_app_password(password):
+        return JSONResponse(
+            status_code=422,
+            content={
+                "ok": False,
+                "error": "invalid_password_format",
+                "detail": "App password must be 16 letters/numbers (spaces allowed).",
+            },
+        )
 
-    env_file = "/etc/rdwc-daily-report.env"
+    secret_file = _reports_secret_file_path()
     try:
-        _write_env_file_map(env_file, {"EMAIL_PASSWORD": password})
+        os.makedirs(os.path.dirname(secret_file), exist_ok=True)
+        with open(secret_file, "w", encoding="utf-8", newline="\n") as f:
+            f.write(password + "\n")
+        # Best effort hardening; ignore on platforms where this is unsupported.
+        with suppress(Exception):
+            os.chmod(secret_file, 0o600)
     except PermissionError:
         return JSONResponse(
             status_code=403,
             content={
                 "ok": False,
                 "error": "permission_denied",
-                "detail": "API user cannot update report env file permissions.",
+                "detail": "API user cannot write report credential file.",
             },
         )
     except Exception as e:
@@ -2816,7 +2864,13 @@ def api_reports_credentials_put(body: dict = Body(...)):
             content={"ok": False, "error": "credential_write_failed", "detail": str(e)},
         )
 
-    return {"ok": True, "updated": ["EMAIL_PASSWORD"], "smtp_password_set": True}
+    return {
+        "ok": True,
+        "updated": ["EMAIL_PASSWORD"],
+        "smtp_password_set": True,
+        "smtp_password_format_ok": True,
+        "smtp_password_hint": "ends with " + password[-4:],
+    }
 
 
 @app.post("/api/reports/send_test")
@@ -2837,6 +2891,11 @@ def api_reports_send_test():
     env_file_map = _load_env_file_map("/etc/rdwc-daily-report.env")
     for k, v in env_file_map.items():
         env.setdefault(k, v)
+
+    if not _normalize_app_password(env.get("EMAIL_PASSWORD", "")):
+        secret_pw = _read_reports_secret_password()
+        if secret_pw:
+            env["EMAIL_PASSWORD"] = secret_pw
 
     env.setdefault("RDWC_API_URL", "http://127.0.0.1:8080")
     env.setdefault("REPORT_OUTPUT", "/tmp/rdwc-grow-report-test.html")

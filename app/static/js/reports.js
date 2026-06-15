@@ -22,6 +22,15 @@
     if (el) el.textContent = msg;
   }
 
+  function normalizeAppPassword(raw){
+    return String(raw || '').replace(/\s+/g, '');
+  }
+
+  function isValidAppPassword(raw){
+    const v = normalizeAppPassword(raw);
+    return /^[A-Za-z0-9]{16}$/.test(v);
+  }
+
   async function loadPreferences(){
     const r = await fetch('/api/reports/preferences?t=' + Date.now(), {cache:'no-store'});
     const j = await r.json();
@@ -48,6 +57,17 @@
     const j = await r.json();
     const missing = Array.isArray(j.missing_required_env) ? j.missing_required_env : [];
     const pwSet = !!j.smtp_password_set;
+    const pwHint = q('#reports-password-hint');
+
+    if (pwHint) {
+      if (pwSet) {
+        const suffix = j.smtp_password_hint ? (' (' + j.smtp_password_hint + ')') : '';
+        const format = j.smtp_password_format_ok ? 'format ok' : 'format invalid';
+        pwHint.textContent = 'Saved password' + suffix + ', ' + format + '.';
+      } else {
+        pwHint.textContent = 'No password saved yet.';
+      }
+    }
 
     if (missing.length){
       setPill('warning', 'Config missing');
@@ -111,11 +131,17 @@
     const btn = q('#btnReportsSaveCredentials');
     const pwInput = q('#reports-app-password');
     const before = btn ? btn.textContent : '';
-    const password = (pwInput?.value || '').trim();
+    const passwordRaw = pwInput?.value || '';
+    const password = normalizeAppPassword(passwordRaw);
 
     if (!password){
       if (window.showToast) window.showToast('Enter app password first', 'warning');
       setResult('Mail credential save skipped: app password is empty.');
+      return;
+    }
+    if (!isValidAppPassword(password)) {
+      if (window.showToast) window.showToast('Password must be 16 letters/numbers', 'warning');
+      setResult('Credential save failed\n\nApp password must be 16 letters/numbers (spaces are allowed and ignored).');
       return;
     }
 
@@ -195,11 +221,18 @@
   function bind(){
     const saveBtn = q('#btnReportsSave');
     const saveCredsBtn = q('#btnReportsSaveCredentials');
+    const showPw = q('#reports-show-password');
+    const pwInput = q('#reports-app-password');
     const applyBtn = q('#btnReportsApplyTimer');
     const testBtn = q('#btnReportsSendTest');
     const refreshBtn = q('#btnReportsRefresh');
     if (saveBtn) saveBtn.addEventListener('click', savePreferences);
     if (saveCredsBtn) saveCredsBtn.addEventListener('click', saveCredentials);
+    if (showPw && pwInput) {
+      showPw.addEventListener('change', () => {
+        pwInput.type = showPw.checked ? 'text' : 'password';
+      });
+    }
     if (applyBtn) applyBtn.addEventListener('click', applyTimer);
     if (testBtn) testBtn.addEventListener('click', sendTest);
     if (refreshBtn) refreshBtn.addEventListener('click', async () => {
