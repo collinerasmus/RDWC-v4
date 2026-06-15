@@ -54,23 +54,51 @@ jobs:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-        uses: dawidd6/action-send-mail@6bdc42ec66008be01a190a2b51816b1c5470b7fc # v3.11.0
-        with:
-          server_address: ${{ env.EMAIL_SERVER }}
-          server_port: ${{ env.EMAIL_PORT != '' && env.EMAIL_PORT || '587' }}
-          username: ${{ env.EMAIL_USER }}
-          password: ${{ env.EMAIL_PASSWORD }}
-          subject: 'RDWC Daily Grow Report - ${{ github.event.repository.name }}'
-          to: ${{ env.EMAIL_TO }}
-          from: ${{ env.EMAIL_FROM != '' && env.EMAIL_FROM || env.EMAIL_USER }}
-          body: |
-            Your RDWC daily grow report is ready!
-            
-            ✅ Generated: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            
-            Open the attached HTML file in your browser for the full report with photos and charts.
-          html_body: file://grow-report.html
-          attachments: grow-report.html
+          REPO_NAME: ${{ github.event.repository.name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - << 'PYEOF'
+          import os
+          import smtplib
+          from email.mime.multipart import MIMEMultipart
+          from email.mime.text import MIMEText
+
+          server = os.getenv('EMAIL_SERVER', '').strip()
+          port = int((os.getenv('EMAIL_PORT') or '587').strip())
+          user = os.getenv('EMAIL_USER', '').strip()
+          password = os.getenv('EMAIL_PASSWORD', '').strip()
+          to_addr = os.getenv('EMAIL_TO', '').strip()
+          from_addr = (os.getenv('EMAIL_FROM') or user).strip()
+          repo_name = os.getenv('REPO_NAME', 'RDWC-v4')
+          run_url = os.getenv('RUN_URL', '')
+
+          subject = f'RDWC Daily Grow Report - {repo_name}'
+
+          text_body = (
+              'Your RDWC daily grow report is ready!\\n\\n'
+              f'Generated: {run_url}\\n\\n'
+              'Open grow-report.html in a browser for the full report.'
+          )
+
+          with open('grow-report.html', 'r', encoding='utf-8') as f:
+              html_body = f.read()
+
+          msg = MIMEMultipart('alternative')
+          msg['Subject'] = subject
+          msg['From'] = from_addr
+          msg['To'] = to_addr
+          msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
+          msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+
+          with smtplib.SMTP(server, port, timeout=30) as smtp:
+              smtp.ehlo()
+              smtp.starttls()
+              smtp.ehlo()
+              smtp.login(user, password)
+              smtp.sendmail(from_addr, [to_addr], msg.as_string())
+
+          print('Email sent successfully')
+          PYEOF
 
       - name: Show Email Status
         if: always()
