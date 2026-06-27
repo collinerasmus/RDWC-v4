@@ -2840,6 +2840,15 @@ def api_reports_status():
     except Exception:
         timer_enabled = "unavailable"
 
+    timer_on_calendar = "unavailable"
+    try:
+        rc = run(["systemctl", "show", "rdwc-daily-report.timer", "-p", "OnCalendar"], stdout=PIPE, stderr=PIPE, text=True)
+        out = (rc.stdout or "").strip()
+        if out.startswith("OnCalendar="):
+            timer_on_calendar = out.split("=", 1)[1].strip() or "none"
+    except Exception:
+        pass
+
     pw = _normalize_app_password(env_map.get("EMAIL_PASSWORD") or "")
     provider = _effective_mail_provider(env_map.get("REPORTS_SMTP_PROVIDER", ""), env_map.get("EMAIL_SERVER", ""), env_map.get("EMAIL_USER", ""))
 
@@ -2858,6 +2867,7 @@ def api_reports_status():
         "env_file_exists": os.path.exists(env_file),
         "timer_active": timer_active,
         "timer_enabled": timer_enabled,
+        "timer_on_calendar": timer_on_calendar,
         "smtp_password_set": bool(pw),
         "smtp_provider": provider,
         "smtp_password_format_ok": _is_valid_app_password_for_provider(pw, provider),
@@ -3052,15 +3062,19 @@ def api_reports_apply_timer():
     )
 
     try:
-        os.makedirs(override_dir, exist_ok=True)
-        with open(override_file, "w", encoding="utf-8") as f:
-            f.write(conf)
+        write_cmd = [
+            "sudo", "-n", "bash", "-lc",
+            f"mkdir -p {override_dir!s} && cat > {override_file!s} <<'EOF'\n{conf}EOF"
+        ]
+        p_write = run(write_cmd, stdout=PIPE, stderr=PIPE, text=True)
+        if p_write.returncode != 0:
+            return JSONResponse(status_code=500, content={"ok": False, "error": "systemctl_failed", "send_time": send_time, "steps": [{"cmd": " ".join(write_cmd), "rc": p_write.returncode, "stdout": (p_write.stdout or "").strip(), "stderr": (p_write.stderr or "").strip()}]})
 
         cmd_out = []
         for cmd in (
-            ["systemctl", "daemon-reload"],
-            ["systemctl", "enable", "--now", "rdwc-daily-report.timer"],
-            ["systemctl", "restart", "rdwc-daily-report.timer"],
+            ["sudo", "-n", "systemctl", "daemon-reload"],
+            ["sudo", "-n", "systemctl", "enable", "--now", "rdwc-daily-report.timer"],
+            ["sudo", "-n", "systemctl", "restart", "rdwc-daily-report.timer"],
         ):
             p = run(cmd, stdout=PIPE, stderr=PIPE, text=True)
             cmd_out.append({

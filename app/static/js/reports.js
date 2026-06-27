@@ -128,12 +128,13 @@
     } else {
       const active = (j.timer_active || '').trim();
       const enabled = (j.timer_enabled || '').trim();
+      const onCalendar = (j.timer_on_calendar || '').trim();
       if (active === 'active' && enabled === 'enabled') {
         setPill('success', 'Pi timer active');
       } else {
         setPill('neutral', 'Timer not active');
       }
-      setNote('Timer active=' + active + ', enabled=' + enabled + ', provider=' + (j.smtp_provider || 'custom') + ', password=' + (pwSet ? 'set' : 'missing'));
+      setNote('Timer active=' + active + ', enabled=' + enabled + ', schedule=' + (onCalendar || 'n/a') + ', provider=' + (j.smtp_provider || 'custom') + ', password=' + (pwSet ? 'set' : 'missing'));
     }
   }
 
