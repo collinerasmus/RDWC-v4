@@ -3058,10 +3058,11 @@ def api_reports_apply_timer():
 
     override_dir = "/etc/systemd/system/rdwc-daily-report.timer.d"
     override_file = os.path.join(override_dir, "override.conf")
+    calendar_time = f"*-*-* {hhi:02d}:{mmi:02d}:00"
     conf = (
         "[Timer]\n"
         "OnCalendar=\n"
-        f"OnCalendar=*-*-* {hhi:02d}:{mmi:02d}:00\n"
+        f"OnCalendar={calendar_time}\n"
         "Persistent=true\n"
     )
 
@@ -3090,7 +3091,7 @@ def api_reports_apply_timer():
             if p.returncode != 0:
                 return JSONResponse(status_code=500, content={"ok": False, "error": "systemctl_failed", "send_time": send_time, "steps": cmd_out})
 
-        return {"ok": True, "send_time": send_time, "override_file": override_file, "steps": cmd_out}
+        return {"ok": True, "send_time": send_time, "timer_on_calendar": calendar_time, "override_file": override_file, "steps": cmd_out}
     except PermissionError:
         return JSONResponse(
             status_code=403,
@@ -3099,6 +3100,7 @@ def api_reports_apply_timer():
                 "error": "permission_denied",
                 "detail": "API user cannot write /etc/systemd. Run apply manually with sudo.",
                 "send_time": send_time,
+                "timer_on_calendar": calendar_time,
             },
         )
     except Exception as e:

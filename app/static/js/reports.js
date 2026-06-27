@@ -276,7 +276,7 @@
         throw new Error((j.detail || j.error || 'apply_timer_failed').toString());
       }
       if (window.showToast) window.showToast('Pi timer updated', 'success');
-      setResult('Timer update OK\n\nSend time: ' + (j.send_time || 'n/a'));
+      setResult('Timer update OK\n\nApplied schedule: ' + (j.timer_on_calendar || j.send_time || 'n/a'));
       await loadStatus();
     } catch (e) {
       if (window.showToast) window.showToast('Apply timer failed', 'error');
