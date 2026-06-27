@@ -3037,13 +3037,22 @@ def api_reports_send_test():
 
 
 @app.post("/api/reports/apply_timer")
-def api_reports_apply_timer():
+def api_reports_apply_timer(body: dict = Body(default={})): 
     """Apply reports.send_time to Pi systemd timer override."""
     from app.settings import get_settings_grouped
+    from app.settings import validate_partial, upsert_settings
+
+    src = body or {}
+    requested_send_time = str(src.get("send_time", "")).strip()
+    if requested_send_time:
+        ok, err = validate_partial({"reports.send_time": requested_send_time})
+        if not ok:
+            return JSONResponse(status_code=422, content={"ok": False, **(err or {})})
+        upsert_settings({"reports.send_time": requested_send_time})
 
     grouped = get_settings_grouped() or {}
     reports = grouped.get("reports", {}) or {}
-    send_time = str(reports.get("send_time", "07:00")).strip() or "07:00"
+    send_time = requested_send_time or str(reports.get("send_time", "07:00")).strip() or "07:00"
     if ":" not in send_time:
         return JSONResponse(status_code=422, content={"ok": False, "error": "invalid_time", "detail": "reports.send_time must be HH:MM"})
 

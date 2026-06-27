@@ -266,11 +266,16 @@
   async function applyTimer(){
     const btn = q('#btnReportsApplyTimer');
     const before = btn ? btn.textContent : '';
+    const sendTime = q('#reports-send-time')?.value || '07:00';
     if (btn){ btn.disabled = true; btn.textContent = 'Applying...'; }
     setResult('Applying send time to Pi timer...');
 
     try {
-      const r = await fetch('/api/reports/apply_timer', { method: 'POST' });
+      const r = await fetch('/api/reports/apply_timer', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ send_time: sendTime })
+      });
       const j = await r.json();
       if (!r.ok || !j.ok) {
         throw new Error((j.detail || j.error || 'apply_timer_failed').toString());
