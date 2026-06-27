@@ -2841,11 +2841,15 @@ def api_reports_status():
         timer_enabled = "unavailable"
 
     timer_on_calendar = "unavailable"
+    override_file = "/etc/systemd/system/rdwc-daily-report.timer.d/override.conf"
     try:
-        rc = run(["systemctl", "show", "rdwc-daily-report.timer", "-p", "OnCalendar"], stdout=PIPE, stderr=PIPE, text=True)
-        out = (rc.stdout or "").strip()
-        if out.startswith("OnCalendar="):
-            timer_on_calendar = out.split("=", 1)[1].strip() or "none"
+        if os.path.exists(override_file):
+            with open(override_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    s = line.strip()
+                    if s.startswith("OnCalendar=*-*-*"):
+                        timer_on_calendar = s.split("=", 1)[1].strip()
+                        break
     except Exception:
         pass
 
