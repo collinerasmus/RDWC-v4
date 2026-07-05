@@ -28,6 +28,8 @@ from app.hardware import PumpController, RelayBank
 from app.ph_control import router as ph_router
 from app.ec_control import router as ec_router
 from app.schedule_api import router as schedule_router
+from app.services.nutrient_demand import router as nutrient_demand_router
+from app.services.advisor_engine import router as advisor_router
 from app.logger import log_reading, last_n, fetch_history_since
 from app.scheduler import Scheduler, load_cfg, save_cfg
 from app.monitor import start_monitoring, stop_monitoring, get_monitoring_status
@@ -402,6 +404,8 @@ app.include_router(commissioning_router)
 app.include_router(ph_router)
 app.include_router(ec_router)
 app.include_router(schedule_router)
+app.include_router(nutrient_demand_router)
+app.include_router(advisor_router)
 app.include_router(progress_router)
 
 # --- System metrics (current snapshot + history) ---

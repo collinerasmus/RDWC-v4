@@ -291,11 +291,17 @@ def upsert_settings(partial: Dict[str, Any]) -> Dict[str, Any]:
     if lights_keys & set(partial.keys()):
         # User is updating lights settings; ensure both legacy and namespaced keys are synced
         duration_val = partial.get('lights_duration_hours') or partial.get('general.lights_duration_hours')
+        on_time_present = ('lights_on_time' in partial) or ('general.lights_on_time' in partial)
         on_time_val = partial.get('lights_on_time') or partial.get('general.lights_on_time')
         if duration_val:
             partial['lights_duration_hours'] = duration_val
             partial['general.lights_duration_hours'] = duration_val
-        if on_time_val:
+        if on_time_present:
+            # Empty time resets to safe default used by schedule timing logic.
+            on_time_val = str(on_time_val or '').strip() or '15:00'
+            partial['lights_on_time'] = on_time_val
+            partial['general.lights_on_time'] = on_time_val
+        elif on_time_val:
             partial['lights_on_time'] = on_time_val
             partial['general.lights_on_time'] = on_time_val
     
@@ -407,6 +413,23 @@ def validate_partial(partial: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, 
                     return False, {"field": "general.grow_start_date", "message": "date_in_future"}
             except ValueError:
                 return False, {"field": "general.grow_start_date", "message": "Invalid date"}
+
+    # Grow start time / lights-on time (HH:MM). Empty is allowed and treated as 15:00 fallback.
+    for key in ("general.lights_on_time", "lights_on_time"):
+        if key in final:
+            val = str(final[key]).strip()
+            if not val:
+                continue
+            if not re.match(r"^\d{2}:\d{2}$", val):
+                return False, {"field": key, "message": "Must be HH:MM"}
+            hh, mm = val.split(":", 1)
+            try:
+                hhi = int(hh)
+                mmi = int(mm)
+            except Exception:
+                return False, {"field": key, "message": "Must be HH:MM"}
+            if not (0 <= hhi <= 23 and 0 <= mmi <= 59):
+                return False, {"field": key, "message": "Must be valid 24h time"}
 
     # Reports send time (HH:MM)
     if "reports.send_time" in final:

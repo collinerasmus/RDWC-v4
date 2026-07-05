@@ -87,6 +87,39 @@ def test_import_all_success():
             pass
 
 
+def test_validate_partial_grow_start_time_format():
+    ok, err = settings.validate_partial({'general.lights_on_time': '25:00'})
+    assert ok is False and err and err.get('field') == 'general.lights_on_time'
+
+    ok, err = settings.validate_partial({'general.lights_on_time': '15:00'})
+    assert ok is True and err is None
+
+
+def test_upsert_settings_empty_grow_start_time_defaults_to_1500():
+    original = settings.DB_PATH
+    original_seeded = settings._defaults_seeded
+    tmp_path = temp_db_path()
+    settings.DB_PATH = tmp_path
+    settings._defaults_seeded = False
+    try:
+        settings._ensure_table_seed_defaults()
+
+        changed = settings.upsert_settings({'general.lights_on_time': ''})
+        assert changed['general.lights_on_time'] == '15:00'
+        assert changed['lights_on_time'] == '15:00'
+
+        all_flat = settings.get_all_settings()
+        assert all_flat['general.lights_on_time'] == '15:00'
+        assert all_flat['lights_on_time'] == '15:00'
+    finally:
+        settings.DB_PATH = original
+        settings._defaults_seeded = original_seeded
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+
+
 def test_default_ec_target_matches_seedling_band():
     ec_low = float(settings.DEFAULTS['targets.ec_low'])
     ec_high = float(settings.DEFAULTS['targets.ec_high'])

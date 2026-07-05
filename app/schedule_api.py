@@ -205,10 +205,12 @@ def get_nutrient_schedule():
             rows = cur.fetchall()
         if not rows:
             # Return empty with metadata
+            timing = _get_week_timing_info()
             return {
                 "weeks": [],
                 "current_week": _get_current_week(),
-                "grow_start_date": _format_grow_start_date(_get_grow_start_date())
+                "grow_start_date": _format_grow_start_date(_get_grow_start_date()),
+                "lights_on_time": timing.get("lights_on_time", "15:00"),
             }
         # Normal return (not shown in snippet)
         # ...
@@ -250,10 +252,12 @@ def get_nutrient_schedule():
     except Exception:
         pass
     
+    timing = _get_week_timing_info()
     return {
         "weeks": weeks,
         "current_week": _get_current_week(),
         "grow_start_date": _format_grow_start_date(_get_grow_start_date()),
+        "lights_on_time": timing.get("lights_on_time", "15:00"),
         "grow_name": grow_name,
         "ph_band": {"low": 5.8, "high": 6.2},
         "ec_tolerance": 0.2

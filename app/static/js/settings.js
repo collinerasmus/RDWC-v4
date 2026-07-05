@@ -9,7 +9,8 @@
         'general.grow_name': {label:'Grow name', type:'text'},
         'general.timezone': {label:'Timezone', type:'text', placeholder:'Africa/Johannesburg'},
         'general.reservoir_liters': {label:'Reservoir (L)', type:'number', min:1, max:1000, step:0.1},
-        'general.grow_start_date': {label:'Grow start date', type:'date'}
+        'general.grow_start_date': {label:'Grow start date', type:'date'},
+        'general.lights_on_time': {label:'Grow start time', type:'time', placeholder:'15:00'}
       }
     },
     safety: {
@@ -118,7 +119,8 @@
           if (meta.min !== undefined) inp.min = meta.min;
           if (meta.max !== undefined) inp.max = meta.max;
           if (meta.step !== undefined) inp.step = meta.step;
-          inp.style.cssText = 'width:120px;height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);';
+          const width = (meta.type === 'date' || meta.type === 'time') ? '140px' : '120px';
+          inp.style.cssText = `width:${width};height:28px;padding:0 6px;background:#1f2937;border:1px solid #374151;color:#e0e0e0;border-radius:6px;font-size:var(--font-base);`;
           inp.addEventListener('input', ()=>{ current[key] = inp.value; markDirty(); });
         }
         
@@ -187,6 +189,14 @@
 
   async function save(){
     const changes = diff();
+    // Empty grow start time falls back to 15:00 for deterministic rollovers.
+    if (Object.prototype.hasOwnProperty.call(changes, 'general.lights_on_time')) {
+      const val = String(changes['general.lights_on_time'] ?? '').trim();
+      if (!val) {
+        changes['general.lights_on_time'] = '15:00';
+        current['general.lights_on_time'] = '15:00';
+      }
+    }
     if (Object.keys(changes).length===0) return;
     const res = await fetch('/api/settings',{
       method:'PUT',
@@ -226,7 +236,8 @@
   function calculateDayN(startDateStr, timezone) {
     if (!startDateStr) return null;
     try {
-      const start = new Date(startDateStr + 'T00:00:00');
+      const startTime = current['general.lights_on_time'] || '15:00';
+      const start = new Date(`${startDateStr}T${startTime}:00`);
       const now = new Date();
       const diffMs = now - start;
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));

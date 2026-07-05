@@ -896,7 +896,7 @@ body{
           
           <div style="margin-bottom:var(--space-lg);padding:12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);">
             <div class="muted" style="font-weight:600;font-size:var(--font-base);margin-bottom:8px;">Grow &amp; General Settings</div>
-            <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Manage grow name, timezone, reservoir size, and grow start date here. These values feed schedule KPIs and automation.</div>
+            <div class="muted" style="font-size:var(--font-xs);margin-bottom:var(--space-md);">Manage grow name, timezone, reservoir size, grow start date, and grow start time here. These values feed schedule KPIs and automation.</div>
             <div id="settings-general"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-top:var(--space-md);flex-wrap:wrap;">
               <button id="btnSaveSettingsScheduler" data-role="save-settings" class="btn-secondary" disabled style="padding:8px 16px;border-radius:8px;font-weight:600;">💾 Save Changes</button>
@@ -1262,6 +1262,35 @@ body{
           </div>
         </div>
 
+        <!-- Nutrient Demand Index -->
+        <div style="padding:16px;border-radius:12px;background:linear-gradient(135deg,rgba(251,146,60,0.10) 0%,rgba(249,115,22,0.05) 100%);border:1px solid rgba(251,146,60,0.2);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:1.5rem;">🌿</span>
+              <span style="font-weight:600;font-size:var(--font-base);color:#fdba74;">Nutrient Demand</span>
+            </div>
+            <a href="/nutrient-demand" class="btn-secondary" style="text-decoration:none;padding:4px 10px;">Open Page</a>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-size:var(--font-xs);color:#94a3b8;">Latest</span>
+              <span id="ov-ndi-total" style="font-size:1.5rem;font-weight:700;color:#e0e0e0;">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-size:var(--font-xs);color:#94a3b8;">Yesterday</span>
+              <span id="ov-ndi-yesterday" style="font-size:var(--font-base);color:#d1d5db;">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-size:var(--font-xs);color:#94a3b8;">7-day average</span>
+              <span id="ov-ndi-7dayavg" style="font-size:var(--font-base);color:#d1d5db;">—</span>
+            </div>
+          </div>
+          <div style="margin-top:12px;padding-top:8px;border-top:1px solid rgba(148,163,184,0.15);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span id="ov-ndi-trend" class="ui-status-chip neutral" style="font-size:0.6rem;">unknown</span>
+            <span id="ov-ndi-notes" class="muted" style="font-size:var(--font-xs);">Monitoring only.</span>
+          </div>
+        </div>
+
         <!-- Temperature Controller -->
         <div style="padding:16px;border-radius:12px;background:linear-gradient(135deg,rgba(236,72,153,0.08) 0%,rgba(219,39,119,0.04) 100%);border:1px solid rgba(236,72,153,0.2);">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
@@ -1337,6 +1366,19 @@ body{
             <span id="ov-system-health" class="ui-status-chip neutral" style="font-size:0.6rem;">—</span>
             <span id="ov-estop-badge" class="ui-status-chip success" style="font-size:0.6rem;">E-STOP</span>
           </div>
+        </div>
+
+        <!-- Advisor Overview -->
+        <div style="padding:12px;border-radius:8px;background:linear-gradient(135deg,rgba(251,146,60,0.10) 0%,rgba(249,115,22,0.04) 100%);border:1px solid rgba(251,146,60,0.2);">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:1.2rem;">🧠</span>
+              <span style="font-weight:600;font-size:var(--font-sm);">Advisor</span>
+            </div>
+            <span id="ov-advisor-verdict" class="ui-status-chip neutral" style="font-size:0.6rem;">—</span>
+          </div>
+          <div id="ov-advisor-summary" style="font-size:var(--font-xs);color:#d1d5db;line-height:1.35;min-height:34px;">Waiting for assessment…</div>
+          <div id="ov-advisor-action" class="muted" style="font-size:var(--font-xs);margin-top:6px;min-height:28px;">—</div>
         </div>
       </div>
     </div>

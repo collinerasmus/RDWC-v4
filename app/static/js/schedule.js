@@ -325,8 +325,10 @@
     }
     if(startEl){
       const dateStr = sched.grow_start_date ? new Date(sched.grow_start_date).toLocaleDateString() : '—';
-      startEl.textContent = dateStr;
-      startEl.style.fontWeight = dateStr !== '—' ? '600' : '400';
+      const startTime = (sched.lights_on_time || '15:00');
+      const label = dateStr !== '—' ? `${dateStr} ${startTime}` : '—';
+      startEl.textContent = label;
+      startEl.style.fontWeight = label !== '—' ? '600' : '400';
     }
     if(dayEl){
       const day = getDayN(sched.grow_start_date);

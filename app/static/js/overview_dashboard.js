@@ -62,15 +62,18 @@
 
     // Fetch all data in parallel for speed
     try {
-      const [sensors, phStatus, ecStatus, tempStatus, relays, autoStatus, schedule] = await Promise.all([
+      const [sensors, phStatus, ecStatus, tempStatus, relays, autoStatus, schedule, ndiSummary] = await Promise.all([
         getJSON('/api/sensors').catch(() => null),
         getJSON('/api/ph/status').catch(() => null),
         getJSON('/api/ec/status').catch(() => null),
         getJSON('/api/temperature/status').catch(() => null),
         getJSON('/api/relays/status').catch(() => null),
         getJSON('/api/auto/status').catch(() => null),
-        getJSON('/api/schedule/current_week').catch(() => null)
+        getJSON('/api/schedule/current_week').catch(() => null),
+        getJSON('/api/nutrient-demand/latest').catch(() => null)
       ]);
+
+      const advisor = await getJSON('/api/advisor/overview').catch(() => null);
 
       updateSensorKPIs(sensors);
       updatePhKPIs(phStatus);
@@ -78,9 +81,61 @@
       updateTempKPIs(tempStatus);
       updateRelayStatuses(relays);
       updateScheduleKPIs(schedule);
+      updateNdiKPIs(ndiSummary);
+      updateAdvisorOverview(advisor);
       updateSystemStatus(relays, autoStatus);
     } catch (e) {
       console.error('[OverviewDashboard] Refresh error:', e);
+    }
+  }
+
+  function updateAdvisorOverview(payload) {
+    const overview = payload && payload.overview ? payload.overview : null;
+    const assessors = payload && payload.assessors ? payload.assessors : null;
+    const verdictEl = el('ov-advisor-verdict');
+    const summaryEl = el('ov-advisor-summary');
+    const actionEl = el('ov-advisor-action');
+
+    if (!overview) {
+      if (verdictEl) verdictEl.textContent = '—';
+      if (summaryEl) summaryEl.textContent = 'Advisor unavailable.';
+      if (actionEl) actionEl.textContent = '—';
+      return;
+    }
+
+    const verdict = String(overview.verdict || 'unknown');
+    const verdictClass = verdict === 'urgent' ? 'danger' : verdict === 'watch' ? 'warning' : verdict === 'hold' ? 'neutral' : 'success';
+    if (verdictEl) {
+      verdictEl.textContent = verdict.toUpperCase();
+      verdictEl.className = 'ui-status-chip ' + verdictClass;
+    }
+    if (summaryEl) summaryEl.textContent = overview.summary || overview.title || 'No summary available.';
+    if (actionEl) actionEl.textContent = overview.action || '—';
+
+    const sourceCodes = Array.isArray(overview.reason_codes) ? overview.reason_codes.slice(0, 4).join(' · ') : '';
+    if (summaryEl && sourceCodes) summaryEl.title = sourceCodes;
+
+    const chips = [
+      ['schedule', assessors && assessors.schedule],
+      ['sensors', assessors && assessors.sensors],
+      ['ndi', assessors && assessors.ndi],
+      ['camera', assessors && assessors.camera],
+    ];
+    let row = document.getElementById('ov-advisor-assessors');
+    if (!row) {
+      row = document.createElement('div');
+      row.id = 'ov-advisor-assessors';
+      row.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;';
+      const card = verdictEl ? verdictEl.closest('div[style*="background:linear-gradient"]') : null;
+      if (card) card.appendChild(row);
+    }
+    if (row) {
+      row.innerHTML = chips.map(([name, data]) => {
+        const status = data ? String(data.status || 'unknown') : 'unknown';
+        const score = data && data.score !== undefined ? Number(data.score).toFixed(0) : '—';
+        const cls = status === 'bad' ? 'danger' : status === 'warn' ? 'warning' : status === 'good' ? 'success' : 'neutral';
+        return `<span class="ui-status-chip ${cls}" style="font-size:0.6rem;">${name}: ${status} ${score}</span>`;
+      }).join('');
     }
   }
 
@@ -335,6 +390,37 @@
       };
       const color = phaseColors[phase.toLowerCase()] || '#94a3b8';
       phaseEl.style.color = color;
+    }
+  }
+
+  function updateNdiKPIs(summary) {
+    const latest = summary && summary.latest ? summary.latest : null;
+    const latestValue = summary && summary.latest_value != null
+      ? Number(summary.latest_value)
+      : (latest && latest.total_nutrient_ml != null ? Number(latest.total_nutrient_ml) : null);
+    const yesterdayValue = summary && summary.yesterday_ml != null ? Number(summary.yesterday_ml) : null;
+    const sevenDayAvg = summary && summary.seven_day_average_ml != null ? Number(summary.seven_day_average_ml) : null;
+    const trend = (summary && summary.trend) || (latest && latest.ndi_trend) || 'unknown';
+
+    const totalEl = el('ov-ndi-total');
+    const trendEl = el('ov-ndi-trend');
+    const yesterdayEl = el('ov-ndi-yesterday');
+    const avgEl = el('ov-ndi-7dayavg');
+    const notesEl = el('ov-ndi-notes');
+
+    if (totalEl) totalEl.textContent = latestValue != null ? `${latestValue.toFixed(1)} ml/day` : '—';
+    if (yesterdayEl) yesterdayEl.textContent = yesterdayValue != null ? `${yesterdayValue.toFixed(1)} ml` : '—';
+    if (avgEl) avgEl.textContent = sevenDayAvg != null ? `${sevenDayAvg.toFixed(1)} ml/day` : '—';
+
+    if (trendEl) {
+      const label = trend || 'unknown';
+      trendEl.textContent = label;
+      trendEl.className = 'ui-status-chip ' + (label === 'rising' ? 'warning' : (label === 'falling' ? 'success' : 'neutral'));
+    }
+
+    if (notesEl) {
+      const note = latest && latest.notes ? latest.notes : 'Monitoring only; adaptive EC control will be added later.';
+      notesEl.textContent = note;
     }
   }
 
