@@ -169,17 +169,21 @@ def _camera_snapshot() -> Dict[str, Any]:
     try:
         from PIL import Image, ImageFilter, ImageStat  # type: ignore
         from app.camera import CameraManager
+        from app.relays_core import get_relay_status
 
         status = CameraManager.status() or {}
         available = bool(status.get("available"))
         mode = str(status.get("mode") or "unavailable")
         last_error = status.get("last_error")
+        relay_status = get_relay_status() or {}
+        lights_state = bool((relay_status.get("lights") or {}).get("state"))
 
         result: Dict[str, Any] = {
             "available": available,
             "mode": mode,
             "camera_index": status.get("camera_index"),
             "last_error": last_error,
+            "lights_on": lights_state,
             "visual_ok": False,
             "brightness": None,
             "edge_strength": None,
@@ -205,56 +209,14 @@ def _camera_snapshot() -> Dict[str, Any]:
             "b": round(float(rgb[2]), 1),
         }
 
-        status_flag = "good"
-        summary = "Camera snapshot looks usable."
-        recommendations: List[Dict[str, Any]] = []
-        if brightness < 40:
-            status_flag = "warn"
-            summary = "Camera snapshot is quite dark; plant detail may be hard to judge." 
-            recommendations.append({
-                "code": "CAMERA_DARK",
-                "severity": "low",
-                "confidence": 0.83,
-                "title": "Camera image is underexposed",
-                "action": "Check lighting, camera exposure, and lens cleanliness before relying on visual assessment.",
-                "rationale": "Mean brightness is low in the latest snapshot.",
-                "metrics": {"brightness": round(brightness, 1), "edge_strength": round(edge_strength, 1)},
+        result.update(
+            _camera_assessment_from_snapshot({
+                **result,
+                "brightness": round(brightness, 1),
+                "edge_strength": round(edge_strength, 1),
+                "color_balance": color_balance,
             })
-        elif brightness > 210:
-            status_flag = "warn"
-            summary = "Camera snapshot is very bright; highlights may be clipping." 
-            recommendations.append({
-                "code": "CAMERA_BRIGHT",
-                "severity": "low",
-                "confidence": 0.82,
-                "title": "Camera image is overexposed",
-                "action": "Reduce exposure or adjust lighting so leaf detail remains visible.",
-                "rationale": "Mean brightness is high in the latest snapshot.",
-                "metrics": {"brightness": round(brightness, 1), "edge_strength": round(edge_strength, 1)},
-            })
-
-        if edge_strength < 6.0:
-            status_flag = "warn" if status_flag == "good" else status_flag
-            summary = "Camera detail is low; image may be soft or out of focus."
-            recommendations.append({
-                "code": "CAMERA_SOFT",
-                "severity": "low",
-                "confidence": 0.78,
-                "title": "Camera detail is soft",
-                "action": "Check focus, vibration, condensation, and lens obstruction.",
-                "rationale": "Edge strength is low in the latest snapshot.",
-                "metrics": {"brightness": round(brightness, 1), "edge_strength": round(edge_strength, 1)},
-            })
-
-        result.update({
-            "status": status_flag,
-            "visual_ok": True,
-            "brightness": round(brightness, 1),
-            "edge_strength": round(edge_strength, 1),
-            "color_balance": color_balance,
-            "summary": summary,
-            "recommendations": recommendations,
-        })
+        )
         return result
     except Exception as exc:
         return {
@@ -275,6 +237,87 @@ def _camera_snapshot() -> Dict[str, Any]:
                 "metrics": {},
             }],
         }
+
+
+def _camera_assessment_from_snapshot(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    lights_state = bool(snapshot.get("lights_on"))
+    brightness = _to_float(snapshot.get("brightness"), 0.0) or 0.0
+    edge_strength = _to_float(snapshot.get("edge_strength"), 0.0) or 0.0
+
+    status_flag = "good"
+    summary = "Camera snapshot looks usable."
+    recommendations: List[Dict[str, Any]] = []
+
+    if brightness < 40:
+        if lights_state:
+            status_flag = "warn"
+            summary = "Camera snapshot is quite dark while the lights are on; plant detail may be hard to judge."
+            recommendations.append({
+                "code": "CAMERA_DARK",
+                "severity": "low",
+                "confidence": 0.83,
+                "title": "Camera image is underexposed",
+                "action": "Check lighting, camera exposure, and lens cleanliness before relying on visual assessment.",
+                "rationale": "Mean brightness is low while the lights relay is on.",
+                "metrics": {"brightness": round(brightness, 1), "edge_strength": round(edge_strength, 1), "lights_on": lights_state},
+            })
+        else:
+            status_flag = "info"
+            summary = "Camera image is dark because the grow lights are off; that is expected after lights-out."
+            recommendations.append({
+                "code": "CAMERA_LIGHTS_OFF",
+                "severity": "info",
+                "confidence": 0.96,
+                "title": "Dark camera image is expected with lights off",
+                "action": "Use the next lights-on window for visual assessment.",
+                "rationale": "The lights relay is off, so a dark snapshot is expected.",
+                "metrics": {"brightness": round(brightness, 1), "edge_strength": round(edge_strength, 1), "lights_on": lights_state},
+            })
+    elif brightness > 210:
+        status_flag = "warn"
+        summary = "Camera snapshot is very bright; highlights may be clipping."
+        recommendations.append({
+            "code": "CAMERA_BRIGHT",
+            "severity": "low",
+            "confidence": 0.82,
+            "title": "Camera image is overexposed",
+            "action": "Reduce exposure or adjust lighting so leaf detail remains visible.",
+            "rationale": "Mean brightness is high in the latest snapshot.",
+            "metrics": {"brightness": round(brightness, 1), "edge_strength": round(edge_strength, 1), "lights_on": lights_state},
+        })
+
+    if edge_strength < 6.0:
+        if lights_state:
+            status_flag = "warn" if status_flag == "good" else status_flag
+            summary = "Camera detail is low; image may be soft or out of focus."
+            recommendations.append({
+                "code": "CAMERA_SOFT",
+                "severity": "low",
+                "confidence": 0.78,
+                "title": "Camera detail is soft",
+                "action": "Check focus, vibration, condensation, and lens obstruction.",
+                "rationale": "Edge strength is low while the lights relay is on.",
+                "metrics": {"brightness": round(brightness, 1), "edge_strength": round(edge_strength, 1), "lights_on": lights_state},
+            })
+        elif status_flag == "good":
+            status_flag = "info"
+            summary = "Camera detail is low while the lights are off; that is expected and not a camera fault."
+            recommendations.append({
+                "code": "CAMERA_EXPECTED_DARK",
+                "severity": "info",
+                "confidence": 0.96,
+                "title": "Low detail is expected when lights are off",
+                "action": "Reassess camera detail after lights-on.",
+                "rationale": "Edge strength is low because the grow area is unlit.",
+                "metrics": {"brightness": round(brightness, 1), "edge_strength": round(edge_strength, 1), "lights_on": lights_state},
+            })
+
+    return {
+        "status": status_flag,
+        "visual_ok": True,
+        "summary": summary,
+        "recommendations": recommendations,
+    }
 
 
 def _recommend(code: str, severity: str, confidence: float, title: str, action: str, rationale: str, metrics: Optional[Dict[str, Any]] = None, source: str = "overview") -> Dict[str, Any]:

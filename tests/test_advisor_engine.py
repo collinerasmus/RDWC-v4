@@ -148,3 +148,25 @@ def test_camera_assessor_flags_dark_snapshot(monkeypatch, tmp_path):
 
     assert assessor["status"] == "warn"
     assert assessor["recommendations"][0]["code"] == "CAMERA_DARK"
+
+
+def test_camera_snapshot_treats_dark_image_as_expected_when_lights_off(monkeypatch, tmp_path):
+    advisor, db_path = _load_engine(monkeypatch, tmp_path)
+    _seed_schedule(db_path)
+
+    snapshot = {
+        "available": True,
+        "mode": "libcamera",
+        "camera_index": 0,
+        "last_error": None,
+        "lights_on": False,
+        "brightness": 2.0,
+        "edge_strength": 1.5,
+        "color_balance": {"r": 2.0, "g": 2.0, "b": 2.0},
+        "visual_ok": True,
+    }
+
+    assessed = advisor._camera_assessment_from_snapshot(snapshot)
+
+    assert assessed["status"] == "info"
+    assert assessed["recommendations"][0]["code"] == "CAMERA_LIGHTS_OFF"
